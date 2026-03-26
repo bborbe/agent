@@ -28,7 +28,7 @@ test:
 check: lint vet errcheck vulncheck osv-scanner gosec trivy
 
 lint:
-	go run -mod=mod github.com/golangci/golangci-lint/v2/cmd/golangci-lint run --config .golangci.yml ./...
+	go run -mod=mod github.com/golangci/golangci-lint/v2/cmd/golangci-lint run --config $(ROOTDIR)/.golangci.yml ./...
 
 vet:
 	go vet -mod=mod $(shell go list -mod=mod ./... | grep -v /vendor/)
