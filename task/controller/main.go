@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"os"
+	"time"
 
 	libhttp "github.com/bborbe/http"
 	"github.com/bborbe/run"
@@ -15,7 +16,11 @@ import (
 	"github.com/golang/glog"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/bborbe/agent/task/controller/pkg/gitclient"
 )
+
+const vaultLocalPath = "/data/vault"
 
 func main() {
 	app := &application{}
@@ -23,13 +28,24 @@ func main() {
 }
 
 type application struct {
-	SentryDSN   string `required:"true"  arg:"sentry-dsn"   env:"SENTRY_DSN"   usage:"SentryDSN"            display:"length"`
-	SentryProxy string `required:"false" arg:"sentry-proxy" env:"SENTRY_PROXY" usage:"Sentry Proxy"`
-	Listen      string `required:"true"  arg:"listen"       env:"LISTEN"       usage:"address to listen to"`
+	SentryDSN    string        `required:"true"  arg:"sentry-dsn"    env:"SENTRY_DSN"    usage:"SentryDSN"                              display:"length"`
+	SentryProxy  string        `required:"false" arg:"sentry-proxy"  env:"SENTRY_PROXY"  usage:"Sentry Proxy"`
+	Listen       string        `required:"true"  arg:"listen"        env:"LISTEN"        usage:"address to listen to"`
+	GitURL       string        `required:"true"  arg:"git-url"       env:"GIT_URL"       usage:"vault git repository URL"`
+	GitToken     string        `required:"true"  arg:"git-token"     env:"GIT_TOKEN"     usage:"git authentication token"               display:"length"`
+	KafkaBrokers string        `required:"true"  arg:"kafka-brokers" env:"KAFKA_BROKERS" usage:"comma-separated Kafka broker addresses"`
+	GitBranch    string        `required:"false" arg:"git-branch"    env:"GIT_BRANCH"    usage:"git branch to track"                                     default:"main"`
+	PollInterval time.Duration `required:"false" arg:"poll-interval" env:"POLL_INTERVAL" usage:"vault polling interval"                                  default:"60s"`
+	TaskDir      string        `required:"false" arg:"task-dir"      env:"TASK_DIR"      usage:"task directory within vault"                             default:"24 Tasks"`
 }
 
 func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
 	glog.V(1).Infof("agent-task-controller started")
+
+	gitClient := gitclient.NewGitClient(a.GitURL, a.GitToken, vaultLocalPath, a.GitBranch)
+	if err := gitClient.EnsureCloned(ctx); err != nil {
+		return err
+	}
 
 	return service.Run(
 		ctx,

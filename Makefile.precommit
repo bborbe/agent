@@ -40,12 +40,12 @@ vulncheck:
 	go run -mod=mod golang.org/x/vuln/cmd/govulncheck $(shell go list -mod=mod ./... | grep -v /vendor/)
 
 osv-scanner:
-	@if [ -f .osv-scanner.toml ]; then \
+	@if [ -f $(ROOTDIR)/.osv-scanner.toml ]; then \
 		echo "Using .osv-scanner.toml"; \
-		go run -mod=mod github.com/google/osv-scanner/v2/cmd/osv-scanner --config .osv-scanner.toml --recursive .; \
+		go run -mod=mod github.com/google/osv-scanner/v2/cmd/osv-scanner --config $(ROOTDIR)/.osv-scanner.toml --recursive $(ROOTDIR); \
 	else \
 		echo "No config found, running default scan"; \
-		go run -mod=mod github.com/google/osv-scanner/v2/cmd/osv-scanner --recursive .; \
+		go run -mod=mod github.com/google/osv-scanner/v2/cmd/osv-scanner --recursive $(ROOTDIR); \
 	fi
 
 gosec:
