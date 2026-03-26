@@ -3,19 +3,23 @@ module github.com/bborbe/agent
 go 1.26.1
 
 require (
+	github.com/IBM/sarama v1.47.0
 	github.com/bborbe/collection v1.20.7
 	github.com/bborbe/cqrs v0.2.0
 	github.com/bborbe/errors v1.5.8
 	github.com/bborbe/http v1.26.5
+	github.com/bborbe/kafka v1.22.8
 	github.com/bborbe/run v1.9.11
 	github.com/bborbe/sentry v1.9.13
 	github.com/bborbe/service v1.9.7
+	github.com/bborbe/time v1.25.3
 	github.com/bborbe/validation v1.4.9
 	github.com/bborbe/vault-cli v0.50.0
 	github.com/golang/glog v1.2.5
 	github.com/golangci/golangci-lint/v2 v2.11.4
 	github.com/google/addlicense v1.2.0
 	github.com/google/osv-scanner/v2 v2.3.5
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/incu6us/goimports-reviser/v3 v3.12.6
 	github.com/kisielk/errcheck v1.10.0
@@ -66,7 +70,6 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.10.0 // indirect
 	github.com/Djarvur/go-err113 v0.1.1 // indirect
 	github.com/GehirnInc/crypt v0.0.0-20230320061759-8cc1b52080c5 // indirect
-	github.com/IBM/sarama v1.47.0 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Microsoft/hcsshim v0.14.0-rc.1 // indirect
@@ -96,12 +99,10 @@ require (
 	github.com/bazelbuild/buildtools v0.0.0-20260319080235-05d2ebe49b0f // indirect
 	github.com/bborbe/argument/v2 v2.12.10 // indirect
 	github.com/bborbe/k8s v1.13.4 // indirect
-	github.com/bborbe/kafka v1.22.8 // indirect
 	github.com/bborbe/kv v1.19.2 // indirect
 	github.com/bborbe/log v1.6.8 // indirect
 	github.com/bborbe/math v1.3.5 // indirect
 	github.com/bborbe/parse v1.10.8 // indirect
-	github.com/bborbe/time v1.25.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bkielbasa/cyclop v1.2.3 // indirect
 	github.com/blizzy78/varnamelen v0.8.0 // indirect
@@ -227,7 +228,6 @@ require (
 	github.com/google/osv-scalibr v0.4.6-0.20260318175007-ec4239d68fb9 // indirect
 	github.com/google/pprof v0.0.0-20260302011040-a15ffb7f9dcc // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
 	github.com/googleapis/gax-go/v2 v2.19.0 // indirect
 	github.com/gookit/color v1.6.0 // indirect
