@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: ["001"]
+summary: Wired VaultScanner to TaskPublisher via SyncLoop in task/controller, completing the Git-to-Kafka task sync pipeline with concurrent HTTP server and graceful shutdown
+container: agent-003-spec-001-kafka-publish-wiring
+dark-factory-version: v0.67.3-dirty
 created: "2026-03-26T09:00:00Z"
 queued: "2026-03-26T18:33:16Z"
+started: "2026-03-26T19:05:52Z"
+completed: "2026-03-26T19:22:00Z"
 branch: dark-factory/git-to-kafka-task-sync
 ---
 
