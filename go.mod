@@ -3,7 +3,11 @@ module github.com/bborbe/agent
 go 1.26.1
 
 require (
+	github.com/bborbe/collection v1.20.7
 	github.com/bborbe/cqrs v0.2.0
+	github.com/bborbe/errors v1.5.8
+	github.com/bborbe/time v1.25.3
+	github.com/bborbe/validation v1.4.9
 	github.com/golangci/golangci-lint/v2 v2.11.4
 	github.com/google/addlicense v1.2.0
 	github.com/google/osv-scanner/v2 v2.3.5
@@ -80,8 +84,6 @@ require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/bazelbuild/buildtools v0.0.0-20250826111327-4006b543a694 // indirect
-	github.com/bborbe/collection v1.20.7 // indirect
-	github.com/bborbe/errors v1.5.8 // indirect
 	github.com/bborbe/http v1.26.5 // indirect
 	github.com/bborbe/k8s v1.13.4 // indirect
 	github.com/bborbe/kafka v1.22.8 // indirect
@@ -91,8 +93,6 @@ require (
 	github.com/bborbe/parse v1.10.8 // indirect
 	github.com/bborbe/run v1.9.11 // indirect
 	github.com/bborbe/sentry v1.9.13 // indirect
-	github.com/bborbe/time v1.25.3 // indirect
-	github.com/bborbe/validation v1.4.9 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bkielbasa/cyclop v1.2.3 // indirect
 	github.com/blizzy78/varnamelen v0.8.0 // indirect
