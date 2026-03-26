@@ -11,12 +11,23 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
+	"github.com/onsi/gomega/gexec"
 )
+
+var _ = Describe("Main", func() {
+	It("Compiles", func() {
+		var err error
+		_, err = gexec.Build("github.com/bborbe/agent/task/controller", "-mod=mod")
+		Expect(err).NotTo(HaveOccurred())
+	})
+})
 
 //go:generate go run -mod=mod github.com/maxbrunsfeld/counterfeiter/v6 -generate
 func TestSuite(t *testing.T) {
 	time.Local = time.UTC
 	format.TruncatedDiff = false
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Test Suite")
+	suiteConfig, reporterConfig := GinkgoConfiguration()
+	suiteConfig.Timeout = 60 * time.Second
+	RunSpecs(t, "Test Suite", suiteConfig, reporterConfig)
 }

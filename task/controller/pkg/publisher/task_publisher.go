@@ -6,14 +6,11 @@ package publisher
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
-	"github.com/IBM/sarama"
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/cqrs/cdb"
 	"github.com/bborbe/errors"
-	libkafka "github.com/bborbe/kafka"
 	libtime "github.com/bborbe/time"
 	"github.com/google/uuid"
 
@@ -30,21 +27,20 @@ type TaskPublisher interface {
 	PublishDeleted(ctx context.Context, id lib.TaskIdentifier) error
 }
 
-// NewTaskPublisher creates a TaskPublisher that sends events to Kafka.
+// NewTaskPublisher creates a TaskPublisher that sends events via EventObjectSender.
 func NewTaskPublisher(
-	syncProducer libkafka.SyncProducer,
+	eventObjectSender cdb.EventObjectSender,
 	schemaID cdb.SchemaID,
-	branch string,
 ) TaskPublisher {
 	return &taskPublisher{
-		syncProducer: syncProducer,
-		topic:        string(schemaID.EventTopic(base.Branch(branch))),
+		eventObjectSender: eventObjectSender,
+		schemaID:          schemaID,
 	}
 }
 
 type taskPublisher struct {
-	syncProducer libkafka.SyncProducer
-	topic        string
+	eventObjectSender cdb.EventObjectSender
+	schemaID          cdb.SchemaID
 }
 
 func (p *taskPublisher) PublishChanged(ctx context.Context, task lib.Task) error {
@@ -54,28 +50,25 @@ func (p *taskPublisher) PublishChanged(ctx context.Context, task lib.Task) error
 		Created:    now,
 		Modified:   now,
 	}
-	jsonBytes, err := json.Marshal(task)
+	event, err := base.ParseEvent(ctx, task)
 	if err != nil {
-		return errors.Wrapf(ctx, err, "publish changed task %s failed", task.TaskIdentifier)
+		return errors.Wrapf(ctx, err, "parse event for task %s failed", task.TaskIdentifier)
 	}
-	msg := &sarama.ProducerMessage{
-		Topic: p.topic,
-		Key:   sarama.ByteEncoder(task.TaskIdentifier.Bytes()),
-		Value: sarama.ByteEncoder(jsonBytes),
-	}
-	if _, _, err := p.syncProducer.SendMessage(ctx, msg); err != nil {
+	if err := p.eventObjectSender.SendUpdate(ctx, cdb.EventObject{
+		Event:    event,
+		ID:       base.EventID(task.TaskIdentifier),
+		SchemaID: p.schemaID,
+	}); err != nil {
 		return errors.Wrapf(ctx, err, "publish changed task %s failed", task.TaskIdentifier)
 	}
 	return nil
 }
 
 func (p *taskPublisher) PublishDeleted(ctx context.Context, id lib.TaskIdentifier) error {
-	msg := &sarama.ProducerMessage{
-		Topic: p.topic,
-		Key:   sarama.ByteEncoder(id.Bytes()),
-		Value: nil,
-	}
-	if _, _, err := p.syncProducer.SendMessage(ctx, msg); err != nil {
+	if err := p.eventObjectSender.SendDelete(ctx, cdb.EventObject{
+		ID:       base.EventID(id),
+		SchemaID: p.schemaID,
+	}); err != nil {
 		return errors.Wrapf(ctx, err, "publish deleted task %s failed", id)
 	}
 	return nil

@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.4.0
+
+- feat: refactor TaskPublisher to use CQRS EventObjectSender stack (SyncProducer → JSONSender → EventObjectSender) matching trading best practices
+- feat: add K8s deployment manifests for task/controller (StatefulSet with PVC, Service, Secret with teamvault)
+- feat: add shared K8s infra (Makefile.k8s, Makefile.env, env files) for make apply workflow
+- chore: align test suites with GinkgoConfiguration + 60s timeout, add gexec compile test to main_test.go
+
 ## v0.3.1
 
 - chore: verify all tests pass, linting succeeds, and precommit checks are green

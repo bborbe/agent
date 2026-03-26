@@ -6,12 +6,11 @@ package publisher_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
-	"github.com/IBM/sarama"
+	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/cqrs/cdb"
-	kafkamocks "github.com/bborbe/kafka/mocks"
+	cqrsmocks "github.com/bborbe/cqrs/mocks"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -21,28 +20,26 @@ import (
 
 var _ = Describe("TaskPublisher", func() {
 	var (
-		ctx          context.Context
-		fakeProducer *kafkamocks.KafkaSyncProducer
-		schemaID     cdb.SchemaID
-		branch       string
-		tp           publisher.TaskPublisher
+		ctx        context.Context
+		fakeSender *cqrsmocks.CDBEventObjectSender
+		schemaID   cdb.SchemaID
+		tp         publisher.TaskPublisher
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		fakeProducer = &kafkamocks.KafkaSyncProducer{}
+		fakeSender = &cqrsmocks.CDBEventObjectSender{}
 		schemaID = cdb.SchemaID{
 			Group:   "agent",
 			Kind:    "task",
 			Version: "v1",
 		}
-		branch = "main"
-		tp = publisher.NewTaskPublisher(fakeProducer, schemaID, branch)
+		tp = publisher.NewTaskPublisher(fakeSender, schemaID)
 	})
 
 	Describe("PublishChanged", func() {
-		It("sends a message with the correct topic, key, and valid JSON value", func() {
-			fakeProducer.SendMessageReturns(0, 0, nil)
+		It("calls SendUpdate with correct EventObject", func() {
+			fakeSender.SendUpdateReturns(nil)
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("24 Tasks/test.md"),
 				Name:           lib.TaskName("test"),
@@ -51,24 +48,16 @@ var _ = Describe("TaskPublisher", func() {
 
 			err := tp.PublishChanged(ctx, task)
 			Expect(err).To(BeNil())
-			Expect(fakeProducer.SendMessageCallCount()).To(Equal(1))
+			Expect(fakeSender.SendUpdateCallCount()).To(Equal(1))
 
-			_, msg := fakeProducer.SendMessageArgsForCall(0)
-			Expect(msg.Topic).To(Equal("main-agent-task-v1-event"))
-			msgKey, ok := msg.Key.(sarama.ByteEncoder)
-			Expect(ok).To(BeTrue())
-			Expect([]byte(msgKey)).To(Equal(task.TaskIdentifier.Bytes()))
-
-			msgValue, ok := msg.Value.(sarama.ByteEncoder)
-			Expect(ok).To(BeTrue())
-			var decoded lib.Task
-			Expect(json.Unmarshal(msgValue, &decoded)).To(BeNil())
-			Expect(decoded.TaskIdentifier).To(Equal(task.TaskIdentifier))
-			Expect(decoded.Object.Identifier).NotTo(BeEmpty())
+			_, eventObject := fakeSender.SendUpdateArgsForCall(0)
+			Expect(eventObject.SchemaID).To(Equal(schemaID))
+			Expect(eventObject.ID).To(Equal(base.EventID("24 Tasks/test.md")))
+			Expect(eventObject.Event).NotTo(BeNil())
 		})
 
-		It("returns an error when SendMessage fails", func() {
-			fakeProducer.SendMessageReturns(0, 0, errors.New("kafka down"))
+		It("returns an error when SendUpdate fails", func() {
+			fakeSender.SendUpdateReturns(errors.New("kafka down"))
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("24 Tasks/test.md"),
 			}
@@ -79,24 +68,21 @@ var _ = Describe("TaskPublisher", func() {
 	})
 
 	Describe("PublishDeleted", func() {
-		It("sends a tombstone message with nil value and correct topic and key", func() {
-			fakeProducer.SendMessageReturns(0, 0, nil)
+		It("calls SendDelete with correct EventObject", func() {
+			fakeSender.SendDeleteReturns(nil)
 			id := lib.TaskIdentifier("24 Tasks/deleted.md")
 
 			err := tp.PublishDeleted(ctx, id)
 			Expect(err).To(BeNil())
-			Expect(fakeProducer.SendMessageCallCount()).To(Equal(1))
+			Expect(fakeSender.SendDeleteCallCount()).To(Equal(1))
 
-			_, msg := fakeProducer.SendMessageArgsForCall(0)
-			Expect(msg.Topic).To(Equal("main-agent-task-v1-event"))
-			msgKey, ok := msg.Key.(sarama.ByteEncoder)
-			Expect(ok).To(BeTrue())
-			Expect([]byte(msgKey)).To(Equal(id.Bytes()))
-			Expect(msg.Value).To(BeNil())
+			_, eventObject := fakeSender.SendDeleteArgsForCall(0)
+			Expect(eventObject.SchemaID).To(Equal(schemaID))
+			Expect(eventObject.ID).To(Equal(base.EventID("24 Tasks/deleted.md")))
 		})
 
-		It("returns an error when SendMessage fails", func() {
-			fakeProducer.SendMessageReturns(0, 0, errors.New("kafka down"))
+		It("returns an error when SendDelete fails", func() {
+			fakeSender.SendDeleteReturns(errors.New("kafka down"))
 			id := lib.TaskIdentifier("24 Tasks/deleted.md")
 
 			err := tp.PublishDeleted(ctx, id)

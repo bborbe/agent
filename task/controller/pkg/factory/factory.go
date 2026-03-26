@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/bborbe/cqrs/cdb"
-	libkafka "github.com/bborbe/kafka"
 
+	"github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/task/controller/pkg/gitclient"
 	"github.com/bborbe/agent/task/controller/pkg/publisher"
 	"github.com/bborbe/agent/task/controller/pkg/scanner"
@@ -21,11 +21,9 @@ func CreateSyncLoop(
 	gitClient gitclient.GitClient,
 	taskDir string,
 	pollInterval time.Duration,
-	syncProducer libkafka.SyncProducer,
-	schemaID cdb.SchemaID,
-	branch string,
+	eventObjectSender cdb.EventObjectSender,
 ) pkgsync.SyncLoop {
 	vaultScanner := scanner.NewVaultScanner(gitClient, taskDir, pollInterval)
-	taskPublisher := publisher.NewTaskPublisher(syncProducer, schemaID, branch)
+	taskPublisher := publisher.NewTaskPublisher(eventObjectSender, lib.TaskV1SchemaID)
 	return pkgsync.NewSyncLoop(vaultScanner, taskPublisher)
 }

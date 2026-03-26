@@ -9,8 +9,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/bborbe/cqrs/base"
+	"github.com/bborbe/cqrs/cdb"
 	libhttp "github.com/bborbe/http"
 	libkafka "github.com/bborbe/kafka"
+	"github.com/bborbe/log"
 	"github.com/bborbe/run"
 	libsentry "github.com/bborbe/sentry"
 	"github.com/bborbe/service"
@@ -18,7 +21,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/task/controller/pkg/factory"
 	"github.com/bborbe/agent/task/controller/pkg/gitclient"
 )
@@ -59,13 +61,17 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	}
 	defer syncProducer.Close()
 
+	eventObjectSender := cdb.NewEventObjectSender(
+		libkafka.NewJSONSender(syncProducer, log.DefaultSamplerFactory),
+		base.Branch(a.GitBranch),
+		log.DefaultSamplerFactory,
+	)
+
 	syncLoop := factory.CreateSyncLoop(
 		gitClient,
 		a.TaskDir,
 		a.PollInterval,
-		syncProducer,
-		lib.TaskV1SchemaID,
-		a.GitBranch,
+		eventObjectSender,
 	)
 
 	return service.Run(

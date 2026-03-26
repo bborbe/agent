@@ -3,12 +3,12 @@ module github.com/bborbe/agent
 go 1.26.1
 
 require (
-	github.com/IBM/sarama v1.47.0
 	github.com/bborbe/collection v1.20.7
 	github.com/bborbe/cqrs v0.2.0
 	github.com/bborbe/errors v1.5.8
 	github.com/bborbe/http v1.26.5
 	github.com/bborbe/kafka v1.22.8
+	github.com/bborbe/log v1.6.8
 	github.com/bborbe/run v1.9.11
 	github.com/bborbe/sentry v1.9.13
 	github.com/bborbe/service v1.9.7
@@ -70,6 +70,7 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.10.0 // indirect
 	github.com/Djarvur/go-err113 v0.1.1 // indirect
 	github.com/GehirnInc/crypt v0.0.0-20230320061759-8cc1b52080c5 // indirect
+	github.com/IBM/sarama v1.47.0 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Microsoft/hcsshim v0.14.0-rc.1 // indirect
@@ -100,7 +101,6 @@ require (
 	github.com/bborbe/argument/v2 v2.12.10 // indirect
 	github.com/bborbe/k8s v1.13.4 // indirect
 	github.com/bborbe/kv v1.19.2 // indirect
-	github.com/bborbe/log v1.6.8 // indirect
 	github.com/bborbe/math v1.3.5 // indirect
 	github.com/bborbe/parse v1.10.8 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
