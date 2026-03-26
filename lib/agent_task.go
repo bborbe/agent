@@ -7,27 +7,27 @@ package lib
 import (
 	"context"
 
-	libtime "github.com/bborbe/time"
+	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/validation"
 )
 
 // Task represents an agent task managed via CQRS over Kafka.
+// base.Object provides event-level Identifier, Created, Modified.
+// TaskIdentifier is the business key for this task.
 type Task struct {
-	Identifier   TaskIdentifier   `json:"identifier"`
-	Created      libtime.DateTime `json:"created"`
-	Modified     libtime.DateTime `json:"modified"`
-	Name         string           `json:"name"`
-	Status       TaskStatus       `json:"status"`
-	Assignee     TaskAssignee     `json:"assignee"`
-	Content      string           `json:"content"`
-	ExecutionLog ExecutionLog     `json:"executionLog,omitempty"`
+	base.Object[base.Identifier]
+	TaskIdentifier TaskIdentifier `json:"taskIdentifier"`
+	Name           string         `json:"name"`
+	Status         TaskStatus     `json:"status"`
+	Assignee       TaskAssignee   `json:"assignee"`
+	Content        string         `json:"content"`
+	ExecutionLog   ExecutionLog   `json:"executionLog,omitempty"`
 }
 
 func (t Task) Validate(ctx context.Context) error {
 	return validation.All{
-		validation.Name("Identifier", t.Identifier),
-		validation.Name("Created", t.Created),
-		validation.Name("Modified", t.Modified),
+		validation.Name("Object", t.Object),
+		validation.Name("TaskIdentifier", t.TaskIdentifier),
 		validation.Name("Status", t.Status),
 		validation.Name("Assignee", t.Assignee),
 	}.Validate(ctx)
