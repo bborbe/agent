@@ -23,7 +23,6 @@ type Task struct {
 	Phase          *domain.TaskPhase `json:"phase,omitempty"`
 	Assignee       TaskAssignee    `json:"assignee"`
 	Content        TaskContent     `json:"content"`
-	ExecutionLog   ExecutionLog    `json:"executionLog,omitempty"`
 }
 
 func (t Task) Validate(ctx context.Context) error {

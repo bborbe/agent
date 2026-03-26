@@ -21,7 +21,6 @@ type Prompt struct {
 	Assignee         TaskAssignee      `json:"assignee"`
 	Instruction      string            `json:"instruction"`
 	Parameters       map[string]string `json:"parameters,omitempty"`
-	ExecutionLog     ExecutionLog      `json:"executionLog,omitempty"`
 }
 
 func (p Prompt) Validate(ctx context.Context) error {
