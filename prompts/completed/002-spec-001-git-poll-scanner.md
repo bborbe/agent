@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: ["001"]
+summary: Implemented VaultScanner service in task/controller with git-poll-and-scan loop, sha256 content hashing, YAML frontmatter parsing, and ScanResult event emission; tests at 89.5% coverage; mocks generated
+container: agent-002-spec-001-git-poll-scanner
+dark-factory-version: v0.67.3-dirty
 created: "2026-03-26T09:00:00Z"
 queued: "2026-03-26T18:33:16Z"
+started: "2026-03-26T18:49:53Z"
+completed: "2026-03-26T19:05:49Z"
 branch: dark-factory/git-to-kafka-task-sync
 ---
 
