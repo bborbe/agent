@@ -27,6 +27,7 @@ require (
 	github.com/segmentio/golines v0.13.0
 	github.com/shoenig/go-modtool v0.7.1
 	golang.org/x/vuln v1.1.4
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -460,7 +461,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.7.0 // indirect
 	k8s.io/api v0.35.3 // indirect
 	k8s.io/apiextensions-apiserver v0.35.3 // indirect
