@@ -16,9 +16,9 @@ import (
 // PromptIdentifier is the business key for this prompt.
 type Prompt struct {
 	base.Object[base.Identifier]
-	PromptIdentifier PromptIdentifier `json:"promptIdentifier"`
-	TaskIdentifier   TaskIdentifier   `json:"taskIdentifier"`
-	Assignee         TaskAssignee     `json:"assignee"`
+	PromptIdentifier PromptIdentifier  `json:"promptIdentifier"`
+	TaskIdentifier   TaskIdentifier    `json:"taskIdentifier"`
+	Assignee         TaskAssignee      `json:"assignee"`
 	Instruction      PromptInstruction `json:"instruction"`
 	Parameters       PromptParameters  `json:"parameters,omitempty"`
 }

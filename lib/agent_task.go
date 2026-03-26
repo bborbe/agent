@@ -17,12 +17,12 @@ import (
 // TaskIdentifier is the business key for this task.
 type Task struct {
 	base.Object[base.Identifier]
-	TaskIdentifier TaskIdentifier  `json:"taskIdentifier"`
-	Name           TaskName        `json:"name"`
+	TaskIdentifier TaskIdentifier    `json:"taskIdentifier"`
+	Name           TaskName          `json:"name"`
 	Status         domain.TaskStatus `json:"status"`
 	Phase          *domain.TaskPhase `json:"phase,omitempty"`
-	Assignee       TaskAssignee    `json:"assignee"`
-	Content        TaskContent     `json:"content"`
+	Assignee       TaskAssignee      `json:"assignee"`
+	Content        TaskContent       `json:"content"`
 }
 
 func (t Task) Validate(ctx context.Context) error {
