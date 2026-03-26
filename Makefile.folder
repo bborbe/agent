@@ -1,0 +1,102 @@
+DIRS += $(shell find */* -maxdepth 0 -name Makefile -exec dirname "{}" \;)
+
+default: precommit
+
+.PHONY: precommit
+precommit:
+	@for i in $(DIRS); do \
+		cd $$i; \
+		echo "precommit $${i}"; \
+		make precommit; \
+		cd ..; \
+	done
+
+.PHONY: ensure
+ensure:
+	@for i in $(DIRS); do \
+		cd $$i; \
+		echo "ensure $${i}"; \
+		make ensure; \
+		cd ..; \
+	done
+
+.PHONY: test
+test:
+	@for i in $(DIRS); do \
+		cd $$i; \
+		echo "test $${i}"; \
+		make test; \
+		cd ..; \
+	done
+
+.PHONY: apply
+apply:
+	@for i in $(DIRS); do \
+		cd $$i; \
+		echo "apply $${i}"; \
+		make apply; \
+		cd ..; \
+	done
+
+.PHONY: format
+format:
+	@for i in $(DIRS); do \
+		cd $$i; \
+		echo "format $${i}"; \
+		make format; \
+		cd ..; \
+	done
+
+.PHONY: lint
+lint:
+	@for i in $(DIRS); do \
+		cd $$i; \
+		echo "lint $${i}"; \
+		make lint; \
+		cd ..; \
+	done
+
+.PHONY: check
+check:
+	@for i in $(DIRS); do \
+		cd $$i; \
+		echo "check $${i}"; \
+		make check; \
+		cd ..; \
+	done
+
+.PHONY: build
+build:
+	@for i in $(DIRS); do \
+		cd $$i; \
+		echo "build $${i}"; \
+		make build; \
+		cd ..; \
+	done
+
+.PHONY: upload
+upload:
+	@for i in $(DIRS); do \
+		cd $$i; \
+		echo "upload $${i}"; \
+		make upload; \
+		cd ..; \
+	done
+
+.PHONY: clean
+clean:
+	@for i in $(DIRS); do \
+		cd $$i; \
+		echo "clean $${i}"; \
+		make clean; \
+		cd ..; \
+	done
+
+.PHONY: buca
+buca:
+	@for i in $(DIRS); do \
+		cd $$i; \
+		echo "buca $${i}"; \
+		make buca; \
+		cd ..; \
+	done
