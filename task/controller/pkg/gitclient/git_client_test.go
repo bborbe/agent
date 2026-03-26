@@ -61,7 +61,6 @@ var _ = Describe("GitClient", func() {
 		BeforeEach(func() {
 			client = gitclient.NewGitClient(
 				"https://github.com/owner/repo.git",
-				"token",
 				localPath,
 				"main",
 			)
@@ -75,7 +74,7 @@ var _ = Describe("GitClient", func() {
 	Describe("EnsureCloned", func() {
 		Context("when localPath does not exist", func() {
 			BeforeEach(func() {
-				client = gitclient.NewGitClient(remoteDir, "", localPath, branch)
+				client = gitclient.NewGitClient(remoteDir, localPath, branch)
 			})
 
 			It("clones the repository", func() {
@@ -88,7 +87,7 @@ var _ = Describe("GitClient", func() {
 
 		Context("when localPath exists and is a valid git repo", func() {
 			BeforeEach(func() {
-				client = gitclient.NewGitClient(remoteDir, "", localPath, branch)
+				client = gitclient.NewGitClient(remoteDir, localPath, branch)
 				err := client.EnsureCloned(ctx)
 				Expect(err).To(BeNil())
 			})
@@ -103,7 +102,7 @@ var _ = Describe("GitClient", func() {
 			BeforeEach(func() {
 				err := os.MkdirAll(localPath, 0750)
 				Expect(err).To(BeNil())
-				client = gitclient.NewGitClient(remoteDir, "", localPath, branch)
+				client = gitclient.NewGitClient(remoteDir, localPath, branch)
 			})
 
 			It("returns an error", func() {
@@ -115,7 +114,7 @@ var _ = Describe("GitClient", func() {
 
 	Describe("Pull", func() {
 		BeforeEach(func() {
-			client = gitclient.NewGitClient(remoteDir, "", localPath, branch)
+			client = gitclient.NewGitClient(remoteDir, localPath, branch)
 			err := client.EnsureCloned(ctx)
 			Expect(err).To(BeNil())
 		})

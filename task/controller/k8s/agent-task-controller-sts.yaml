@@ -52,14 +52,11 @@ spec:
             - name: KAFKA_BROKERS
               value: '{{ "KAFKA_BROKERS" | env }}'
             - name: GIT_BRANCH
-              value: '{{ "BRANCH" | env }}'
+              value: '{{ "GIT_BRANCH" | env }}'
             - name: GIT_URL
               value: '{{ "GIT_URL" | env }}'
-            - name: GIT_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  key: git-token
-                  name: agent-task-controller
+            - name: GIT_SSH_COMMAND
+              value: 'ssh -i /ssh/id_ed25519 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null'
             - name: POLL_INTERVAL
               value: '60s'
             - name: TASK_DIR
@@ -95,8 +92,19 @@ spec:
           volumeMounts:
             - mountPath: /data
               name: datadir
+            - mountPath: /ssh
+              name: ssh-key
+              readOnly: true
       imagePullSecrets:
         - name: docker
+      volumes:
+        - name: ssh-key
+          secret:
+            secretName: agent-task-controller
+            defaultMode: 0600
+            items:
+              - key: git-ssh-key
+                path: id_ed25519
   updateStrategy:
     type: RollingUpdate
   volumeClaimTemplates:

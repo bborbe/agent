@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.5.0
+
+- feat: switch git auth from token to SSH key mounted as K8s secret volume
+- feat: migrate to per-service go.mod with replace directives for shared lib (matching trading monorepo pattern)
+- feat: decouple GIT_BRANCH from BRANCH env var for independent vault repo branch control
+- fix: update .gitignore to match trading pattern (vendor without prefix for per-service dirs)
+- fix: osv-scanner scans current dir instead of ROOTDIR to avoid vendor false positives
+
 ## v0.4.0
 
 - feat: refactor TaskPublisher to use CQRS EventObjectSender stack (SyncProducer → JSONSender → EventObjectSender) matching trading best practices

@@ -6,8 +6,6 @@ package gitclient
 
 import (
 	"context"
-	"fmt"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,31 +24,18 @@ type GitClient interface {
 }
 
 type gitClient struct {
-	authURL   string
+	gitURL    string
 	localPath string
 	branch    string
 }
 
 // NewGitClient creates a GitClient that uses the git binary via subprocess.
-func NewGitClient(gitURL string, gitToken string, localPath string, branch string) GitClient {
-	authURL := buildAuthURL(gitURL, gitToken)
+func NewGitClient(gitURL string, localPath string, branch string) GitClient {
 	return &gitClient{
-		authURL:   authURL,
+		gitURL:    gitURL,
 		localPath: localPath,
 		branch:    branch,
 	}
-}
-
-func buildAuthURL(gitURL string, gitToken string) string {
-	if gitToken == "" {
-		return gitURL
-	}
-	u, err := url.Parse(gitURL)
-	if err != nil || u.Scheme == "" {
-		return fmt.Sprintf("https://x-access-token:%s@%s", gitToken, gitURL)
-	}
-	u.User = url.UserPassword("x-access-token", gitToken)
-	return u.String()
 }
 
 func (g *gitClient) EnsureCloned(ctx context.Context) error {
@@ -65,7 +50,7 @@ func (g *gitClient) EnsureCloned(ctx context.Context) error {
 			"--branch",
 			g.branch,
 			"--single-branch",
-			g.authURL,
+			g.gitURL,
 			g.localPath,
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {

@@ -130,7 +130,9 @@ func (v *vaultScanner) collectDeleted(seen map[string]struct{}) []lib.TaskIdenti
 }
 
 func (v *vaultScanner) parseTask(ctx context.Context, absPath, relPath string) *lib.Task {
-	content, err := os.ReadFile(absPath)
+	content, err := os.ReadFile(
+		absPath,
+	) // #nosec G304 -- absPath from trusted git clone + filepath.Walk
 	if err != nil {
 		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, err)
 		return nil
