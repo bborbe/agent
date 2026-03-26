@@ -9,6 +9,7 @@ import (
 
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/validation"
+	"github.com/bborbe/vault-cli/pkg/domain"
 )
 
 // Task represents an agent task managed via CQRS over Kafka.
@@ -16,12 +17,13 @@ import (
 // TaskIdentifier is the business key for this task.
 type Task struct {
 	base.Object[base.Identifier]
-	TaskIdentifier TaskIdentifier `json:"taskIdentifier"`
-	Name           string         `json:"name"`
-	Status         TaskStatus     `json:"status"`
-	Assignee       TaskAssignee   `json:"assignee"`
-	Content        string         `json:"content"`
-	ExecutionLog   ExecutionLog   `json:"executionLog,omitempty"`
+	TaskIdentifier TaskIdentifier  `json:"taskIdentifier"`
+	Name           TaskName        `json:"name"`
+	Status         domain.TaskStatus `json:"status"`
+	Phase          *domain.TaskPhase `json:"phase,omitempty"`
+	Assignee       TaskAssignee    `json:"assignee"`
+	Content        TaskContent     `json:"content"`
+	ExecutionLog   ExecutionLog    `json:"executionLog,omitempty"`
 }
 
 func (t Task) Validate(ctx context.Context) error {

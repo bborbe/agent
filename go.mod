@@ -8,6 +8,7 @@ require (
 	github.com/bborbe/errors v1.5.8
 	github.com/bborbe/time v1.25.3
 	github.com/bborbe/validation v1.4.9
+	github.com/bborbe/vault-cli v0.50.0
 	github.com/golangci/golangci-lint/v2 v2.11.4
 	github.com/google/addlicense v1.2.0
 	github.com/google/osv-scanner/v2 v2.3.5
