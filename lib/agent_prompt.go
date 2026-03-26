@@ -16,11 +16,11 @@ import (
 // PromptIdentifier is the business key for this prompt.
 type Prompt struct {
 	base.Object[base.Identifier]
-	PromptIdentifier PromptIdentifier  `json:"promptIdentifier"`
-	TaskIdentifier   TaskIdentifier    `json:"taskIdentifier"`
-	Assignee         TaskAssignee      `json:"assignee"`
-	Instruction      string            `json:"instruction"`
-	Parameters       map[string]string `json:"parameters,omitempty"`
+	PromptIdentifier PromptIdentifier `json:"promptIdentifier"`
+	TaskIdentifier   TaskIdentifier   `json:"taskIdentifier"`
+	Assignee         TaskAssignee     `json:"assignee"`
+	Instruction      PromptInstruction `json:"instruction"`
+	Parameters       PromptParameters  `json:"parameters,omitempty"`
 }
 
 func (p Prompt) Validate(ctx context.Context) error {
@@ -29,6 +29,7 @@ func (p Prompt) Validate(ctx context.Context) error {
 		validation.Name("PromptIdentifier", p.PromptIdentifier),
 		validation.Name("TaskIdentifier", p.TaskIdentifier),
 		validation.Name("Assignee", p.Assignee),
+		validation.Name("Instruction", p.Instruction),
 	}.Validate(ctx)
 }
 
@@ -42,8 +43,8 @@ type PromptResult struct {
 	PromptIdentifier PromptIdentifier `json:"promptIdentifier"`
 	TaskIdentifier   TaskIdentifier   `json:"taskIdentifier"`
 	Status           PromptStatus     `json:"status"`
-	Output           string           `json:"output,omitempty"`
-	Message          string           `json:"message,omitempty"`
+	Output           PromptOutput     `json:"output,omitempty"`
+	Message          PromptMessage    `json:"message,omitempty"`
 	Links            []string         `json:"links,omitempty"`
 }
 
