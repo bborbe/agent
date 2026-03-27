@@ -25,7 +25,7 @@ Read CLAUDE.md for project conventions.
 Key files to read before making changes:
 - `task/controller/pkg/scanner/vault_scanner.go` — the file to modify; read it fully before touching it
 - `task/controller/pkg/scanner/vault_scanner_test.go` — read all existing tests; several must be updated
-- `task/controller/pkg/gitclient/git_client.go` — `GitClient` interface now has `CommitAndPush` (added in prompt 1)
+- `task/controller/pkg/gitclient/git_client.go` — `GitClient` interface; must have `CommitAndPush` method (added by prompt spec-002-gitclient-commit-push, which must run first)
 - `lib/agent_task.go` — `lib.Task` struct (frozen — do not modify)
 - `lib/agent_task-identifier.go` — `lib.TaskIdentifier` type (frozen — do not modify)
 </context>
