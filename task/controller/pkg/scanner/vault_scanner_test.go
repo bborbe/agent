@@ -50,6 +50,7 @@ var _ = Describe("VaultScanner", func() {
 		tmpDir  string
 		taskDir string
 		fakeGit *testGitClient
+		results chan ScanResult
 	)
 
 	BeforeEach(func() {
@@ -62,12 +63,12 @@ var _ = Describe("VaultScanner", func() {
 		mustInitGitRepo(tmpDir)
 
 		fakeGit = &testGitClient{path: tmpDir}
+		results = make(chan ScanResult, 1)
 
 		s = &vaultScanner{
 			gitClient:    fakeGit,
 			taskDir:      taskDir,
 			pollInterval: time.Second,
-			results:      make(chan ScanResult, 1),
 			hashes:       make(map[string][32]byte),
 		}
 	})
@@ -142,20 +143,13 @@ var _ = Describe("VaultScanner", func() {
 		})
 	})
 
-	Describe("Results", func() {
-		It("returns the results channel", func() {
-			ch := s.Results()
-			Expect(ch).NotTo(BeNil())
-		})
-	})
-
 	Describe("Run", func() {
 		It("returns nil when context is cancelled", func() {
 			vs := NewVaultScanner(fakeGit, taskDir, time.Hour)
 			runCtx, cancel := context.WithCancel(ctx)
 			done := make(chan error, 1)
 			go func() {
-				done <- vs.Run(runCtx)
+				done <- vs.Run(runCtx, make(chan ScanResult, 1))
 			}()
 			cancel()
 			Eventually(done, 200*time.Millisecond).Should(Receive(BeNil()))
@@ -168,10 +162,10 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "new-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx)
+			s.runCycle(ctx, results)
 
 			var result ScanResult
-			Expect(s.results).To(Receive(&result))
+			Expect(results).To(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
 			Expect(string(result.Changed[0].Assignee)).To(Equal("claude"))
 		})
@@ -181,14 +175,14 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "stable-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx)
+			s.runCycle(ctx, results)
 			var first ScanResult
-			Expect(s.results).To(Receive(&first))
+			Expect(results).To(Receive(&first))
 			Expect(first.Changed).To(HaveLen(1))
 
-			s.runCycle(ctx)
+			s.runCycle(ctx, results)
 			var second ScanResult
-			Expect(s.results).To(Receive(&second))
+			Expect(results).To(Receive(&second))
 			Expect(second.Changed).To(BeEmpty())
 		})
 
@@ -197,31 +191,31 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "modified-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx)
-			Expect(s.results).To(Receive())
+			s.runCycle(ctx, results)
+			Expect(results).To(Receive())
 
 			updated := "---\nstatus: in_progress\nassignee: claude\n---\n# Updated"
 			Expect(os.WriteFile(absPath, []byte(updated), 0600)).To(Succeed())
 
-			s.runCycle(ctx)
+			s.runCycle(ctx, results)
 			var result ScanResult
-			Expect(s.results).To(Receive(&result))
+			Expect(results).To(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
 			Expect(string(result.Changed[0].Status)).To(Equal("in_progress"))
 		})
 
 		It("drops result when channel is already full", func() {
 			// Pre-fill the results channel (capacity 1)
-			s.results <- ScanResult{}
+			results <- ScanResult{}
 
 			content := "---\nstatus: todo\nassignee: claude\n---\n# Task"
 			absPath := filepath.Join(tmpDir, taskDir, "drop-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
 			// runCycle should not block even though channel is full
-			s.runCycle(ctx)
+			s.runCycle(ctx, results)
 			// drain the pre-filled result (not the one we just tried to send)
-			Expect(s.results).To(Receive())
+			Expect(results).To(Receive())
 		})
 
 		It("skips cycle when git pull fails", func() {
@@ -231,8 +225,8 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "pull-fail.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx)
-			Consistently(s.results, 50*time.Millisecond).ShouldNot(Receive())
+			s.runCycle(ctx, results)
+			Consistently(results, 50*time.Millisecond).ShouldNot(Receive())
 		})
 
 		It("deleted file appears in Deleted on next cycle", func() {
@@ -240,14 +234,14 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "deleted-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx)
-			Expect(s.results).To(Receive())
+			s.runCycle(ctx, results)
+			Expect(results).To(Receive())
 
 			Expect(os.Remove(absPath)).To(Succeed())
 
-			s.runCycle(ctx)
+			s.runCycle(ctx, results)
 			var result ScanResult
-			Expect(s.results).To(Receive(&result))
+			Expect(results).To(Receive(&result))
 			Expect(result.Deleted).To(HaveLen(1))
 			Expect(string(result.Deleted[0])).To(ContainSubstring("deleted-task.md"))
 		})

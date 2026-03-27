@@ -31,16 +31,14 @@ type ScanResult struct {
 //counterfeiter:generate -o ../../mocks/vault_scanner.go --fake-name FakeVaultScanner . VaultScanner
 type VaultScanner interface {
 	// Run starts the polling loop. Blocks until ctx is cancelled.
-	Run(ctx context.Context) error
-	// Results returns a channel that receives ScanResult on each cycle.
-	Results() <-chan ScanResult
+	// Results are sent to the provided channel; the caller owns the channel.
+	Run(ctx context.Context, results chan<- ScanResult) error
 }
 
 type vaultScanner struct {
 	gitClient    gitclient.GitClient
 	taskDir      string
 	pollInterval time.Duration
-	results      chan ScanResult
 	hashes       map[string][32]byte
 }
 
@@ -54,12 +52,11 @@ func NewVaultScanner(
 		gitClient:    gitClient,
 		taskDir:      taskDir,
 		pollInterval: pollInterval,
-		results:      make(chan ScanResult, 1),
 		hashes:       make(map[string][32]byte),
 	}
 }
 
-func (v *vaultScanner) Run(ctx context.Context) error {
+func (v *vaultScanner) Run(ctx context.Context, results chan<- ScanResult) error {
 	ticker := time.NewTicker(v.pollInterval)
 	defer ticker.Stop()
 	for {
@@ -67,20 +64,21 @@ func (v *vaultScanner) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			v.runCycle(ctx)
+			v.runCycle(ctx, results)
 		}
 	}
 }
 
-func (v *vaultScanner) runCycle(ctx context.Context) {
+func (v *vaultScanner) runCycle(ctx context.Context, results chan<- ScanResult) {
 	if err := v.gitClient.Pull(ctx); err != nil {
 		glog.Warningf("git pull failed: %v", err)
 		return
 	}
+	glog.V(3).Infof("git pull succeeded, scanning %s", v.taskDir)
 	changed, deleted := v.scanFiles(ctx)
 	result := ScanResult{Changed: changed, Deleted: deleted}
 	select {
-	case v.results <- result:
+	case results <- result:
 	default:
 	}
 }
@@ -182,8 +180,4 @@ func extractFrontmatter(ctx context.Context, content []byte) (string, error) {
 		return "", errors.Errorf(ctx, "frontmatter not closed")
 	}
 	return rest[:idx], nil
-}
-
-func (v *vaultScanner) Results() <-chan ScanResult {
-	return v.results
 }

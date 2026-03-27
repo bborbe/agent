@@ -9,20 +9,11 @@ import (
 )
 
 type FakeVaultScanner struct {
-	ResultsStub        func() <-chan scanner.ScanResult
-	resultsMutex       sync.RWMutex
-	resultsArgsForCall []struct {
-	}
-	resultsReturns struct {
-		result1 <-chan scanner.ScanResult
-	}
-	resultsReturnsOnCall map[int]struct {
-		result1 <-chan scanner.ScanResult
-	}
-	RunStub        func(context.Context) error
+	RunStub        func(context.Context, chan<- scanner.ScanResult) error
 	runMutex       sync.RWMutex
 	runArgsForCall []struct {
 		arg1 context.Context
+		arg2 chan<- scanner.ScanResult
 	}
 	runReturns struct {
 		result1 error
@@ -34,71 +25,19 @@ type FakeVaultScanner struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeVaultScanner) Results() <-chan scanner.ScanResult {
-	fake.resultsMutex.Lock()
-	ret, specificReturn := fake.resultsReturnsOnCall[len(fake.resultsArgsForCall)]
-	fake.resultsArgsForCall = append(fake.resultsArgsForCall, struct {
-	}{})
-	stub := fake.ResultsStub
-	fakeReturns := fake.resultsReturns
-	fake.recordInvocation("Results", []interface{}{})
-	fake.resultsMutex.Unlock()
-	if stub != nil {
-		return stub()
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeVaultScanner) ResultsCallCount() int {
-	fake.resultsMutex.RLock()
-	defer fake.resultsMutex.RUnlock()
-	return len(fake.resultsArgsForCall)
-}
-
-func (fake *FakeVaultScanner) ResultsCalls(stub func() <-chan scanner.ScanResult) {
-	fake.resultsMutex.Lock()
-	defer fake.resultsMutex.Unlock()
-	fake.ResultsStub = stub
-}
-
-func (fake *FakeVaultScanner) ResultsReturns(result1 <-chan scanner.ScanResult) {
-	fake.resultsMutex.Lock()
-	defer fake.resultsMutex.Unlock()
-	fake.ResultsStub = nil
-	fake.resultsReturns = struct {
-		result1 <-chan scanner.ScanResult
-	}{result1}
-}
-
-func (fake *FakeVaultScanner) ResultsReturnsOnCall(i int, result1 <-chan scanner.ScanResult) {
-	fake.resultsMutex.Lock()
-	defer fake.resultsMutex.Unlock()
-	fake.ResultsStub = nil
-	if fake.resultsReturnsOnCall == nil {
-		fake.resultsReturnsOnCall = make(map[int]struct {
-			result1 <-chan scanner.ScanResult
-		})
-	}
-	fake.resultsReturnsOnCall[i] = struct {
-		result1 <-chan scanner.ScanResult
-	}{result1}
-}
-
-func (fake *FakeVaultScanner) Run(arg1 context.Context) error {
+func (fake *FakeVaultScanner) Run(arg1 context.Context, arg2 chan<- scanner.ScanResult) error {
 	fake.runMutex.Lock()
 	ret, specificReturn := fake.runReturnsOnCall[len(fake.runArgsForCall)]
 	fake.runArgsForCall = append(fake.runArgsForCall, struct {
 		arg1 context.Context
-	}{arg1})
+		arg2 chan<- scanner.ScanResult
+	}{arg1, arg2})
 	stub := fake.RunStub
 	fakeReturns := fake.runReturns
-	fake.recordInvocation("Run", []interface{}{arg1})
+	fake.recordInvocation("Run", []interface{}{arg1, arg2})
 	fake.runMutex.Unlock()
 	if stub != nil {
-		return stub(arg1)
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1
@@ -112,17 +51,17 @@ func (fake *FakeVaultScanner) RunCallCount() int {
 	return len(fake.runArgsForCall)
 }
 
-func (fake *FakeVaultScanner) RunCalls(stub func(context.Context) error) {
+func (fake *FakeVaultScanner) RunCalls(stub func(context.Context, chan<- scanner.ScanResult) error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = stub
 }
 
-func (fake *FakeVaultScanner) RunArgsForCall(i int) context.Context {
+func (fake *FakeVaultScanner) RunArgsForCall(i int) (context.Context, chan<- scanner.ScanResult) {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	argsForCall := fake.runArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *FakeVaultScanner) RunReturns(result1 error) {

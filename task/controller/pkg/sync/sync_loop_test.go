@@ -33,12 +33,20 @@ var _ = Describe("SyncLoop", func() {
 		ctx, cancel = context.WithCancel(context.Background())
 		fakeScanner = &mocks.FakeVaultScanner{}
 		fakePublisher = &mocks.FakeTaskPublisher{}
-		resultsCh = make(chan scanner.ScanResult, 1)
-		fakeScanner.ResultsReturns(resultsCh)
-		fakeScanner.RunStub = func(ctx context.Context) error {
-			<-ctx.Done()
-			return nil
+		resultsCh = make(chan scanner.ScanResult, 10)
+		ch := resultsCh // capture by value to avoid race with next BeforeEach
+
+		fakeScanner.RunStub = func(ctx context.Context, results chan<- scanner.ScanResult) error {
+			for {
+				select {
+				case <-ctx.Done():
+					return nil
+				case r := <-ch:
+					results <- r
+				}
+			}
 		}
+
 		syncLoop = pkgsync.NewSyncLoop(fakeScanner, fakePublisher)
 		runErr = make(chan error, 1)
 		sl := syncLoop

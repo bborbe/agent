@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.6.0
+
+- refactor: replace go func() with run.CancelOnFirstErrorWait in sync_loop
+- refactor: change VaultScanner interface to caller-owned channel (Run(ctx, chan<- ScanResult))
+- fix: reduce cognitive complexity by extracting processResult method
+- feat: add /setloglevel endpoint with 5-minute auto-reset
+- fix: align glog V-levels (V2=heartbeat, V3=per-item, V4=trace)
+- docs: add README with service description and dev/prod setloglevel links
+
 ## v0.5.0
 
 - feat: switch git auth from token to SSH key mounted as K8s secret volume

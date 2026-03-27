@@ -23,7 +23,15 @@ func CreateSyncLoop(
 	pollInterval time.Duration,
 	eventObjectSender cdb.EventObjectSender,
 ) pkgsync.SyncLoop {
-	vaultScanner := scanner.NewVaultScanner(gitClient, taskDir, pollInterval)
-	taskPublisher := publisher.NewTaskPublisher(eventObjectSender, lib.TaskV1SchemaID)
-	return pkgsync.NewSyncLoop(vaultScanner, taskPublisher)
+	return pkgsync.NewSyncLoop(
+		scanner.NewVaultScanner(
+			gitClient,
+			taskDir,
+			pollInterval,
+		),
+		publisher.NewTaskPublisher(
+			eventObjectSender,
+			lib.TaskV1SchemaID,
+		),
+	)
 }
