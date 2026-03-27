@@ -16,6 +16,7 @@ import (
 	"github.com/bborbe/errors"
 	"github.com/bborbe/vault-cli/pkg/domain"
 	"github.com/golang/glog"
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 
 	"github.com/bborbe/agent/lib"
@@ -35,11 +36,20 @@ type VaultScanner interface {
 	Run(ctx context.Context, results chan<- ScanResult) error
 }
 
+type frontmatterID struct {
+	TaskIdentifier string `yaml:"task_identifier"`
+}
+
+type fileEntry struct {
+	hash           [32]byte
+	taskIdentifier lib.TaskIdentifier
+}
+
 type vaultScanner struct {
 	gitClient    gitclient.GitClient
 	taskDir      string
 	pollInterval time.Duration
-	hashes       map[string][32]byte
+	hashes       map[string]fileEntry
 	trigger      <-chan struct{}
 }
 
@@ -54,7 +64,7 @@ func NewVaultScanner(
 		gitClient:    gitClient,
 		taskDir:      taskDir,
 		pollInterval: pollInterval,
-		hashes:       make(map[string][32]byte),
+		hashes:       make(map[string]fileEntry),
 		trigger:      trigger,
 	}
 }
@@ -80,7 +90,16 @@ func (v *vaultScanner) runCycle(ctx context.Context, results chan<- ScanResult) 
 		return
 	}
 	glog.V(3).Infof("git pull succeeded, scanning %s", v.taskDir)
-	changed, deleted := v.scanFiles(ctx)
+
+	changed, deleted, written, writeError := v.scanFiles(ctx)
+
+	if len(written) > 0 && !writeError {
+		if err := v.gitClient.CommitAndPush(ctx, "[agent-task-controller] add task_identifier to tasks"); err != nil {
+			glog.Warningf("git commit+push failed, skipping publish: %v", err)
+			return
+		}
+	}
+
 	result := ScanResult{Changed: changed, Deleted: deleted}
 	select {
 	case results <- result:
@@ -88,51 +107,112 @@ func (v *vaultScanner) runCycle(ctx context.Context, results chan<- ScanResult) 
 	}
 }
 
-func (v *vaultScanner) scanFiles(ctx context.Context) ([]lib.Task, []lib.TaskIdentifier) {
+func (v *vaultScanner) scanFiles(
+	ctx context.Context,
+) ([]lib.Task, []lib.TaskIdentifier, []string, bool) {
 	taskDirPath := filepath.Join(v.gitClient.Path(), v.taskDir)
 	fsys := os.DirFS(taskDirPath)
 	seen := make(map[string]struct{})
 	var changed []lib.Task
+	var written []string
+	writeError := false
 	if err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
 			return nil
 		}
 		relPath := filepath.Join(v.taskDir, path)
 		seen[relPath] = struct{}{}
-		content, readErr := fs.ReadFile(fsys, path)
-		if readErr != nil {
-			glog.Warningf("failed to read %s: %v", relPath, readErr)
-			return nil
-		}
-		hash := sha256.Sum256(content)
-		if existing, ok := v.hashes[relPath]; ok && existing == hash {
-			return nil
-		}
-		v.hashes[relPath] = hash
 		absPath := filepath.Join(taskDirPath, path)
-		if task := v.parseTask(ctx, absPath, relPath); task != nil {
+		task, wrote, werr := v.processFile(ctx, fsys, path, absPath, relPath)
+		if werr {
+			writeError = true
+		}
+		if wrote != "" {
+			written = append(written, wrote)
+		}
+		if task != nil {
 			changed = append(changed, *task)
 		}
 		return nil
 	}); err != nil {
 		glog.Warningf("walk %s failed: %v", taskDirPath, err)
-		return nil, nil
+		return nil, nil, nil, false
 	}
-	return changed, v.collectDeleted(seen)
+	return changed, v.collectDeleted(seen), written, writeError
+}
+
+// processFile handles a single .md file during a scan cycle.
+// Returns (task, writtenRelPath, writeError).
+func (v *vaultScanner) processFile(
+	ctx context.Context,
+	fsys fs.FS,
+	path, absPath, relPath string,
+) (*lib.Task, string, bool) {
+	content, readErr := fs.ReadFile(fsys, path)
+	if readErr != nil {
+		glog.Warningf("failed to read %s: %v", relPath, readErr)
+		return nil, "", false
+	}
+	hash := sha256.Sum256(content)
+	if existing, ok := v.hashes[relPath]; ok && existing.hash == hash {
+		return nil, "", false
+	}
+	frontmatter, err := extractFrontmatter(ctx, content)
+	if err != nil {
+		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, err)
+		return nil, "", false
+	}
+	var fmID frontmatterID
+	if err := yaml.Unmarshal([]byte(frontmatter), &fmID); err != nil {
+		glog.Warningf("skipping %s: failed to parse frontmatter id: %v", relPath, err)
+		return nil, "", false
+	}
+	if fmID.TaskIdentifier == "" {
+		return v.injectAndStore(content, absPath, relPath)
+	}
+	v.hashes[relPath] = fileEntry{
+		hash:           hash,
+		taskIdentifier: lib.TaskIdentifier(fmID.TaskIdentifier),
+	}
+	return v.parseTask(ctx, absPath, relPath, lib.TaskIdentifier(fmID.TaskIdentifier)), "", false
+}
+
+// injectAndStore generates a UUID, writes it into the file, and records a sentinel hash entry.
+// Returns (nil task, writtenRelPath, writeError).
+func (v *vaultScanner) injectAndStore(
+	content []byte,
+	absPath, relPath string,
+) (*lib.Task, string, bool) {
+	id := uuid.New().String()
+	newContent, injectErr := injectTaskIdentifier(content, id)
+	if injectErr != nil {
+		glog.Warningf("skipping %s: failed to inject task_identifier: %v", relPath, injectErr)
+		return nil, "", false
+	}
+	if writeErr := os.WriteFile(absPath, newContent, 0600); writeErr != nil {
+		glog.Warningf("failed to write %s: %v", relPath, writeErr)
+		return nil, "", true
+	}
+	v.hashes[relPath] = fileEntry{hash: [32]byte{}, taskIdentifier: lib.TaskIdentifier(id)}
+	return nil, relPath, false
 }
 
 func (v *vaultScanner) collectDeleted(seen map[string]struct{}) []lib.TaskIdentifier {
 	var deleted []lib.TaskIdentifier
-	for relPath := range v.hashes {
+	for relPath, entry := range v.hashes {
 		if _, ok := seen[relPath]; !ok {
-			deleted = append(deleted, lib.TaskIdentifier(relPath))
+			deleted = append(deleted, entry.taskIdentifier)
 			delete(v.hashes, relPath)
 		}
 	}
 	return deleted
 }
 
-func (v *vaultScanner) parseTask(ctx context.Context, absPath, relPath string) *lib.Task {
+func (v *vaultScanner) parseTask(
+	ctx context.Context,
+	absPath, relPath string,
+	taskIdentifier lib.TaskIdentifier,
+) *lib.Task {
 	content, err := os.ReadFile(
 		absPath,
 	) // #nosec G304 -- absPath from trusted git clone + filepath.Walk
@@ -159,13 +239,27 @@ func (v *vaultScanner) parseTask(ctx context.Context, absPath, relPath string) *
 	}
 	name := strings.TrimSuffix(filepath.Base(absPath), ".md")
 	return &lib.Task{
-		TaskIdentifier: lib.TaskIdentifier(relPath),
+		TaskIdentifier: taskIdentifier,
 		Name:           lib.TaskName(name),
 		Status:         domainTask.Status,
 		Phase:          domainTask.Phase,
 		Assignee:       lib.TaskAssignee(domainTask.Assignee),
 		Content:        lib.TaskContent(content),
 	}
+}
+
+func injectTaskIdentifier(content []byte, id string) ([]byte, error) {
+	s := string(content)
+	if strings.HasPrefix(s, "---\r\n") {
+		return []byte("---\r\ntask_identifier: " + id + "\r\n" + s[5:]), nil
+	}
+	if strings.HasPrefix(s, "---\n") {
+		return []byte("---\ntask_identifier: " + id + "\n" + s[4:]), nil
+	}
+	return nil, errors.Errorf(
+		context.Background(),
+		"content does not start with frontmatter delimiter",
+	)
 }
 
 func extractFrontmatter(ctx context.Context, content []byte) (string, error) {

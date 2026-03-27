@@ -13,6 +13,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/bborbe/agent/lib"
 )
 
 // testGitClient is a simple test double for gitclient.GitClient.
@@ -74,7 +76,7 @@ var _ = Describe("VaultScanner", func() {
 			gitClient:    fakeGit,
 			taskDir:      taskDir,
 			pollInterval: time.Second,
-			hashes:       make(map[string][32]byte),
+			hashes:       make(map[string]fileEntry),
 			trigger:      make(chan struct{}),
 		}
 	})
@@ -90,9 +92,9 @@ var _ = Describe("VaultScanner", func() {
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 			relPath := filepath.Join(taskDir, "my-task.md")
 
-			task := s.parseTask(ctx, absPath, relPath)
+			task := s.parseTask(ctx, absPath, relPath, lib.TaskIdentifier("test-uuid-1234"))
 			Expect(task).NotTo(BeNil())
-			Expect(string(task.TaskIdentifier)).To(Equal(relPath))
+			Expect(string(task.TaskIdentifier)).To(Equal("test-uuid-1234"))
 			Expect(string(task.Name)).To(Equal("my-task"))
 			Expect(string(task.Assignee)).To(Equal("claude"))
 			Expect(string(task.Status)).To(Equal("todo"))
@@ -104,7 +106,12 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "no-assignee.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			task := s.parseTask(ctx, absPath, filepath.Join(taskDir, "no-assignee.md"))
+			task := s.parseTask(
+				ctx,
+				absPath,
+				filepath.Join(taskDir, "no-assignee.md"),
+				lib.TaskIdentifier("test-uuid-no-assignee"),
+			)
 			Expect(task).To(BeNil())
 		})
 
@@ -113,7 +120,12 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "no-fm.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			task := s.parseTask(ctx, absPath, filepath.Join(taskDir, "no-fm.md"))
+			task := s.parseTask(
+				ctx,
+				absPath,
+				filepath.Join(taskDir, "no-fm.md"),
+				lib.TaskIdentifier("test-uuid-no-fm"),
+			)
 			Expect(task).To(BeNil())
 		})
 
@@ -122,12 +134,22 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "bad-yaml.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			task := s.parseTask(ctx, absPath, filepath.Join(taskDir, "bad-yaml.md"))
+			task := s.parseTask(
+				ctx,
+				absPath,
+				filepath.Join(taskDir, "bad-yaml.md"),
+				lib.TaskIdentifier("test-uuid-bad-yaml"),
+			)
 			Expect(task).To(BeNil())
 		})
 
 		It("returns nil when file cannot be read", func() {
-			task := s.parseTask(ctx, "/nonexistent/path.md", "nonexistent.md")
+			task := s.parseTask(
+				ctx,
+				"/nonexistent/path.md",
+				"nonexistent.md",
+				lib.TaskIdentifier("test-uuid-nonexistent"),
+			)
 			Expect(task).To(BeNil())
 		})
 
@@ -136,9 +158,39 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "crlf-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			task := s.parseTask(ctx, absPath, filepath.Join(taskDir, "crlf-task.md"))
+			task := s.parseTask(
+				ctx,
+				absPath,
+				filepath.Join(taskDir, "crlf-task.md"),
+				lib.TaskIdentifier("test-uuid-crlf"),
+			)
 			Expect(task).NotTo(BeNil())
 			Expect(string(task.Assignee)).To(Equal("claude"))
+		})
+	})
+
+	Describe("injectTaskIdentifier", func() {
+		It("injects task_identifier with LF line endings", func() {
+			input := []byte("---\nstatus: todo\n---\n")
+			result, err := injectTaskIdentifier(input, "test-id")
+			Expect(err).To(BeNil())
+			Expect(string(result)).To(Equal("---\ntask_identifier: test-id\nstatus: todo\n---\n"))
+		})
+
+		It("injects task_identifier with CRLF line endings", func() {
+			input := []byte("---\r\nstatus: todo\r\n---\r\n")
+			result, err := injectTaskIdentifier(input, "test-id")
+			Expect(err).To(BeNil())
+			Expect(
+				string(result),
+			).To(Equal("---\r\ntask_identifier: test-id\r\nstatus: todo\r\n---\r\n"))
+		})
+
+		It("returns error when content does not start with frontmatter delimiter", func() {
+			input := []byte("no frontmatter")
+			result, err := injectTaskIdentifier(input, "test-id")
+			Expect(err).NotTo(BeNil())
+			Expect(result).To(BeNil())
 		})
 	})
 
@@ -162,7 +214,7 @@ var _ = Describe("VaultScanner", func() {
 		})
 
 		It("runs cycle when trigger fires", func() {
-			content := "---\nstatus: todo\nassignee: claude\n---\n# Triggered task"
+			content := "---\ntask_identifier: 44444444-4444-4444-8444-444444444444\nstatus: todo\nassignee: claude\n---\n# Triggered task"
 			absPath := filepath.Join(tmpDir, taskDir, "trigger-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
@@ -191,7 +243,7 @@ var _ = Describe("VaultScanner", func() {
 
 	Describe("runCycle", func() {
 		It("new file appears in Changed", func() {
-			content := "---\nstatus: todo\nassignee: claude\n---\n# New task"
+			content := "---\ntask_identifier: 11111111-1111-4111-8111-111111111111\nstatus: todo\nassignee: claude\n---\n# New task"
 			absPath := filepath.Join(tmpDir, taskDir, "new-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
@@ -204,7 +256,7 @@ var _ = Describe("VaultScanner", func() {
 		})
 
 		It("unchanged file is not in Changed on second cycle", func() {
-			content := "---\nstatus: todo\nassignee: claude\n---\n# Stable task"
+			content := "---\ntask_identifier: 11111111-1111-4111-8111-111111111112\nstatus: todo\nassignee: claude\n---\n# Stable task"
 			absPath := filepath.Join(tmpDir, taskDir, "stable-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
@@ -220,14 +272,14 @@ var _ = Describe("VaultScanner", func() {
 		})
 
 		It("modified file appears in Changed on next cycle", func() {
-			content := "---\nstatus: todo\nassignee: claude\n---\n# Original"
+			content := "---\ntask_identifier: 22222222-2222-4222-8222-222222222222\nstatus: todo\nassignee: claude\n---\n# Original"
 			absPath := filepath.Join(tmpDir, taskDir, "modified-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
 			s.runCycle(ctx, results)
 			Expect(results).To(Receive())
 
-			updated := "---\nstatus: in_progress\nassignee: claude\n---\n# Updated"
+			updated := "---\ntask_identifier: 22222222-2222-4222-8222-222222222222\nstatus: in_progress\nassignee: claude\n---\n# Updated"
 			Expect(os.WriteFile(absPath, []byte(updated), 0600)).To(Succeed())
 
 			s.runCycle(ctx, results)
@@ -241,7 +293,7 @@ var _ = Describe("VaultScanner", func() {
 			// Pre-fill the results channel (capacity 1)
 			results <- ScanResult{}
 
-			content := "---\nstatus: todo\nassignee: claude\n---\n# Task"
+			content := "---\ntask_identifier: 11111111-1111-4111-8111-111111111113\nstatus: todo\nassignee: claude\n---\n# Task"
 			absPath := filepath.Join(tmpDir, taskDir, "drop-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
@@ -254,7 +306,7 @@ var _ = Describe("VaultScanner", func() {
 		It("skips cycle when git pull fails", func() {
 			fakeGit.pullErr = context.DeadlineExceeded
 
-			content := "---\nstatus: todo\nassignee: claude\n---\n# Task"
+			content := "---\ntask_identifier: 11111111-1111-4111-8111-111111111114\nstatus: todo\nassignee: claude\n---\n# Task"
 			absPath := filepath.Join(tmpDir, taskDir, "pull-fail.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
@@ -263,7 +315,7 @@ var _ = Describe("VaultScanner", func() {
 		})
 
 		It("deleted file appears in Deleted on next cycle", func() {
-			content := "---\nstatus: todo\nassignee: claude\n---\n# Task"
+			content := "---\ntask_identifier: 33333333-3333-4333-8333-333333333333\nstatus: todo\nassignee: claude\n---\n# Task"
 			absPath := filepath.Join(tmpDir, taskDir, "deleted-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
@@ -276,7 +328,57 @@ var _ = Describe("VaultScanner", func() {
 			var result ScanResult
 			Expect(results).To(Receive(&result))
 			Expect(result.Deleted).To(HaveLen(1))
-			Expect(string(result.Deleted[0])).To(ContainSubstring("deleted-task.md"))
+			Expect(string(result.Deleted[0])).To(Equal("33333333-3333-4333-8333-333333333333"))
+		})
+
+		It("UUID injected when task_identifier absent", func() {
+			content := "---\nstatus: todo\nassignee: claude\n---\n# Task without UUID"
+			absPath := filepath.Join(tmpDir, taskDir, "no-uuid-task.md")
+			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+
+			s.runCycle(ctx, results)
+
+			// Not published this cycle (write-back happened)
+			var result ScanResult
+			Expect(results).To(Receive(&result))
+			Expect(result.Changed).To(BeEmpty())
+
+			// File on disk now contains task_identifier
+			written, err := os.ReadFile(absPath) // #nosec G304 -- test-only path
+			Expect(err).To(BeNil())
+			Expect(string(written)).To(ContainSubstring("task_identifier:"))
+		})
+
+		It("task published on second cycle after injection", func() {
+			content := "---\nstatus: todo\nassignee: claude\n---\n# Task without UUID"
+			absPath := filepath.Join(tmpDir, taskDir, "no-uuid-task2.md")
+			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+
+			// First cycle: injects UUID, does not publish
+			s.runCycle(ctx, results)
+			var first ScanResult
+			Expect(results).To(Receive(&first))
+			Expect(first.Changed).To(BeEmpty())
+
+			// Second cycle: publishes with UUID
+			s.runCycle(ctx, results)
+			var second ScanResult
+			Expect(results).To(Receive(&second))
+			Expect(second.Changed).To(HaveLen(1))
+			Expect(
+				string(second.Changed[0].TaskIdentifier),
+			).To(MatchRegexp(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`))
+		})
+
+		It("CommitAndPush failure suppresses ScanResult", func() {
+			fakeGit.commitPushErr = context.DeadlineExceeded
+
+			content := "---\nstatus: todo\nassignee: claude\n---\n# Task without UUID"
+			absPath := filepath.Join(tmpDir, taskDir, "no-uuid-task3.md")
+			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+
+			s.runCycle(ctx, results)
+			Consistently(results, 50*time.Millisecond).ShouldNot(Receive())
 		})
 	})
 })
