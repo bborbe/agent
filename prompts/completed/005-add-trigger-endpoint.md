@@ -1,11 +1,11 @@
 ---
-status: failed
+status: completed
 container: agent-005-add-trigger-endpoint
-dark-factory-version: v0.67.3-dirty
+dark-factory-version: v0.67.7
 created: "2026-03-27T10:00:00Z"
 queued: "2026-03-27T12:58:22Z"
-started: "2026-03-27T13:24:08Z"
-completed: "2026-03-27T13:29:27Z"
+started: "2026-03-27T13:56:40Z"
+completed: "2026-03-27T13:56:41Z"
 ---
 
 <summary>
