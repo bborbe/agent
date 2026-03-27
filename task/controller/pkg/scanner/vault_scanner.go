@@ -36,10 +36,6 @@ type VaultScanner interface {
 	Run(ctx context.Context, results chan<- ScanResult) error
 }
 
-type frontmatterID struct {
-	TaskIdentifier string `yaml:"task_identifier"`
-}
-
 type fileEntry struct {
 	hash           [32]byte
 	taskIdentifier lib.TaskIdentifier
@@ -162,19 +158,34 @@ func (v *vaultScanner) processFile(
 		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, err)
 		return nil, "", false
 	}
-	var fmID frontmatterID
-	if err := yaml.Unmarshal([]byte(frontmatter), &fmID); err != nil {
-		glog.Warningf("skipping %s: failed to parse frontmatter id: %v", relPath, err)
+	var domainTask domain.Task
+	if err := yaml.Unmarshal([]byte(frontmatter), &domainTask); err != nil {
+		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, err)
 		return nil, "", false
 	}
-	if fmID.TaskIdentifier == "" {
+	if domainTask.TaskIdentifier == "" {
 		return v.injectAndStore(content, absPath, relPath)
 	}
 	v.hashes[relPath] = fileEntry{
 		hash:           hash,
-		taskIdentifier: lib.TaskIdentifier(fmID.TaskIdentifier),
+		taskIdentifier: lib.TaskIdentifier(domainTask.TaskIdentifier),
 	}
-	return v.parseTask(ctx, absPath, relPath, lib.TaskIdentifier(fmID.TaskIdentifier)), "", false
+	if domainTask.Status == "" {
+		glog.Warningf("skipping %s: invalid frontmatter: status is empty", relPath)
+		return nil, "", false
+	}
+	if domainTask.Assignee == "" {
+		return nil, "", false
+	}
+	name := strings.TrimSuffix(filepath.Base(absPath), ".md")
+	return &lib.Task{
+		TaskIdentifier: lib.TaskIdentifier(domainTask.TaskIdentifier),
+		Name:           lib.TaskName(name),
+		Status:         domainTask.Status,
+		Phase:          domainTask.Phase,
+		Assignee:       lib.TaskAssignee(domainTask.Assignee),
+		Content:        lib.TaskContent(content),
+	}, "", false
 }
 
 // injectAndStore generates a UUID, writes it into the file, and records a sentinel hash entry.
@@ -206,46 +217,6 @@ func (v *vaultScanner) collectDeleted(seen map[string]struct{}) []lib.TaskIdenti
 		}
 	}
 	return deleted
-}
-
-func (v *vaultScanner) parseTask(
-	ctx context.Context,
-	absPath, relPath string,
-	taskIdentifier lib.TaskIdentifier,
-) *lib.Task {
-	content, err := os.ReadFile(
-		absPath,
-	) // #nosec G304 -- absPath from trusted git clone + filepath.Walk
-	if err != nil {
-		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, err)
-		return nil
-	}
-	frontmatter, err := extractFrontmatter(ctx, content)
-	if err != nil {
-		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, err)
-		return nil
-	}
-	var domainTask domain.Task
-	if err := yaml.Unmarshal([]byte(frontmatter), &domainTask); err != nil {
-		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, err)
-		return nil
-	}
-	if domainTask.Status == "" {
-		glog.Warningf("skipping %s: invalid frontmatter: status is empty", relPath)
-		return nil
-	}
-	if domainTask.Assignee == "" {
-		return nil
-	}
-	name := strings.TrimSuffix(filepath.Base(absPath), ".md")
-	return &lib.Task{
-		TaskIdentifier: taskIdentifier,
-		Name:           lib.TaskName(name),
-		Status:         domainTask.Status,
-		Phase:          domainTask.Phase,
-		Assignee:       lib.TaskAssignee(domainTask.Assignee),
-		Content:        lib.TaskContent(content),
-	}
 }
 
 func injectTaskIdentifier(content []byte, id string) ([]byte, error) {

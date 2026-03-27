@@ -21,7 +21,7 @@ require (
 	github.com/bborbe/sentry v1.9.13
 	github.com/bborbe/service v1.9.7
 	github.com/bborbe/time v1.25.6
-	github.com/bborbe/vault-cli v0.50.0
+	github.com/bborbe/vault-cli v0.51.0
 	github.com/golang/glog v1.2.5
 	github.com/golangci/golangci-lint/v2 v2.11.4
 	github.com/google/addlicense v1.2.0

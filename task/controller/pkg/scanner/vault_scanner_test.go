@@ -13,8 +13,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"github.com/bborbe/agent/lib"
 )
 
 // testGitClient is a simple test double for gitclient.GitClient.
@@ -85,87 +83,28 @@ var _ = Describe("VaultScanner", func() {
 		Expect(os.RemoveAll(tmpDir)).To(Succeed())
 	})
 
-	Describe("parseTask", func() {
-		It("returns Task for valid frontmatter with assignee", func() {
-			content := "---\nstatus: todo\nassignee: claude\n---\n# Task title"
-			absPath := filepath.Join(tmpDir, taskDir, "my-task.md")
-			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
-			relPath := filepath.Join(taskDir, "my-task.md")
-
-			task := s.parseTask(ctx, absPath, relPath, lib.TaskIdentifier("test-uuid-1234"))
-			Expect(task).NotTo(BeNil())
-			Expect(string(task.TaskIdentifier)).To(Equal("test-uuid-1234"))
-			Expect(string(task.Name)).To(Equal("my-task"))
-			Expect(string(task.Assignee)).To(Equal("claude"))
-			Expect(string(task.Status)).To(Equal("todo"))
-			Expect(string(task.Content)).To(Equal(content))
-		})
-
-		It("returns nil for valid frontmatter with empty assignee", func() {
-			content := "---\nstatus: todo\n---\n# Task"
-			absPath := filepath.Join(tmpDir, taskDir, "no-assignee.md")
+	Describe("processFile edge cases", func() {
+		It("skips file with invalid status", func() {
+			content := "---\ntask_identifier: bad-status-uuid\nstatus: definitely_invalid_status\nassignee: claude\n---\n"
+			absPath := filepath.Join(tmpDir, taskDir, "bad-status.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			task := s.parseTask(
-				ctx,
-				absPath,
-				filepath.Join(taskDir, "no-assignee.md"),
-				lib.TaskIdentifier("test-uuid-no-assignee"),
-			)
-			Expect(task).To(BeNil())
+			s.runCycle(ctx, results)
+			var result ScanResult
+			Expect(results).To(Receive(&result))
+			Expect(result.Changed).To(BeEmpty())
 		})
 
-		It("returns nil for missing frontmatter delimiters", func() {
-			content := "# Just a title\nno frontmatter here"
-			absPath := filepath.Join(tmpDir, taskDir, "no-fm.md")
+		It("handles CRLF line endings in full cycle", func() {
+			content := "---\r\ntask_identifier: crlf-uuid\r\nstatus: todo\r\nassignee: claude\r\n---\r\n# Task"
+			absPath := filepath.Join(tmpDir, taskDir, "crlf-cycle.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			task := s.parseTask(
-				ctx,
-				absPath,
-				filepath.Join(taskDir, "no-fm.md"),
-				lib.TaskIdentifier("test-uuid-no-fm"),
-			)
-			Expect(task).To(BeNil())
-		})
-
-		It("returns nil for malformed YAML", func() {
-			content := "---\nstatus: definitely_invalid_status\nassignee: claude\n---\n"
-			absPath := filepath.Join(tmpDir, taskDir, "bad-yaml.md")
-			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
-
-			task := s.parseTask(
-				ctx,
-				absPath,
-				filepath.Join(taskDir, "bad-yaml.md"),
-				lib.TaskIdentifier("test-uuid-bad-yaml"),
-			)
-			Expect(task).To(BeNil())
-		})
-
-		It("returns nil when file cannot be read", func() {
-			task := s.parseTask(
-				ctx,
-				"/nonexistent/path.md",
-				"nonexistent.md",
-				lib.TaskIdentifier("test-uuid-nonexistent"),
-			)
-			Expect(task).To(BeNil())
-		})
-
-		It("handles windows-style line endings in frontmatter", func() {
-			content := "---\r\nstatus: todo\r\nassignee: claude\r\n---\r\n# Task"
-			absPath := filepath.Join(tmpDir, taskDir, "crlf-task.md")
-			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
-
-			task := s.parseTask(
-				ctx,
-				absPath,
-				filepath.Join(taskDir, "crlf-task.md"),
-				lib.TaskIdentifier("test-uuid-crlf"),
-			)
-			Expect(task).NotTo(BeNil())
-			Expect(string(task.Assignee)).To(Equal("claude"))
+			s.runCycle(ctx, results)
+			var result ScanResult
+			Expect(results).To(Receive(&result))
+			Expect(result.Changed).To(HaveLen(1))
+			Expect(string(result.Changed[0].Assignee)).To(Equal("claude"))
 		})
 	})
 
