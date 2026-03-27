@@ -2,18 +2,16 @@ module github.com/bborbe/agent/task/controller
 
 go 1.26.1
 
-replace (
-	github.com/bborbe/agent/lib => ../../lib
-)
+replace github.com/bborbe/agent/lib => ../../lib
 
 require (
 	github.com/bborbe/agent/lib v0.0.0-00010101000000-000000000000
 	github.com/bborbe/cqrs v0.2.3
 	github.com/bborbe/errors v1.5.8
 	github.com/bborbe/http v1.26.7
-	github.com/bborbe/kafka v1.22.8
+	github.com/bborbe/kafka v1.22.9
 	github.com/bborbe/log v1.6.8
-	github.com/bborbe/run v1.9.11
+	github.com/bborbe/run v1.9.12
 	github.com/bborbe/sentry v1.9.13
 	github.com/bborbe/service v1.9.7
 	github.com/bborbe/time v1.25.6
