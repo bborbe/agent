@@ -12,6 +12,7 @@ import (
 
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/cqrs/cdb"
+	"github.com/bborbe/errors"
 	libhttp "github.com/bborbe/http"
 	libkafka "github.com/bborbe/kafka"
 	"github.com/bborbe/log"
@@ -51,7 +52,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 
 	gitClient := gitclient.NewGitClient(a.GitURL, vaultLocalPath, a.GitBranch)
 	if err := gitClient.EnsureCloned(ctx); err != nil {
-		return err
+		return errors.Wrapf(ctx, err, "ensure git clone")
 	}
 
 	syncProducer, err := libkafka.NewSyncProducer(
@@ -59,7 +60,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		libkafka.ParseBrokersFromString(a.KafkaBrokers),
 	)
 	if err != nil {
-		return err
+		return errors.Wrapf(ctx, err, "create kafka sync producer")
 	}
 	defer syncProducer.Close()
 

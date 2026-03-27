@@ -64,7 +64,7 @@ func (s *syncLoop) Run(ctx context.Context) error {
 					return nil
 				case result := <-results:
 					if err := s.processResult(ctx, result); err != nil {
-						return err
+						return errors.Wrapf(ctx, err, "process scan result")
 					}
 				}
 			}
