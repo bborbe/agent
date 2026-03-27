@@ -1,8 +1,7 @@
 ---
-status: created
+status: draft
 spec: ["002"]
 created: "2026-03-27T00:00:00Z"
-branch: dark-factory/uuid-task-identifier
 ---
 
 <summary>
@@ -22,10 +21,6 @@ Extend `VaultScanner` to inject a stable `task_identifier` UUID into task files 
 
 <context>
 Read CLAUDE.md for project conventions.
-Read `/home/node/.claude/docs/go-patterns.md` for interface/constructor/struct patterns.
-Read `/home/node/.claude/docs/go-testing.md` for Ginkgo/Gomega and counterfeiter conventions.
-Read `/home/node/.claude/docs/go-context-cancellation.md` for non-blocking select in loops.
-Read `/home/node/.claude/docs/go-security-linting.go` for gosec rules.
 
 Key files to read before making changes:
 - `task/controller/pkg/scanner/vault_scanner.go` — the file to modify; read it fully before touching it

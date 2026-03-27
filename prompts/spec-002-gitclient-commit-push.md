@@ -1,8 +1,7 @@
 ---
-status: created
+status: draft
 spec: ["002"]
 created: "2026-03-27T00:00:00Z"
-branch: dark-factory/uuid-task-identifier
 ---
 
 <summary>
@@ -19,9 +18,6 @@ Add `CommitAndPush(ctx context.Context, message string) error` to the `GitClient
 
 <context>
 Read CLAUDE.md for project conventions.
-Read `/home/node/.claude/docs/go-patterns.md` for interface/constructor/struct patterns.
-Read `/home/node/.claude/docs/go-testing.md` for Ginkgo/Gomega and counterfeiter conventions.
-Read `/home/node/.claude/docs/go-security-linting.md` for gosec rules and `#nosec` usage.
 
 Key files to read before making changes:
 - `task/controller/pkg/gitclient/git_client.go` — existing GitClient interface and implementation (EnsureCloned, Pull, Path)
