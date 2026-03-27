@@ -1,8 +1,10 @@
 ---
+status: approved
 tags:
-  - dark-factory
-  - spec
-status: draft
+    - dark-factory
+    - spec
+approved: "2026-03-27T12:58:22Z"
+branch: dark-factory/uuid-task-identifier
 ---
 
 ## Summary
