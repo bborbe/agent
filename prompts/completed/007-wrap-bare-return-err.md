@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Replaced three bare return err statements in task/controller with errors.Wrapf calls adding operation context for ensure git clone, create kafka sync producer, and process scan result.
+container: agent-007-wrap-bare-return-err
+dark-factory-version: v0.67.9
 created: "2026-03-27T14:32:02Z"
 queued: "2026-03-27T14:32:02Z"
+started: "2026-03-27T15:43:42Z"
+completed: "2026-03-27T15:56:07Z"
 ---
 
 <summary>
