@@ -7,6 +7,7 @@ package sync
 import (
 	"context"
 
+	"github.com/bborbe/errors"
 	"github.com/bborbe/run"
 	"github.com/golang/glog"
 
@@ -50,30 +51,35 @@ func (s *syncLoop) Run(ctx context.Context) error {
 				case <-ctx.Done():
 					return nil
 				case result := <-results:
-					s.processResult(ctx, result)
+					if err := s.processResult(ctx, result); err != nil {
+						return err
+					}
 				}
 			}
 		},
 	)
 }
 
-func (s *syncLoop) processResult(ctx context.Context, result scanner.ScanResult) {
+func (s *syncLoop) processResult(ctx context.Context, result scanner.ScanResult) error {
 	if len(result.Changed) > 0 || len(result.Deleted) > 0 {
-		glog.V(2).
-			Infof("scan cycle: %d changed, %d deleted", len(result.Changed), len(result.Deleted))
+		glog.V(2).Infof(
+			"scan cycle: %d changed, %d deleted",
+			len(result.Changed), len(result.Deleted),
+		)
 	} else {
 		glog.V(3).Infof("scan cycle: no changes")
 	}
 	for _, task := range result.Changed {
 		glog.V(3).Infof("publishing changed task %s", task.TaskIdentifier)
 		if err := s.publisher.PublishChanged(ctx, task); err != nil {
-			glog.Warningf("publish changed task failed: %v", err)
+			return errors.Wrapf(ctx, err, "publish changed task %s", task.TaskIdentifier)
 		}
 	}
 	for _, id := range result.Deleted {
 		glog.V(3).Infof("publishing deleted task %s", id)
 		if err := s.publisher.PublishDeleted(ctx, id); err != nil {
-			glog.Warningf("publish deleted task failed: %v", err)
+			return errors.Wrapf(ctx, err, "publish deleted task %s", id)
 		}
 	}
+	return nil
 }

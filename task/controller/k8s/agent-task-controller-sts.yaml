@@ -60,7 +60,7 @@ spec:
             - name: POLL_INTERVAL
               value: '60s'
             - name: TASK_DIR
-              value: '24 Tasks'
+              value: 'tasks'
           image: '{{"DOCKER_REGISTRY" | env}}/agent-task-controller:{{"BRANCH" | env}}'
           imagePullPolicy: Always
           livenessProbe:

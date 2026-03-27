@@ -83,36 +83,28 @@ var _ = Describe("SyncLoop", func() {
 		Expect(publishedID).To(Equal(id))
 	})
 
-	It("logs warning and continues loop when PublishChanged returns error", func() {
+	It("returns error when PublishChanged fails", func() {
 		task := lib.Task{
 			TaskIdentifier: lib.TaskIdentifier("24 Tasks/test.md"),
 		}
 		fakePublisher.PublishChangedReturns(errors.New("publish failed"))
 		resultsCh <- scanner.ScanResult{Changed: []lib.Task{task}}
 
-		Eventually(fakePublisher.PublishChangedCallCount, time.Second).Should(Equal(1))
-
-		// Loop continues: send another result and it should be processed
-		task2 := lib.Task{
-			TaskIdentifier: lib.TaskIdentifier("24 Tasks/test2.md"),
-		}
-		fakePublisher.PublishChangedReturns(nil)
-		resultsCh <- scanner.ScanResult{Changed: []lib.Task{task2}}
-		Eventually(fakePublisher.PublishChangedCallCount, time.Second).Should(Equal(2))
+		Eventually(
+			runErr,
+			time.Second,
+		).Should(Receive(MatchError(ContainSubstring("publish failed"))))
 	})
 
-	It("logs warning and continues loop when PublishDeleted returns error", func() {
+	It("returns error when PublishDeleted fails", func() {
 		id := lib.TaskIdentifier("24 Tasks/deleted.md")
 		fakePublisher.PublishDeletedReturns(errors.New("publish failed"))
 		resultsCh <- scanner.ScanResult{Deleted: []lib.TaskIdentifier{id}}
 
-		Eventually(fakePublisher.PublishDeletedCallCount, time.Second).Should(Equal(1))
-
-		// Loop continues: send another result and it should be processed
-		id2 := lib.TaskIdentifier("24 Tasks/deleted2.md")
-		fakePublisher.PublishDeletedReturns(nil)
-		resultsCh <- scanner.ScanResult{Deleted: []lib.TaskIdentifier{id2}}
-		Eventually(fakePublisher.PublishDeletedCallCount, time.Second).Should(Equal(2))
+		Eventually(
+			runErr,
+			time.Second,
+		).Should(Receive(MatchError(ContainSubstring("publish failed"))))
 	})
 
 	It("returns nil when context is cancelled", func() {

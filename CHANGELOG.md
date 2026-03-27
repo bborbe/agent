@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.6.1
+
+- fix: change TASK_DIR from '24 Tasks' to 'tasks' matching OpenClaw vault structure
+- fix: return publish errors instead of logging warnings (fail fast via CancelOnFirstErrorWait)
+- docs: add deployment guide with buca workflow and useful links
+
 ## v0.6.0
 
 - refactor: replace go func() with run.CancelOnFirstErrorWait in sync_loop
