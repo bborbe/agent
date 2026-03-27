@@ -22,8 +22,8 @@ func CreateSyncLoop(
 	taskDir string,
 	pollInterval time.Duration,
 	eventObjectSender cdb.EventObjectSender,
-	trigger <-chan struct{},
 ) pkgsync.SyncLoop {
+	trigger := make(chan struct{}, 1)
 	return pkgsync.NewSyncLoop(
 		scanner.NewVaultScanner(
 			gitClient,
@@ -35,5 +35,6 @@ func CreateSyncLoop(
 			eventObjectSender,
 			lib.TaskV1SchemaID,
 		),
+		trigger,
 	)
 }

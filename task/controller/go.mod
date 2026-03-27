@@ -2,7 +2,9 @@ module github.com/bborbe/agent/task/controller
 
 go 1.26.1
 
-replace github.com/bborbe/agent/lib => ../../lib
+replace (
+	github.com/bborbe/agent/lib => ../../lib
+)
 
 require (
 	github.com/bborbe/agent/lib v0.0.0-00010101000000-000000000000

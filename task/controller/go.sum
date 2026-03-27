@@ -157,8 +157,6 @@ github.com/bborbe/http v1.26.7 h1:nepK/Ott19V13aWslF6RW3XkIHuwsOnTF0jkEMxrkyo=
 github.com/bborbe/http v1.26.7/go.mod h1:c25yRcmpiGWBunK5HIWFb7xGfjBPssSa5zKRZIwYYr0=
 github.com/bborbe/k8s v1.13.4 h1:Q7bKfk38oRrGFerbyQVgtFIbd7zg6m8JNWPJtCZ2lNo=
 github.com/bborbe/k8s v1.13.4/go.mod h1:1+l4PPfuWrPl2XsItjRs3BHKcrmKISjKZ0Q9MTTl2EY=
-github.com/bborbe/kafka v1.22.8 h1:mP6hvdKzVZjVR2JfZit+MMNI3hGtSzvkoXrh11LaWbw=
-github.com/bborbe/kafka v1.22.8/go.mod h1:zXdFwRtkbfw6J8mPeYOGckj3e8N41s/l60bYrs3E2kM=
 github.com/bborbe/kafka v1.22.9 h1:gbGfjBTvEvqJp4LoyX61jCyyz//pNwfpXTiR/6EVBag=
 github.com/bborbe/kafka v1.22.9/go.mod h1:j9n56YymrJ5fEl4u+ZmMPtheFwuSjjrZ+xw9pnejR48=
 github.com/bborbe/kv v1.19.2 h1:WrlwnuuOSKxWnsb13sO556M4p0IzrEmxiwVIbfLP8BM=
@@ -171,8 +169,6 @@ github.com/bborbe/memorykv v1.4.7 h1:+XDER6zz0Q0M04HYvdm96mePrXiwHgw3dftEXc5F1Xk
 github.com/bborbe/memorykv v1.4.7/go.mod h1:LCb93DtEvLUFYUEzvJLoFSDgqfDY0H0V0iUXSnDb2MQ=
 github.com/bborbe/parse v1.10.8 h1:040JfwqXj1CHkkDJHMFeABdNr/S+ji9WuvSwKxVaRnc=
 github.com/bborbe/parse v1.10.8/go.mod h1:az8APRokatYXA4fA06rZw0m+zuj9Pjot6HB3fV2KSCE=
-github.com/bborbe/run v1.9.11 h1:5IgRlCqs9c+fCvI3u0y5finTvg897/H8DER9htJKZNg=
-github.com/bborbe/run v1.9.11/go.mod h1:w7flDgcjuPxAgRWk4QzofKWOKYDcnZGjM28TC5l+BPk=
 github.com/bborbe/run v1.9.12 h1:Qm+OOjfuIaqRJ0S0uiQcVGGSpwU8iQllGo6D0nd1lxc=
 github.com/bborbe/run v1.9.12/go.mod h1:ZZr4qqrY4D8H4XUqDMxkjbvlR5g8snos9X6f+VPj8N0=
 github.com/bborbe/sentry v1.9.13 h1:YMvqULpJsOo9nEAgOGCurcoC97YeLih0yMkybnsK6Ng=

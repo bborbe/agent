@@ -24,6 +24,7 @@ import (
 
 	"github.com/bborbe/agent/task/controller/pkg/factory"
 	"github.com/bborbe/agent/task/controller/pkg/gitclient"
+	pkgsync "github.com/bborbe/agent/task/controller/pkg/sync"
 )
 
 const vaultLocalPath = "/data/vault"
@@ -68,24 +69,21 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		log.DefaultSamplerFactory,
 	)
 
-	trigger := make(chan struct{}, 1)
-
 	syncLoop := factory.CreateSyncLoop(
 		gitClient,
 		a.TaskDir,
 		a.PollInterval,
 		eventObjectSender,
-		trigger,
 	)
 
 	return service.Run(
 		ctx,
-		a.createHTTPServer(trigger),
 		syncLoop.Run,
+		a.createHTTPServer(syncLoop),
 	)
 }
 
-func (a *application) createHTTPServer(trigger chan<- struct{}) run.Func {
+func (a *application) createHTTPServer(syncLoop pkgsync.SyncLoop) run.Func {
 	return func(ctx context.Context) error {
 		router := mux.NewRouter()
 		router.Path("/healthz").Handler(libhttp.NewPrintHandler("OK"))
@@ -94,10 +92,7 @@ func (a *application) createHTTPServer(trigger chan<- struct{}) run.Func {
 		router.Path("/setloglevel/{level}").
 			Handler(log.NewSetLoglevelHandler(ctx, log.NewLogLevelSetter(2, 5*time.Minute)))
 		router.Path("/trigger").HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-			select {
-			case trigger <- struct{}{}:
-			default:
-			}
+			syncLoop.Trigger()
 			glog.V(2).Infof("trigger fired via HTTP")
 			_, _ = resp.Write([]byte("trigger fired"))
 		})

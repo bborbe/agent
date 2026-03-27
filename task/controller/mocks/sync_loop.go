@@ -20,6 +20,10 @@ type FakeSyncLoop struct {
 	runReturnsOnCall map[int]struct {
 		result1 error
 	}
+	TriggerStub        func()
+	triggerMutex       sync.RWMutex
+	triggerArgsForCall []struct {
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -83,6 +87,30 @@ func (fake *FakeSyncLoop) RunReturnsOnCall(i int, result1 error) {
 	fake.runReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
+}
+
+func (fake *FakeSyncLoop) Trigger() {
+	fake.triggerMutex.Lock()
+	fake.triggerArgsForCall = append(fake.triggerArgsForCall, struct {
+	}{})
+	stub := fake.TriggerStub
+	fake.recordInvocation("Trigger", []interface{}{})
+	fake.triggerMutex.Unlock()
+	if stub != nil {
+		fake.TriggerStub()
+	}
+}
+
+func (fake *FakeSyncLoop) TriggerCallCount() int {
+	fake.triggerMutex.RLock()
+	defer fake.triggerMutex.RUnlock()
+	return len(fake.triggerArgsForCall)
+}
+
+func (fake *FakeSyncLoop) TriggerCalls(stub func()) {
+	fake.triggerMutex.Lock()
+	defer fake.triggerMutex.Unlock()
+	fake.TriggerStub = stub
 }
 
 func (fake *FakeSyncLoop) Invocations() map[string][][]interface{} {

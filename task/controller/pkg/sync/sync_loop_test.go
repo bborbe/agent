@@ -47,7 +47,7 @@ var _ = Describe("SyncLoop", func() {
 			}
 		}
 
-		syncLoop = pkgsync.NewSyncLoop(fakeScanner, fakePublisher)
+		syncLoop = pkgsync.NewSyncLoop(fakeScanner, fakePublisher, make(chan struct{}, 1))
 		runErr = make(chan error, 1)
 		sl := syncLoop
 		errCh := runErr
@@ -110,5 +110,12 @@ var _ = Describe("SyncLoop", func() {
 	It("returns nil when context is cancelled", func() {
 		cancel()
 		Eventually(runErr, time.Second).Should(Receive(BeNil()))
+	})
+
+	Describe("Trigger", func() {
+		It("does not block when called", func() {
+			syncLoop.Trigger()
+			syncLoop.Trigger() // second call should also not block (buffered channel, non-blocking send)
+		})
 	})
 })

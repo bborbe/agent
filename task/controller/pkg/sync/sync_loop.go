@@ -20,22 +20,34 @@ import (
 // SyncLoop orchestrates scanning and publishing of task events.
 type SyncLoop interface {
 	Run(ctx context.Context) error
+	Trigger()
 }
 
 // NewSyncLoop creates a SyncLoop that connects scanner results to publisher calls.
 func NewSyncLoop(
 	scanner scanner.VaultScanner,
 	publisher publisher.TaskPublisher,
+	trigger chan struct{},
 ) SyncLoop {
 	return &syncLoop{
 		scanner:   scanner,
 		publisher: publisher,
+		trigger:   trigger,
 	}
 }
 
 type syncLoop struct {
 	scanner   scanner.VaultScanner
 	publisher publisher.TaskPublisher
+	trigger   chan struct{}
+}
+
+// Trigger requests an immediate scan cycle. Non-blocking: if a trigger is already pending, it is a no-op.
+func (s *syncLoop) Trigger() {
+	select {
+	case s.trigger <- struct{}{}:
+	default:
+	}
 }
 
 func (s *syncLoop) Run(ctx context.Context) error {
