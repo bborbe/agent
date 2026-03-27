@@ -1,11 +1,12 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
 approved: "2026-03-26T17:38:10Z"
 prompted: "2026-03-26T17:42:11Z"
 verifying: "2026-03-26T19:22:00Z"
+completed: "2026-03-27T17:12:08Z"
 branch: dark-factory/git-to-kafka-task-sync
 ---
 
