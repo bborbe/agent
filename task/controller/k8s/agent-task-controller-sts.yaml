@@ -49,6 +49,8 @@ spec:
                   name: agent-task-controller
             - name: SENTRY_PROXY
               value: '{{"SENTRY_PROXY_URL" | env}}'
+            - name: BRANCH
+              value: '{{ "BRANCH" | env }}'
             - name: KAFKA_BROKERS
               value: '{{ "KAFKA_BROKERS" | env }}'
             - name: GIT_BRANCH
