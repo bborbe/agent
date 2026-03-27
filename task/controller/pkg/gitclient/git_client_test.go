@@ -124,4 +124,48 @@ var _ = Describe("GitClient", func() {
 			Expect(err).To(BeNil())
 		})
 	})
+
+	Describe("CommitAndPush", func() {
+		BeforeEach(func() {
+			// allow pushing to the non-bare remote's current branch
+			// #nosec G204 -- test helper: command is hardcoded test setup git invocation
+			out, configErr := exec.Command("git", "-C", remoteDir, "config", "receive.denyCurrentBranch", "ignore").
+				CombinedOutput()
+			Expect(
+				configErr,
+			).To(BeNil(), "config receive.denyCurrentBranch failed: %s", string(out))
+
+			client = gitclient.NewGitClient(remoteDir, localPath, branch)
+			err := client.EnsureCloned(ctx)
+			Expect(err).To(BeNil())
+			// configure identity so git commit works in the cloned repo
+			for _, args := range [][]string{
+				{"git", "-C", localPath, "config", "user.email", "test@test.com"},
+				{"git", "-C", localPath, "config", "user.name", "Test"},
+			} {
+				// #nosec G204 -- test helper: commands are hardcoded test setup git invocations
+				out, identErr := exec.Command(args[0], args[1:]...).CombinedOutput()
+				Expect(identErr).To(BeNil(), "cmd %v failed: %s", args, string(out))
+			}
+		})
+
+		It("stages, commits, and pushes a new file", func() {
+			taskFile := filepath.Join(localPath, "task.md")
+			Expect(os.WriteFile(taskFile, []byte("hello"), 0600)).To(Succeed())
+
+			err := client.CommitAndPush(ctx, "[test] add task.md")
+			Expect(err).To(BeNil())
+
+			// #nosec G204 -- test helper: command is hardcoded test verification git invocation
+			out, err := exec.Command("git", "-C", localPath, "log", "--oneline").CombinedOutput()
+			Expect(err).To(BeNil())
+			Expect(string(out)).To(ContainSubstring("[test] add task.md"))
+		})
+
+		It("returns an error for an invalid path", func() {
+			badClient := gitclient.NewGitClient(remoteDir, "/nonexistent/path", branch)
+			err := badClient.CommitAndPush(ctx, "should fail")
+			Expect(err).NotTo(BeNil())
+		})
+	})
 })

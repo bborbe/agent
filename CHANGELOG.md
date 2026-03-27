@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.8.0
+
+- feat: add CommitAndPush to GitClient interface and implement it with git add/commit/push subprocess calls
+
 ## v0.7.2
 
 - refactor: wrap bare return err statements in task/controller with errors.Wrapf for operation context

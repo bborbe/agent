@@ -9,6 +9,18 @@ import (
 )
 
 type FakeGitClient struct {
+	CommitAndPushStub        func(context.Context, string) error
+	commitAndPushMutex       sync.RWMutex
+	commitAndPushArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+	}
+	commitAndPushReturns struct {
+		result1 error
+	}
+	commitAndPushReturnsOnCall map[int]struct {
+		result1 error
+	}
 	EnsureClonedStub        func(context.Context) error
 	ensureClonedMutex       sync.RWMutex
 	ensureClonedArgsForCall []struct {
@@ -43,6 +55,68 @@ type FakeGitClient struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeGitClient) CommitAndPush(arg1 context.Context, arg2 string) error {
+	fake.commitAndPushMutex.Lock()
+	ret, specificReturn := fake.commitAndPushReturnsOnCall[len(fake.commitAndPushArgsForCall)]
+	fake.commitAndPushArgsForCall = append(fake.commitAndPushArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.CommitAndPushStub
+	fakeReturns := fake.commitAndPushReturns
+	fake.recordInvocation("CommitAndPush", []interface{}{arg1, arg2})
+	fake.commitAndPushMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeGitClient) CommitAndPushCallCount() int {
+	fake.commitAndPushMutex.RLock()
+	defer fake.commitAndPushMutex.RUnlock()
+	return len(fake.commitAndPushArgsForCall)
+}
+
+func (fake *FakeGitClient) CommitAndPushCalls(stub func(context.Context, string) error) {
+	fake.commitAndPushMutex.Lock()
+	defer fake.commitAndPushMutex.Unlock()
+	fake.CommitAndPushStub = stub
+}
+
+func (fake *FakeGitClient) CommitAndPushArgsForCall(i int) (context.Context, string) {
+	fake.commitAndPushMutex.RLock()
+	defer fake.commitAndPushMutex.RUnlock()
+	argsForCall := fake.commitAndPushArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeGitClient) CommitAndPushReturns(result1 error) {
+	fake.commitAndPushMutex.Lock()
+	defer fake.commitAndPushMutex.Unlock()
+	fake.CommitAndPushStub = nil
+	fake.commitAndPushReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeGitClient) CommitAndPushReturnsOnCall(i int, result1 error) {
+	fake.commitAndPushMutex.Lock()
+	defer fake.commitAndPushMutex.Unlock()
+	fake.CommitAndPushStub = nil
+	if fake.commitAndPushReturnsOnCall == nil {
+		fake.commitAndPushReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.commitAndPushReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeGitClient) EnsureCloned(arg1 context.Context) error {

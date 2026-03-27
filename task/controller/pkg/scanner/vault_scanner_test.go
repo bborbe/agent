@@ -19,8 +19,9 @@ import (
 // We cannot use mocks.FakeGitClient here because mocks imports scanner (for ScanResult),
 // which would create an import cycle with the internal test package.
 type testGitClient struct {
-	path    string
-	pullErr error
+	path          string
+	pullErr       error
+	commitPushErr error
 }
 
 func (t *testGitClient) EnsureCloned(_ context.Context) error { return nil }
@@ -28,6 +29,10 @@ func (t *testGitClient) EnsureCloned(_ context.Context) error { return nil }
 func (t *testGitClient) Pull(_ context.Context) error { return t.pullErr }
 
 func (t *testGitClient) Path() string { return t.path }
+
+func (t *testGitClient) CommitAndPush(_ context.Context, _ string) error {
+	return t.commitPushErr
+}
 
 func mustInitGitRepo(dir string) {
 	cmds := [][]string{

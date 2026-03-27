@@ -19,6 +19,8 @@ type GitClient interface {
 	EnsureCloned(ctx context.Context) error
 	// Pull runs git pull on the local clone.
 	Pull(ctx context.Context) error
+	// CommitAndPush stages all changes, creates a commit with the given message, and pushes to the remote.
+	CommitAndPush(ctx context.Context, message string) error
 	// Path returns the local clone path.
 	Path() string
 }
@@ -75,6 +77,25 @@ func (g *gitClient) Pull(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "pull")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return errors.Wrapf(ctx, err, "git pull failed: %s", string(out))
+	}
+	return nil
+}
+
+func (g *gitClient) CommitAndPush(ctx context.Context, message string) error {
+	// #nosec G204 -- binary is hardcoded "git", localPath and message are from trusted internal config
+	addCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "add", "-A")
+	if out, err := addCmd.CombinedOutput(); err != nil {
+		return errors.Wrapf(ctx, err, "git add failed: %s", string(out))
+	}
+	// #nosec G204 -- binary is hardcoded "git", localPath and message are from trusted internal config
+	commitCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "commit", "-m", message)
+	if out, err := commitCmd.CombinedOutput(); err != nil {
+		return errors.Wrapf(ctx, err, "git commit failed: %s", string(out))
+	}
+	// #nosec G204 -- binary is hardcoded "git", localPath is from trusted internal config
+	pushCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "push")
+	if out, err := pushCmd.CombinedOutput(); err != nil {
+		return errors.Wrapf(ctx, err, "git push failed: %s", string(out))
 	}
 	return nil
 }
