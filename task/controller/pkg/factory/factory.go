@@ -22,12 +22,14 @@ func CreateSyncLoop(
 	taskDir string,
 	pollInterval time.Duration,
 	eventObjectSender cdb.EventObjectSender,
+	trigger <-chan struct{},
 ) pkgsync.SyncLoop {
 	return pkgsync.NewSyncLoop(
 		scanner.NewVaultScanner(
 			gitClient,
 			taskDir,
 			pollInterval,
+			trigger,
 		),
 		publisher.NewTaskPublisher(
 			eventObjectSender,

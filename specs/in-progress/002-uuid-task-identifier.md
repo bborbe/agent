@@ -1,9 +1,10 @@
 ---
-status: approved
+status: prompted
 tags:
     - dark-factory
     - spec
 approved: "2026-03-27T12:58:22Z"
+prompted: "2026-03-27T13:06:40Z"
 branch: dark-factory/uuid-task-identifier
 ---
 

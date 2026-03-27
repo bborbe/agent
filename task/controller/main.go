@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"time"
 
@@ -67,21 +68,24 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		log.DefaultSamplerFactory,
 	)
 
+	trigger := make(chan struct{}, 1)
+
 	syncLoop := factory.CreateSyncLoop(
 		gitClient,
 		a.TaskDir,
 		a.PollInterval,
 		eventObjectSender,
+		trigger,
 	)
 
 	return service.Run(
 		ctx,
-		a.createHTTPServer(),
+		a.createHTTPServer(trigger),
 		syncLoop.Run,
 	)
 }
 
-func (a *application) createHTTPServer() run.Func {
+func (a *application) createHTTPServer(trigger chan<- struct{}) run.Func {
 	return func(ctx context.Context) error {
 		router := mux.NewRouter()
 		router.Path("/healthz").Handler(libhttp.NewPrintHandler("OK"))
@@ -89,6 +93,14 @@ func (a *application) createHTTPServer() run.Func {
 		router.Path("/metrics").Handler(promhttp.Handler())
 		router.Path("/setloglevel/{level}").
 			Handler(log.NewSetLoglevelHandler(ctx, log.NewLogLevelSetter(2, 5*time.Minute)))
+		router.Path("/trigger").HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+			select {
+			case trigger <- struct{}{}:
+			default:
+			}
+			glog.V(2).Infof("trigger fired via HTTP")
+			_, _ = resp.Write([]byte("trigger fired"))
+		})
 
 		glog.V(2).Infof("starting http server listen on %s", a.Listen)
 		return libhttp.NewServer(

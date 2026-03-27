@@ -40,6 +40,7 @@ type vaultScanner struct {
 	taskDir      string
 	pollInterval time.Duration
 	hashes       map[string][32]byte
+	trigger      <-chan struct{}
 }
 
 // NewVaultScanner creates a VaultScanner that polls git and scans the task directory.
@@ -47,12 +48,14 @@ func NewVaultScanner(
 	gitClient gitclient.GitClient,
 	taskDir string,
 	pollInterval time.Duration,
+	trigger <-chan struct{},
 ) VaultScanner {
 	return &vaultScanner{
 		gitClient:    gitClient,
 		taskDir:      taskDir,
 		pollInterval: pollInterval,
 		hashes:       make(map[string][32]byte),
+		trigger:      trigger,
 	}
 }
 
@@ -64,6 +67,8 @@ func (v *vaultScanner) Run(ctx context.Context, results chan<- ScanResult) error
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
+			v.runCycle(ctx, results)
+		case <-v.trigger:
 			v.runCycle(ctx, results)
 		}
 	}

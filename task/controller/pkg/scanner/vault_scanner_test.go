@@ -70,6 +70,7 @@ var _ = Describe("VaultScanner", func() {
 			taskDir:      taskDir,
 			pollInterval: time.Second,
 			hashes:       make(map[string][32]byte),
+			trigger:      make(chan struct{}),
 		}
 	})
 
@@ -138,19 +139,46 @@ var _ = Describe("VaultScanner", func() {
 
 	Describe("NewVaultScanner", func() {
 		It("returns a non-nil VaultScanner", func() {
-			vs := NewVaultScanner(fakeGit, taskDir, time.Hour)
+			vs := NewVaultScanner(fakeGit, taskDir, time.Hour, nil)
 			Expect(vs).NotTo(BeNil())
 		})
 	})
 
 	Describe("Run", func() {
 		It("returns nil when context is cancelled", func() {
-			vs := NewVaultScanner(fakeGit, taskDir, time.Hour)
+			vs := NewVaultScanner(fakeGit, taskDir, time.Hour, nil)
 			runCtx, cancel := context.WithCancel(ctx)
 			done := make(chan error, 1)
 			go func() {
 				done <- vs.Run(runCtx, make(chan ScanResult, 1))
 			}()
+			cancel()
+			Eventually(done, 200*time.Millisecond).Should(Receive(BeNil()))
+		})
+
+		It("runs cycle when trigger fires", func() {
+			content := "---\nstatus: todo\nassignee: claude\n---\n# Triggered task"
+			absPath := filepath.Join(tmpDir, taskDir, "trigger-task.md")
+			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+
+			trigger := make(chan struct{}, 1)
+			vs := NewVaultScanner(fakeGit, taskDir, time.Hour, trigger)
+			scanResults := make(chan ScanResult, 1)
+			runCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			done := make(chan error, 1)
+			go func() {
+				done <- vs.Run(runCtx, scanResults)
+			}()
+
+			trigger <- struct{}{}
+
+			var result ScanResult
+			Eventually(scanResults, time.Second).Should(Receive(&result))
+			Expect(result.Changed).To(HaveLen(1))
+			Expect(string(result.Changed[0].Name)).To(Equal("trigger-task"))
+
 			cancel()
 			Eventually(done, 200*time.Millisecond).Should(Receive(BeNil()))
 		})
