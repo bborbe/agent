@@ -10,6 +10,7 @@ import (
 	"github.com/bborbe/cqrs/cdb"
 	libkafka "github.com/bborbe/kafka"
 	"github.com/bborbe/log"
+	"github.com/bborbe/run"
 
 	lib "github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/prompt/controller/pkg/handler"
@@ -49,7 +50,7 @@ func CreateConsumer(
 		topic,
 		offsetManager,
 		taskEventHandler,
-		nil,
+		run.NewTrigger(),
 		logSamplerFactory,
 	)
 }
