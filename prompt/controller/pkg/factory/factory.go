@@ -16,6 +16,11 @@ import (
 	"github.com/bborbe/agent/prompt/controller/pkg/publisher"
 )
 
+// NewPromptIdentifierGeneratorUUID creates a PromptIdentifierGenerator backed by UUID.
+func NewPromptIdentifierGeneratorUUID() lib.PromptIdentifierGenerator {
+	return base.NewIdentifierGeneratorUUID[lib.PromptIdentifier]()
+}
+
 // CreateConsumer wires together all components and returns a Kafka Consumer that
 // reads task events and publishes prompt events.
 func CreateConsumer(
@@ -26,7 +31,12 @@ func CreateConsumer(
 ) libkafka.Consumer {
 	duplicateTracker := handler.NewInMemoryDuplicateTracker()
 	promptPublisher := publisher.NewPromptPublisher(eventObjectSender, lib.PromptV1SchemaID)
-	taskEventHandler := handler.NewTaskEventHandler(duplicateTracker, promptPublisher)
+	promptIdentifierGenerator := NewPromptIdentifierGeneratorUUID()
+	taskEventHandler := handler.NewTaskEventHandler(
+		duplicateTracker,
+		promptPublisher,
+		promptIdentifierGenerator,
+	)
 	topic := lib.TaskV1SchemaID.EventTopic(branch)
 	offsetManager := libkafka.NewSaramaOffsetManager(
 		saramaClient,

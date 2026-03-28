@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/IBM/sarama"
+	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -38,7 +39,10 @@ var _ = Describe("TaskEventHandler", func() {
 		ctx = context.Background()
 		fakeTracker = new(mocks.FakeDuplicateTracker)
 		fakePublisher = new(mocks.FakePromptPublisher)
-		h = handler.NewTaskEventHandler(fakeTracker, fakePublisher)
+		idGen := base.IdentifierGeneratorFunc[lib.PromptIdentifier](func() lib.PromptIdentifier {
+			return "test-prompt-id"
+		})
+		h = handler.NewTaskEventHandler(fakeTracker, fakePublisher, idGen)
 	})
 
 	buildMsg := func(task lib.Task) *sarama.ConsumerMessage {
@@ -104,7 +108,7 @@ var _ = Describe("TaskEventHandler", func() {
 			Expect(string(published.TaskIdentifier)).To(Equal("tid-4"))
 			Expect(string(published.Assignee)).To(Equal("claude"))
 			Expect(string(published.Instruction)).To(Equal("do the thing"))
-			Expect(string(published.PromptIdentifier)).NotTo(BeEmpty())
+			Expect(string(published.PromptIdentifier)).To(Equal("test-prompt-id"))
 		})
 
 		It("marks task as processed after successful publish", func() {

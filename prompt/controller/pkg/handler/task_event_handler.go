@@ -11,7 +11,6 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/bborbe/errors"
 	"github.com/golang/glog"
-	"github.com/google/uuid"
 
 	lib "github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/prompt/controller/pkg/publisher"
@@ -58,16 +57,19 @@ type TaskEventHandler interface {
 func NewTaskEventHandler(
 	duplicateTracker DuplicateTracker,
 	promptPublisher publisher.PromptPublisher,
+	promptIdentifierGenerator lib.PromptIdentifierGenerator,
 ) TaskEventHandler {
 	return &taskEventHandler{
-		duplicateTracker: duplicateTracker,
-		promptPublisher:  promptPublisher,
+		duplicateTracker:          duplicateTracker,
+		promptPublisher:           promptPublisher,
+		promptIdentifierGenerator: promptIdentifierGenerator,
 	}
 }
 
 type taskEventHandler struct {
-	duplicateTracker DuplicateTracker
-	promptPublisher  publisher.PromptPublisher
+	duplicateTracker          DuplicateTracker
+	promptPublisher           publisher.PromptPublisher
+	promptIdentifierGenerator lib.PromptIdentifierGenerator
 }
 
 func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.ConsumerMessage) error {
@@ -103,7 +105,7 @@ func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.Consu
 	}
 
 	prompt := lib.Prompt{
-		PromptIdentifier: lib.PromptIdentifier(uuid.New().String()),
+		PromptIdentifier: h.promptIdentifierGenerator.NewIdentifier(),
 		TaskIdentifier:   task.TaskIdentifier,
 		Assignee:         task.Assignee,
 		Instruction:      lib.PromptInstruction(task.Content),
