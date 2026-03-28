@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.10.0
+
+- feat: give prompt/controller its own go.mod as a standalone Go module
+
 ## v0.9.2
 
 - bump bborbe/http v1.26.8, bborbe/run v1.9.12
