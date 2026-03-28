@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.11.0
+
+- feat: Add Kafka task event consumer to prompt/controller that converts in-progress tasks into prompt events
+- feat: Add kafka-brokers and branch CLI flags to prompt/controller
+
 ## v0.10.0
 
 - feat: give prompt/controller its own go.mod as a standalone Go module
