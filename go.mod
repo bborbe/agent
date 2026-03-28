@@ -3,8 +3,8 @@ module github.com/bborbe/agent
 go 1.26.1
 
 require (
-	github.com/bborbe/http v1.26.5
-	github.com/bborbe/run v1.9.11
+	github.com/bborbe/http v1.26.8
+	github.com/bborbe/run v1.9.12
 	github.com/bborbe/sentry v1.9.13
 	github.com/bborbe/service v1.9.7
 	github.com/golang/glog v1.2.5
@@ -91,7 +91,7 @@ require (
 	github.com/bborbe/errors v1.5.8 // indirect
 	github.com/bborbe/kv v1.19.2 // indirect
 	github.com/bborbe/log v1.6.8 // indirect
-	github.com/bborbe/math v1.3.5 // indirect
+	github.com/bborbe/math v1.3.6 // indirect
 	github.com/bborbe/parse v1.10.8 // indirect
 	github.com/bborbe/time v1.25.3 // indirect
 	github.com/bborbe/validation v1.4.9 // indirect
@@ -125,7 +125,7 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/compose-spec/compose-go/v2 v2.10.1 // indirect
-	github.com/containerd/cgroups/v3 v3.0.5 // indirect
+	github.com/containerd/cgroups/v3 v3.1.2 // indirect
 	github.com/containerd/containerd v1.7.30 // indirect
 	github.com/containerd/containerd/api v1.10.0 // indirect
 	github.com/containerd/continuity v0.4.5 // indirect
@@ -223,7 +223,6 @@ require (
 	github.com/gostaticanalysis/comment v1.5.0 // indirect
 	github.com/gostaticanalysis/forcetypeassert v0.2.0 // indirect
 	github.com/gostaticanalysis/nilerr v0.1.2 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3 // indirect
 	github.com/hashicorp/go-immutable-radix/v2 v2.1.0 // indirect
 	github.com/hashicorp/go-set/v3 v3.0.1 // indirect
 	github.com/hashicorp/go-version v1.8.0 // indirect
@@ -273,9 +272,10 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/micromdm/plist v0.2.2 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/moby/buildkit v0.23.2 // indirect
+	github.com/moby/buildkit v0.28.1 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/locker v1.0.1 // indirect
+	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/moby/sys/mountinfo v0.7.2 // indirect
 	github.com/moby/sys/sequential v0.6.0 // indirect
 	github.com/moby/sys/signal v0.7.1 // indirect
@@ -297,7 +297,7 @@ require (
 	github.com/openai/openai-go/v3 v3.29.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/opencontainers/runtime-spec v1.2.1 // indirect
+	github.com/opencontainers/runtime-spec v1.3.0 // indirect
 	github.com/opencontainers/selinux v1.13.1 // indirect
 	github.com/ossf/osv-schema/bindings/go v0.0.0-20260317235714-088ef5834a9c // indirect
 	github.com/owenrumney/go-sarif/v3 v3.3.0 // indirect

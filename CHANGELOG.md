@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.9.2
+
+- bump bborbe/http v1.26.8, bborbe/run v1.9.12
+- bump moby/buildkit v0.28.1, containerd/cgroups v3.1.2
+- bump opencontainers/runtime-spec v1.3.0
+- remove grpc-gateway/v2 indirect dep
+- clean osv-scanner ignores after buildkit upgrade
+
 ## v0.9.1
 
 - refactor: eliminate `frontmatterID` struct and `parseTask` method from vault_scanner; parse `domain.Task` once in `processFile` removing redundant file read and double-parsing
