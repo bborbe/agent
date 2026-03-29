@@ -1,8 +1,10 @@
 ---
+status: approved
 tags:
-  - dark-factory
-  - spec
-status: draft
+    - dark-factory
+    - spec
+approved: "2026-03-29T19:50:57Z"
+branch: dark-factory/agent-result-capture
 ---
 
 ## Summary
@@ -67,6 +69,7 @@ After this work, agents publish their result to Kafka and task/controller writes
 | Duplicate result command | Idempotent — re-set same values, don't duplicate Result section | No harm |
 | Malformed command (missing task ID) | Log warning, skip, commit offset | Fix upstream agent |
 | Unknown task ID (file not found) | Log warning, skip, commit offset | Fix task data |
+| Result content contains YAML frontmatter delimiters (---) | Strip or escape delimiters before writing to prevent file corruption | Automatic sanitization |
 
 ## Security / Abuse Cases
 

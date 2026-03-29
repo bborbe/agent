@@ -1,10 +1,11 @@
 ---
-status: prompted
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-03-29T12:51:51Z"
 prompted: "2026-03-29T12:57:19Z"
+verifying: "2026-03-29T19:53:33Z"
 branch: dark-factory/task-executor-service
 ---
 
