@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.17.0
+
+- refactor: Remove prompt layer (prompt/controller, prompt/executor, Prompt types from lib/) — replaced by task/executor
+- fix: Update moby/buildkit to v0.28.1 and containerd to v1.7.30 to resolve OSV vulnerabilities
+- docs: Add agent-job-interface.md with three agent patterns (git-native, persistent service, ephemeral Job)
+
 ## v0.16.0
 
 - feat: Add K8s manifests for task/executor (Deployment, Service, Secret, ServiceAccount, Role, RoleBinding)

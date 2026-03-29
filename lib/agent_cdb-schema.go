@@ -8,17 +8,10 @@ import "github.com/bborbe/cqrs/cdb"
 
 var CDBSchemaIDs = cdb.SchemaIDs{
 	TaskV1SchemaID,
-	PromptV1SchemaID,
 }
 
 var TaskV1SchemaID = cdb.SchemaID{
 	Group:   "agent",
 	Kind:    "task",
-	Version: "v1",
-}
-
-var PromptV1SchemaID = cdb.SchemaID{
-	Group:   "agent",
-	Kind:    "prompt",
 	Version: "v1",
 }

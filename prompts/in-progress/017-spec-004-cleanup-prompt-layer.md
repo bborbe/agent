@@ -1,8 +1,12 @@
 ---
-status: approved
+status: failed
 spec: ["004"]
+container: agent-017-spec-004-cleanup-prompt-layer
+dark-factory-version: v0.69.0
 created: "2026-03-29T13:00:00Z"
 queued: "2026-03-29T14:35:59Z"
+started: "2026-03-29T16:54:01Z"
+completed: "2026-03-29T16:58:53Z"
 branch: dark-factory/task-executor-service
 ---
 
