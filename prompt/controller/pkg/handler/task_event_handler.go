@@ -10,11 +10,19 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/bborbe/errors"
+	"github.com/bborbe/vault-cli/pkg/domain"
 	"github.com/golang/glog"
 
 	lib "github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/prompt/controller/pkg/publisher"
 )
+
+// allowedPhases lists the task phases that qualify for prompt generation.
+var allowedPhases = domain.TaskPhases{
+	domain.TaskPhasePlanning,
+	domain.TaskPhaseInProgress,
+	domain.TaskPhaseAIReview,
+}
 
 //counterfeiter:generate -o ../../mocks/duplicate_tracker.go --fake-name FakeDuplicateTracker . DuplicateTracker
 
@@ -91,6 +99,11 @@ func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.Consu
 
 	if task.Status != "in_progress" {
 		glog.V(3).Infof("skip task %s with status %s", task.TaskIdentifier, task.Status)
+		return nil
+	}
+
+	if task.Phase == nil || !allowedPhases.Contains(*task.Phase) {
+		glog.V(3).Infof("skip task %s with phase %v", task.TaskIdentifier, task.Phase)
 		return nil
 	}
 

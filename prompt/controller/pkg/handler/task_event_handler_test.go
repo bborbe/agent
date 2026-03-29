@@ -14,6 +14,7 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
+	"github.com/bborbe/vault-cli/pkg/domain"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -87,7 +88,12 @@ var _ = Describe("TaskEventHandler", func() {
 
 		It("skips duplicate TaskIdentifier", func() {
 			fakeTracker.IsDuplicateReturns(true)
-			task := lib.Task{TaskIdentifier: "tid-3", Status: "in_progress", Assignee: "claude"}
+			task := lib.Task{
+				TaskIdentifier: "tid-3",
+				Status:         "in_progress",
+				Phase:          domain.TaskPhaseInProgress.Ptr(),
+				Assignee:       "claude",
+			}
 			err := h.ConsumeMessage(ctx, buildMsg(task))
 			Expect(err).To(BeNil())
 			Expect(fakePublisher.PublishPromptCallCount()).To(Equal(0))
@@ -98,6 +104,7 @@ var _ = Describe("TaskEventHandler", func() {
 			task := lib.Task{
 				TaskIdentifier: "tid-4",
 				Status:         "in_progress",
+				Phase:          domain.TaskPhaseInProgress.Ptr(),
 				Assignee:       "claude",
 				Content:        "do the thing",
 			}
@@ -113,7 +120,12 @@ var _ = Describe("TaskEventHandler", func() {
 
 		It("marks task as processed after successful publish", func() {
 			fakeTracker.IsDuplicateReturns(false)
-			task := lib.Task{TaskIdentifier: "tid-5", Status: "in_progress", Assignee: "claude"}
+			task := lib.Task{
+				TaskIdentifier: "tid-5",
+				Status:         "in_progress",
+				Phase:          domain.TaskPhaseInProgress.Ptr(),
+				Assignee:       "claude",
+			}
 			err := h.ConsumeMessage(ctx, buildMsg(task))
 			Expect(err).To(BeNil())
 			Expect(fakeTracker.MarkProcessedCallCount()).To(Equal(1))
@@ -124,10 +136,105 @@ var _ = Describe("TaskEventHandler", func() {
 		It("does not mark task as processed when publish fails", func() {
 			fakeTracker.IsDuplicateReturns(false)
 			fakePublisher.PublishPromptReturns(errors.Errorf(ctx, "kafka unavailable"))
-			task := lib.Task{TaskIdentifier: "tid-6", Status: "in_progress", Assignee: "claude"}
+			task := lib.Task{
+				TaskIdentifier: "tid-6",
+				Status:         "in_progress",
+				Phase:          domain.TaskPhaseInProgress.Ptr(),
+				Assignee:       "claude",
+			}
 			err := h.ConsumeMessage(ctx, buildMsg(task))
 			Expect(err).NotTo(BeNil())
 			Expect(fakeTracker.MarkProcessedCallCount()).To(Equal(0))
+		})
+
+		It("skips task with nil phase", func() {
+			task := lib.Task{
+				TaskIdentifier: "tid-phase-nil",
+				Status:         "in_progress",
+				Phase:          nil,
+				Assignee:       "claude",
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakePublisher.PublishPromptCallCount()).To(Equal(0))
+		})
+
+		It("skips task with phase todo", func() {
+			task := lib.Task{
+				TaskIdentifier: "tid-phase-todo",
+				Status:         "in_progress",
+				Phase:          domain.TaskPhaseTodo.Ptr(),
+				Assignee:       "claude",
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakePublisher.PublishPromptCallCount()).To(Equal(0))
+		})
+
+		It("skips task with phase human_review", func() {
+			task := lib.Task{
+				TaskIdentifier: "tid-phase-hr",
+				Status:         "in_progress",
+				Phase:          domain.TaskPhaseHumanReview.Ptr(),
+				Assignee:       "claude",
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakePublisher.PublishPromptCallCount()).To(Equal(0))
+		})
+
+		It("skips task with phase done", func() {
+			task := lib.Task{
+				TaskIdentifier: "tid-phase-done",
+				Status:         "in_progress",
+				Phase:          domain.TaskPhaseDone.Ptr(),
+				Assignee:       "claude",
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakePublisher.PublishPromptCallCount()).To(Equal(0))
+		})
+
+		It("publishes prompt for task with phase planning", func() {
+			fakeTracker.IsDuplicateReturns(false)
+			task := lib.Task{
+				TaskIdentifier: "tid-phase-plan",
+				Status:         "in_progress",
+				Phase:          domain.TaskPhasePlanning.Ptr(),
+				Assignee:       "claude",
+				Content:        "plan it",
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakePublisher.PublishPromptCallCount()).To(Equal(1))
+		})
+
+		It("publishes prompt for task with phase in_progress", func() {
+			fakeTracker.IsDuplicateReturns(false)
+			task := lib.Task{
+				TaskIdentifier: "tid-phase-ip",
+				Status:         "in_progress",
+				Phase:          domain.TaskPhaseInProgress.Ptr(),
+				Assignee:       "claude",
+				Content:        "do it",
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakePublisher.PublishPromptCallCount()).To(Equal(1))
+		})
+
+		It("publishes prompt for task with phase ai_review", func() {
+			fakeTracker.IsDuplicateReturns(false)
+			task := lib.Task{
+				TaskIdentifier: "tid-phase-air",
+				Status:         "in_progress",
+				Phase:          domain.TaskPhaseAIReview.Ptr(),
+				Assignee:       "claude",
+				Content:        "review it",
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakePublisher.PublishPromptCallCount()).To(Equal(1))
 		})
 	})
 })
