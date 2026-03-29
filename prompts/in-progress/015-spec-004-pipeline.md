@@ -1,7 +1,8 @@
 ---
-status: created
+status: approved
 spec: ["004"]
 created: "2026-03-29T13:00:00Z"
+queued: "2026-03-29T14:35:59Z"
 branch: dark-factory/task-executor-service
 ---
 

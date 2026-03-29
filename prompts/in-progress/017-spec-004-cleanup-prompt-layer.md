@@ -1,7 +1,8 @@
 ---
-status: created
+status: approved
 spec: ["004"]
 created: "2026-03-29T13:00:00Z"
+queued: "2026-03-29T14:35:59Z"
 branch: dark-factory/task-executor-service
 ---
 
@@ -9,6 +10,7 @@ branch: dark-factory/task-executor-service
 - Remove the entire prompt/ directory (prompt/controller and prompt/executor) since task/executor replaces both
 - Remove all Prompt-related types from lib/ (agent_prompt*.go files)
 - Remove PromptV1SchemaID from the CDB schema list in lib/
+- Delete any tests in lib/ that import or reference Prompt types
 - Update CHANGELOG with the removal
 </summary>
 
@@ -59,15 +61,15 @@ rm -f lib/agent_prompt*.go
 
 Edit `lib/agent_cdb-schema.go`: remove `PromptV1SchemaID` from the `CDBSchemaIDs` slice. Keep TaskV1SchemaID.
 
-### 4. Remove any Prompt references from lib/
+### 4. Remove any Prompt references and tests from lib/
 
-Search lib/ for remaining references to Prompt types. If any exist in non-prompt files (e.g., imports, type aliases), remove them.
+Search lib/ for remaining references to Prompt types. If any exist in non-prompt files (e.g., imports, type aliases, test files), remove them.
 
 ```bash
 grep -r "Prompt" lib/ --include="*.go"
 ```
 
-Fix any remaining references. If a file becomes empty after removal, delete it.
+This includes test files (`*_test.go`) that test Prompt types — delete those tests entirely. Fix any remaining references. If a file becomes empty after removal, delete it.
 
 ### 5. Run `go mod tidy` in lib/
 

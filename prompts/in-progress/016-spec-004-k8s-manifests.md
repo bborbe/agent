@@ -1,7 +1,8 @@
 ---
-status: created
+status: approved
 spec: ["004"]
 created: "2026-03-29T13:00:00Z"
+queued: "2026-03-29T14:35:59Z"
 branch: dark-factory/task-executor-service
 ---
 
@@ -35,7 +36,7 @@ Key files to read before making changes:
 <requirements>
 ### 1. Create `task/executor/k8s/Makefile`
 
-Follow the same pattern as `prompt/controller/k8s/Makefile` but adjust the path depth (task/executor is one level deeper than prompt/controller):
+Follow the same pattern as `prompt/controller/k8s/Makefile` (same directory depth, same `../../../` include paths):
 
 ```makefile
 include ../../../Makefile.variables
