@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: ["004"]
+summary: 'Implemented task/executor pipeline: JobSpawner (K8s batch/v1), TaskEventHandler (status/phase/assignee filters + dedup), pure factory wiring, full main.go with Kafka consumer + HTTP server, and complete test coverage (handler 88.9%, spawner 100%)'
+container: agent-015-spec-004-pipeline
+dark-factory-version: v0.69.0
 created: "2026-03-29T13:00:00Z"
 queued: "2026-03-29T14:35:59Z"
+started: "2026-03-29T14:40:26Z"
+completed: "2026-03-29T14:51:37Z"
 branch: dark-factory/task-executor-service
 ---
 
