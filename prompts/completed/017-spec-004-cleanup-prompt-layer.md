@@ -1,12 +1,13 @@
 ---
-status: failed
+status: completed
 spec: ["004"]
+summary: 'Removed prompt layer (prompt/ dir, lib/agent_prompt*.go files, PromptV1SchemaID) — all changes were already applied; added ## Unreleased entry to CHANGELOG.md and verified lib/ make precommit passes.'
 container: agent-017-spec-004-cleanup-prompt-layer
 dark-factory-version: v0.69.0
 created: "2026-03-29T13:00:00Z"
 queued: "2026-03-29T14:35:59Z"
-started: "2026-03-29T19:33:10Z"
-completed: "2026-03-29T19:37:17Z"
+started: "2026-03-29T19:48:52Z"
+completed: "2026-03-29T19:53:33Z"
 branch: dark-factory/task-executor-service
 ---
 
