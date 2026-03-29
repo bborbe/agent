@@ -1,11 +1,12 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
 approved: "2026-03-28T11:25:45Z"
 prompted: "2026-03-28T11:38:11Z"
 verifying: "2026-03-28T12:05:06Z"
+completed: "2026-03-29T19:32:29Z"
 branch: dark-factory/task-to-prompt-consumer
 ---
 

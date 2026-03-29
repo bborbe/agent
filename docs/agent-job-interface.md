@@ -1,6 +1,6 @@
 # Agent Job Interface
 
-Contract for agents in the task controller system. Three patterns exist — this doc covers all three.
+Contract for agents in the task controller system. Three patterns exist.
 
 ## Agent Patterns
 
@@ -26,7 +26,7 @@ Always-running service that consumes `agent-task-v1-event` and publishes `agent-
 
 ### Pattern B: Ephemeral Job via task/executor
 
-Short-lived K8s Job spawned by task/executor. This is the simplest agent to build — just read env vars, do work, print JSON.
+Short-lived K8s Job spawned by task/executor. Agent receives task content via env vars, does work, publishes result to Kafka, exits.
 
 **Examples:** agent-backtest
 
@@ -43,7 +43,7 @@ task/executor passes these env vars to every spawned Job:
 | Env Var | Required | Description |
 |---------|----------|-------------|
 | `TASK_CONTENT` | yes | Raw task markdown from the vault. The agent parses this to extract domain-specific parameters. |
-| `TASK_ID` | yes | Task identifier. Used by task/executor to correlate Job result back to task. |
+| `TASK_ID` | yes | Task identifier. Agent uses this when publishing `agent-task-v1-request` to reference which task to update. |
 | `KAFKA_BROKERS` | yes | Comma-separated Kafka broker addresses. |
 | `BRANCH` | yes | Environment branch (`develop`, `master`). |
 | `SENTRY_DSN` | no | Sentry DSN for error reporting. |
@@ -76,56 +76,63 @@ Run backtest for strategy `BBR-EURUSD-1H` from 2025-01-01 to 2025-12-31.
 
 Each agent type defines what it expects in the task body. The frontmatter is included but agents should focus on the content section.
 
-### Stdout Contract
+### Result Publishing
 
-The agent **must** write exactly one JSON line to stdout before exiting. task/executor reads this to create the task update request.
+The agent publishes its result as an `agent-task-v1-request` command to Kafka using the CQRS CommandObjectSender pattern. The command contains:
+
+- Task identifier (from `TASK_ID` env var)
+- Updated task content (full markdown with result merged)
+- New status/phase based on outcome
+
+### Status Mapping
+
+| Agent Outcome | Task Status | Task Phase |
+|---------------|-------------|------------|
+| Success | completed | done |
+| Needs human input | in_progress | human_review |
+| Failed (recoverable) | in_progress | human_review |
+
+### Stdout (optional, debug only)
+
+Agents may write a JSON summary to stdout for debugging/logging. This is NOT the primary result transport — Kafka is.
 
 ```json
 {
   "status": "done|needs_input|failed",
-  "output": "human-readable summary of what happened",
-  "message": "error or status message (optional)",
+  "output": "human-readable summary",
+  "message": "error message (optional)",
   "links": ["https://example.com/result (optional)"]
 }
 ```
-
-### Status Values
-
-| Status | Meaning | Task Update (by task/executor) |
-|--------|---------|-------------------------------|
-| `done` | Agent completed successfully | status → completed, phase → done |
-| `needs_input` | Agent needs human clarification | phase → human_review |
-| `failed` | Agent failed (recoverable) | phase → human_review |
-
-### Rules
-
-- Write JSON to **stdout**, not stderr. Logs go to stderr via glog.
-- Write exactly **one** JSON object. No extra lines before or after.
-- The `output` field is shown to the human in the task result section.
-- The `message` field explains what went wrong (for `needs_input` and `failed`).
-- The `links` field contains URLs to results (dashboards, reports, etc.).
 
 ### Exit Code
 
 | Code | Meaning |
 |------|---------|
-| 0 | Clean exit — stdout JSON determines success/failure |
-| non-zero | Crash — task/executor treats as `failed` with message "agent crashed" |
-
-Always exit 0 if you wrote valid JSON to stdout, even for `failed` status.
+| 0 | Clean exit — result published to Kafka |
+| non-zero | Crash — no result published, task stays in_progress |
 
 ### Job Lifecycle
 
-1. task/executor creates the Job with env vars
-2. Agent starts, reads env vars
+1. task/executor consumes `agent-task-v1-event`, spawns K8s Job with env vars
+2. Agent starts, reads `TASK_CONTENT`, `TASK_ID`, `KAFKA_BROKERS`, `BRANCH`
 3. Agent parses TASK_CONTENT for domain parameters
 4. Agent does domain work (API calls, Kafka commands, etc.)
-5. Agent writes JSON result to stdout
-6. Agent exits with code 0
-7. task/executor watches Job completion
-8. task/executor reads stdout JSON
-9. task/executor publishes `agent-task-v1-request` with mapped result
-10. task/controller consumes request, updates task file, git commit+push
+5. Agent publishes `agent-task-v1-request` with updated task content
+6. Agent exits 0
+7. task/controller consumes request, updates task file, git commit+push
+8. Obsidian shows updated task
+
+### task/executor Role
+
+task/executor is a **Job launcher only**:
+- Consumes `agent-task-v1-event`
+- Filters (status/phase/assignee)
+- Resolves assignee → image
+- Spawns K8s Job with env vars
+- Does NOT watch Jobs, read stdout, or publish results
+
+The agent handles its own result publishing. If the agent crashes without publishing, the task stays in_progress — the human notices and re-triggers.
 
 ### Implementation Pattern (Go)
 
@@ -143,44 +150,34 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
     // 1. Parse task content (agent-specific logic)
     params, err := parseTaskContent(a.TaskContent)
     if err != nil {
-        return printResult(AgentResult{
-            Status:  "needs_input",
-            Message: fmt.Sprintf("failed to parse task: %v", err),
-        })
+        return publishTaskUpdate(ctx, a, "needs_input", fmt.Sprintf("failed to parse task: %v", err))
     }
 
     // 2. Do domain work
     result, err := doWork(ctx, params)
     if err != nil {
-        return printResult(AgentResult{
-            Status:  "failed",
-            Message: fmt.Sprintf("work failed: %v", err),
-        })
+        return publishTaskUpdate(ctx, a, "failed", fmt.Sprintf("work failed: %v", err))
     }
 
-    // 3. Print result and exit 0
-    return printResult(result)
+    // 3. Publish result and exit 0
+    return publishTaskUpdate(ctx, a, "done", result.Summary)
 }
 
-func printResult(result AgentResult) error {
-    data, _ := json.Marshal(result)
-    fmt.Println(string(data))
-    return nil
-}
-```
+func publishTaskUpdate(ctx context.Context, a *application, status, message string) error {
+    // Create CQRS command sender
+    syncProducer, _ := createSyncProducer(ctx, a.KafkaBrokers)
+    defer syncProducer.Close()
 
-### AgentResult Struct
+    sender := createTaskUpdateCommandSender(ctx, syncProducer, a.Branch)
 
-```go
-type AgentResult struct {
-    Status  string   `json:"status"`
-    Output  string   `json:"output,omitempty"`
-    Message string   `json:"message,omitempty"`
-    Links   []string `json:"links,omitempty"`
+    // Publish agent-task-v1-request with updated task
+    return sender.Send(ctx, TaskUpdateCommand{
+        TaskID:  a.TaskID,
+        Status:  status,
+        Message: message,
+    })
 }
 ```
-
-This struct lives in each agent's own package (not shared). The JSON contract is the interface, not the Go type.
 
 ## Checklist for New Agents
 
@@ -188,8 +185,8 @@ This struct lives in each agent's own package (not shared). The JSON contract is
 
 - [ ] Reads `TASK_CONTENT`, `TASK_ID`, `KAFKA_BROKERS`, `BRANCH` from env
 - [ ] Parses task markdown to extract domain parameters
-- [ ] Returns `needs_input` for missing/invalid parameters (not crash)
-- [ ] Writes exactly one JSON line to stdout
+- [ ] Publishes result to `agent-task-v1-request` using CQRS pattern
+- [ ] Publishes `needs_input` for missing/invalid parameters (not crash)
 - [ ] Exits 0 on all handled cases (done, needs_input, failed)
 - [ ] Logs to stderr (glog), never to stdout
 - [ ] Uses `service.Main` for signal handling and Sentry
@@ -204,3 +201,13 @@ This struct lives in each agent's own package (not shared). The JSON contract is
 - [ ] Publishes result to `agent-task-v1-request` using CQRS pattern
 - [ ] HTTP server with /healthz, /readiness, /metrics
 - [ ] Uses `service.Run` for concurrent Kafka + HTTP
+
+## Differences: Pattern A vs Pattern B
+
+| | Pattern A | Pattern B |
+|---|-----------|-----------|
+| **Lifecycle** | Permanent Deployment | Ephemeral K8s Job |
+| **Event consumption** | Direct from Kafka | task/executor spawns it |
+| **Result publishing** | Direct to Kafka | Direct to Kafka |
+| **Kafka dependency** | Yes | Yes |
+| **When to use** | Long-running, always listening | Short-lived, scales to zero |
