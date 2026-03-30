@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/bborbe/errors"
-	"github.com/bborbe/vault-cli/pkg/domain"
 	"github.com/golang/glog"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
@@ -25,7 +24,7 @@ import (
 
 // ScanResult holds the outcome of a single vault scan cycle.
 type ScanResult struct {
-	Changed []lib.Task           // tasks whose content changed (new or modified)
+	Changed []lib.TaskFile       // tasks whose content changed (new or modified)
 	Deleted []lib.TaskIdentifier // task identifiers that were previously known but are now gone
 }
 
@@ -105,11 +104,11 @@ func (v *vaultScanner) runCycle(ctx context.Context, results chan<- ScanResult) 
 
 func (v *vaultScanner) scanFiles(
 	ctx context.Context,
-) ([]lib.Task, []lib.TaskIdentifier, []string, bool) {
+) ([]lib.TaskFile, []lib.TaskIdentifier, []string, bool) {
 	taskDirPath := filepath.Join(v.gitClient.Path(), v.taskDir)
 	fsys := os.DirFS(taskDirPath)
 	seen := make(map[string]struct{})
-	var changed []lib.Task
+	var changed []lib.TaskFile
 	var written []string
 	writeError := false
 	if err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
@@ -143,7 +142,7 @@ func (v *vaultScanner) processFile(
 	ctx context.Context,
 	fsys fs.FS,
 	path, absPath, relPath string,
-) (*lib.Task, string, bool) {
+) (*lib.TaskFile, string, bool) {
 	content, readErr := fs.ReadFile(fsys, path)
 	if readErr != nil {
 		glog.Warningf("failed to read %s: %v", relPath, readErr)
@@ -153,38 +152,37 @@ func (v *vaultScanner) processFile(
 	if existing, ok := v.hashes[relPath]; ok && existing.hash == hash {
 		return nil, "", false
 	}
-	frontmatter, err := extractFrontmatter(ctx, content)
+	fmYAML, err := extractFrontmatter(ctx, content)
 	if err != nil {
 		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, err)
 		return nil, "", false
 	}
-	var domainTask domain.Task
-	if err := yaml.Unmarshal([]byte(frontmatter), &domainTask); err != nil {
+	var fmMap map[string]interface{}
+	if err := yaml.Unmarshal([]byte(fmYAML), &fmMap); err != nil {
 		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, err)
 		return nil, "", false
 	}
-	if domainTask.TaskIdentifier == "" {
+	frontmatter := lib.TaskFrontmatter(fmMap)
+	taskID, _ := fmMap["task_identifier"].(string)
+	if taskID == "" {
 		return v.injectAndStore(content, absPath, relPath)
 	}
 	v.hashes[relPath] = fileEntry{
 		hash:           hash,
-		taskIdentifier: lib.TaskIdentifier(domainTask.TaskIdentifier),
+		taskIdentifier: lib.TaskIdentifier(taskID),
 	}
-	if domainTask.Status == "" {
+	if frontmatter.Status() == "" {
 		glog.Warningf("skipping %s: invalid frontmatter: status is empty", relPath)
 		return nil, "", false
 	}
-	if domainTask.Assignee == "" {
+	if frontmatter.Assignee() == "" {
 		return nil, "", false
 	}
-	name := strings.TrimSuffix(filepath.Base(absPath), ".md")
-	return &lib.Task{
-		TaskIdentifier: lib.TaskIdentifier(domainTask.TaskIdentifier),
-		Name:           lib.TaskName(name),
-		Status:         domainTask.Status,
-		Phase:          domainTask.Phase,
-		Assignee:       lib.TaskAssignee(domainTask.Assignee),
-		Content:        lib.TaskContent(content),
+	body := extractBody(content)
+	return &lib.TaskFile{
+		TaskIdentifier: lib.TaskIdentifier(taskID),
+		Frontmatter:    frontmatter,
+		Content:        body,
 	}, "", false
 }
 
@@ -193,7 +191,7 @@ func (v *vaultScanner) processFile(
 func (v *vaultScanner) injectAndStore(
 	content []byte,
 	absPath, relPath string,
-) (*lib.Task, string, bool) {
+) (*lib.TaskFile, string, bool) {
 	id := uuid.New().String()
 	newContent, injectErr := injectTaskIdentifier(content, id)
 	if injectErr != nil {
@@ -250,4 +248,29 @@ func extractFrontmatter(ctx context.Context, content []byte) (string, error) {
 		return "", errors.Errorf(ctx, "frontmatter not closed")
 	}
 	return rest[:idx], nil
+}
+
+func extractBody(content []byte) string {
+	s := string(content)
+	const delim = "---"
+	if !strings.HasPrefix(s, delim) {
+		return s
+	}
+	rest := strings.TrimPrefix(s, delim)
+	if strings.HasPrefix(rest, "\r\n") {
+		rest = rest[2:]
+	} else if strings.HasPrefix(rest, "\n") {
+		rest = rest[1:]
+	}
+	idx := strings.Index(rest, "\n---")
+	if idx == -1 {
+		return s
+	}
+	after := rest[idx+4:] // skip "\n---"
+	if strings.HasPrefix(after, "\r\n") {
+		after = after[2:]
+	} else if strings.HasPrefix(after, "\n") {
+		after = after[1:]
+	}
+	return after
 }

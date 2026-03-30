@@ -40,29 +40,32 @@ var _ = Describe("TaskPublisher", func() {
 	Describe("PublishChanged", func() {
 		It("calls SendUpdate with correct EventObject", func() {
 			fakeSender.SendUpdateReturns(nil)
-			task := lib.Task{
-				TaskIdentifier: lib.TaskIdentifier("24 Tasks/test.md"),
-				Name:           lib.TaskName("test"),
-				Assignee:       lib.TaskAssignee("user@example.com"),
+			taskFile := lib.TaskFile{
+				TaskIdentifier: lib.TaskIdentifier("test-uuid-1234"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "todo",
+					"assignee": "user@example.com",
+				},
+				Content: "# Test",
 			}
 
-			err := tp.PublishChanged(ctx, task)
+			err := tp.PublishChanged(ctx, taskFile)
 			Expect(err).To(BeNil())
 			Expect(fakeSender.SendUpdateCallCount()).To(Equal(1))
 
 			_, eventObject := fakeSender.SendUpdateArgsForCall(0)
 			Expect(eventObject.SchemaID).To(Equal(schemaID))
-			Expect(eventObject.ID).To(Equal(base.EventID("24 Tasks/test.md")))
+			Expect(eventObject.ID).To(Equal(base.EventID("test-uuid-1234")))
 			Expect(eventObject.Event).NotTo(BeNil())
 		})
 
 		It("returns an error when SendUpdate fails", func() {
 			fakeSender.SendUpdateReturns(errors.New("kafka down"))
-			task := lib.Task{
-				TaskIdentifier: lib.TaskIdentifier("24 Tasks/test.md"),
+			taskFile := lib.TaskFile{
+				TaskIdentifier: lib.TaskIdentifier("test-uuid-1234"),
 			}
 
-			err := tp.PublishChanged(ctx, task)
+			err := tp.PublishChanged(ctx, taskFile)
 			Expect(err).NotTo(BeNil())
 		})
 	})

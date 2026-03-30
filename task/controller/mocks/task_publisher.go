@@ -10,11 +10,11 @@ import (
 )
 
 type FakeTaskPublisher struct {
-	PublishChangedStub        func(context.Context, lib.Task) error
+	PublishChangedStub        func(context.Context, lib.TaskFile) error
 	publishChangedMutex       sync.RWMutex
 	publishChangedArgsForCall []struct {
 		arg1 context.Context
-		arg2 lib.Task
+		arg2 lib.TaskFile
 	}
 	publishChangedReturns struct {
 		result1 error
@@ -38,12 +38,12 @@ type FakeTaskPublisher struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeTaskPublisher) PublishChanged(arg1 context.Context, arg2 lib.Task) error {
+func (fake *FakeTaskPublisher) PublishChanged(arg1 context.Context, arg2 lib.TaskFile) error {
 	fake.publishChangedMutex.Lock()
 	ret, specificReturn := fake.publishChangedReturnsOnCall[len(fake.publishChangedArgsForCall)]
 	fake.publishChangedArgsForCall = append(fake.publishChangedArgsForCall, struct {
 		arg1 context.Context
-		arg2 lib.Task
+		arg2 lib.TaskFile
 	}{arg1, arg2})
 	stub := fake.PublishChangedStub
 	fakeReturns := fake.publishChangedReturns
@@ -64,13 +64,13 @@ func (fake *FakeTaskPublisher) PublishChangedCallCount() int {
 	return len(fake.publishChangedArgsForCall)
 }
 
-func (fake *FakeTaskPublisher) PublishChangedCalls(stub func(context.Context, lib.Task) error) {
+func (fake *FakeTaskPublisher) PublishChangedCalls(stub func(context.Context, lib.TaskFile) error) {
 	fake.publishChangedMutex.Lock()
 	defer fake.publishChangedMutex.Unlock()
 	fake.PublishChangedStub = stub
 }
 
-func (fake *FakeTaskPublisher) PublishChangedArgsForCall(i int) (context.Context, lib.Task) {
+func (fake *FakeTaskPublisher) PublishChangedArgsForCall(i int) (context.Context, lib.TaskFile) {
 	fake.publishChangedMutex.RLock()
 	defer fake.publishChangedMutex.RUnlock()
 	argsForCall := fake.publishChangedArgsForCall[i]

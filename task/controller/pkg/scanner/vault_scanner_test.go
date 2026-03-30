@@ -84,7 +84,7 @@ var _ = Describe("VaultScanner", func() {
 	})
 
 	Describe("processFile edge cases", func() {
-		It("skips file with invalid status", func() {
+		It("passes through file with non-empty unknown status", func() {
 			content := "---\ntask_identifier: bad-status-uuid\nstatus: definitely_invalid_status\nassignee: claude\n---\n"
 			absPath := filepath.Join(tmpDir, taskDir, "bad-status.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
@@ -92,7 +92,10 @@ var _ = Describe("VaultScanner", func() {
 			s.runCycle(ctx, results)
 			var result ScanResult
 			Expect(results).To(Receive(&result))
-			Expect(result.Changed).To(BeEmpty())
+			Expect(result.Changed).To(HaveLen(1))
+			Expect(
+				string(result.Changed[0].Frontmatter.Status()),
+			).To(Equal("definitely_invalid_status"))
 		})
 
 		It("handles CRLF line endings in full cycle", func() {
@@ -104,7 +107,7 @@ var _ = Describe("VaultScanner", func() {
 			var result ScanResult
 			Expect(results).To(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
-			Expect(string(result.Changed[0].Assignee)).To(Equal("claude"))
+			Expect(string(result.Changed[0].Frontmatter.Assignee())).To(Equal("claude"))
 		})
 	})
 
@@ -173,7 +176,9 @@ var _ = Describe("VaultScanner", func() {
 			var result ScanResult
 			Eventually(scanResults, time.Second).Should(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
-			Expect(string(result.Changed[0].Name)).To(Equal("trigger-task"))
+			Expect(
+				string(result.Changed[0].TaskIdentifier),
+			).To(Equal("44444444-4444-4444-8444-444444444444"))
 
 			cancel()
 			Eventually(done, 200*time.Millisecond).Should(Receive(BeNil()))
@@ -191,7 +196,7 @@ var _ = Describe("VaultScanner", func() {
 			var result ScanResult
 			Expect(results).To(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
-			Expect(string(result.Changed[0].Assignee)).To(Equal("claude"))
+			Expect(string(result.Changed[0].Frontmatter.Assignee())).To(Equal("claude"))
 		})
 
 		It("unchanged file is not in Changed on second cycle", func() {
@@ -225,7 +230,7 @@ var _ = Describe("VaultScanner", func() {
 			var result ScanResult
 			Expect(results).To(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
-			Expect(string(result.Changed[0].Status)).To(Equal("in_progress"))
+			Expect(string(result.Changed[0].Frontmatter.Status())).To(Equal("in_progress"))
 		})
 
 		It("drops result when channel is already full", func() {

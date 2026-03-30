@@ -28,10 +28,21 @@ func NewTaskResultExecutor(writer result.ResultWriter) cdb.CommandObjectExecutor
 		func(ctx context.Context, tx libkv.Tx, commandObject cdb.CommandObject) (*base.EventID, base.Event, error) {
 			var req lib.TaskFile
 			if err := commandObject.Command.Data.MarshalInto(ctx, &req); err != nil {
-				return nil, nil, errors.Wrapf(ctx, cdb.ErrCommandObjectSkipped, "malformed TaskFile command: %v", err)
+				return nil, nil, errors.Wrapf(
+					ctx,
+					cdb.ErrCommandObjectSkipped,
+					"malformed TaskFile command: %v",
+					err,
+				)
 			}
 			if err := req.Validate(ctx); err != nil {
-				return nil, nil, errors.Wrapf(ctx, cdb.ErrCommandObjectSkipped, "invalid TaskFile (taskID=%s): %v", req.TaskIdentifier, err)
+				return nil, nil, errors.Wrapf(
+					ctx,
+					cdb.ErrCommandObjectSkipped,
+					"invalid TaskFile (taskID=%s): %v",
+					req.TaskIdentifier,
+					err,
+				)
 			}
 			if err := writer.WriteResult(ctx, req); err != nil {
 				return nil, nil, errors.Wrapf(

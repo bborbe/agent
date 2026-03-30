@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.20.2
+
+- refactor: Update task/controller scanner, publisher, and sync loop to use lib.TaskFile; parse frontmatter as generic map, extract markdown body via extractBody helper, pass unknown status values through as strings
+
 ## v0.20.1
 
 - refactor: Merge Task and TaskFile into single TaskFile type with base.Object[base.Identifier] embed and stable TaskIdentifier business key; remove TaskContent, TaskName, and old Task types; change Phase() accessor to return *domain.TaskPhase

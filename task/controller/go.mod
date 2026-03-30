@@ -23,7 +23,6 @@ require (
 	github.com/bborbe/sentry v1.9.13
 	github.com/bborbe/service v1.9.7
 	github.com/bborbe/time v1.25.6
-	github.com/bborbe/vault-cli v0.51.0
 	github.com/golang/glog v1.2.5
 	github.com/golangci/golangci-lint/v2 v2.11.4
 	github.com/google/addlicense v1.2.0
@@ -114,6 +113,7 @@ require (
 	github.com/bborbe/math v1.3.5 // indirect
 	github.com/bborbe/parse v1.10.8 // indirect
 	github.com/bborbe/validation v1.4.9 // indirect
+	github.com/bborbe/vault-cli v0.51.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bkielbasa/cyclop v1.2.3 // indirect
 	github.com/blizzy78/varnamelen v0.8.0 // indirect
@@ -199,7 +199,7 @@ require (
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.8.0 // indirect
-	github.com/go-git/go-git/v5 v5.17.0 // indirect
+	github.com/go-git/go-git/v5 v5.17.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect

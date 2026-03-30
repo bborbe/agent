@@ -7,9 +7,11 @@ package command_test
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/cqrs/cdb"
+	libtime "github.com/bborbe/time"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -64,7 +66,13 @@ var _ = Describe("NewTaskResultExecutor", func() {
 
 		Context("valid command", func() {
 			It("calls WriteResult once with correct TaskFile", func() {
+				now := libtime.DateTime(time.Now())
 				taskFile := lib.TaskFile{
+					Object: base.Object[base.Identifier]{
+						Identifier: base.Identifier("event-uuid-test"),
+						Created:    now,
+						Modified:   now,
+					},
 					TaskIdentifier: lib.TaskIdentifier("24 Tasks/test-task.md"),
 					Frontmatter: lib.TaskFrontmatter{
 						"status": "done",
@@ -127,7 +135,13 @@ var _ = Describe("NewTaskResultExecutor", func() {
 
 		Context("WriteResult returns error", func() {
 			It("returns the error wrapped", func() {
+				now := libtime.DateTime(time.Now())
 				taskFile := lib.TaskFile{
+					Object: base.Object[base.Identifier]{
+						Identifier: base.Identifier("event-uuid-error"),
+						Created:    now,
+						Modified:   now,
+					},
 					TaskIdentifier: lib.TaskIdentifier("24 Tasks/error-task.md"),
 					Frontmatter:    lib.TaskFrontmatter{},
 					Content:        "content",

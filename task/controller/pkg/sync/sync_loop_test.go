@@ -61,16 +61,17 @@ var _ = Describe("SyncLoop", func() {
 	})
 
 	It("calls PublishChanged for a changed task in scan result", func() {
-		task := lib.Task{
-			TaskIdentifier: lib.TaskIdentifier("24 Tasks/test.md"),
-			Name:           lib.TaskName("test"),
+		taskFile := lib.TaskFile{
+			TaskIdentifier: lib.TaskIdentifier("test-uuid"),
+			Frontmatter:    lib.TaskFrontmatter{"status": "todo"},
+			Content:        "# Test",
 		}
 		fakePublisher.PublishChangedReturns(nil)
-		resultsCh <- scanner.ScanResult{Changed: []lib.Task{task}}
+		resultsCh <- scanner.ScanResult{Changed: []lib.TaskFile{taskFile}}
 
 		Eventually(fakePublisher.PublishChangedCallCount, time.Second).Should(Equal(1))
 		_, publishedTask := fakePublisher.PublishChangedArgsForCall(0)
-		Expect(publishedTask.TaskIdentifier).To(Equal(task.TaskIdentifier))
+		Expect(publishedTask.TaskIdentifier).To(Equal(taskFile.TaskIdentifier))
 	})
 
 	It("calls PublishDeleted for a deleted identifier in scan result", func() {
@@ -84,11 +85,11 @@ var _ = Describe("SyncLoop", func() {
 	})
 
 	It("returns error when PublishChanged fails", func() {
-		task := lib.Task{
-			TaskIdentifier: lib.TaskIdentifier("24 Tasks/test.md"),
+		taskFile := lib.TaskFile{
+			TaskIdentifier: lib.TaskIdentifier("test-uuid"),
 		}
 		fakePublisher.PublishChangedReturns(errors.New("publish failed"))
-		resultsCh <- scanner.ScanResult{Changed: []lib.Task{task}}
+		resultsCh <- scanner.ScanResult{Changed: []lib.TaskFile{taskFile}}
 
 		Eventually(
 			runErr,
