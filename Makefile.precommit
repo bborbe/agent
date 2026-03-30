@@ -1,3 +1,4 @@
+export ROOTDIR ?= $(shell git rev-parse --show-toplevel)
 
 default: precommit
 
@@ -58,6 +59,7 @@ gosec:
 trivy:
 	trivy fs \
 	--db-repository ghcr.io/aquasecurity/trivy-db \
+	--ignorefile $(ROOTDIR)/.trivyignore \
 	--scanners vuln,secret \
 	--quiet \
 	--no-progress \
