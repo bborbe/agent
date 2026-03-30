@@ -10,11 +10,11 @@ import (
 )
 
 type FakeResultWriter struct {
-	WriteResultStub        func(context.Context, lib.TaskFile) error
+	WriteResultStub        func(context.Context, lib.Task) error
 	writeResultMutex       sync.RWMutex
 	writeResultArgsForCall []struct {
 		arg1 context.Context
-		arg2 lib.TaskFile
+		arg2 lib.Task
 	}
 	writeResultReturns struct {
 		result1 error
@@ -26,12 +26,12 @@ type FakeResultWriter struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeResultWriter) WriteResult(arg1 context.Context, arg2 lib.TaskFile) error {
+func (fake *FakeResultWriter) WriteResult(arg1 context.Context, arg2 lib.Task) error {
 	fake.writeResultMutex.Lock()
 	ret, specificReturn := fake.writeResultReturnsOnCall[len(fake.writeResultArgsForCall)]
 	fake.writeResultArgsForCall = append(fake.writeResultArgsForCall, struct {
 		arg1 context.Context
-		arg2 lib.TaskFile
+		arg2 lib.Task
 	}{arg1, arg2})
 	stub := fake.WriteResultStub
 	fakeReturns := fake.writeResultReturns
@@ -52,13 +52,13 @@ func (fake *FakeResultWriter) WriteResultCallCount() int {
 	return len(fake.writeResultArgsForCall)
 }
 
-func (fake *FakeResultWriter) WriteResultCalls(stub func(context.Context, lib.TaskFile) error) {
+func (fake *FakeResultWriter) WriteResultCalls(stub func(context.Context, lib.Task) error) {
 	fake.writeResultMutex.Lock()
 	defer fake.writeResultMutex.Unlock()
 	fake.WriteResultStub = stub
 }
 
-func (fake *FakeResultWriter) WriteResultArgsForCall(i int) (context.Context, lib.TaskFile) {
+func (fake *FakeResultWriter) WriteResultArgsForCall(i int) (context.Context, lib.Task) {
 	fake.writeResultMutex.RLock()
 	defer fake.writeResultMutex.RUnlock()
 	argsForCall := fake.writeResultArgsForCall[i]

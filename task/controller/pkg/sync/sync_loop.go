@@ -81,10 +81,10 @@ func (s *syncLoop) processResult(ctx context.Context, result scanner.ScanResult)
 	} else {
 		glog.V(3).Infof("scan cycle: no changes")
 	}
-	for _, taskFile := range result.Changed {
-		glog.V(3).Infof("publishing changed task %s", taskFile.TaskIdentifier)
-		if err := s.publisher.PublishChanged(ctx, taskFile); err != nil {
-			return errors.Wrapf(ctx, err, "publish changed task %s", taskFile.TaskIdentifier)
+	for _, task := range result.Changed {
+		glog.V(3).Infof("publishing changed task %s", task.TaskIdentifier)
+		if err := s.publisher.PublishChanged(ctx, task); err != nil {
+			return errors.Wrapf(ctx, err, "publish changed task %s", task.TaskIdentifier)
 		}
 	}
 	for _, id := range result.Deleted {

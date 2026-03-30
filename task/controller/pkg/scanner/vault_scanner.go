@@ -24,7 +24,7 @@ import (
 
 // ScanResult holds the outcome of a single vault scan cycle.
 type ScanResult struct {
-	Changed []lib.TaskFile       // tasks whose content changed (new or modified)
+	Changed []lib.Task           // tasks whose content changed (new or modified)
 	Deleted []lib.TaskIdentifier // task identifiers that were previously known but are now gone
 }
 
@@ -104,11 +104,11 @@ func (v *vaultScanner) runCycle(ctx context.Context, results chan<- ScanResult) 
 
 func (v *vaultScanner) scanFiles(
 	ctx context.Context,
-) ([]lib.TaskFile, []lib.TaskIdentifier, []string, bool) {
+) ([]lib.Task, []lib.TaskIdentifier, []string, bool) {
 	taskDirPath := filepath.Join(v.gitClient.Path(), v.taskDir)
 	fsys := os.DirFS(taskDirPath)
 	seen := make(map[string]struct{})
-	var changed []lib.TaskFile
+	var changed []lib.Task
 	var written []string
 	writeError := false
 	if err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
@@ -142,7 +142,7 @@ func (v *vaultScanner) processFile(
 	ctx context.Context,
 	fsys fs.FS,
 	path, absPath, relPath string,
-) (*lib.TaskFile, string, bool) {
+) (*lib.Task, string, bool) {
 	content, readErr := fs.ReadFile(fsys, path)
 	if readErr != nil {
 		glog.Warningf("failed to read %s: %v", relPath, readErr)
@@ -179,10 +179,10 @@ func (v *vaultScanner) processFile(
 		return nil, "", false
 	}
 	body := extractBody(content)
-	return &lib.TaskFile{
+	return &lib.Task{
 		TaskIdentifier: lib.TaskIdentifier(taskID),
 		Frontmatter:    frontmatter,
-		Content:        body,
+		Content:        lib.TaskContent(body),
 	}, "", false
 }
 
@@ -191,7 +191,7 @@ func (v *vaultScanner) processFile(
 func (v *vaultScanner) injectAndStore(
 	content []byte,
 	absPath, relPath string,
-) (*lib.TaskFile, string, bool) {
+) (*lib.Task, string, bool) {
 	id := uuid.New().String()
 	newContent, injectErr := injectTaskIdentifier(content, id)
 	if injectErr != nil {

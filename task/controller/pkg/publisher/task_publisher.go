@@ -21,8 +21,8 @@ import (
 
 // TaskPublisher publishes task change and deletion events to Kafka.
 type TaskPublisher interface {
-	// PublishChanged publishes an upsert event for the given task file.
-	PublishChanged(ctx context.Context, taskFile lib.TaskFile) error
+	// PublishChanged publishes an upsert event for the given task.
+	PublishChanged(ctx context.Context, task lib.Task) error
 	// PublishDeleted publishes a deletion event for the given task identifier.
 	PublishDeleted(ctx context.Context, id lib.TaskIdentifier) error
 }
@@ -43,23 +43,23 @@ type taskPublisher struct {
 	schemaID          cdb.SchemaID
 }
 
-func (p *taskPublisher) PublishChanged(ctx context.Context, taskFile lib.TaskFile) error {
+func (p *taskPublisher) PublishChanged(ctx context.Context, task lib.Task) error {
 	now := libtime.DateTime(time.Now())
-	taskFile.Object = base.Object[base.Identifier]{
+	task.Object = base.Object[base.Identifier]{
 		Identifier: base.Identifier(uuid.New().String()),
 		Created:    now,
 		Modified:   now,
 	}
-	event, err := base.ParseEvent(ctx, taskFile)
+	event, err := base.ParseEvent(ctx, task)
 	if err != nil {
-		return errors.Wrapf(ctx, err, "parse event for task %s failed", taskFile.TaskIdentifier)
+		return errors.Wrapf(ctx, err, "parse event for task %s failed", task.TaskIdentifier)
 	}
 	if err := p.eventObjectSender.SendUpdate(ctx, cdb.EventObject{
 		Event:    event,
-		ID:       base.EventID(taskFile.TaskIdentifier),
+		ID:       base.EventID(task.TaskIdentifier),
 		SchemaID: p.schemaID,
 	}); err != nil {
-		return errors.Wrapf(ctx, err, "publish changed task %s failed", taskFile.TaskIdentifier)
+		return errors.Wrapf(ctx, err, "publish changed task %s failed", task.TaskIdentifier)
 	}
 	return nil
 }

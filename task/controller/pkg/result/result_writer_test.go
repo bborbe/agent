@@ -29,7 +29,7 @@ var _ = Describe("ResultWriter", func() {
 		taskDir    string
 		fakeGit    *mocks.FakeGitClient
 		writer     result.ResultWriter
-		taskFile   lib.TaskFile
+		taskFile   lib.Task
 		identifier lib.TaskIdentifier
 	)
 
@@ -67,13 +67,13 @@ var _ = Describe("ResultWriter", func() {
 					"---\ntask_identifier: test-task-uuid-1234\nstatus: in-progress\n---\nOld content\n",
 				)
 
-				taskFile = lib.TaskFile{
+				taskFile = lib.Task{
 					TaskIdentifier: identifier,
 					Frontmatter: lib.TaskFrontmatter{
 						"task_identifier": "test-task-uuid-1234",
 						"status":          "done",
 					},
-					Content: "New content\n",
+					Content: lib.TaskContent("New content\n"),
 				}
 
 				err := writer.WriteResult(ctx, taskFile)
@@ -98,17 +98,17 @@ var _ = Describe("ResultWriter", func() {
 					"---\ntask_identifier: test-task-uuid-1234\nstatus: in-progress\n---\nFirst content\n",
 				)
 
-				taskFile = lib.TaskFile{
+				taskFile = lib.Task{
 					TaskIdentifier: identifier,
 					Frontmatter: lib.TaskFrontmatter{
 						"task_identifier": "test-task-uuid-1234",
 						"status":          "done",
 					},
-					Content: "First result\n",
+					Content: lib.TaskContent("First result\n"),
 				}
 				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
 
-				taskFile.Content = "Second result\n"
+				taskFile.Content = lib.TaskContent("Second result\n")
 				taskFile.Frontmatter["status"] = "closed"
 				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
 
@@ -129,10 +129,10 @@ var _ = Describe("ResultWriter", func() {
 					"---\ntask_identifier: different-uuid\nstatus: open\n---\nSome content\n",
 				)
 
-				taskFile = lib.TaskFile{
+				taskFile = lib.Task{
 					TaskIdentifier: lib.TaskIdentifier("non-existent-uuid"),
 					Frontmatter:    lib.TaskFrontmatter{"status": "done"},
-					Content:        "Result\n",
+					Content:        lib.TaskContent("Result\n"),
 				}
 
 				err := writer.WriteResult(ctx, taskFile)
@@ -148,10 +148,10 @@ var _ = Describe("ResultWriter", func() {
 					"---\ntask_identifier: test-task-uuid-1234\n---\nOld content\n",
 				)
 
-				taskFile = lib.TaskFile{
+				taskFile = lib.Task{
 					TaskIdentifier: identifier,
 					Frontmatter:    lib.TaskFrontmatter{},
-					Content:        "New content\n",
+					Content:        lib.TaskContent("New content\n"),
 				}
 
 				err := writer.WriteResult(ctx, taskFile)
@@ -170,7 +170,7 @@ var _ = Describe("ResultWriter", func() {
 					"---\ntask_identifier: test-task-uuid-1234\nstatus: open\n---\nOld content\n",
 				)
 
-				taskFile = lib.TaskFile{
+				taskFile = lib.Task{
 					TaskIdentifier: identifier,
 					Frontmatter: lib.TaskFrontmatter{
 						"task_identifier": "test-task-uuid-1234",
@@ -180,7 +180,7 @@ var _ = Describe("ResultWriter", func() {
 							"model": "claude-sonnet-4-6",
 						},
 					},
-					Content: "Result content\n",
+					Content: lib.TaskContent("Result content\n"),
 				}
 
 				err := writer.WriteResult(ctx, taskFile)
@@ -219,13 +219,13 @@ var _ = Describe("ResultWriter", func() {
 				)
 				fakeGit.CommitAndPushReturns(errTest)
 
-				taskFile = lib.TaskFile{
+				taskFile = lib.Task{
 					TaskIdentifier: identifier,
 					Frontmatter: lib.TaskFrontmatter{
 						"task_identifier": "test-task-uuid-1234",
 						"status":          "done",
 					},
-					Content: "Result\n",
+					Content: lib.TaskContent("Result\n"),
 				}
 
 				err := writer.WriteResult(ctx, taskFile)

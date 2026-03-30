@@ -45,14 +45,14 @@ var _ = Describe("JobSpawner", func() {
 
 	Describe("SpawnJob", func() {
 		It("creates a job with correct name and env vars", func() {
-			taskFile := lib.TaskFile{
+			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("abc12345-rest-ignored"),
 				Frontmatter: lib.TaskFrontmatter{
 					"assignee": "claude",
 				},
-				Content: "do the work",
+				Content: lib.TaskContent("do the work"),
 			}
-			err := jobSpawner.SpawnJob(ctx, taskFile, "my-image:latest")
+			err := jobSpawner.SpawnJob(ctx, task, "my-image:latest")
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -79,10 +79,10 @@ var _ = Describe("JobSpawner", func() {
 		})
 
 		It("truncates task ID to 8 characters in job name", func() {
-			taskFile := lib.TaskFile{
+			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("abcdefghijklmnop"),
 			}
-			err := jobSpawner.SpawnJob(ctx, taskFile, "img:latest")
+			err := jobSpawner.SpawnJob(ctx, task, "img:latest")
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -91,10 +91,10 @@ var _ = Describe("JobSpawner", func() {
 		})
 
 		It("handles short task ID without panic", func() {
-			taskFile := lib.TaskFile{
+			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("abc"),
 			}
-			err := jobSpawner.SpawnJob(ctx, taskFile, "img:latest")
+			err := jobSpawner.SpawnJob(ctx, task, "img:latest")
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -112,10 +112,10 @@ var _ = Describe("JobSpawner", func() {
 			fakeClient = fake.NewClientset(existingJob)
 			jobSpawner = spawner.NewJobSpawner(fakeClient, "test-ns", "kafka:9092", "develop")
 
-			taskFile := lib.TaskFile{
+			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("abc12345-rest-ignored"),
 			}
-			err := jobSpawner.SpawnJob(ctx, taskFile, "img:latest")
+			err := jobSpawner.SpawnJob(ctx, task, "img:latest")
 			Expect(err).To(BeNil())
 		})
 
@@ -127,10 +127,10 @@ var _ = Describe("JobSpawner", func() {
 					return true, nil, k8serrors.NewInternalError(fmt.Errorf("server error"))
 				},
 			)
-			taskFile := lib.TaskFile{
+			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("abc12345"),
 			}
-			err := jobSpawner.SpawnJob(ctx, taskFile, "img:latest")
+			err := jobSpawner.SpawnJob(ctx, task, "img:latest")
 			Expect(err).NotTo(BeNil())
 		})
 	})

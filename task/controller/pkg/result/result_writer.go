@@ -22,9 +22,9 @@ import (
 
 //counterfeiter:generate -o ../../mocks/result_writer.go --fake-name FakeResultWriter . ResultWriter
 
-// ResultWriter writes a TaskFile back to the vault task file.
+// ResultWriter writes a Task back to the vault task file.
 type ResultWriter interface {
-	WriteResult(ctx context.Context, req lib.TaskFile) error
+	WriteResult(ctx context.Context, req lib.Task) error
 }
 
 // NewResultWriter creates a ResultWriter that locates task files in the vault
@@ -44,7 +44,7 @@ type resultWriter struct {
 	taskDir   string
 }
 
-func (r *resultWriter) WriteResult(ctx context.Context, req lib.TaskFile) error {
+func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 	taskDirPath := filepath.Join(r.gitClient.Path(), r.taskDir)
 	fsys := os.DirFS(taskDirPath)
 
@@ -85,7 +85,7 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.TaskFile) error 
 		return errors.Wrapf(ctx, err, "marshal frontmatter failed")
 	}
 
-	newContent := []byte("---\n" + string(marshaledFrontmatter) + "---\n" + req.Content)
+	newContent := []byte("---\n" + string(marshaledFrontmatter) + "---\n" + string(req.Content))
 	if writeErr := os.WriteFile(matchedAbsPath, newContent, 0600); writeErr != nil {
 		return errors.Wrapf(ctx, writeErr, "write file failed")
 	}

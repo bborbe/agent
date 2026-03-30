@@ -65,9 +65,9 @@ var _ = Describe("NewTaskResultExecutor", func() {
 		}
 
 		Context("valid command", func() {
-			It("calls WriteResult once with correct TaskFile", func() {
+			It("calls WriteResult once with correct Task", func() {
 				now := libtime.DateTime(time.Now())
-				taskFile := lib.TaskFile{
+				task := lib.Task{
 					Object: base.Object[base.Identifier]{
 						Identifier: base.Identifier("event-uuid-test"),
 						Created:    now,
@@ -77,9 +77,9 @@ var _ = Describe("NewTaskResultExecutor", func() {
 					Frontmatter: lib.TaskFrontmatter{
 						"status": "done",
 					},
-					Content: "## Result\n\nTask completed successfully.",
+					Content: lib.TaskContent("## Result\n\nTask completed successfully."),
 				}
-				event, err := base.ParseEvent(ctx, taskFile)
+				event, err := base.ParseEvent(ctx, task)
 				Expect(err).To(BeNil())
 
 				cmdObj := buildCommandObject(event)
@@ -91,9 +91,9 @@ var _ = Describe("NewTaskResultExecutor", func() {
 				Expect(resultEvent).To(BeNil())
 				Expect(fakeWriter.WriteResultCallCount()).To(Equal(1))
 
-				_, gotTaskFile := fakeWriter.WriteResultArgsForCall(0)
-				Expect(gotTaskFile.TaskIdentifier).To(Equal(taskFile.TaskIdentifier))
-				Expect(gotTaskFile.Content).To(Equal(taskFile.Content))
+				_, gotTask := fakeWriter.WriteResultArgsForCall(0)
+				Expect(gotTask.TaskIdentifier).To(Equal(task.TaskIdentifier))
+				Expect(gotTask.Content).To(Equal(task.Content))
 			})
 		})
 
@@ -115,12 +115,12 @@ var _ = Describe("NewTaskResultExecutor", func() {
 
 		Context("invalid request — empty task ID", func() {
 			It("returns ErrCommandObjectSkipped and WriteResult is never called", func() {
-				taskFile := lib.TaskFile{
+				task := lib.Task{
 					TaskIdentifier: lib.TaskIdentifier(""),
 					Frontmatter:    lib.TaskFrontmatter{},
-					Content:        "some content",
+					Content:        lib.TaskContent("some content"),
 				}
-				event, err := base.ParseEvent(ctx, taskFile)
+				event, err := base.ParseEvent(ctx, task)
 				Expect(err).To(BeNil())
 
 				cmdObj := buildCommandObject(event)
@@ -136,7 +136,7 @@ var _ = Describe("NewTaskResultExecutor", func() {
 		Context("WriteResult returns error", func() {
 			It("returns the error wrapped", func() {
 				now := libtime.DateTime(time.Now())
-				taskFile := lib.TaskFile{
+				task := lib.Task{
 					Object: base.Object[base.Identifier]{
 						Identifier: base.Identifier("event-uuid-error"),
 						Created:    now,
@@ -144,9 +144,9 @@ var _ = Describe("NewTaskResultExecutor", func() {
 					},
 					TaskIdentifier: lib.TaskIdentifier("24 Tasks/error-task.md"),
 					Frontmatter:    lib.TaskFrontmatter{},
-					Content:        "content",
+					Content:        lib.TaskContent("content"),
 				}
-				event, err := base.ParseEvent(ctx, taskFile)
+				event, err := base.ParseEvent(ctx, task)
 				Expect(err).To(BeNil())
 
 				cmdObj := buildCommandObject(event)

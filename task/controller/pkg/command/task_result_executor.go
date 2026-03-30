@@ -26,12 +26,12 @@ func NewTaskResultExecutor(writer result.ResultWriter) cdb.CommandObjectExecutor
 		TaskResultCommandOperation,
 		false, // sendResult: no result event needed
 		func(ctx context.Context, tx libkv.Tx, commandObject cdb.CommandObject) (*base.EventID, base.Event, error) {
-			var req lib.TaskFile
+			var req lib.Task
 			if err := commandObject.Command.Data.MarshalInto(ctx, &req); err != nil {
 				return nil, nil, errors.Wrapf(
 					ctx,
 					cdb.ErrCommandObjectSkipped,
-					"malformed TaskFile command: %v",
+					"malformed Task command: %v",
 					err,
 				)
 			}
@@ -39,7 +39,7 @@ func NewTaskResultExecutor(writer result.ResultWriter) cdb.CommandObjectExecutor
 				return nil, nil, errors.Wrapf(
 					ctx,
 					cdb.ErrCommandObjectSkipped,
-					"invalid TaskFile (taskID=%s): %v",
+					"invalid Task (taskID=%s): %v",
 					req.TaskIdentifier,
 					err,
 				)

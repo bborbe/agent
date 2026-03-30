@@ -40,16 +40,16 @@ var _ = Describe("TaskPublisher", func() {
 	Describe("PublishChanged", func() {
 		It("calls SendUpdate with correct EventObject", func() {
 			fakeSender.SendUpdateReturns(nil)
-			taskFile := lib.TaskFile{
+			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("test-uuid-1234"),
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "todo",
 					"assignee": "user@example.com",
 				},
-				Content: "# Test",
+				Content: lib.TaskContent("# Test"),
 			}
 
-			err := tp.PublishChanged(ctx, taskFile)
+			err := tp.PublishChanged(ctx, task)
 			Expect(err).To(BeNil())
 			Expect(fakeSender.SendUpdateCallCount()).To(Equal(1))
 
@@ -61,11 +61,11 @@ var _ = Describe("TaskPublisher", func() {
 
 		It("returns an error when SendUpdate fails", func() {
 			fakeSender.SendUpdateReturns(errors.New("kafka down"))
-			taskFile := lib.TaskFile{
+			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("test-uuid-1234"),
 			}
 
-			err := tp.PublishChanged(ctx, taskFile)
+			err := tp.PublishChanged(ctx, task)
 			Expect(err).NotTo(BeNil())
 		})
 	})
