@@ -1,7 +1,11 @@
 ---
-status: approved
+status: completed
+container: agent-023-unify-taskfile-executor
+dark-factory-version: v0.69.0
 created: "2026-03-30T17:29:00Z"
 queued: "2026-03-30T18:21:32Z"
+started: "2026-03-30T18:58:43Z"
+completed: "2026-03-30T19:08:52Z"
 ---
 
 <summary>
