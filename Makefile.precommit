@@ -56,11 +56,13 @@ osv-scanner:
 gosec:
 	go run -mod=mod github.com/securego/gosec/v2/cmd/gosec -exclude=G104 ./...
 
+.PHONY: trivy
 trivy:
 	trivy fs \
 	--db-repository ghcr.io/aquasecurity/trivy-db \
-	--ignorefile $(ROOTDIR)/.trivyignore \
+	$(if $(wildcard .trivyignore),--ignorefile .trivyignore,$(if $(wildcard $(ROOTDIR)/.trivyignore),--ignorefile $(ROOTDIR)/.trivyignore,)) \
 	--scanners vuln,secret \
+	--skip-dirs vendor \
 	--quiet \
 	--no-progress \
 	--disable-telemetry \
