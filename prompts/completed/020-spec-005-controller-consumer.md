@@ -1,8 +1,12 @@
 ---
-status: approved
+status: completed
 spec: ["005"]
+container: agent-020-spec-005-controller-consumer
+dark-factory-version: v0.69.0
 created: "2026-03-29T20:15:00Z"
 queued: "2026-03-30T13:58:01Z"
+started: "2026-03-30T15:04:35Z"
+completed: "2026-03-30T16:06:25Z"
 branch: dark-factory/agent-result-capture
 ---
 
