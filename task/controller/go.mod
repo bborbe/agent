@@ -12,10 +12,12 @@ replace (
 
 require (
 	github.com/bborbe/agent/lib v0.0.0-00010101000000-000000000000
+	github.com/bborbe/boltkv v1.11.6
 	github.com/bborbe/cqrs v0.2.3
 	github.com/bborbe/errors v1.5.8
 	github.com/bborbe/http v1.26.7
 	github.com/bborbe/kafka v1.22.9
+	github.com/bborbe/kv v1.19.2
 	github.com/bborbe/log v1.6.8
 	github.com/bborbe/run v1.9.12
 	github.com/bborbe/sentry v1.9.13
@@ -37,6 +39,7 @@ require (
 	github.com/securego/gosec/v2 v2.25.0
 	github.com/segmentio/golines v0.13.0
 	github.com/shoenig/go-modtool v0.7.1
+	go.etcd.io/bbolt v1.4.3
 	golang.org/x/vuln v1.1.4
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -108,7 +111,6 @@ require (
 	github.com/bborbe/argument/v2 v2.12.10 // indirect
 	github.com/bborbe/collection v1.20.7 // indirect
 	github.com/bborbe/k8s v1.13.4 // indirect
-	github.com/bborbe/kv v1.19.2 // indirect
 	github.com/bborbe/math v1.3.5 // indirect
 	github.com/bborbe/parse v1.10.8 // indirect
 	github.com/bborbe/validation v1.4.9 // indirect
@@ -443,7 +445,6 @@ require (
 	go-simpler.org/sloglint v0.11.1 // indirect
 	go.augendre.info/arangolint v0.4.0 // indirect
 	go.augendre.info/fatcontext v0.9.0 // indirect
-	go.etcd.io/bbolt v1.4.3 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0 // indirect

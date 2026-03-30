@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	boltkv "github.com/bborbe/boltkv"
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/cqrs/cdb"
 	"github.com/bborbe/errors"
@@ -22,9 +23,11 @@ import (
 	"github.com/golang/glog"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	bolt "go.etcd.io/bbolt"
 
 	"github.com/bborbe/agent/task/controller/pkg/factory"
 	"github.com/bborbe/agent/task/controller/pkg/gitclient"
+	"github.com/bborbe/agent/task/controller/pkg/result"
 	pkgsync "github.com/bborbe/agent/task/controller/pkg/sync"
 )
 
@@ -45,6 +48,8 @@ type application struct {
 	GitBranch    string        `required:"false" arg:"git-branch"    env:"GIT_BRANCH"    usage:"git branch to track"                                       default:"main"`
 	PollInterval time.Duration `required:"false" arg:"poll-interval" env:"POLL_INTERVAL" usage:"vault polling interval"                                    default:"60s"`
 	TaskDir      string        `required:"false" arg:"task-dir"      env:"TASK_DIR"      usage:"task directory within vault"                               default:"24 Tasks"`
+	DataDir      string        `required:"true"  arg:"data-dir"      env:"DATA_DIR"      usage:"directory for BoltDB offset storage"`
+	NoSync       bool          `required:"false" arg:"no-sync"       env:"NO_SYNC"       usage:"disable BoltDB fsync (for testing only)"`
 }
 
 func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
@@ -77,9 +82,41 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		eventObjectSender,
 	)
 
+	var boltOptions []boltkv.ChangeOptions
+	if a.NoSync {
+		boltOptions = append(boltOptions, func(opts *bolt.Options) {
+			opts.NoSync = true
+		})
+	}
+	db, err := boltkv.OpenDir(ctx, a.DataDir, boltOptions...)
+	if err != nil {
+		return errors.Wrapf(ctx, err, "open boltkv dir %s", a.DataDir)
+	}
+	defer db.Close()
+
+	saramaClientProvider, err := libkafka.NewSaramaClientProviderByType(
+		ctx,
+		libkafka.SaramaClientProviderTypeReused,
+		libkafka.ParseBrokersFromString(a.KafkaBrokers),
+	)
+	if err != nil {
+		return errors.Wrapf(ctx, err, "create sarama client provider")
+	}
+	defer saramaClientProvider.Close()
+
+	resultWriter := result.NewResultWriter(gitClient, a.TaskDir)
+	commandConsumer := factory.CreateCommandConsumer(
+		saramaClientProvider,
+		syncProducer,
+		db,
+		a.Branch,
+		resultWriter,
+	)
+
 	return service.Run(
 		ctx,
 		syncLoop.Run,
+		commandConsumer,
 		a.createHTTPServer(syncLoop),
 	)
 }

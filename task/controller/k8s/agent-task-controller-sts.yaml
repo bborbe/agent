@@ -63,6 +63,10 @@ spec:
               value: '60s'
             - name: TASK_DIR
               value: 'tasks'
+            - name: DATA_DIR
+              value: /data/bolt
+            - name: NO_SYNC
+              value: "false"
           image: '{{"DOCKER_REGISTRY" | env}}/agent-task-controller:{{"BRANCH" | env}}'
           imagePullPolicy: Always
           livenessProbe:
