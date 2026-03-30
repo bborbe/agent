@@ -1,148 +1,234 @@
 ---
 status: created
 spec: ["005"]
-created: "2026-03-29T20:00:00Z"
+created: "2026-03-29T20:15:00Z"
 branch: dark-factory/agent-result-capture
 ---
 
 <summary>
-- task/controller gains a Kafka consumer that reads from `agent-task-v1-request` (the command topic)
-- Each consumed message is parsed as a `base.Command` (CQRS envelope), the `data` map is extracted and unmarshaled into `lib.TaskResultCommand`
-- The command handler calls the `TaskResultWriter` (from the previous prompt) to update the vault task file
-- On successful file write, the handler calls `gitClient.CommitAndPush` to persist the result to the vault git repo
-- On "file not found" or "already written" (writer returned false), the handler skips CommitAndPush and commits the Kafka offset only
-- The new consumer runs concurrently alongside the existing git-sync loop via `service.Run`
-- The consumer group `agent-task-controller-result` is distinct from the event-producing group
-- `docs/agent-job-interface.md` is updated to confirm the `TASK_ID` env var and result consumption flow
-- `make precommit` passes in task/controller/
+- Wire CQRS command consumer into task/controller to consume agent result requests from Kafka
+- Add BoltDB for persistent Kafka offset storage (DataDir + NoSync CLI flags)
+- Command executor decodes result payload and delegates to ResultWriter
+- Runs alongside existing git-sync loop via service.Run
+- Closes the feedback loop: agent publishes result → task/controller writes it to vault
 </summary>
 
 <objective>
-Wire the Kafka command consumer into `task/controller` so that agent result commands published to `agent-task-v1-request` are consumed, the vault task file is updated, and the change is committed and pushed to git. This closes the feedback loop: agent publishes result → task/controller writes result → human sees updated task in Obsidian.
+Wire the CQRS command consumer into `task/controller` so it consumes `agent-task-v1-request` messages and calls `ResultWriter.WriteResult`. This is the final prompt for spec-005: after this, agent-published results flow end-to-end from Kafka into vault task files.
 </objective>
 
 <context>
-Read CLAUDE.md for project conventions, and all relevant `go-*.md` docs in `/home/node/.claude/docs/`.
+Read CLAUDE.md for project conventions and all relevant `go-*.md` docs in `/home/node/.claude/docs/`.
 
 Key files to read before making changes:
-- `task/controller/pkg/writer/task_result_writer.go` — TaskResultWriter interface (from previous prompt; must exist before running this prompt)
-- `task/controller/pkg/factory/factory.go` — existing factory wiring pattern (`CreateSyncLoop`)
-- `task/controller/main.go` — how saramaClient, branch, gitClient, and service.Run are used
-- `task/controller/pkg/gitclient/git_client.go` — GitClient interface, specifically `CommitAndPush`
-- `task/executor/pkg/factory/factory.go` — reference pattern for wiring a Kafka consumer
-- `task/executor/pkg/handler/task_event_handler.go` — reference pattern for a message handler
-- `lib/agent_cdb-schema.go` — `TaskV1SchemaID` (used to derive the command topic)
-- `lib/agent_task-result-command.go` — `TaskResultCommand` struct (from previous prompt)
-- `task/controller/mocks/mocks.go` — how counterfeiter annotations are registered
-- `docs/agent-job-interface.md` — section to update
+- `task/controller/main.go` — the application struct and Run method to extend with BoltDB + consumer wiring
+- `task/controller/pkg/factory/factory.go` — `CreateSyncLoop`; the new `CreateCommandConsumer` function goes here
+- `task/controller/go.mod` — to add `github.com/bborbe/boltkv` as a direct dependency
+- `task/controller/pkg/result/result_writer.go` — `ResultWriter` interface (written in prompt 2); used by the new command executor
+- `lib/agent_task-result-request.go` — `TaskResultRequest` (written in prompt 2); the command payload type
+- `lib/agent_cdb-schema.go` — `TaskV1SchemaID`; use `TaskV1SchemaID` as the schema for the command consumer
+- Reference CQRS command consumer API: `/home/node/go/pkg/mod/github.com/bborbe/cqrs@v0.2.3/cdb/cdb_run-command-consumer-tx.go`
+- Reference `CommandObjectExecutorTx` interface: `/home/node/go/pkg/mod/github.com/bborbe/cqrs@v0.2.3/cdb/cdb_command-object-executor-tx.go`
+- Reference boltkv API: `/home/node/go/pkg/mod/github.com/bborbe/boltkv@v1.11.6/boltkv_db.go` — use `boltkv.OpenDir(ctx, dataDir)`
 </context>
 
 <requirements>
-### 1. Create `task/controller/pkg/handler/task_result_command_handler.go`
+### 1. Add `boltkv` direct dependency to `task/controller/go.mod`
 
-New package `handler` in `task/controller/pkg/handler/`.
+Add `github.com/bborbe/boltkv v1.11.6` to the `require` block in `task/controller/go.mod` (it is already an indirect dep in `go.sum`; promote to direct).
 
-#### Interface
-
-```go
-//counterfeiter:generate -o ../../mocks/task_result_command_handler.go --fake-name FakeTaskResultCommandHandler . TaskResultCommandHandler
-
-// TaskResultCommandHandler processes a single agent-task-v1-request command message from Kafka.
-type TaskResultCommandHandler interface {
-    ConsumeMessage(ctx context.Context, msg *sarama.ConsumerMessage) error
-}
+After editing go.mod, run:
+```bash
+cd task/controller && go mod tidy
 ```
 
-#### Constructor
+### 2. Extend `task/controller/main.go` — add CLI flags
+
+Add two new fields to the `application` struct:
 
 ```go
-// NewTaskResultCommandHandler creates a handler that writes the result to the vault and commits to git.
-func NewTaskResultCommandHandler(
-    writer writer.TaskResultWriter,
-    gitClient gitclient.GitClient,
-) TaskResultCommandHandler {
-    return &taskResultCommandHandler{
-        writer:    writer,
-        gitClient: gitClient,
-    }
-}
+DataDir string `required:"true"  arg:"data-dir" env:"DATA_DIR" usage:"directory for BoltDB offset storage"`
+NoSync  bool   `required:"false" arg:"no-sync"  env:"NO_SYNC"  usage:"disable BoltDB fsync (for testing only)"`
 ```
 
-#### ConsumeMessage implementation
+### 3. Extend `task/controller/main.go` — open BoltDB and wire consumer
+
+In the `Run` method, after the existing saramaClient/syncProducer setup, open BoltDB:
 
 ```go
-func (h *taskResultCommandHandler) ConsumeMessage(ctx context.Context, msg *sarama.ConsumerMessage) error {
-    // 1. Skip tombstone / empty messages
-    if len(msg.Value) == 0 {
-        glog.V(3).Infof("skip empty result command at offset %d", msg.Offset)
-        return nil
-    }
-
-    // 2. Unmarshal the CQRS envelope
-    var command base.Command
-    if err := json.Unmarshal(msg.Value, &command); err != nil {
-        glog.Warningf("failed to unmarshal result command at offset %d: %v", msg.Offset, err)
-        return nil // log and skip malformed messages
-    }
-
-    // 3. Extract the payload from command.Data (base.Event = map[FieldName]interface{})
-    dataBytes, err := json.Marshal(command.Data)
-    if err != nil {
-        glog.Warningf("failed to re-marshal command data at offset %d: %v", msg.Offset, err)
-        return nil
-    }
-    var taskResult lib.TaskResultCommand
-    if err := json.Unmarshal(dataBytes, &taskResult); err != nil {
-        glog.Warningf("failed to unmarshal TaskResultCommand at offset %d: %v", msg.Offset, err)
-        return nil
-    }
-
-    // 4. Validate minimal required fields
-    if taskResult.TaskIdentifier == "" {
-        glog.Warningf("result command at offset %d has empty taskIdentifier, skipping", msg.Offset)
-        return nil
-    }
-
-    // 5. Write result to vault file
-    wrote, err := h.writer.WriteResult(ctx, taskResult)
-    if err != nil {
-        return errors.Wrapf(ctx, err, "write result for task %s", taskResult.TaskIdentifier)
-    }
-    if !wrote {
-        return nil // not found or already written — no commit needed
-    }
-
-    // 6. Commit and push
-    commitMsg := fmt.Sprintf("[agent-task-controller] result for task %s", taskResult.TaskIdentifier)
-    if err := h.gitClient.CommitAndPush(ctx, commitMsg); err != nil {
-        return errors.Wrapf(ctx, err, "commit result for task %s", taskResult.TaskIdentifier)
-    }
-    glog.V(2).Infof("result written and committed for task %s", taskResult.TaskIdentifier)
-    return nil
+var boltOptions []boltkv.ChangeOptions
+if a.NoSync {
+    boltOptions = append(boltOptions, func(opts *bolt.Options) {
+        opts.NoSync = true
+    })
 }
+db, err := boltkv.OpenDir(ctx, a.DataDir, boltOptions...)
+if err != nil {
+    return errors.Wrapf(ctx, err, "open boltkv dir %s", a.DataDir)
+}
+defer db.Close()
 ```
 
-Import paths:
-- `"encoding/json"`
-- `"fmt"`
-- `"github.com/IBM/sarama"`
-- `"github.com/bborbe/errors"`
-- `"github.com/golang/glog"`
-- `"github.com/bborbe/cqrs/base"`
-- `lib "github.com/bborbe/agent/lib"`
-- `"github.com/bborbe/agent/task/controller/pkg/gitclient"`
-- `"github.com/bborbe/agent/task/controller/pkg/writer"`
+Import paths: `boltkv "github.com/bborbe/boltkv"` and `bolt "go.etcd.io/bbolt"`.
 
-### 2. Create `task/controller/pkg/handler/handler_suite_test.go`
+Create a `SaramaClientProvider` (needed by `cdb.RunCommandConsumerTxDefault`), then the `ResultWriter` and command consumer:
 
-Standard Ginkgo bootstrap:
+```go
+saramaClientProvider, err := libkafka.NewSaramaClientProviderByType(
+    ctx,
+    libkafka.SaramaClientProviderTypeReused,
+    libkafka.ParseBrokersFromString(a.KafkaBrokers),
+)
+if err != nil {
+    return errors.Wrapf(ctx, err, "create sarama client provider")
+}
+defer saramaClientProvider.Close()
+
+resultWriter := result.NewResultWriter(gitClient, a.TaskDir)
+commandConsumer := factory.CreateCommandConsumer(
+    saramaClientProvider,
+    syncProducer,
+    db,
+    a.Branch,
+    resultWriter,
+)
+```
+
+Add `commandConsumer` to the `service.Run(ctx, ...)` call alongside the existing `syncLoop.Run` and `createHTTPServer`:
+
+```go
+return service.Run(
+    ctx,
+    syncLoop.Run,
+    commandConsumer,
+    a.createHTTPServer(syncLoop),
+)
+```
+
+Import `"github.com/bborbe/agent/task/controller/pkg/result"` in main.go.
+
+### 4. Create `task/controller/pkg/command/task_result_executor.go`
+
+New package `command` implementing `cdb.CommandObjectExecutorTx` for the `UpdateResult` operation:
 
 ```go
 // Copyright (c) 2026 Benjamin Borbe All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package handler_test
+package command
+
+import (
+    "context"
+    "github.com/bborbe/cqrs/base"
+    "github.com/bborbe/cqrs/cdb"
+    "github.com/bborbe/errors"
+    libkv "github.com/bborbe/kv"
+    "github.com/golang/glog"
+
+    lib "github.com/bborbe/agent/lib"
+    "github.com/bborbe/agent/task/controller/pkg/result"
+)
+
+// TaskResultCommandOperation is the CQRS command operation name for task result updates.
+const TaskResultCommandOperation base.CommandOperation = "UpdateResult"
+
+// NewTaskResultExecutor creates a cdb.CommandObjectExecutorTx for UpdateResult commands.
+func NewTaskResultExecutor(writer result.ResultWriter) cdb.CommandObjectExecutorTx {
+    return &taskResultExecutor{writer: writer}
+}
+
+type taskResultExecutor struct {
+    writer result.ResultWriter
+}
+
+func (e *taskResultExecutor) CommandOperation() base.CommandOperation {
+    return TaskResultCommandOperation
+}
+
+func (e *taskResultExecutor) SendResultEnabled() bool {
+    return false
+}
+
+func (e *taskResultExecutor) HandleCommand(
+    ctx context.Context,
+    tx libkv.Tx,
+    commandObject cdb.CommandObject,
+) (*base.EventID, base.Event, error) {
+    var req lib.TaskResultRequest
+    if err := commandObject.Command.Data.MarshalInto(ctx, &req); err != nil {
+        glog.Warningf("malformed TaskResultRequest command, skipping: %v", err)
+        return nil, nil, nil
+    }
+    if err := req.Validate(ctx); err != nil {
+        glog.Warningf("invalid TaskResultRequest (taskID=%s), skipping: %v", req.TaskIdentifier, err)
+        return nil, nil, nil
+    }
+    if err := e.writer.WriteResult(ctx, req); err != nil {
+        return nil, nil, errors.Wrapf(ctx, err, "write result for task %s", req.TaskIdentifier)
+    }
+    return nil, nil, nil
+}
+```
+
+**Note on `commandObject.Command.Data`:** In the CQRS `base.Command` struct, the payload is in `Command.Data` which is of type `base.Event` (`map[FieldName]interface{}`). Use `commandObject.Command.Data.MarshalInto(ctx, &req)` to deserialize into `lib.TaskResultRequest` — same pattern as trading's `core/account/controller/pkg/command/command-object-executor-create.go`.
+
+Verify the actual field type by reading:
+```
+/home/node/go/pkg/mod/github.com/bborbe/cqrs@v0.2.3/base/base_command.go
+/home/node/go/pkg/mod/github.com/bborbe/cqrs@v0.2.3/base/base_event.go
+```
+Adjust the unmarshal source field if needed.
+
+### 5. Add `CreateCommandConsumer` to `task/controller/pkg/factory/factory.go`
+
+Extend the factory with a new pure-composition function (no business logic, no conditionals):
+
+```go
+// CreateCommandConsumer wires a CQRS command consumer for agent-task-v1-request.
+func CreateCommandConsumer(
+    saramaClientProvider libkafka.SaramaClientProvider,
+    syncProducer libkafka.SyncProducer,
+    db libkv.DB,
+    branch base.Branch,
+    resultWriter result.ResultWriter,
+) run.Func {
+    executor := command.NewTaskResultExecutor(resultWriter)
+    return cdb.RunCommandConsumerTxDefault(
+        saramaClientProvider,
+        syncProducer,
+        db,
+        lib.TaskV1SchemaID,
+        branch,
+        true, // ignoreUnsupported: skip commands with unknown operations
+        cdb.CommandObjectExecutorTxs{executor},
+    )
+}
+```
+
+Add the necessary imports: `"github.com/bborbe/agent/task/controller/pkg/command"`, `"github.com/bborbe/agent/task/controller/pkg/result"`, `libkv "github.com/bborbe/kv"`, `"github.com/bborbe/cqrs/cdb"`.
+
+### 6. Create `task/controller/pkg/command/task_result_executor_test.go`
+
+External test package (`package command_test`). Use Ginkgo/Gomega. Use counterfeiter mock for `result.ResultWriter`.
+
+Required test cases:
+
+- **Valid command** — `HandleCommand` with a well-formed JSON payload; verifies `WriteResult` is called once with the correct `TaskResultRequest` (matching TaskIdentifier, Frontmatter, Content)
+- **Malformed JSON** — `HandleCommand` with invalid JSON payload; verifies it returns `(nil, nil, nil)` and `WriteResult` is never called
+- **Invalid request (empty task ID)** — valid JSON but `TaskIdentifier` is empty; verifies it returns `(nil, nil, nil)` and `WriteResult` is never called
+- **WriteResult returns error** — `WriteResult` mock returns an error; verifies `HandleCommand` returns that error wrapped
+- **`CommandOperation()`** — returns `"UpdateResult"`
+- **`SendResultEnabled()`** — returns `false`
+
+### 7. Create suite bootstrap `task/controller/pkg/command/command_suite_test.go`
+
+```go
+// Copyright (c) 2026 Benjamin Borbe All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package command_test
 
 import (
     "testing"
@@ -154,238 +240,83 @@ import (
 )
 
 //go:generate go run -mod=mod github.com/maxbrunsfeld/counterfeiter/v6 -generate
-func TestSuite(t *testing.T) {
+
+func TestCommand(t *testing.T) {
     time.Local = time.UTC
     format.TruncatedDiff = false
     RegisterFailHandler(Fail)
-    RunSpecs(t, "Handler Suite")
+    RunSpecs(t, "Command Suite")
 }
 ```
 
-### 3. Create `task/controller/pkg/handler/task_result_command_handler_test.go`
+### 8. Update the K8s Deployment for task/controller
 
-Use counterfeiter mocks for `TaskResultWriter` and `GitClient`. Tests:
+Add `DATA_DIR` and `NO_SYNC` env vars to `task/controller/k8s/agent-task-controller-sts.yaml` (StatefulSet):
 
-**Happy path — file written and committed:**
-- FakeTaskResultWriter.WriteResultReturns(true, nil)
-- FakeGitClient.CommitAndPushReturns(nil)
-- ConsumeMessage with a valid JSON `base.Command` whose `data` field contains valid TaskResultCommand fields
-- Verify: WriteResult was called once, CommitAndPush was called once with the correct commit message prefix
-
-**Idempotent — writer returns (false, nil):**
-- FakeTaskResultWriter.WriteResultReturns(false, nil)
-- Verify: CommitAndPush is NOT called, ConsumeMessage returns nil
-
-**Empty message:**
-- msg.Value is empty
-- Verify: WriteResult is NOT called, ConsumeMessage returns nil
-
-**Malformed JSON:**
-- msg.Value is `[]byte("not json")`
-- Verify: WriteResult is NOT called, ConsumeMessage returns nil
-
-**Empty taskIdentifier:**
-- command.Data has no `taskIdentifier` key
-- Verify: WriteResult is NOT called, ConsumeMessage returns nil
-
-**Writer error:**
-- FakeTaskResultWriter.WriteResultReturns(false, errors.New("disk full"))
-- Verify: ConsumeMessage returns an error
-
-**CommitAndPush error:**
-- FakeTaskResultWriter.WriteResultReturns(true, nil)
-- FakeGitClient.CommitAndPushReturns(errors.New("push rejected"))
-- Verify: ConsumeMessage returns an error
-
-To build a valid `base.Command` JSON for tests, construct the struct directly and marshal it:
-
-```go
-command := base.Command{
-    RequestID:   base.RequestID("test-request-id"),
-    RequestTime: time.Now(),
-    Operation:   base.CommandOperation("update"),
-    ID:          base.EventID("agent-task-v1"),
-    Initiator:   iam.Initiator{Subject: "test-agent"},
-    Data: base.Event{
-        "taskIdentifier": "abc-123",
-        "status":         "completed",
-        "phase":          "done",
-        "output":         "Backtest complete",
-    },
-}
-msgBytes, _ := json.Marshal(command)
+```yaml
+- name: DATA_DIR
+  value: /data/bolt
+- name: NO_SYNC
+  value: "false"
 ```
 
-Import `"github.com/bborbe/cqrs/iam"` for `iam.Initiator`.
+task/controller is already a StatefulSet with a PVC. Use `/data/bolt` as the BoltDB directory. Read the manifest first to find the correct container env var location and verify the volume mount covers `/data/`.
 
-### 4. Add `CreateResultConsumer` to `task/controller/pkg/factory/factory.go`
-
-Add a second factory function alongside the existing `CreateSyncLoop`:
-
-```go
-// CreateResultConsumer wires together a Kafka consumer that reads agent result commands
-// from the agent-task-v1-request topic and writes results back to the vault.
-func CreateResultConsumer(
-    saramaClient sarama.Client,
-    branch base.Branch,
-    gitClient gitclient.GitClient,
-    vaultPath string,
-    taskDir string,
-    logSamplerFactory log.SamplerFactory,
-) libkafka.Consumer {
-    resultWriter := writer.NewTaskResultWriter(vaultPath, taskDir)
-    commandHandler := handler.NewTaskResultCommandHandler(resultWriter, gitClient)
-    topic := lib.TaskV1SchemaID.CommandTopic(branch)
-    offsetManager := libkafka.NewSaramaOffsetManager(
-        saramaClient,
-        libkafka.Group("agent-task-controller-result"),
-        libkafka.OffsetOldest,
-        libkafka.OffsetOldest,
-    )
-    return libkafka.NewOffsetConsumerHighwaterMarks(
-        saramaClient,
-        topic,
-        offsetManager,
-        commandHandler,
-        run.NewTrigger(),
-        logSamplerFactory,
-    )
-}
-```
-
-Required new imports in factory.go:
-- `"github.com/IBM/sarama"`
-- `"github.com/bborbe/log"`
-- `"github.com/bborbe/run"`
-- `"github.com/bborbe/agent/task/controller/pkg/handler"`
-- `"github.com/bborbe/agent/task/controller/pkg/writer"`
-
-The existing `cdb` import (`"github.com/bborbe/cqrs/cdb"`) may be removed if unused after this change — check for compilation errors.
-
-### 5. Update `task/controller/main.go`
-
-In the `Run` method, after creating `syncLoop`, create the result consumer and add it to `service.Run`:
-
-```go
-resultConsumer := factory.CreateResultConsumer(
-    saramaClient,
-    a.Branch,
-    gitClient,
-    vaultLocalPath,
-    a.TaskDir,
-    log.DefaultSamplerFactory,
-)
-
-return service.Run(
-    ctx,
-    syncLoop.Run,
-    func(ctx context.Context) error {
-        return resultConsumer.Consume(ctx)
-    },
-    a.createHTTPServer(syncLoop),
-)
-```
-
-The `saramaClient` is not available in the current `Run` method — you must create one. Add it alongside the existing sync producer setup:
-
-```go
-saramaClient, err := libkafka.CreateSaramaClient(
-    ctx,
-    libkafka.ParseBrokersFromString(a.KafkaBrokers),
-)
-if err != nil {
-    return errors.Wrapf(ctx, err, "create sarama client")
-}
-defer saramaClient.Close()
-```
-
-Add this before the `syncProducer` creation. The existing `syncProducer` uses `libkafka.NewSyncProducer` (which creates its own client internally) — both can coexist.
-
-Required new imports in main.go:
-- `libkafka "github.com/bborbe/kafka"` (may already be imported)
-- `"github.com/bborbe/log"` (may already be imported)
-
-### 6. Update `task/controller/mocks/mocks.go`
-
-Read the existing `task/controller/mocks/mocks.go` to understand the annotation pattern, then add counterfeiter annotations for the two new interfaces:
-
-```go
-//counterfeiter:generate -o task_result_writer.go --fake-name FakeTaskResultWriter github.com/bborbe/agent/task/controller/pkg/writer.TaskResultWriter
-//counterfeiter:generate -o task_result_command_handler.go --fake-name FakeTaskResultCommandHandler github.com/bborbe/agent/task/controller/pkg/handler.TaskResultCommandHandler
-```
-
-Then run `make generate` in task/controller to generate the mock files:
+### 9. Run `make generate` in task/controller
 
 ```bash
 cd task/controller && make generate
 ```
 
-### 7. Update `task/controller/pkg/factory/factory_test.go`
+This regenerates counterfeiter mocks for the new `ResultWriter` interface. Must exit 0.
 
-Read `task/controller/pkg/factory/factory_test.go` to understand existing test coverage, then add a test for `CreateResultConsumer` that verifies the function can be called without panicking and returns a non-nil consumer. Use `fake.NewClientset()` is not applicable here — instead use `libkafka.FakeSaramaClient` if available, or skip if the factory test only tests composition (check existing pattern).
+### 10. Update `CHANGELOG.md`
 
-If the existing factory test only compiles/wires (no runtime assertions), add a matching compile-time verification for `CreateResultConsumer`.
-
-### 8. Update `docs/agent-job-interface.md`
-
-In the **Pattern B: Job Interface** section, under **Environment Variables**, confirm the `TASK_ID` row is present (it was already added in a previous edit to the spec — verify it matches the table):
-
-The table must include:
-
-| `TASK_ID` | yes | Task identifier. Agent uses this when publishing `agent-task-v1-request` to reference which task to update. |
-
-In the **Job Lifecycle** section, verify step 7 reads correctly:
-```
-7. task/controller consumes request, updates task file, git commit+push
-```
-
-If that step is present, no change needed. If not, add or correct it.
-
-In the **task/executor Role** section, verify the Role description reflects that `TASK_ID` is now passed to Jobs (alongside `TASK_CONTENT`, `KAFKA_BROKERS`, `BRANCH`). Update the bulleted list if `TASK_ID` is missing from it.
-
-### 9. Update CHANGELOG.md
-
-Append to `## Unreleased` in the root `CHANGELOG.md`:
+Add or append to `## Unreleased` in the root `CHANGELOG.md`:
 
 ```
-- feat: Add Kafka command consumer to task/controller to consume agent-task-v1-request and write results back to vault
+- feat: Wire CQRS command consumer in task/controller to consume agent-task-v1-request and write results to vault via ResultWriter
+- feat: Add DataDir and NoSync CLI flags to task/controller for BoltDB Kafka offset persistence
 ```
 </requirements>
 
 <constraints>
 - Do NOT commit — dark-factory handles git
-- Do NOT change the `agent-task-v1-event` topic or the existing git-to-Kafka sync behavior
-- task/controller must remain the single git writer — task/executor must NOT be modified in this prompt
-- The consumer group must be exactly `"agent-task-controller-result"` — distinct from `"agent-task-executor"`
-- `ConsumeMessage` must return `nil` (not error) for malformed messages, unknown task IDs, and already-written results — only return error for I/O failures and git push failures
-- Do NOT use `context.Background()` inside `pkg/` — use the passed `ctx` parameter
-- Do NOT use `fmt.Errorf` — use `errors.Wrapf(ctx, err, "message")` from `github.com/bborbe/errors`
-- Do NOT add raw `go func()` goroutines — the concurrency is managed by `service.Run` and `run.CancelOnFirstErrorWait`
-- The `CreateResultConsumer` factory function must have zero business logic — only composition and wiring
-- Existing tests in task/controller must still pass after this change
-- `make generate` must succeed after adding the counterfeiter annotations
+- Do NOT change the `agent-task-v1-event` topic or the existing task/controller git-to-Kafka sync behavior
+- task/controller remains the single git writer
+- task/executor stays a Job launcher — no changes to task/executor in this prompt
+- Consumer group for request consumption is distinct from the event-producing group — `cdb.RunCommandConsumerTxDefault` generates the consumer group name from `TaskV1SchemaID.CommandTopic(branch)`; this is different from the event topic, so no collision
+- Factory function `CreateCommandConsumer` must have zero business logic (no conditionals, no loops, no I/O) — pure wiring only
+- `ignoreUnsupported: true` in `RunCommandConsumerTxDefault` — commands with unknown operations are silently skipped
+- BoltDB must be opened with `boltkv.OpenDir` (not `boltkv.OpenFile`) — creates the directory if it doesn't exist
+- `task/controller/go.mod` must have `boltkv` as a direct dependency (not just indirect) after `go mod tidy`
+- The BoltDB NoSync option (`func(opts *bolt.Options) { opts.NoSync = true }`) should only be appended when `a.NoSync == true` — never hardcode it
+- Errors must be wrapped with `errors.Wrapf(ctx, err, "message")` — never `fmt.Errorf`
+- Do NOT call `context.Background()` in pkg/ code — always thread ctx from the caller
+- Test coverage ≥80% for the new `pkg/command/` package
 </constraints>
 
 <verification>
-Generate mocks:
+```bash
+cd task/controller && go mod tidy
+```
+Must exit 0.
+
 ```bash
 cd task/controller && make generate
 ```
-Must exit 0.
+Must exit 0 (regenerates counterfeiter mocks).
 
-Run handler unit tests:
-```bash
-cd task/controller && go test ./pkg/handler/...
-```
-Must exit 0.
-
-Run all task/controller tests:
 ```bash
 cd task/controller && make test
 ```
 Must exit 0.
 
-Run full precommit:
+```bash
+cd task/controller && go test -coverprofile=/tmp/cover.out -mod=vendor ./pkg/command/... && go tool cover -func=/tmp/cover.out
+```
+Statement coverage for `pkg/command/` must be ≥80%.
+
 ```bash
 cd task/controller && make precommit
 ```

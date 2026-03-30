@@ -1,9 +1,11 @@
 ---
-status: approved
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-03-29T19:50:57Z"
+prompted: "2026-03-29T20:02:17Z"
+verifying: "2026-03-30T12:09:18Z"
 branch: dark-factory/agent-result-capture
 ---
 
@@ -47,7 +49,11 @@ After this work, agents publish their result to Kafka and task/controller writes
 - task/executor stays a Job launcher — no Job watching, no stdout reading
 
 **Frozen conventions:**
-- CQRS CommandObjectSender pattern for request consumption
+- CQRS `cdb.CommandObjectExecutorTx` pattern for request consumption — same pattern as `trading/core/account/controller/pkg/command/`
+- `cdb.RunCommandConsumerTx` wires the command consumer with BoltDB offset management
+- BoltKV (`github.com/bborbe/boltkv`) for persistent Kafka offset storage — opened via `libboltkv.OpenDir`
+- task/controller adds `DataDir` and `NoSync` CLI flags for BoltDB configuration
+- task/controller remains a StatefulSet with PVC for BoltDB data persistence
 - Consumer group for request consumption must be distinct from event-producing group
 - Task file format follows vault-cli conventions (YAML frontmatter + markdown body)
 - `TASK_ID` env var name matches `docs/agent-job-interface.md`
@@ -58,6 +64,9 @@ After this work, agents publish their result to Kafka and task/controller writes
 - The lib.Task struct and TaskV1 schema already support request/result topics
 - Agents handle their own Kafka publishing — task/executor is not involved in the result path
 - Git conflicts during push are resolved by pull+rebase+retry (existing pattern)
+- `github.com/bborbe/kv` interface library is already an indirect dependency
+- `github.com/bborbe/boltkv` needs to be added as a direct dependency
+- Reference implementation for CQRS command handling: `trading/core/account/controller/pkg/command/` and `trading/core/account/controller/pkg/factory/factory.go`
 
 ## Failure Modes
 

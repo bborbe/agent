@@ -71,6 +71,7 @@ var _ = Describe("JobSpawner", func() {
 				envMap[e.Name] = e.Value
 			}
 			Expect(envMap["TASK_CONTENT"]).To(Equal("do the work"))
+			Expect(envMap["TASK_ID"]).To(Equal("abc12345-rest-ignored"))
 			Expect(envMap["KAFKA_BROKERS"]).To(Equal("kafka:9092"))
 			Expect(envMap["BRANCH"]).To(Equal("develop"))
 		})

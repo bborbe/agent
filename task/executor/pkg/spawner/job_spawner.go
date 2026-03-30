@@ -66,6 +66,7 @@ func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) 
 							Image: image,
 							Env: []corev1.EnvVar{
 								{Name: "TASK_CONTENT", Value: string(task.Content)},
+								{Name: "TASK_ID", Value: string(task.TaskIdentifier)},
 								{Name: "KAFKA_BROKERS", Value: s.kafkaBrokers},
 								{Name: "BRANCH", Value: s.branch},
 							},
