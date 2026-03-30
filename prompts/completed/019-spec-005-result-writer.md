@@ -1,11 +1,12 @@
 ---
-status: executing
+status: completed
 spec: ["005"]
 container: agent-019-spec-005-result-writer
 dark-factory-version: v0.69.0
 created: "2026-03-29T20:15:00Z"
 queued: "2026-03-30T13:57:56Z"
 started: "2026-03-30T13:57:58Z"
+completed: "2026-03-30T15:04:33Z"
 branch: dark-factory/agent-result-capture
 ---
 
