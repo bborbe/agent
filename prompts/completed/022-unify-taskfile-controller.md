@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Updated task/controller scanner, publisher, and sync loop to use lib.TaskFile with generic frontmatter map, extractBody helper, and TaskFrontmatter accessors; fixed pre-existing command test failures by adding base.Object fields; upgraded go-git to v5.17.1 to fix osv-scanner findings; added .trivyignore to suppress docker indirect dep CVEs
+container: agent-022-unify-taskfile-controller
+dark-factory-version: v0.69.0
 created: "2026-03-30T17:29:00Z"
 queued: "2026-03-30T18:21:28Z"
+started: "2026-03-30T18:31:55Z"
+completed: "2026-03-30T18:58:40Z"
 ---
 
 <summary>
