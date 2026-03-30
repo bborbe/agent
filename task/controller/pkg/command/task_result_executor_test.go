@@ -90,7 +90,7 @@ var _ = Describe("NewTaskResultExecutor", func() {
 		})
 
 		Context("malformed JSON payload", func() {
-			It("returns nil, nil, nil and WriteResult is never called", func() {
+			It("returns ErrCommandObjectSkipped and WriteResult is never called", func() {
 				// A map containing a channel cannot be JSON-marshaled, triggering MarshalInto failure.
 				event := base.Event{
 					"channel": make(chan int),
@@ -98,7 +98,7 @@ var _ = Describe("NewTaskResultExecutor", func() {
 				cmdObj := buildCommandObject(event)
 
 				eventID, resultEvent, handleErr := executor.HandleCommand(ctx, nil, cmdObj)
-				Expect(handleErr).To(BeNil())
+				Expect(errors.Is(handleErr, cdb.ErrCommandObjectSkipped)).To(BeTrue())
 				Expect(eventID).To(BeNil())
 				Expect(resultEvent).To(BeNil())
 				Expect(fakeWriter.WriteResultCallCount()).To(Equal(0))
@@ -106,7 +106,7 @@ var _ = Describe("NewTaskResultExecutor", func() {
 		})
 
 		Context("invalid request — empty task ID", func() {
-			It("returns nil, nil, nil and WriteResult is never called", func() {
+			It("returns ErrCommandObjectSkipped and WriteResult is never called", func() {
 				taskFile := lib.TaskFile{
 					TaskIdentifier: lib.TaskIdentifier(""),
 					Frontmatter:    lib.TaskFrontmatter{},
@@ -118,7 +118,7 @@ var _ = Describe("NewTaskResultExecutor", func() {
 				cmdObj := buildCommandObject(event)
 
 				eventID, resultEvent, handleErr := executor.HandleCommand(ctx, nil, cmdObj)
-				Expect(handleErr).To(BeNil())
+				Expect(errors.Is(handleErr, cdb.ErrCommandObjectSkipped)).To(BeTrue())
 				Expect(eventID).To(BeNil())
 				Expect(resultEvent).To(BeNil())
 				Expect(fakeWriter.WriteResultCallCount()).To(Equal(0))

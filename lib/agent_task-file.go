@@ -7,6 +7,7 @@ package lib
 import (
 	"context"
 
+	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/validation"
 )
 
@@ -16,6 +17,7 @@ import (
 // Content is the markdown body after the frontmatter closing delimiter.
 // The agent owns the content transformation (status, phase, Result section, etc.).
 type TaskFile struct {
+	base.Object[base.Identifier]
 	TaskIdentifier TaskIdentifier  `json:"taskIdentifier"`
 	Frontmatter    TaskFrontmatter `json:"frontmatter"`
 	Content        string          `json:"content"`
@@ -23,6 +25,7 @@ type TaskFile struct {
 
 func (t TaskFile) Validate(ctx context.Context) error {
 	return validation.All{
+		validation.Name("Object", t.Object),
 		validation.Name("TaskIdentifier", t.TaskIdentifier),
 	}.Validate(ctx)
 }

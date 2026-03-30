@@ -18,9 +18,13 @@ func (f TaskFrontmatter) Status() domain.TaskStatus {
 	return domain.TaskStatus(v)
 }
 
-func (f TaskFrontmatter) Phase() domain.TaskPhase {
-	v, _ := f["phase"].(string)
-	return domain.TaskPhase(v)
+func (f TaskFrontmatter) Phase() *domain.TaskPhase {
+	v, ok := f["phase"].(string)
+	if !ok || v == "" {
+		return nil
+	}
+	p := domain.TaskPhase(v)
+	return &p
 }
 
 func (f TaskFrontmatter) Assignee() TaskAssignee {

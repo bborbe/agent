@@ -10,6 +10,7 @@ require (
 	github.com/bborbe/collection v1.20.7
 	github.com/bborbe/cqrs v0.2.3
 	github.com/bborbe/errors v1.5.8
+	github.com/bborbe/time v1.25.3
 	github.com/bborbe/validation v1.4.9
 	github.com/bborbe/vault-cli v0.50.0
 	github.com/golangci/golangci-lint/v2 v2.11.4
@@ -18,6 +19,8 @@ require (
 	github.com/incu6us/goimports-reviser/v3 v3.12.6
 	github.com/kisielk/errcheck v1.10.0
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.12.1
+	github.com/onsi/ginkgo/v2 v2.28.1
+	github.com/onsi/gomega v1.39.1
 	github.com/securego/gosec/v2 v2.25.0
 	github.com/segmentio/golines v0.13.0
 	github.com/shoenig/go-modtool v0.7.1
@@ -96,7 +99,6 @@ require (
 	github.com/bborbe/parse v1.10.8 // indirect
 	github.com/bborbe/run v1.9.11 // indirect
 	github.com/bborbe/sentry v1.9.13 // indirect
-	github.com/bborbe/time v1.25.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bkielbasa/cyclop v1.2.3 // indirect
 	github.com/blizzy78/varnamelen v0.8.0 // indirect
@@ -327,8 +329,6 @@ require (
 	github.com/nishanths/exhaustive v0.12.0 // indirect
 	github.com/nishanths/predeclared v0.2.2 // indirect
 	github.com/nunnatsa/ginkgolinter v0.23.0 // indirect
-	github.com/onsi/ginkgo/v2 v2.28.1 // indirect
-	github.com/onsi/gomega v1.39.1 // indirect
 	github.com/openai/openai-go/v3 v3.28.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
