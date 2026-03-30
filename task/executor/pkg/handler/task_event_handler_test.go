@@ -46,8 +46,8 @@ var _ = Describe("TaskEventHandler", func() {
 		h = handler.NewTaskEventHandler(fakeTracker, fakeSpawner, assigneeImages)
 	})
 
-	buildMsg := func(task lib.Task) *sarama.ConsumerMessage {
-		value, err := json.Marshal(task)
+	buildMsg := func(taskFile lib.TaskFile) *sarama.ConsumerMessage {
+		value, err := json.Marshal(taskFile)
 		Expect(err).To(BeNil())
 		return &sarama.ConsumerMessage{Value: value}
 	}
@@ -66,127 +66,145 @@ var _ = Describe("TaskEventHandler", func() {
 		})
 
 		It("skips task with empty TaskIdentifier", func() {
-			task := lib.Task{
-				Status:   "in_progress",
-				Phase:    domain.TaskPhaseInProgress.Ptr(),
-				Assignee: "claude",
+			taskFile := lib.TaskFile{
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseInProgress),
+					"assignee": "claude",
+				},
 			}
-			err := h.ConsumeMessage(ctx, buildMsg(task))
+			err := h.ConsumeMessage(ctx, buildMsg(taskFile))
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
 		})
 
 		It("skips task with status != in_progress", func() {
-			task := lib.Task{
+			taskFile := lib.TaskFile{
 				TaskIdentifier: "tid-1",
-				Status:         "todo",
-				Phase:          domain.TaskPhaseInProgress.Ptr(),
-				Assignee:       "claude",
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "todo",
+					"phase":    string(domain.TaskPhaseInProgress),
+					"assignee": "claude",
+				},
 			}
-			err := h.ConsumeMessage(ctx, buildMsg(task))
+			err := h.ConsumeMessage(ctx, buildMsg(taskFile))
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
 		})
 
 		It("skips task with nil phase", func() {
-			task := lib.Task{
+			taskFile := lib.TaskFile{
 				TaskIdentifier: "tid-2",
-				Status:         "in_progress",
-				Phase:          nil,
-				Assignee:       "claude",
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"assignee": "claude",
+				},
 			}
-			err := h.ConsumeMessage(ctx, buildMsg(task))
+			err := h.ConsumeMessage(ctx, buildMsg(taskFile))
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
 		})
 
 		It("skips task with phase todo", func() {
-			task := lib.Task{
+			taskFile := lib.TaskFile{
 				TaskIdentifier: "tid-3",
-				Status:         "in_progress",
-				Phase:          domain.TaskPhaseTodo.Ptr(),
-				Assignee:       "claude",
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseTodo),
+					"assignee": "claude",
+				},
 			}
-			err := h.ConsumeMessage(ctx, buildMsg(task))
+			err := h.ConsumeMessage(ctx, buildMsg(taskFile))
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
 		})
 
 		It("skips task with phase human_review", func() {
-			task := lib.Task{
+			taskFile := lib.TaskFile{
 				TaskIdentifier: "tid-4",
-				Status:         "in_progress",
-				Phase:          domain.TaskPhaseHumanReview.Ptr(),
-				Assignee:       "claude",
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseHumanReview),
+					"assignee": "claude",
+				},
 			}
-			err := h.ConsumeMessage(ctx, buildMsg(task))
+			err := h.ConsumeMessage(ctx, buildMsg(taskFile))
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
 		})
 
 		It("skips task with empty assignee", func() {
-			task := lib.Task{
+			taskFile := lib.TaskFile{
 				TaskIdentifier: "tid-5",
-				Status:         "in_progress",
-				Phase:          domain.TaskPhaseInProgress.Ptr(),
-				Assignee:       "",
+				Frontmatter: lib.TaskFrontmatter{
+					"status": "in_progress",
+					"phase":  string(domain.TaskPhaseInProgress),
+				},
 			}
-			err := h.ConsumeMessage(ctx, buildMsg(task))
+			err := h.ConsumeMessage(ctx, buildMsg(taskFile))
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
 		})
 
 		It("skips unknown assignee without error", func() {
-			task := lib.Task{
+			taskFile := lib.TaskFile{
 				TaskIdentifier: "tid-6",
-				Status:         "in_progress",
-				Phase:          domain.TaskPhaseInProgress.Ptr(),
-				Assignee:       "unknown-agent",
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseInProgress),
+					"assignee": "unknown-agent",
+				},
 			}
-			err := h.ConsumeMessage(ctx, buildMsg(task))
+			err := h.ConsumeMessage(ctx, buildMsg(taskFile))
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
 		})
 
 		It("skips duplicate TaskIdentifier", func() {
 			fakeTracker.IsDuplicateReturns(true)
-			task := lib.Task{
+			taskFile := lib.TaskFile{
 				TaskIdentifier: "tid-7",
-				Status:         "in_progress",
-				Phase:          domain.TaskPhaseInProgress.Ptr(),
-				Assignee:       "claude",
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseInProgress),
+					"assignee": "claude",
+				},
 			}
-			err := h.ConsumeMessage(ctx, buildMsg(task))
+			err := h.ConsumeMessage(ctx, buildMsg(taskFile))
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
 		})
 
 		It("spawns job for qualifying task with known assignee", func() {
 			fakeTracker.IsDuplicateReturns(false)
-			task := lib.Task{
+			taskFile := lib.TaskFile{
 				TaskIdentifier: lib.TaskIdentifier("tid-8"),
-				Status:         "in_progress",
-				Phase:          domain.TaskPhaseInProgress.Ptr(),
-				Assignee:       lib.TaskAssignee("claude"),
-				Content:        "do the work",
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseInProgress),
+					"assignee": "claude",
+				},
+				Content: "do the work",
 			}
-			err := h.ConsumeMessage(ctx, buildMsg(task))
+			err := h.ConsumeMessage(ctx, buildMsg(taskFile))
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
-			_, spawnedTask, image := fakeSpawner.SpawnJobArgsForCall(0)
-			Expect(string(spawnedTask.TaskIdentifier)).To(Equal("tid-8"))
+			_, spawnedTaskFile, image := fakeSpawner.SpawnJobArgsForCall(0)
+			Expect(string(spawnedTaskFile.TaskIdentifier)).To(Equal("tid-8"))
 			Expect(image).To(Equal("my-image:latest"))
 		})
 
 		It("marks task as processed after successful spawn", func() {
 			fakeTracker.IsDuplicateReturns(false)
-			task := lib.Task{
+			taskFile := lib.TaskFile{
 				TaskIdentifier: lib.TaskIdentifier("tid-9"),
-				Status:         "in_progress",
-				Phase:          domain.TaskPhaseInProgress.Ptr(),
-				Assignee:       lib.TaskAssignee("claude"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseInProgress),
+					"assignee": "claude",
+				},
 			}
-			err := h.ConsumeMessage(ctx, buildMsg(task))
+			err := h.ConsumeMessage(ctx, buildMsg(taskFile))
 			Expect(err).To(BeNil())
 			Expect(fakeTracker.MarkProcessedCallCount()).To(Equal(1))
 			Expect(fakeTracker.MarkProcessedArgsForCall(0)).To(Equal(lib.TaskIdentifier("tid-9")))
@@ -195,39 +213,45 @@ var _ = Describe("TaskEventHandler", func() {
 		It("does not mark task as processed when spawn fails", func() {
 			fakeTracker.IsDuplicateReturns(false)
 			fakeSpawner.SpawnJobReturns(errors.Errorf(ctx, "k8s unavailable"))
-			task := lib.Task{
+			taskFile := lib.TaskFile{
 				TaskIdentifier: lib.TaskIdentifier("tid-10"),
-				Status:         "in_progress",
-				Phase:          domain.TaskPhaseInProgress.Ptr(),
-				Assignee:       lib.TaskAssignee("claude"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseInProgress),
+					"assignee": "claude",
+				},
 			}
-			err := h.ConsumeMessage(ctx, buildMsg(task))
+			err := h.ConsumeMessage(ctx, buildMsg(taskFile))
 			Expect(err).NotTo(BeNil())
 			Expect(fakeTracker.MarkProcessedCallCount()).To(Equal(0))
 		})
 
 		It("accepts task with phase planning", func() {
 			fakeTracker.IsDuplicateReturns(false)
-			task := lib.Task{
+			taskFile := lib.TaskFile{
 				TaskIdentifier: lib.TaskIdentifier("tid-11"),
-				Status:         "in_progress",
-				Phase:          domain.TaskPhasePlanning.Ptr(),
-				Assignee:       lib.TaskAssignee("claude"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhasePlanning),
+					"assignee": "claude",
+				},
 			}
-			err := h.ConsumeMessage(ctx, buildMsg(task))
+			err := h.ConsumeMessage(ctx, buildMsg(taskFile))
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
 		})
 
 		It("accepts task with phase ai_review", func() {
 			fakeTracker.IsDuplicateReturns(false)
-			task := lib.Task{
+			taskFile := lib.TaskFile{
 				TaskIdentifier: lib.TaskIdentifier("tid-12"),
-				Status:         "in_progress",
-				Phase:          domain.TaskPhaseAIReview.Ptr(),
-				Assignee:       lib.TaskAssignee("claude"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseAIReview),
+					"assignee": "claude",
+				},
 			}
-			err := h.ConsumeMessage(ctx, buildMsg(task))
+			err := h.ConsumeMessage(ctx, buildMsg(taskFile))
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
 		})

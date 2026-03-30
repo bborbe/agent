@@ -22,7 +22,7 @@ import (
 
 // JobSpawner creates a K8s Job for a task.
 type JobSpawner interface {
-	SpawnJob(ctx context.Context, task lib.Task, image string) error
+	SpawnJob(ctx context.Context, taskFile lib.TaskFile, image string) error
 }
 
 // NewJobSpawner creates a new JobSpawner backed by the K8s batch/v1 API.
@@ -47,8 +47,8 @@ type jobSpawner struct {
 	branch       string
 }
 
-func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) error {
-	jobName := jobNameFromTask(task.TaskIdentifier)
+func (s *jobSpawner) SpawnJob(ctx context.Context, taskFile lib.TaskFile, image string) error {
+	jobName := jobNameFromTask(taskFile.TaskIdentifier)
 	backoffLimit := int32(0)
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -65,8 +65,8 @@ func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) 
 							Name:  "agent",
 							Image: image,
 							Env: []corev1.EnvVar{
-								{Name: "TASK_CONTENT", Value: string(task.Content)},
-								{Name: "TASK_ID", Value: string(task.TaskIdentifier)},
+								{Name: "TASK_CONTENT", Value: taskFile.Content},
+								{Name: "TASK_ID", Value: string(taskFile.TaskIdentifier)},
 								{Name: "KAFKA_BROKERS", Value: s.kafkaBrokers},
 								{Name: "BRANCH", Value: s.branch},
 							},
@@ -81,7 +81,7 @@ func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) 
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
 			glog.V(2).
-				Infof("job %s already exists for task %s, treating as success", jobName, task.TaskIdentifier)
+				Infof("job %s already exists for task %s, treating as success", jobName, taskFile.TaskIdentifier)
 			return nil
 		}
 		return errors.Wrapf(
@@ -89,10 +89,11 @@ func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) 
 			err,
 			"create job %s for task %s failed",
 			jobName,
-			task.TaskIdentifier,
+			taskFile.TaskIdentifier,
 		)
 	}
-	glog.V(2).Infof("created job %s for task %s with image %s", jobName, task.TaskIdentifier, image)
+	glog.V(2).
+		Infof("created job %s for task %s with image %s", jobName, taskFile.TaskIdentifier, image)
 	return nil
 }
 

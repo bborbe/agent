@@ -10,11 +10,11 @@ import (
 )
 
 type FakeJobSpawner struct {
-	SpawnJobStub        func(context.Context, lib.Task, string) error
+	SpawnJobStub        func(context.Context, lib.TaskFile, string) error
 	spawnJobMutex       sync.RWMutex
 	spawnJobArgsForCall []struct {
 		arg1 context.Context
-		arg2 lib.Task
+		arg2 lib.TaskFile
 		arg3 string
 	}
 	spawnJobReturns struct {
@@ -27,12 +27,12 @@ type FakeJobSpawner struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeJobSpawner) SpawnJob(arg1 context.Context, arg2 lib.Task, arg3 string) error {
+func (fake *FakeJobSpawner) SpawnJob(arg1 context.Context, arg2 lib.TaskFile, arg3 string) error {
 	fake.spawnJobMutex.Lock()
 	ret, specificReturn := fake.spawnJobReturnsOnCall[len(fake.spawnJobArgsForCall)]
 	fake.spawnJobArgsForCall = append(fake.spawnJobArgsForCall, struct {
 		arg1 context.Context
-		arg2 lib.Task
+		arg2 lib.TaskFile
 		arg3 string
 	}{arg1, arg2, arg3})
 	stub := fake.SpawnJobStub
@@ -54,13 +54,13 @@ func (fake *FakeJobSpawner) SpawnJobCallCount() int {
 	return len(fake.spawnJobArgsForCall)
 }
 
-func (fake *FakeJobSpawner) SpawnJobCalls(stub func(context.Context, lib.Task, string) error) {
+func (fake *FakeJobSpawner) SpawnJobCalls(stub func(context.Context, lib.TaskFile, string) error) {
 	fake.spawnJobMutex.Lock()
 	defer fake.spawnJobMutex.Unlock()
 	fake.SpawnJobStub = stub
 }
 
-func (fake *FakeJobSpawner) SpawnJobArgsForCall(i int) (context.Context, lib.Task, string) {
+func (fake *FakeJobSpawner) SpawnJobArgsForCall(i int) (context.Context, lib.TaskFile, string) {
 	fake.spawnJobMutex.RLock()
 	defer fake.spawnJobMutex.RUnlock()
 	argsForCall := fake.spawnJobArgsForCall[i]
