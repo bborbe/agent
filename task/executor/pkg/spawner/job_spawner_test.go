@@ -40,7 +40,13 @@ var _ = Describe("JobSpawner", func() {
 	BeforeEach(func() {
 		ctx = context.Background()
 		fakeClient = fake.NewClientset()
-		jobSpawner = spawner.NewJobSpawner(fakeClient, "test-ns", "kafka:9092", "develop")
+		jobSpawner = spawner.NewJobSpawner(
+			fakeClient,
+			"test-ns",
+			"kafka:9092",
+			"develop",
+			"test-gemini-key",
+		)
 	})
 
 	Describe("SpawnJob", func() {
@@ -76,6 +82,7 @@ var _ = Describe("JobSpawner", func() {
 			Expect(envMap["TASK_ID"]).To(Equal("abc12345-rest-ignored"))
 			Expect(envMap["KAFKA_BROKERS"]).To(Equal("kafka:9092"))
 			Expect(envMap["BRANCH"]).To(Equal("develop"))
+			Expect(envMap["GEMINI_API_KEY"]).To(Equal("test-gemini-key"))
 		})
 
 		It("truncates task ID to 8 characters in job name", func() {
@@ -110,7 +117,13 @@ var _ = Describe("JobSpawner", func() {
 				},
 			}
 			fakeClient = fake.NewClientset(existingJob)
-			jobSpawner = spawner.NewJobSpawner(fakeClient, "test-ns", "kafka:9092", "develop")
+			jobSpawner = spawner.NewJobSpawner(
+				fakeClient,
+				"test-ns",
+				"kafka:9092",
+				"develop",
+				"test-gemini-key",
+			)
 
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("abc12345-rest-ignored"),

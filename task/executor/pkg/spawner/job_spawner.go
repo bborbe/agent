@@ -31,12 +31,14 @@ func NewJobSpawner(
 	namespace string,
 	kafkaBrokers string,
 	branch string,
+	geminiAPIKey string,
 ) JobSpawner {
 	return &jobSpawner{
 		kubeClient:   kubeClient,
 		namespace:    namespace,
 		kafkaBrokers: kafkaBrokers,
 		branch:       branch,
+		geminiAPIKey: geminiAPIKey,
 	}
 }
 
@@ -45,6 +47,7 @@ type jobSpawner struct {
 	namespace    string
 	kafkaBrokers string
 	branch       string
+	geminiAPIKey string
 }
 
 func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) error {
@@ -70,6 +73,7 @@ func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) 
 								{Name: "TASK_ID", Value: string(task.TaskIdentifier)},
 								{Name: "KAFKA_BROKERS", Value: s.kafkaBrokers},
 								{Name: "BRANCH", Value: s.branch},
+								{Name: "GEMINI_API_KEY", Value: s.geminiAPIKey},
 							},
 						},
 					},

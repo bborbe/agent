@@ -27,8 +27,15 @@ func CreateConsumer(
 	kafkaBrokers string,
 	assigneeImages map[string]string,
 	logSamplerFactory log.SamplerFactory,
+	geminiAPIKey string,
 ) libkafka.Consumer {
-	jobSpawner := spawner.NewJobSpawner(kubeClient, namespace, kafkaBrokers, string(branch))
+	jobSpawner := spawner.NewJobSpawner(
+		kubeClient,
+		namespace,
+		kafkaBrokers,
+		string(branch),
+		geminiAPIKey,
+	)
 	duplicateTracker := handler.NewInMemoryDuplicateTracker()
 	taskEventHandler := handler.NewTaskEventHandler(duplicateTracker, jobSpawner, assigneeImages)
 	topic := lib.TaskV1SchemaID.EventTopic(branch)
