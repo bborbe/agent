@@ -17,9 +17,9 @@ import (
 )
 
 // TaskResultCommandOperation is the CQRS command operation name for task result updates.
-const TaskResultCommandOperation base.CommandOperation = "UpdateResult"
+const TaskResultCommandOperation base.CommandOperation = "update-result"
 
-// NewTaskResultExecutor creates a cdb.CommandObjectExecutorTx for UpdateResult commands.
+// NewTaskResultExecutor creates a cdb.CommandObjectExecutorTx for update-result commands.
 // Uses cdb.CommandObjectExecutorTxFunc adapter — same pattern as trading command handlers.
 func NewTaskResultExecutor(writer result.ResultWriter) cdb.CommandObjectExecutorTx {
 	return cdb.CommandObjectExecutorTxFunc(
