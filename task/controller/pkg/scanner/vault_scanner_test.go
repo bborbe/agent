@@ -13,6 +13,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v3"
 )
 
 // testGitClient is a simple test double for gitclient.GitClient.
@@ -84,6 +85,18 @@ var _ = Describe("VaultScanner", func() {
 	})
 
 	Describe("processFile edge cases", func() {
+		It("processes file with duplicate task_identifier (last wins)", func() {
+			content := "---\ntask_identifier: first-uuid\nstatus: todo\nassignee: claude\ntask_identifier: real-uuid\n---\n# Dup task"
+			absPath := filepath.Join(tmpDir, taskDir, "dup-key.md")
+			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+
+			s.runCycle(ctx, results)
+			var result ScanResult
+			Expect(results).To(Receive(&result))
+			Expect(result.Changed).To(HaveLen(1))
+			Expect(string(result.Changed[0].TaskIdentifier)).To(Equal("real-uuid"))
+		})
+
 		It("passes through file with non-empty unknown status", func() {
 			content := "---\ntask_identifier: bad-status-uuid\nstatus: definitely_invalid_status\nassignee: claude\n---\n"
 			absPath := filepath.Join(tmpDir, taskDir, "bad-status.md")
@@ -108,6 +121,38 @@ var _ = Describe("VaultScanner", func() {
 			Expect(results).To(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
 			Expect(string(result.Changed[0].Frontmatter.Assignee())).To(Equal("claude"))
+		})
+	})
+
+	Describe("deduplicateFrontmatter", func() {
+		It("returns original YAML unchanged when no duplicates", func() {
+			input := "task_identifier: abc-123\nstatus: todo\nassignee: claude\n"
+			out, hasDup, err := deduplicateFrontmatter(ctx, input)
+			Expect(err).To(BeNil())
+			Expect(hasDup).To(BeFalse())
+			Expect(out).To(Equal(input))
+		})
+
+		It("deduplicates a single repeated key, last value wins", func() {
+			input := "task_identifier: first\nstatus: todo\ntask_identifier: second\n"
+			out, hasDup, err := deduplicateFrontmatter(ctx, input)
+			Expect(err).To(BeNil())
+			Expect(hasDup).To(BeTrue())
+			var result map[string]interface{}
+			Expect(yaml.Unmarshal([]byte(out), &result)).To(Succeed())
+			Expect(result["task_identifier"]).To(Equal("second"))
+			Expect(result["status"]).To(Equal("todo"))
+		})
+
+		It("deduplicates multiple repeated keys, last value wins each", func() {
+			input := "task_identifier: first\nstatus: todo\ntask_identifier: second\nstatus: in_progress\n"
+			out, hasDup, err := deduplicateFrontmatter(ctx, input)
+			Expect(err).To(BeNil())
+			Expect(hasDup).To(BeTrue())
+			var result map[string]interface{}
+			Expect(yaml.Unmarshal([]byte(out), &result)).To(Succeed())
+			Expect(result["task_identifier"]).To(Equal("second"))
+			Expect(result["status"]).To(Equal("in_progress"))
 		})
 	})
 

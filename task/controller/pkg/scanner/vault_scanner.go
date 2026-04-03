@@ -157,8 +157,16 @@ func (v *vaultScanner) processFile(
 		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, err)
 		return nil, "", false
 	}
+	dedupedYAML, hasDuplicates, dedupErr := deduplicateFrontmatter(ctx, fmYAML)
+	if dedupErr != nil {
+		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, dedupErr)
+		return nil, "", false
+	}
+	if hasDuplicates {
+		glog.Warningf("file %s has duplicate frontmatter keys, deduplicating", relPath)
+	}
 	var fmMap map[string]interface{}
-	if err := yaml.Unmarshal([]byte(fmYAML), &fmMap); err != nil {
+	if err := yaml.Unmarshal([]byte(dedupedYAML), &fmMap); err != nil {
 		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, err)
 		return nil, "", false
 	}
@@ -229,6 +237,44 @@ func injectTaskIdentifier(content []byte, id string) ([]byte, error) {
 		context.Background(),
 		"content does not start with frontmatter delimiter",
 	)
+}
+
+func deduplicateFrontmatter(ctx context.Context, fmYAML string) (string, bool, error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(fmYAML), &doc); err != nil {
+		return fmYAML, false, errors.Wrapf(ctx, err, "parse frontmatter for deduplication")
+	}
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
+		return fmYAML, false, nil
+	}
+	mappingNode := doc.Content[0]
+	if mappingNode.Kind != yaml.MappingNode {
+		return fmYAML, false, nil
+	}
+	seen := make(map[string]int)
+	var newContent []*yaml.Node
+	hasDuplicates := false
+	for i := 0; i+1 < len(mappingNode.Content); i += 2 {
+		keyNode := mappingNode.Content[i]
+		valNode := mappingNode.Content[i+1]
+		key := keyNode.Value
+		if idx, ok := seen[key]; ok {
+			hasDuplicates = true
+			newContent[idx+1] = valNode
+		} else {
+			seen[key] = len(newContent)
+			newContent = append(newContent, keyNode, valNode)
+		}
+	}
+	if !hasDuplicates {
+		return fmYAML, false, nil
+	}
+	mappingNode.Content = newContent
+	out, err := yaml.Marshal(mappingNode)
+	if err != nil {
+		return fmYAML, false, errors.Wrapf(ctx, err, "re-marshal deduplicated frontmatter")
+	}
+	return string(out), true, nil
 }
 
 func extractFrontmatter(ctx context.Context, content []byte) (string, error) {
