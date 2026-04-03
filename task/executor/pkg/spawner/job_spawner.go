@@ -59,7 +59,8 @@ func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) 
 			BackoffLimit: &backoffLimit,
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
-					RestartPolicy: corev1.RestartPolicyNever,
+					RestartPolicy:    corev1.RestartPolicyNever,
+					ImagePullSecrets: []corev1.LocalObjectReference{{Name: "docker"}},
 					Containers: []corev1.Container{
 						{
 							Name:  "agent",
