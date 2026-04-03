@@ -1,13 +1,13 @@
 ---
-status: inbox
+status: draft
 created: "2026-04-03T15:30:00Z"
 ---
 
 <summary>
-- VaultScanner tolerates duplicate YAML frontmatter keys instead of skipping the file
+- Scanner tolerates duplicate YAML frontmatter keys instead of skipping the file
 - Duplicate keys are resolved by keeping the last value (standard YAML merge behavior)
-- A helper function deduplicates raw frontmatter YAML before Unmarshal
-- ResultWriter ensures it never writes duplicate keys in output frontmatter
+- Files with duplicate frontmatter keys are automatically cleaned up before parsing
+- Output frontmatter is guaranteed to never contain duplicate keys
 - Existing tests pass, new tests cover duplicate key handling
 </summary>
 
@@ -52,16 +52,12 @@ Files to read before making changes:
    - If duplicates found, log `glog.Warningf("file %s has duplicate frontmatter keys, deduplicating", relPath)`
    - Pass deduplicated YAML to `yaml.Unmarshal`
 
-3. **Ensure ResultWriter never creates duplicates:**
-   - In `WriteResult`, the frontmatter comes from `req.Frontmatter` (a map), so marshaling a Go map cannot produce duplicates
-   - Add a comment confirming this: `// Go maps guarantee unique keys, so Marshal cannot produce duplicate YAML keys`
-
-4. **Add tests:**
+3. **Add tests:**
    - Test `deduplicateFrontmatter` with: no duplicates, one duplicate key, multiple duplicate keys
    - Test `processFile` with a file containing duplicate `task_identifier` — should parse successfully
    - Use Ginkgo/Gomega patterns per project conventions
 
-5. **Run tests and precommit:**
+4. **Run tests and precommit:**
    ```bash
    cd task/controller && make test
    cd task/controller && make precommit

@@ -1,15 +1,15 @@
 ---
-status: inbox
+status: draft
 created: "2026-04-03T16:30:00Z"
 ---
 
 <summary>
-- JobSpawner uses bborbe/k8s builders (JobBuilder, PodSpecBuilder, ContainerBuilder, EnvBuilder) instead of hand-crafted structs
-- Completed/failed jobs auto-delete after 10 minutes via TTLSecondsAfterFinished
-- Jobs get proper labels (app=agent, component=task-identifier) for monitoring
-- ImagePullSecrets configured via PodSpecBuilder instead of hardcoded LocalObjectReference
-- EnvBuilder replaces manual EnvVar slice construction
-- Builder validation catches misconfiguration before K8s API call
+- Job spawner uses fluent builder pattern instead of hand-crafted structs
+- Completed and failed jobs auto-delete after 10 minutes
+- Jobs get proper labels for monitoring
+- Image pull secrets configured via builder instead of hardcoded reference
+- Environment variable construction uses builder pattern
+- Builder validation catches misconfiguration before API call
 </summary>
 
 <objective>
@@ -19,7 +19,7 @@ Replace the hand-built batchv1.Job struct in JobSpawner with the fluent bborbe/k
 <context>
 Read CLAUDE.md for project conventions.
 
-**Current state:** `task/executor/pkg/spawner/job_spawner.go` constructs a `batchv1.Job` manually (~30 lines of struct literals). Missing: TTL cleanup, labels, TypeMeta, CompletionMode, PodReplacementPolicy. ImagePullSecrets was recently added as a hardcoded fix.
+**Current state:** `task/executor/pkg/spawner/job_spawner.go` constructs a `batchv1.Job` manually (~30 lines of struct literals). Missing: TTL cleanup, labels, TypeMeta, CompletionMode, PodReplacementPolicy.
 
 **Target state:** Use `github.com/bborbe/k8s` builders:
 - `k8s.NewJobBuilder()` — job-level config (backoff, TTL, labels, completions)
@@ -34,17 +34,29 @@ Read CLAUDE.md for project conventions.
 - `CompletionMode: NonIndexed`, `PodReplacementPolicy: TerminatingOrFailed` — sane defaults
 - Validates restart policy (rejects `Always`)
 
-**Reference:** See builder source at `~/Documents/workspaces/k8s/k8s_job-builder.go` and tests at `~/Documents/workspaces/k8s/k8s_job-builder_test.go`.
+**Builder defaults that change behavior (must address):**
+- `ContainerBuilder` sets default resource limits: cpu 50m/20m, memory 50Mi/20Mi — current code has NO resource limits. Override to match current (no limits) or accept the defaults.
+- `ContainerBuilder.Build()` sets `ImagePullPolicy: PullAlways` — current code doesn't set this. Acceptable since deploy yaml already uses `imagePullPolicy: Always`.
+
+**Important type signatures (differs from naive usage):**
+- `ContainerBuilder.SetName()` takes `k8s.Name`, not `string` — use `k8s.Name("agent")`
+- `ContainersBuilder.SetContainerBuilders()` takes `[]k8s.HasBuildContainer`, not `[]k8s.ContainerBuilder`
+- `JobBuilder.SetPodSpecBuilder()` takes `k8s.HasBuildPodSpec`
+- `JobBuilder.SetObjectMetaBuild()` takes `k8s.HasBuildObjectMeta`
+- `PodSpecBuilder.SetContainersBuilder()` takes `k8s.HasBuildContainers`
+
+**Reference:** Builder source is vendored at `task/executor/vendor/github.com/bborbe/k8s/` after `go mod vendor`. Key files:
+- `k8s_job-builder.go` — JobBuilder interface
+- `k8s_podspec-builder.go` — PodSpecBuilder interface
+- `k8s_container-builder.go` — ContainerBuilder interface (note `HasBuildContainer` type)
+- `k8s_containers-builder.go` — ContainersBuilder interface (note `HasBuildContainers` type)
+- `k8s_env-builder.go` — EnvBuilder interface
+- `k8s_objectmeta-builder.go` — ObjectMetaBuilder interface
 
 Files to read before making changes:
-- `task/executor/pkg/spawner/job_spawner.go` — current implementation
+- `task/executor/pkg/spawner/job_spawner.go` — current implementation (5 env vars including GEMINI_API_KEY)
 - `task/executor/pkg/spawner/job_spawner_test.go` — current tests
 - `task/executor/pkg/factory/factory.go` — where spawner is wired
-- `~/Documents/workspaces/k8s/k8s_job-builder.go` — JobBuilder interface
-- `~/Documents/workspaces/k8s/k8s_podspec-builder.go` — PodSpecBuilder interface
-- `~/Documents/workspaces/k8s/k8s_container-builder.go` — ContainerBuilder interface
-- `~/Documents/workspaces/k8s/k8s_env-builder.go` — EnvBuilder interface
-- `~/Documents/workspaces/k8s/k8s_objectmeta-builder.go` — ObjectMetaBuilder interface
 </context>
 
 <requirements>
@@ -64,14 +76,15 @@ Files to read before making changes:
        envBuilder.Add("TASK_ID", string(task.TaskIdentifier))
        envBuilder.Add("KAFKA_BROKERS", s.kafkaBrokers)
        envBuilder.Add("BRANCH", s.branch)
+       envBuilder.Add("GEMINI_API_KEY", s.geminiAPIKey)
 
        containerBuilder := k8s.NewContainerBuilder()
-       containerBuilder.SetName("agent")
+       containerBuilder.SetName(k8s.Name("agent"))
        containerBuilder.SetImage(image)
        containerBuilder.SetEnvBuilder(envBuilder)
 
        containersBuilder := k8s.NewContainersBuilder()
-       containersBuilder.SetContainerBuilders([]k8s.ContainerBuilder{containerBuilder})
+       containersBuilder.SetContainerBuilders([]k8s.HasBuildContainer{containerBuilder})
 
        podSpecBuilder := k8s.NewPodSpecBuilder()
        podSpecBuilder.SetContainersBuilder(containersBuilder)
@@ -102,9 +115,10 @@ Files to read before making changes:
    - `BackoffLimit: 0` (no retries)
    - `RestartPolicy: Never`
    - `ImagePullSecrets: docker`
-   - Same env vars: TASK_CONTENT, TASK_ID, KAFKA_BROKERS, BRANCH
+   - Same 5 env vars: TASK_CONTENT, TASK_ID, KAFKA_BROKERS, BRANCH, GEMINI_API_KEY
    - Same job naming: `agent-{first-8-chars}`
    - Same already-exists handling (log + return nil)
+   - Same `geminiAPIKey` field on struct, same constructor signature
 
 4. **New behavior from builder defaults:**
    - `TTLSecondsAfterFinished: 600` — auto-cleanup after 10 min
@@ -112,11 +126,14 @@ Files to read before making changes:
    - `TypeMeta: {Kind: Job, APIVersion: batch/v1}` auto-set
    - `CompletionMode: NonIndexed`
    - `PodReplacementPolicy: TerminatingOrFailed`
+   - `ImagePullPolicy: PullAlways` (acceptable, matches executor deploy)
+   - Resource limits: cpu 50m/20m, memory 50Mi/20Mi (from ContainerBuilder defaults — acceptable for now)
 
 5. **Update tests:**
    - Verify TTLSecondsAfterFinished is set on created jobs
    - Verify labels are set on pod template
    - Verify ImagePullSecrets is set
+   - Verify GEMINI_API_KEY is in env vars
    - Existing test assertions (env vars, image, namespace) must still pass
 
 6. **Run tests and precommit:**
@@ -128,12 +145,12 @@ Files to read before making changes:
 
 <constraints>
 - Do NOT change the JobSpawner interface — same `SpawnJob(ctx, task, image) error` signature
+- Do NOT change the `NewJobSpawner` constructor signature (5 params including geminiAPIKey)
 - Do NOT change job naming logic (`jobNameFromTask`)
 - Do NOT change already-exists handling
-- Do NOT remove any existing env vars
+- Do NOT remove any existing env vars (there are 5: TASK_CONTENT, TASK_ID, KAFKA_BROKERS, BRANCH, GEMINI_API_KEY)
 - Use `github.com/bborbe/k8s` builders, not hand-built structs
 - Use `github.com/bborbe/errors` for error wrapping — never `fmt.Errorf`
-- Do NOT update CHANGELOG.md
 - Do NOT commit — dark-factory handles git
 </constraints>
 
@@ -158,6 +175,13 @@ Verify TTL is set:
 grep -n "TTLSecondsAfterFinished\|SetTTLSecondsAfterFinished" task/executor/pkg/spawner/job_spawner.go
 ```
 Must show TTL usage (or rely on builder default of 600).
+
+Verify all 5 env vars:
+
+```bash
+grep -n "TASK_CONTENT\|TASK_ID\|KAFKA_BROKERS\|BRANCH\|GEMINI_API_KEY" task/executor/pkg/spawner/job_spawner.go
+```
+Must show all 5 env vars.
 
 Run precommit:
 
