@@ -1,6 +1,6 @@
 ---
 status: completed
-spec: ["002"]
+spec: [002-uuid-task-identifier]
 summary: Extended VaultScanner to inject stable UUIDv4 task_identifier into task frontmatter, commit write-backs atomically, and use UUID as TaskIdentifier on all published events
 container: agent-009-spec-002-scanner-uuid-frontmatter
 dark-factory-version: v0.68.1

@@ -20,6 +20,7 @@ import (
 	"github.com/bborbe/run"
 	libsentry "github.com/bborbe/sentry"
 	"github.com/bborbe/service"
+	libtime "github.com/bborbe/time"
 	"github.com/golang/glog"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -75,11 +76,13 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		log.DefaultSamplerFactory,
 	)
 
+	currentDateTime := libtime.NewCurrentDateTime()
 	syncLoop := factory.CreateSyncLoop(
 		gitClient,
 		a.TaskDir,
 		a.PollInterval,
 		eventObjectSender,
+		currentDateTime,
 	)
 
 	var boltOptions []boltkv.ChangeOptions

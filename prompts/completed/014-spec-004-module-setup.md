@@ -1,6 +1,6 @@
 ---
 status: completed
-spec: ["004"]
+spec: [004-task-executor-service]
 summary: Created task/executor as a standalone Go module with go.mod, tools.go, Makefile, Dockerfile, main.go, main_test.go, and mocks/mocks.go matching the prompt/controller skeleton; go mod tidy and make precommit both pass.
 container: agent-014-spec-004-module-setup
 dark-factory-version: v0.69.0

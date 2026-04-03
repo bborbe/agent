@@ -1,6 +1,6 @@
 ---
 status: completed
-spec: ["005"]
+spec: [005-agent-result-capture]
 summary: Added TASK_ID env var to K8s Job container spec in job_spawner.go, added matching test assertion, and updated CHANGELOG.md with feat entry.
 container: agent-018-spec-005-task-executor-task-id
 dark-factory-version: v0.69.0

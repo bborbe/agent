@@ -6,7 +6,6 @@ package publisher
 
 import (
 	"context"
-	"time"
 
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/cqrs/cdb"
@@ -31,20 +30,23 @@ type TaskPublisher interface {
 func NewTaskPublisher(
 	eventObjectSender cdb.EventObjectSender,
 	schemaID cdb.SchemaID,
+	currentDateTimeGetter libtime.CurrentDateTimeGetter,
 ) TaskPublisher {
 	return &taskPublisher{
-		eventObjectSender: eventObjectSender,
-		schemaID:          schemaID,
+		eventObjectSender:     eventObjectSender,
+		schemaID:              schemaID,
+		currentDateTimeGetter: currentDateTimeGetter,
 	}
 }
 
 type taskPublisher struct {
-	eventObjectSender cdb.EventObjectSender
-	schemaID          cdb.SchemaID
+	eventObjectSender     cdb.EventObjectSender
+	schemaID              cdb.SchemaID
+	currentDateTimeGetter libtime.CurrentDateTimeGetter
 }
 
 func (p *taskPublisher) PublishChanged(ctx context.Context, task lib.Task) error {
-	now := libtime.DateTime(time.Now())
+	now := p.currentDateTimeGetter.Now()
 	task.Object = base.Object[base.Identifier]{
 		Identifier: base.Identifier(uuid.New().String()),
 		Created:    now,

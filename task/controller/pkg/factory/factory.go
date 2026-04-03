@@ -12,6 +12,7 @@ import (
 	libkafka "github.com/bborbe/kafka"
 	libkv "github.com/bborbe/kv"
 	"github.com/bborbe/run"
+	libtime "github.com/bborbe/time"
 
 	lib "github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/task/controller/pkg/command"
@@ -28,6 +29,7 @@ func CreateSyncLoop(
 	taskDir string,
 	pollInterval time.Duration,
 	eventObjectSender cdb.EventObjectSender,
+	currentDateTimeGetter libtime.CurrentDateTimeGetter,
 ) pkgsync.SyncLoop {
 	trigger := make(chan struct{}, 1)
 	return pkgsync.NewSyncLoop(
@@ -40,6 +42,7 @@ func CreateSyncLoop(
 		publisher.NewTaskPublisher(
 			eventObjectSender,
 			lib.TaskV1SchemaID,
+			currentDateTimeGetter,
 		),
 		trigger,
 	)

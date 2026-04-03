@@ -1,6 +1,6 @@
 ---
 status: completed
-spec: ["003"]
+spec: [003-task-to-prompt-consumer]
 summary: Created prompt/controller/go.mod, tools.go, and main_test.go establishing prompt/controller as a standalone Go module matching the task/controller pattern
 container: agent-011-spec-003-module-setup
 dark-factory-version: v0.69.0

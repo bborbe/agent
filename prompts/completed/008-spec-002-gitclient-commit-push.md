@@ -1,6 +1,6 @@
 ---
 status: completed
-spec: ["002"]
+spec: [002-uuid-task-identifier]
 summary: Added CommitAndPush to GitClient interface with subprocess-based implementation, updated testGitClient in scanner tests, regenerated mocks, and added happy-path and error-path tests.
 container: agent-008-spec-002-gitclient-commit-push
 dark-factory-version: v0.68.1

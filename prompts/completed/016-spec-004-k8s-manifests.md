@@ -1,6 +1,6 @@
 ---
 status: completed
-spec: ["004"]
+spec: [004-task-executor-service]
 summary: 'Created all K8s manifests for task/executor: Deployment, Service, Secret, ServiceAccount, Role, RoleBinding, and k8s/Makefile; updated CHANGELOG.md'
 container: agent-016-spec-004-k8s-manifests
 dark-factory-version: v0.69.0

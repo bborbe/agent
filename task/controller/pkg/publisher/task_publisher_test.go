@@ -11,6 +11,8 @@ import (
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/cqrs/cdb"
 	cqrsmocks "github.com/bborbe/cqrs/mocks"
+	libtime "github.com/bborbe/time"
+	libtimetest "github.com/bborbe/time/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -20,10 +22,12 @@ import (
 
 var _ = Describe("TaskPublisher", func() {
 	var (
-		ctx        context.Context
-		fakeSender *cqrsmocks.CDBEventObjectSender
-		schemaID   cdb.SchemaID
-		tp         publisher.TaskPublisher
+		ctx             context.Context
+		fakeSender      *cqrsmocks.CDBEventObjectSender
+		schemaID        cdb.SchemaID
+		tp              publisher.TaskPublisher
+		currentDateTime libtime.CurrentDateTime
+		fixedTime       libtime.DateTime
 	)
 
 	BeforeEach(func() {
@@ -34,7 +38,10 @@ var _ = Describe("TaskPublisher", func() {
 			Kind:    "task",
 			Version: "v1",
 		}
-		tp = publisher.NewTaskPublisher(fakeSender, schemaID)
+		currentDateTime = libtime.NewCurrentDateTime()
+		fixedTime = libtimetest.ParseDateTime("2026-01-15T10:00:00Z")
+		currentDateTime.SetNow(fixedTime)
+		tp = publisher.NewTaskPublisher(fakeSender, schemaID, currentDateTime)
 	})
 
 	Describe("PublishChanged", func() {
@@ -57,6 +64,11 @@ var _ = Describe("TaskPublisher", func() {
 			Expect(eventObject.SchemaID).To(Equal(schemaID))
 			Expect(eventObject.ID).To(Equal(base.EventID("test-uuid-1234")))
 			Expect(eventObject.Event).NotTo(BeNil())
+
+			var publishedTask lib.Task
+			Expect(eventObject.Event.MarshalInto(ctx, &publishedTask)).To(Succeed())
+			Expect(publishedTask.Object.Created).To(Equal(fixedTime))
+			Expect(publishedTask.Object.Modified).To(Equal(fixedTime))
 		})
 
 		It("returns an error when SendUpdate fails", func() {

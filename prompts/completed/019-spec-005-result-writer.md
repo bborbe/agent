@@ -1,6 +1,6 @@
 ---
 status: completed
-spec: ["005"]
+spec: [005-agent-result-capture]
 container: agent-019-spec-005-result-writer
 dark-factory-version: v0.69.0
 created: "2026-03-29T20:15:00Z"

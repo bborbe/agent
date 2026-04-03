@@ -1,6 +1,6 @@
 ---
 status: completed
-spec: ["004"]
+spec: [004-task-executor-service]
 summary: 'Implemented task/executor pipeline: JobSpawner (K8s batch/v1), TaskEventHandler (status/phase/assignee filters + dedup), pure factory wiring, full main.go with Kafka consumer + HTTP server, and complete test coverage (handler 88.9%, spawner 100%)'
 container: agent-015-spec-004-pipeline
 dark-factory-version: v0.69.0

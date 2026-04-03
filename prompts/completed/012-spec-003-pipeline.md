@@ -1,6 +1,6 @@
 ---
 status: completed
-spec: ["003"]
+spec: [003-task-to-prompt-consumer]
 summary: 'Implemented full task-to-prompt pipeline in prompt/controller: PromptPublisher, TaskEventHandler with DuplicateTracker, pure factory wiring, kafka-brokers/branch CLI flags in main.go, and full test coverage for handler and publisher packages.'
 container: agent-012-spec-003-pipeline
 dark-factory-version: v0.69.0

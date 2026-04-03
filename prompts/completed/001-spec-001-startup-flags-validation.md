@@ -1,6 +1,6 @@
 ---
 status: completed
-spec: ["001"]
+spec: [001-git-to-kafka-task-sync]
 summary: Added GitClient interface and implementation with git clone/validate via os/exec subprocess, added CLI flags to task/controller application struct, and fixed osv-scanner Makefile to use ROOTDIR for mono-repo compatibility
 container: agent-001-spec-001-startup-flags-validation
 dark-factory-version: v0.67.3-dirty
