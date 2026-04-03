@@ -10,7 +10,7 @@ Validates that sending an UpdateResult command via the trading API updates the t
 - [ ] task/controller deployed to dev (v0.20.12+)
 - [ ] Create a test task file with a known task_identifier:
   ```bash
-  cat > ~/Documents/Obsidian/Personal/24\ Tasks/Test\ Result\ Writeback.md << 'EOF'
+  cat > ~/Documents/Obsidian/OpenClaw/24\ Tasks/Test\ Result\ Writeback.md << 'EOF'
   ---
   status: in_progress
   phase: in_progress
@@ -27,13 +27,13 @@ Validates that sending an UpdateResult command via the trading API updates the t
   Test task for scenario 001. Run backtest for BBR-EURUSD-1H.
   EOF
   ```
-- [ ] Commit and push: `cd ~/Documents/Obsidian/Personal && git add -A && git commit -m "add test task for scenario 001" && git push`
+- [ ] Commit and push: `cd ~/Documents/Obsidian/OpenClaw && git add -A && git commit -m "add test task for scenario 001" && git push`
 - [ ] Wait for task/controller to pick up the file (check logs or wait 60s)
 
 ## Action
 - [ ] Send UpdateResult command:
   ```bash
-  ~/Documents/Obsidian/Personal/.claude/scripts/trading-api-write.sh dev \
+  ~/Documents/Obsidian/OpenClaw/.claude/scripts/trading-api-write.sh dev \
     "/api/1.0/command/agent-task-v1/update" \
     '{
       "taskIdentifier": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
@@ -49,10 +49,10 @@ Validates that sending an UpdateResult command via the trading API updates the t
 
 ## Expected
 - [ ] Controller logs show command consumed: `kubectlquant -n dev logs agent-task-controller-0 --tail=20 | grep -i "result\|write\|commit\|push"`
-- [ ] Git pull in vault shows new commit: `cd ~/Documents/Obsidian/Personal && git pull`
-- [ ] Task file frontmatter has `status: completed`: `grep "status:" ~/Documents/Obsidian/Personal/24\ Tasks/Test\ Result\ Writeback.md`
-- [ ] Task file frontmatter has `phase: done`: `grep "phase:" ~/Documents/Obsidian/Personal/24\ Tasks/Test\ Result\ Writeback.md`
-- [ ] Task file body contains `## Result` section: `grep "## Result" ~/Documents/Obsidian/Personal/24\ Tasks/Test\ Result\ Writeback.md`
+- [ ] Git pull in vault shows new commit: `cd ~/Documents/Obsidian/OpenClaw && git pull`
+- [ ] Task file frontmatter has `status: completed`: `grep "status:" ~/Documents/Obsidian/OpenClaw/24\ Tasks/Test\ Result\ Writeback.md`
+- [ ] Task file frontmatter has `phase: done`: `grep "phase:" ~/Documents/Obsidian/OpenClaw/24\ Tasks/Test\ Result\ Writeback.md`
+- [ ] Task file body contains `## Result` section: `grep "## Result" ~/Documents/Obsidian/OpenClaw/24\ Tasks/Test\ Result\ Writeback.md`
 
 ## Cleanup
-- Remove test task file: `cd ~/Documents/Obsidian/Personal && git rm "24 Tasks/Test Result Writeback.md" && git commit -m "remove test task" && git push`
+- Remove test task file: `cd ~/Documents/Obsidian/OpenClaw && git rm "tasks/Test Result Writeback.md" && git commit -m "remove test task" && git push`

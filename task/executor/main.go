@@ -29,7 +29,8 @@ import (
 // assigneeImages maps assignee names to container images.
 // Add new assignees here when new agent types are onboarded.
 var assigneeImages = map[string]string{
-	"claude": "docker.quant.benjamin-borbe.de:443/agent-claude:develop",
+	"claude":         "docker.quant.benjamin-borbe.de:443/agent-claude:develop",
+	"backtest-agent": "docker.quant.benjamin-borbe.de:443/agent-backtest:develop",
 }
 
 func main() {
