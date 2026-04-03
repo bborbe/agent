@@ -10,7 +10,6 @@ require (
 	github.com/bborbe/collection v1.20.7
 	github.com/bborbe/cqrs v0.2.3
 	github.com/bborbe/errors v1.5.8
-	github.com/bborbe/time v1.25.3
 	github.com/bborbe/validation v1.4.9
 	github.com/bborbe/vault-cli v0.50.0
 	github.com/golangci/golangci-lint/v2 v2.11.4
@@ -99,6 +98,7 @@ require (
 	github.com/bborbe/parse v1.10.8 // indirect
 	github.com/bborbe/run v1.9.11 // indirect
 	github.com/bborbe/sentry v1.9.13 // indirect
+	github.com/bborbe/time v1.25.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bkielbasa/cyclop v1.2.3 // indirect
 	github.com/blizzy78/varnamelen v0.8.0 // indirect

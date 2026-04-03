@@ -6,10 +6,7 @@ package lib_test
 
 import (
 	"context"
-	"time"
 
-	"github.com/bborbe/cqrs/base"
-	libtime "github.com/bborbe/time"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -23,19 +20,9 @@ var _ = Describe("Task", func() {
 		ctx = context.Background()
 	})
 
-	validObject := func() base.Object[base.Identifier] {
-		now := libtime.DateTime(time.Now())
-		return base.Object[base.Identifier]{
-			Identifier: base.Identifier("test-id"),
-			Created:    now,
-			Modified:   now,
-		}
-	}
-
 	Describe("Validate", func() {
 		It("returns nil for valid Task", func() {
 			task := lib.Task{
-				Object:         validObject(),
 				TaskIdentifier: lib.TaskIdentifier("task-uuid-123"),
 				Content:        lib.TaskContent("some content"),
 			}
@@ -44,7 +31,6 @@ var _ = Describe("Task", func() {
 
 		It("returns error when TaskIdentifier is empty", func() {
 			task := lib.Task{
-				Object:         validObject(),
 				TaskIdentifier: lib.TaskIdentifier(""),
 				Content:        lib.TaskContent("some content"),
 			}
@@ -53,39 +39,18 @@ var _ = Describe("Task", func() {
 
 		It("returns error when Content is empty", func() {
 			task := lib.Task{
-				Object:         validObject(),
 				TaskIdentifier: lib.TaskIdentifier("task-uuid-123"),
 				Content:        lib.TaskContent(""),
 			}
 			Expect(task.Validate(ctx)).NotTo(BeNil())
 		})
 
-		It("returns error when Object Identifier is empty", func() {
-			now := libtime.DateTime(time.Now())
+		It("returns nil when Object is empty", func() {
 			task := lib.Task{
-				Object: base.Object[base.Identifier]{
-					Identifier: base.Identifier(""),
-					Created:    now,
-					Modified:   now,
-				},
 				TaskIdentifier: lib.TaskIdentifier("task-uuid-123"),
 				Content:        lib.TaskContent("some content"),
 			}
-			Expect(task.Validate(ctx)).NotTo(BeNil())
-		})
-
-		It("returns error when Object Created is zero", func() {
-			now := libtime.DateTime(time.Now())
-			task := lib.Task{
-				Object: base.Object[base.Identifier]{
-					Identifier: base.Identifier("test-id"),
-					Created:    libtime.DateTime{},
-					Modified:   now,
-				},
-				TaskIdentifier: lib.TaskIdentifier("task-uuid-123"),
-				Content:        lib.TaskContent("some content"),
-			}
-			Expect(task.Validate(ctx)).NotTo(BeNil())
+			Expect(task.Validate(ctx)).To(BeNil())
 		})
 	})
 })

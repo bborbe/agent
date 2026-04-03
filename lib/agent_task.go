@@ -25,7 +25,6 @@ type Task struct {
 
 func (t Task) Validate(ctx context.Context) error {
 	return validation.All{
-		validation.Name("Object", t.Object),
 		validation.Name("TaskIdentifier", t.TaskIdentifier),
 		validation.Name("Content", t.Content),
 	}.Validate(ctx)
