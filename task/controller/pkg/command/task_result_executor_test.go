@@ -40,8 +40,8 @@ var _ = Describe("NewTaskResultExecutor", func() {
 	})
 
 	Describe("CommandOperation", func() {
-		It("returns update-result", func() {
-			Expect(executor.CommandOperation()).To(Equal(base.CommandOperation("update-result")))
+		It("returns update", func() {
+			Expect(executor.CommandOperation()).To(Equal(base.CommandOperation("update")))
 		})
 	})
 

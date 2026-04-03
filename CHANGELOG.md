@@ -5,9 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.20.12
+
+- fix: Rename command operation from `update-result` to `update` to match CQRS convention
+- docs: Update controller-design, job-creator-design, kafka-schema-design, agent-job-lifecycle to reflect current architecture (remove prompt layer, fix result flow)
+
 ## v0.20.11
 
-- fix: Rename command operation from PascalCase `UpdateResult` to kebab-case `update-result` to comply with CQRS validation
+- fix: Rename command operation from PascalCase `UpdateResult` to kebab-case `update` to comply with CQRS naming convention
 
 ## v0.20.10
 

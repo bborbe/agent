@@ -1,54 +1,45 @@
-# Job Creator Design (task/executor)
+# Task Executor Design (task/executor)
 
-The job creator bridges Kafka and Kubernetes. It consumes prompt requests, spawns K8s Jobs, watches their completion, and publishes results. The controller never touches K8s — this component is the only one that does.
+The task executor bridges Kafka and Kubernetes. It consumes task events, filters by status/phase/assignee, resolves the assignee to a container image, and spawns K8s Jobs. It is the only component that talks to the K8s API.
 
 ## Inputs / Outputs
 
 | Direction | Source/Target | Purpose |
 |-----------|--------------|---------|
-| Consumes | `agent-prompt-v1-request` (Kafka) | Prompt to execute |
-| Watches | K8s Job API | Job status (running, succeeded, failed) |
-| Produces | `agent-prompt-v1-result` (Kafka) | Execution result |
+| Consumes | `agent-task-v1-event` (Kafka) | Task changed in vault |
+| Creates | K8s Job API | Spawn agent container |
 
 ## Logic
 
 ```
-On agent-prompt-v1-request:
+On agent-task-v1-event:
   │
-  ├── read AgentConfig CRD for assignee → get image, resources
+  ├── filter: status must be in_progress
+  ├── filter: phase must be planning, in_progress, or ai_review
+  ├── filter: assignee must match a known agent type
+  ├── deduplicate: skip if same task already processed
+  │
+  ├── resolve assignee → container image (hardcoded map)
   ├── create K8s Job:
-  │     image: CRD.spec.image
-  │     env/args: prompt content (instruction, parameters, execution_log)
-  │     resources: CRD.spec.resources
+  │     image: resolved from assignee
+  │     env: TASK_CONTENT, TASK_ID, KAFKA_BROKERS, BRANCH
   │
-  └── watch Job until completion
-        │
-        ├── succeeded → read Job output (stdout/logs)
-        │   → publish agent-prompt-v1-result (status from output)
-        │
-        └── failed → read error from logs
-            → publish agent-prompt-v1-result (status: failed, message: error)
+  └── done — does NOT watch the Job
 ```
 
-## Job Output Contract
+## What task/executor Does NOT Do
 
-Jobs write their result to stdout as structured output (JSON). See [agent-job-interface.md](agent-job-interface.md) for the full contract.
+- Does NOT watch Jobs for completion
+- Does NOT read stdout/logs from Jobs
+- Does NOT publish results to Kafka
+- Does NOT manage retries or heartbeats
 
-```json
-{
-  "status": "done",
-  "output": "PF: 1.4, Trades: 210",
-  "message": "Backtest completed successfully",
-  "links": ["https://..."]
-}
-```
-
-The job creator reads this from the Job's logs and wraps it in an `agent-prompt-v1-result` message.
+The agent inside the Job publishes its own result directly to `agent-task-v1-request`. See [agent-job-interface.md](agent-job-interface.md) for the full contract.
 
 ## Why This Component Exists
 
-Decoupling the controller from K8s means:
-- Controller is pure Kafka — testable, simple
+Decoupling task/controller from K8s means:
+- Controller is pure git + Kafka — testable, simple
 - Execution runtime is swappable:
 
 | Today | Tomorrow |
@@ -58,4 +49,4 @@ Decoupling the controller from K8s means:
 | | Permanent deployments |
 | | Local process |
 
-Swap the job creator, everything else stays the same.
+Swap the executor, everything else stays the same.
