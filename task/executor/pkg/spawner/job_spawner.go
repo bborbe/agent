@@ -8,9 +8,9 @@ import (
 	"context"
 
 	"github.com/bborbe/errors"
+	k8s "github.com/bborbe/k8s"
 	libtime "github.com/bborbe/time"
 	"github.com/golang/glog"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,37 +58,44 @@ func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) 
 	assignee := task.Frontmatter.Assignee().String()
 	now := s.currentDateTimeGetter.Now()
 	jobName := jobNameFromTask(assignee, now)
-	backoffLimit := int32(0)
-	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      jobName,
-			Namespace: s.namespace,
-		},
-		Spec: batchv1.JobSpec{
-			BackoffLimit: &backoffLimit,
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					RestartPolicy:    corev1.RestartPolicyNever,
-					ImagePullSecrets: []corev1.LocalObjectReference{{Name: "docker"}},
-					Containers: []corev1.Container{
-						{
-							Name:  "agent",
-							Image: image,
-							Env: []corev1.EnvVar{
-								{Name: "TASK_CONTENT", Value: string(task.Content)},
-								{Name: "TASK_ID", Value: string(task.TaskIdentifier)},
-								{Name: "KAFKA_BROKERS", Value: s.kafkaBrokers},
-								{Name: "BRANCH", Value: s.branch},
-								{Name: "GEMINI_API_KEY", Value: s.geminiAPIKey},
-							},
-						},
-					},
-				},
-			},
-		},
+
+	envBuilder := k8s.NewEnvBuilder()
+	envBuilder.Add("TASK_CONTENT", string(task.Content))
+	envBuilder.Add("TASK_ID", string(task.TaskIdentifier))
+	envBuilder.Add("KAFKA_BROKERS", s.kafkaBrokers)
+	envBuilder.Add("BRANCH", s.branch)
+	envBuilder.Add("GEMINI_API_KEY", s.geminiAPIKey)
+
+	containerBuilder := k8s.NewContainerBuilder()
+	containerBuilder.SetName(k8s.Name("agent"))
+	containerBuilder.SetImage(image)
+	containerBuilder.SetEnvBuilder(envBuilder)
+
+	containersBuilder := k8s.NewContainersBuilder()
+	containersBuilder.SetContainerBuilders([]k8s.HasBuildContainer{containerBuilder})
+
+	podSpecBuilder := k8s.NewPodSpecBuilder()
+	podSpecBuilder.SetContainersBuilder(containersBuilder)
+	podSpecBuilder.SetRestartPolicy(corev1.RestartPolicyNever)
+	podSpecBuilder.SetImagePullSecrets([]string{"docker"})
+
+	objectMetaBuilder := k8s.NewObjectMetaBuilder()
+	objectMetaBuilder.SetName(k8s.Name(jobName))
+	objectMetaBuilder.SetNamespace(k8s.Namespace(s.namespace))
+
+	jobBuilder := k8s.NewJobBuilder()
+	jobBuilder.SetObjectMetaBuild(objectMetaBuilder)
+	jobBuilder.SetPodSpecBuilder(podSpecBuilder)
+	jobBuilder.SetBackoffLimit(0)
+	jobBuilder.SetApp("agent")
+	jobBuilder.SetComponent(string(task.TaskIdentifier))
+
+	job, err := jobBuilder.Build(ctx)
+	if err != nil {
+		return errors.Wrapf(ctx, err, "build job for task %s", task.TaskIdentifier)
 	}
 
-	_, err := s.kubeClient.BatchV1().Jobs(s.namespace).Create(ctx, job, metav1.CreateOptions{})
+	_, err = s.kubeClient.BatchV1().Jobs(s.namespace).Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
 			glog.V(2).

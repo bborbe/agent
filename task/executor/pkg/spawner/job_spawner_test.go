@@ -77,6 +77,15 @@ var _ = Describe("JobSpawner", func() {
 			Expect(*job.Spec.BackoffLimit).To(Equal(int32(0)))
 			Expect(job.Spec.Template.Spec.RestartPolicy).To(Equal(corev1.RestartPolicyNever))
 
+			Expect(job.Spec.TTLSecondsAfterFinished).NotTo(BeNil())
+			Expect(*job.Spec.TTLSecondsAfterFinished).To(Equal(int32(600)))
+
+			Expect(job.Spec.Template.Labels).To(HaveKeyWithValue("app", "agent"))
+			Expect(job.Spec.Template.Labels).To(HaveKey("component"))
+
+			Expect(job.Spec.Template.Spec.ImagePullSecrets).To(HaveLen(1))
+			Expect(job.Spec.Template.Spec.ImagePullSecrets[0].Name).To(Equal("docker"))
+
 			container := job.Spec.Template.Spec.Containers[0]
 			Expect(container.Image).To(Equal("my-image:latest"))
 

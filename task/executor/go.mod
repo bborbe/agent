@@ -16,6 +16,7 @@ require (
 	github.com/bborbe/cqrs v0.2.3
 	github.com/bborbe/errors v1.5.8
 	github.com/bborbe/http v1.26.7
+	github.com/bborbe/k8s v1.13.4
 	github.com/bborbe/kafka v1.22.9
 	github.com/bborbe/log v1.6.8
 	github.com/bborbe/run v1.9.12
@@ -108,7 +109,6 @@ require (
 	github.com/bazelbuild/buildtools v0.0.0-20260319080235-05d2ebe49b0f // indirect
 	github.com/bborbe/argument/v2 v2.12.10 // indirect
 	github.com/bborbe/collection v1.20.7 // indirect
-	github.com/bborbe/k8s v1.13.4 // indirect
 	github.com/bborbe/kv v1.19.2 // indirect
 	github.com/bborbe/math v1.3.5 // indirect
 	github.com/bborbe/parse v1.10.8 // indirect
