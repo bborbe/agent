@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added deduplicateFrontmatter helper to VaultScanner that uses yaml.v3 Node API to resolve duplicate frontmatter keys (last wins) before unmarshaling, with tests covering no-duplicate, single-duplicate, multi-duplicate, and processFile integration scenarios.
+container: agent-029-tolerate-duplicate-frontmatter-keys
+dark-factory-version: v0.89.1-dirty
 created: "2026-04-03T15:30:00Z"
 queued: "2026-04-03T17:54:48Z"
+started: "2026-04-03T18:03:30Z"
+completed: "2026-04-03T18:14:37Z"
 ---
 
 <summary>
