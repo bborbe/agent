@@ -211,6 +211,48 @@ var _ = Describe("ResultWriter", func() {
 			})
 		})
 
+		Context("content with YAML delimiters", func() {
+			It("escapes bare --- lines so frontmatter is not corrupted", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: open\n---\nOld content\n",
+				)
+
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "done",
+					},
+					Content: lib.TaskContent(
+						"## Result\n\nOutput:\n---\nsome yaml block\n---\nDone.\n",
+					),
+				}
+
+				err := writer.WriteResult(ctx, taskFile)
+				Expect(err).NotTo(HaveOccurred())
+
+				written, readErr := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				Expect(readErr).NotTo(HaveOccurred())
+
+				s := string(written)
+				// Verify frontmatter is parseable — exactly two delimiters wrap it
+				Expect(s).To(HavePrefix("---\n"))
+				parts := strings.SplitN(s[4:], "\n---\n", 2)
+				Expect(parts).To(HaveLen(2))
+
+				var parsedFm map[string]interface{}
+				Expect(yaml.Unmarshal([]byte(parts[0]), &parsedFm)).To(Succeed())
+				Expect(parsedFm["status"]).To(Equal("done"))
+
+				// Bare --- in content must be escaped
+				Expect(parts[1]).To(ContainSubstring(`\-\-\-`))
+				Expect(parts[1]).NotTo(ContainSubstring("\n---\n"))
+
+				Expect(fakeGit.CommitAndPushCallCount()).To(Equal(1))
+			})
+		})
+
 		Context("commit and push error", func() {
 			It("returns error when CommitAndPush fails", func() {
 				writeTaskFile(

@@ -85,7 +85,9 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 		return errors.Wrapf(ctx, err, "marshal frontmatter failed")
 	}
 
-	newContent := []byte("---\n" + string(marshaledFrontmatter) + "---\n" + string(req.Content))
+	newContent := []byte(
+		"---\n" + string(marshaledFrontmatter) + "---\n" + sanitizeContent(string(req.Content)),
+	)
 	if writeErr := os.WriteFile(matchedAbsPath, newContent, 0600); writeErr != nil {
 		return errors.Wrapf(ctx, writeErr, "write file failed")
 	}
@@ -95,6 +97,16 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 	}
 
 	return nil
+}
+
+func sanitizeContent(content string) string {
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if strings.TrimRight(line, " \t") == "---" {
+			lines[i] = `\-\-\-`
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func extractFrontmatter(ctx context.Context, content []byte) (string, error) {

@@ -1,11 +1,12 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
 approved: "2026-03-29T19:50:57Z"
 prompted: "2026-03-29T20:02:17Z"
 verifying: "2026-03-30T12:09:18Z"
+completed: "2026-04-03"
 branch: dark-factory/agent-result-capture
 ---
 
@@ -88,15 +89,15 @@ After this work, agents publish their result to Kafka and task/controller writes
 
 ## Acceptance Criteria
 
-- [ ] task/executor passes `TASK_ID` env var to spawned Jobs (unit test)
-- [ ] task/controller consumes from `agent-task-v1-request` (unit test with mock consumer)
-- [ ] Task file frontmatter is updated with new status and phase (unit test)
-- [ ] Result section is appended with output, links, and timestamp (unit test)
-- [ ] Duplicate results don't create duplicate Result sections (unit test)
-- [ ] Unknown task IDs are logged and skipped (unit test)
-- [ ] task/controller commits and pushes after writing (unit test with mock git)
-- [ ] `docs/agent-job-interface.md` reflects agent-publishes-result pattern
-- [ ] `make precommit` passes in task/executor/ and task/controller/
+- [x] task/executor passes `TASK_ID` env var to spawned Jobs (unit test)
+- [x] task/controller consumes from `agent-task-v1-request` (unit test with mock consumer)
+- [x] Task file frontmatter is updated with new status and phase (unit test)
+- [x] Result section is appended with output, links, and timestamp (unit test)
+- [x] Duplicate results don't create duplicate Result sections (unit test)
+- [x] Unknown task IDs are logged and skipped (unit test)
+- [x] task/controller commits and pushes after writing (unit test with mock git)
+- [x] `docs/agent-job-interface.md` reflects agent-publishes-result pattern
+- [x] `make precommit` passes in task/executor/ and task/controller/
 
 ## Verification
 
