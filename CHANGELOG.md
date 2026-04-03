@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.22.0
+
+- feat: Change K8s Job naming in task executor from `agent-{taskID[:8]}` to `{assignee}-{YYYYMMDDHHMMSS}` to eliminate retrigger collisions; inject time via `CurrentDateTimeGetter`
+
 ## v0.21.1
 
 - fix: Remove Object from Task.Validate to unblock agent result writeback

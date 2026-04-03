@@ -8,8 +8,8 @@ import (
 	"context"
 
 	"github.com/bborbe/errors"
-	"github.com/golang/glog"
 	libtime "github.com/bborbe/time"
+	"github.com/golang/glog"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"

@@ -10,6 +10,7 @@ import (
 	libkafka "github.com/bborbe/kafka"
 	"github.com/bborbe/log"
 	"github.com/bborbe/run"
+	libtime "github.com/bborbe/time"
 	"k8s.io/client-go/kubernetes"
 
 	lib "github.com/bborbe/agent/lib"
@@ -28,6 +29,7 @@ func CreateConsumer(
 	assigneeImages map[string]string,
 	logSamplerFactory log.SamplerFactory,
 	geminiAPIKey string,
+	currentDateTimeGetter libtime.CurrentDateTimeGetter,
 ) libkafka.Consumer {
 	jobSpawner := spawner.NewJobSpawner(
 		kubeClient,
@@ -35,6 +37,7 @@ func CreateConsumer(
 		kafkaBrokers,
 		string(branch),
 		geminiAPIKey,
+		currentDateTimeGetter,
 	)
 	duplicateTracker := handler.NewInMemoryDuplicateTracker()
 	taskEventHandler := handler.NewTaskEventHandler(duplicateTracker, jobSpawner, assigneeImages)

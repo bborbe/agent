@@ -17,6 +17,7 @@ import (
 	"github.com/bborbe/run"
 	libsentry "github.com/bborbe/sentry"
 	"github.com/bborbe/service"
+	libtime "github.com/bborbe/time"
 	"github.com/golang/glog"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -75,6 +76,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		taggedImages[assignee] = baseImage + ":" + string(a.Branch)
 	}
 
+	currentDateTimeGetter := libtime.NewCurrentDateTime()
 	consumer := factory.CreateConsumer(
 		saramaClient,
 		a.Branch,
@@ -84,6 +86,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		taggedImages,
 		log.DefaultSamplerFactory,
 		a.GeminiAPIKey,
+		currentDateTimeGetter,
 	)
 
 	return service.Run(
