@@ -9,6 +9,7 @@ import (
 
 	"github.com/bborbe/errors"
 	"github.com/golang/glog"
+	libtime "github.com/bborbe/time"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,26 +33,31 @@ func NewJobSpawner(
 	kafkaBrokers string,
 	branch string,
 	geminiAPIKey string,
+	currentDateTimeGetter libtime.CurrentDateTimeGetter,
 ) JobSpawner {
 	return &jobSpawner{
-		kubeClient:   kubeClient,
-		namespace:    namespace,
-		kafkaBrokers: kafkaBrokers,
-		branch:       branch,
-		geminiAPIKey: geminiAPIKey,
+		kubeClient:            kubeClient,
+		namespace:             namespace,
+		kafkaBrokers:          kafkaBrokers,
+		branch:                branch,
+		geminiAPIKey:          geminiAPIKey,
+		currentDateTimeGetter: currentDateTimeGetter,
 	}
 }
 
 type jobSpawner struct {
-	kubeClient   kubernetes.Interface
-	namespace    string
-	kafkaBrokers string
-	branch       string
-	geminiAPIKey string
+	kubeClient            kubernetes.Interface
+	namespace             string
+	kafkaBrokers          string
+	branch                string
+	geminiAPIKey          string
+	currentDateTimeGetter libtime.CurrentDateTimeGetter
 }
 
 func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) error {
-	jobName := jobNameFromTask(task.TaskIdentifier)
+	assignee := task.Frontmatter.Assignee().String()
+	now := s.currentDateTimeGetter.Now()
+	jobName := jobNameFromTask(assignee, now)
 	backoffLimit := int32(0)
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -102,11 +108,13 @@ func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) 
 	return nil
 }
 
-// jobNameFromTask returns the K8s Job name for a task: "agent-{first-8-chars-of-taskID}".
-func jobNameFromTask(taskID lib.TaskIdentifier) string {
-	id := string(taskID)
-	if len(id) > 8 {
-		id = id[:8]
+// jobNameFromTask returns the K8s Job name for a task: "{assignee}-{YYYYMMDDHHMMSS}".
+// If assignee is empty, "agent" is used as the default prefix.
+// Job names are DNS-compliant (<=63 chars, [a-z0-9]([-a-z0-9]*[a-z0-9])?).
+// Assignees should be short lowercase strings (e.g. "claude", "backtest-agent").
+func jobNameFromTask(assignee string, now libtime.DateTime) string {
+	if assignee == "" {
+		assignee = "agent"
 	}
-	return "agent-" + id
+	return assignee + "-" + now.UTC().Format("20060102150405")
 }

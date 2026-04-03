@@ -1,10 +1,12 @@
 ---
-status: executing
+status: completed
+summary: Changed K8s Job naming in task executor from agent-{taskID[:8]} to {assignee}-{YYYYMMDDHHMMSS}, injecting time via CurrentDateTimeGetter per project conventions
 container: agent-028-job-name-assignee-timestamp
 dark-factory-version: v0.89.1-dirty
 created: "2026-04-03T18:00:00Z"
 queued: "2026-04-03T17:53:57Z"
 started: "2026-04-03T17:53:59Z"
+completed: "2026-04-03T18:03:27Z"
 ---
 
 <summary>
