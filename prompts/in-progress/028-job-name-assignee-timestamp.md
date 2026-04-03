@@ -1,6 +1,10 @@
 ---
-status: draft
+status: executing
+container: agent-028-job-name-assignee-timestamp
+dark-factory-version: v0.89.1-dirty
 created: "2026-04-03T18:00:00Z"
+queued: "2026-04-03T17:53:57Z"
+started: "2026-04-03T17:53:59Z"
 ---
 
 <summary>
