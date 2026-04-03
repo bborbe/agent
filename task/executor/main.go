@@ -26,11 +26,12 @@ import (
 	"github.com/bborbe/agent/task/executor/pkg/factory"
 )
 
-// assigneeImages maps assignee names to container images.
+// assigneeImages maps assignee names to container image base names (without tag).
+// The BRANCH env var is appended as image tag at runtime.
 // Add new assignees here when new agent types are onboarded.
 var assigneeImages = map[string]string{
-	"claude":         "docker.quant.benjamin-borbe.de:443/agent-claude:develop",
-	"backtest-agent": "docker.quant.benjamin-borbe.de:443/agent-backtest:develop",
+	"claude":         "docker.quant.benjamin-borbe.de:443/agent-claude",
+	"backtest-agent": "docker.quant.benjamin-borbe.de:443/agent-backtest",
 }
 
 func main() {
@@ -68,13 +69,18 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	}
 	defer saramaClient.Close()
 
+	taggedImages := make(map[string]string, len(assigneeImages))
+	for assignee, baseImage := range assigneeImages {
+		taggedImages[assignee] = baseImage + ":" + string(a.Branch)
+	}
+
 	consumer := factory.CreateConsumer(
 		saramaClient,
 		a.Branch,
 		kubeClient,
 		a.Namespace,
 		a.KafkaBrokers,
-		assigneeImages,
+		taggedImages,
 		log.DefaultSamplerFactory,
 	)
 
