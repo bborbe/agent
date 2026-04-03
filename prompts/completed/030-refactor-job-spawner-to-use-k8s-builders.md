@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Replaced hand-built batchv1.Job struct in JobSpawner with bborbe/k8s fluent builders (JobBuilder, PodSpecBuilder, ContainersBuilder, ContainerBuilder, EnvBuilder), adding TTL auto-cleanup (600s), pod template labels, and builder validation
+container: agent-030-refactor-job-spawner-to-use-k8s-builders
+dark-factory-version: v0.89.1-dirty
 created: "2026-04-03T16:30:00Z"
 queued: "2026-04-03T17:54:49Z"
+started: "2026-04-03T18:14:41Z"
+completed: "2026-04-03T18:25:48Z"
 ---
 
 <summary>
