@@ -74,7 +74,7 @@ func (g *gitClient) EnsureCloned(ctx context.Context) error {
 
 func (g *gitClient) Pull(ctx context.Context) error {
 	// #nosec G204 -- binary is hardcoded "git", localPath is from trusted internal config
-	cmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "pull", "--ff-only")
+	cmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "pull", "--rebase")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return errors.Wrapf(ctx, err, "git pull failed: %s", string(out))
 	}
