@@ -11,6 +11,7 @@ import (
 	"github.com/bborbe/run"
 	"github.com/golang/glog"
 
+	"github.com/bborbe/agent/task/controller/pkg/metrics"
 	"github.com/bborbe/agent/task/controller/pkg/publisher"
 	"github.com/bborbe/agent/task/controller/pkg/scanner"
 )
@@ -78,20 +79,24 @@ func (s *syncLoop) processResult(ctx context.Context, result scanner.ScanResult)
 			"scan cycle: %d changed, %d deleted",
 			len(result.Changed), len(result.Deleted),
 		)
+		metrics.ScanCyclesTotal.WithLabelValues("changes").Inc()
 	} else {
 		glog.V(3).Infof("scan cycle: no changes")
+		metrics.ScanCyclesTotal.WithLabelValues("no_changes").Inc()
 	}
 	for _, task := range result.Changed {
 		glog.V(3).Infof("publishing changed task %s", task.TaskIdentifier)
 		if err := s.publisher.PublishChanged(ctx, task); err != nil {
 			return errors.Wrapf(ctx, err, "publish changed task %s", task.TaskIdentifier)
 		}
+		metrics.TasksPublishedTotal.WithLabelValues("changed").Inc()
 	}
 	for _, id := range result.Deleted {
 		glog.V(3).Infof("publishing deleted task %s", id)
 		if err := s.publisher.PublishDeleted(ctx, id); err != nil {
 			return errors.Wrapf(ctx, err, "publish deleted task %s", id)
 		}
+		metrics.TasksPublishedTotal.WithLabelValues("deleted").Inc()
 	}
 	return nil
 }

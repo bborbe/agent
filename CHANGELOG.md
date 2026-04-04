@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.25.0
+
+- feat: Add Prometheus counters to task/controller (scan cycles, tasks published, results written, git push retries, conflict resolutions) and task/executor (task events consumed, jobs spawned) for pipeline observability
+
 ## v0.24.2
 
 - docs: Fix TASK_CONTENT example in agent-job-interface.md to show body-only (no frontmatter)

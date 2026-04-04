@@ -14,6 +14,8 @@ import (
 
 	"github.com/bborbe/errors"
 	"github.com/golang/glog"
+
+	"github.com/bborbe/agent/task/controller/pkg/metrics"
 )
 
 //counterfeiter:generate -o ../../mocks/git_client.go --fake-name FakeGitClient . GitClient
@@ -144,6 +146,7 @@ func (g *gitClient) pushWithRetry(ctx context.Context) error {
 	pushCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "push")
 	pushOut, pushErr := pushCmd.CombinedOutput()
 	if pushErr == nil {
+		metrics.GitPushTotal.WithLabelValues("success").Inc()
 		return nil // fast path: push succeeded
 	}
 	glog.V(2).Infof("push failed (%v: %s), attempting fetch+rebase", pushErr, string(pushOut))
@@ -152,6 +155,7 @@ func (g *gitClient) pushWithRetry(ctx context.Context) error {
 	// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
 	fetchCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "fetch", "origin")
 	if out, err := fetchCmd.CombinedOutput(); err != nil {
+		metrics.GitPushTotal.WithLabelValues("error").Inc()
 		return errors.Wrapf(ctx, err, "git fetch failed: %s", string(out))
 	}
 
@@ -165,13 +169,20 @@ func (g *gitClient) pushWithRetry(ctx context.Context) error {
 	if conflictErr != nil {
 		// Can't determine state — abort to be safe
 		g.abortRebase(ctx)
+		metrics.GitPushTotal.WithLabelValues("error").Inc()
 		return errors.Wrapf(ctx, conflictErr, "check for conflicts after rebase")
 	}
 	if len(conflicted) > 0 {
-		return g.handleConflictsAndPush(ctx, conflicted)
+		if err := g.handleConflictsAndPush(ctx, conflicted); err != nil {
+			metrics.GitPushTotal.WithLabelValues("error").Inc()
+			return err
+		}
+		metrics.GitPushTotal.WithLabelValues("conflict_resolved").Inc()
+		return nil
 	}
 	if rebaseErr != nil {
 		// Rebase failed but no conflict markers — some other error
+		metrics.GitPushTotal.WithLabelValues("error").Inc()
 		return errors.Wrapf(ctx, rebaseErr, "git rebase failed: %s", string(rebaseOut))
 	}
 
@@ -179,8 +190,10 @@ func (g *gitClient) pushWithRetry(ctx context.Context) error {
 	// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
 	retryCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "push")
 	if out, err := retryCmd.CombinedOutput(); err != nil {
+		metrics.GitPushTotal.WithLabelValues("error").Inc()
 		return errors.Wrapf(ctx, err, "push retry failed: %s", string(out))
 	}
+	metrics.GitPushTotal.WithLabelValues("retry_success").Inc()
 	return nil
 }
 
@@ -263,6 +276,7 @@ func (g *gitClient) resolveConflicts(ctx context.Context, conflicted []string) e
 		// #nosec G304 -- path constructed from trusted localPath + git-reported conflict list
 		contentBytes, err := os.ReadFile(absPath)
 		if err != nil {
+			metrics.ConflictResolutionsTotal.WithLabelValues("error").Inc()
 			return errors.Wrapf(ctx, err, "read conflicted file %s", relPath)
 		}
 		resolved, err := g.conflictResolver.Resolve(
@@ -271,10 +285,12 @@ func (g *gitClient) resolveConflicts(ctx context.Context, conflicted []string) e
 			string(contentBytes),
 		)
 		if err != nil {
+			metrics.ConflictResolutionsTotal.WithLabelValues("error").Inc()
 			return errors.Wrapf(ctx, err, "LLM resolution failed for %s", relPath)
 		}
 		// Safety check: resolved content must not contain conflict markers
 		if containsConflictMarkers(resolved) {
+			metrics.ConflictResolutionsTotal.WithLabelValues("error").Inc()
 			return errors.Errorf(
 				ctx,
 				"LLM returned content still containing conflict markers for %s",
@@ -283,15 +299,18 @@ func (g *gitClient) resolveConflicts(ctx context.Context, conflicted []string) e
 		}
 		// #nosec G306 G703 -- 0600 is intentional; absPath is trusted localPath + git-reported conflict list
 		if err := os.WriteFile(absPath, []byte(resolved), 0600); err != nil {
+			metrics.ConflictResolutionsTotal.WithLabelValues("error").Inc()
 			return errors.Wrapf(ctx, err, "write resolved file %s", relPath)
 		}
 		// Stage the resolved file
 		// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
 		addCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "add", relPath)
 		if out, err := addCmd.CombinedOutput(); err != nil {
+			metrics.ConflictResolutionsTotal.WithLabelValues("error").Inc()
 			return errors.Wrapf(ctx, err, "git add resolved file %s: %s", relPath, string(out))
 		}
 		glog.V(2).Infof("resolved conflict in %s", relPath)
+		metrics.ConflictResolutionsTotal.WithLabelValues("success").Inc()
 	}
 	return nil
 }

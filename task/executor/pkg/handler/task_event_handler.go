@@ -14,6 +14,7 @@ import (
 	"github.com/golang/glog"
 
 	lib "github.com/bborbe/agent/lib"
+	"github.com/bborbe/agent/task/executor/pkg/metrics"
 	"github.com/bborbe/agent/task/executor/pkg/spawner"
 )
 
@@ -67,17 +68,20 @@ func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.Consu
 	if task.Frontmatter.Status() != "in_progress" {
 		glog.V(3).
 			Infof("skip task %s with status %s", task.TaskIdentifier, task.Frontmatter.Status())
+		metrics.TaskEventsTotal.WithLabelValues("skipped_status").Inc()
 		return nil
 	}
 
 	phase := task.Frontmatter.Phase()
 	if phase == nil || !allowedPhases.Contains(*phase) {
 		glog.V(3).Infof("skip task %s with phase %v", task.TaskIdentifier, phase)
+		metrics.TaskEventsTotal.WithLabelValues("skipped_phase").Inc()
 		return nil
 	}
 
 	if task.Frontmatter.Assignee() == "" {
 		glog.V(3).Infof("skip task %s with empty assignee", task.TaskIdentifier)
+		metrics.TaskEventsTotal.WithLabelValues("skipped_assignee").Inc()
 		return nil
 	}
 
@@ -88,23 +92,29 @@ func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.Consu
 			task.TaskIdentifier,
 			task.Frontmatter.Assignee(),
 		)
+		metrics.TaskEventsTotal.WithLabelValues("skipped_unknown_assignee").Inc()
 		return nil
 	}
 
 	active, err := h.jobSpawner.IsJobActive(ctx, task.TaskIdentifier)
 	if err != nil {
+		metrics.TaskEventsTotal.WithLabelValues("error").Inc()
 		return errors.Wrapf(ctx, err, "check active job for task %s", task.TaskIdentifier)
 	}
 	if active {
 		glog.V(3).Infof("skip task %s: active job exists", task.TaskIdentifier)
+		metrics.TaskEventsTotal.WithLabelValues("skipped_active_job").Inc()
 		return nil
 	}
 
 	if err := h.jobSpawner.SpawnJob(ctx, task, image); err != nil {
+		metrics.TaskEventsTotal.WithLabelValues("error").Inc()
 		return errors.Wrapf(ctx, err, "spawn job for task %s failed", task.TaskIdentifier)
 	}
 
 	glog.V(2).
 		Infof("spawned job for task %s (assignee=%s)", task.TaskIdentifier, task.Frontmatter.Assignee())
+	metrics.TaskEventsTotal.WithLabelValues("spawned").Inc()
+	metrics.JobsSpawnedTotal.Inc()
 	return nil
 }

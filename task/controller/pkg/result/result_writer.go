@@ -18,6 +18,7 @@ import (
 
 	"github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/task/controller/pkg/gitclient"
+	"github.com/bborbe/agent/task/controller/pkg/metrics"
 )
 
 //counterfeiter:generate -o ../../mocks/result_writer.go --fake-name FakeResultWriter . ResultWriter
@@ -91,6 +92,7 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 
 	if matchedAbsPath == "" {
 		glog.Warningf("task file not found for identifier %s, skipping", req.TaskIdentifier)
+		metrics.ResultsWrittenTotal.WithLabelValues("not_found").Inc()
 		return nil
 	}
 
@@ -110,10 +112,12 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 		newContent,
 		fmt.Sprintf("[agent-task-controller] write result for task %s", req.TaskIdentifier),
 	); err != nil {
+		metrics.ResultsWrittenTotal.WithLabelValues("error").Inc()
 		return errors.Wrapf(ctx, err, "atomic write and push failed")
 	}
 
 	glog.V(2).Infof("WriteResult: completed successfully for task %s", req.TaskIdentifier)
+	metrics.ResultsWrittenTotal.WithLabelValues("success").Inc()
 	return nil
 }
 
