@@ -1,8 +1,12 @@
 ---
-status: approved
+status: completed
 spec: [006-result-writer-conflict-resolution]
+container: agent-033-spec-006-conflict-resolver-gemini
+dark-factory-version: v0.94.1-dirty
 created: "2026-04-04T00:00:00Z"
 queued: "2026-04-04T12:18:51Z"
+started: "2026-04-04T12:53:05Z"
+completed: "2026-04-04T13:09:23Z"
 ---
 
 <summary>
