@@ -63,6 +63,7 @@ var _ = Describe("GitClient", func() {
 				"https://github.com/owner/repo.git",
 				localPath,
 				"main",
+				nil,
 			)
 		})
 
@@ -74,7 +75,7 @@ var _ = Describe("GitClient", func() {
 	Describe("EnsureCloned", func() {
 		Context("when localPath does not exist", func() {
 			BeforeEach(func() {
-				client = gitclient.NewGitClient(remoteDir, localPath, branch)
+				client = gitclient.NewGitClient(remoteDir, localPath, branch, nil)
 			})
 
 			It("clones the repository", func() {
@@ -87,7 +88,7 @@ var _ = Describe("GitClient", func() {
 
 		Context("when localPath exists and is a valid git repo", func() {
 			BeforeEach(func() {
-				client = gitclient.NewGitClient(remoteDir, localPath, branch)
+				client = gitclient.NewGitClient(remoteDir, localPath, branch, nil)
 				err := client.EnsureCloned(ctx)
 				Expect(err).To(BeNil())
 			})
@@ -102,7 +103,7 @@ var _ = Describe("GitClient", func() {
 			BeforeEach(func() {
 				err := os.MkdirAll(localPath, 0750)
 				Expect(err).To(BeNil())
-				client = gitclient.NewGitClient(remoteDir, localPath, branch)
+				client = gitclient.NewGitClient(remoteDir, localPath, branch, nil)
 			})
 
 			It("returns an error", func() {
@@ -114,7 +115,7 @@ var _ = Describe("GitClient", func() {
 
 	Describe("Pull", func() {
 		BeforeEach(func() {
-			client = gitclient.NewGitClient(remoteDir, localPath, branch)
+			client = gitclient.NewGitClient(remoteDir, localPath, branch, nil)
 			err := client.EnsureCloned(ctx)
 			Expect(err).To(BeNil())
 		})
@@ -135,7 +136,7 @@ var _ = Describe("GitClient", func() {
 				configErr,
 			).To(BeNil(), "config receive.denyCurrentBranch failed: %s", string(out))
 
-			client = gitclient.NewGitClient(remoteDir, localPath, branch)
+			client = gitclient.NewGitClient(remoteDir, localPath, branch, nil)
 			err := client.EnsureCloned(ctx)
 			Expect(err).To(BeNil())
 			// configure identity so git commit works in the cloned repo
@@ -163,7 +164,7 @@ var _ = Describe("GitClient", func() {
 		})
 
 		It("returns an error for an invalid path", func() {
-			badClient := gitclient.NewGitClient(remoteDir, "/nonexistent/path", branch)
+			badClient := gitclient.NewGitClient(remoteDir, "/nonexistent/path", branch, nil)
 			err := badClient.CommitAndPush(ctx, "should fail")
 			Expect(err).NotTo(BeNil())
 		})
@@ -176,7 +177,7 @@ var _ = Describe("GitClient", func() {
 				Expect(os.RemoveAll(secondLocalPath)).To(Succeed())
 
 				// Clone a second local copy and push a commit to advance the remote
-				secondClient := gitclient.NewGitClient(remoteDir, secondLocalPath, branch)
+				secondClient := gitclient.NewGitClient(remoteDir, secondLocalPath, branch, nil)
 				err := secondClient.EnsureCloned(ctx)
 				Expect(err).To(BeNil())
 				for _, args := range [][]string{

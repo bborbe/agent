@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Replaced in-memory DuplicateTracker with K8s Job label lookup (IsJobActive) in task/executor so deduplication survives restarts and completed tasks can be retriggered
+container: agent-034-replace-dedup-tracker-with-k8s-job-lookup
+dark-factory-version: v0.94.1-dirty
 created: "2026-04-04T00:00:00Z"
 queued: "2026-04-04T12:42:31Z"
+started: "2026-04-04T13:17:23Z"
+completed: "2026-04-04T13:27:53Z"
 ---
 
 <summary>

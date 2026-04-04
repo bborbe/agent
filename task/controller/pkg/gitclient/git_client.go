@@ -36,19 +36,29 @@ type GitClient interface {
 	Path() string
 }
 
+// ConflictResolver resolves merge conflict markers in a single file's content.
+// It receives the filename (for context) and the full file content including conflict markers.
+// It returns the resolved content with all conflict markers removed, or an error.
+type ConflictResolver interface {
+	Resolve(ctx context.Context, filename string, content string) (string, error)
+}
+
 type gitClient struct {
-	gitURL    string
-	localPath string
-	branch    string
-	mu        sync.Mutex
+	gitURL           string
+	localPath        string
+	branch           string
+	mu               sync.Mutex
+	conflictResolver ConflictResolver // nil means no LLM resolution available
 }
 
 // NewGitClient creates a GitClient that uses the git binary via subprocess.
-func NewGitClient(gitURL string, localPath string, branch string) GitClient {
+// conflictResolver is called when a rebase produces merge conflicts; pass nil to disable LLM resolution.
+func NewGitClient(gitURL string, localPath string, branch string, conflictResolver ConflictResolver) GitClient {
 	return &gitClient{
-		gitURL:    gitURL,
-		localPath: localPath,
-		branch:    branch,
+		gitURL:           gitURL,
+		localPath:        localPath,
+		branch:           branch,
+		conflictResolver: conflictResolver,
 	}
 }
 
@@ -153,13 +163,34 @@ func (g *gitClient) pushWithRetry(ctx context.Context) error {
 		return errors.Wrapf(ctx, conflictErr, "check for conflicts after rebase")
 	}
 	if len(conflicted) > 0 {
-		g.abortRebase(ctx)
-		return errors.Errorf(
-			ctx,
-			"rebase produced merge conflicts in %d file(s): %v",
-			len(conflicted),
-			conflicted,
-		)
+		if g.conflictResolver == nil {
+			g.abortRebase(ctx)
+			return errors.Errorf(
+				ctx,
+				"rebase produced merge conflicts in %d file(s) and no conflict resolver is configured: %v",
+				len(conflicted),
+				conflicted,
+			)
+		}
+		if err := g.resolveConflicts(ctx, conflicted); err != nil {
+			g.abortRebase(ctx)
+			return errors.Wrapf(ctx, err, "conflict resolution failed")
+		}
+		// After resolution, continue rebase
+		// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
+		continueCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "rebase", "--continue")
+		continueCmd.Env = append(os.Environ(), "GIT_EDITOR=true") // skip editor for commit message
+		if out, err := continueCmd.CombinedOutput(); err != nil {
+			g.abortRebase(ctx)
+			return errors.Wrapf(ctx, err, "git rebase --continue failed: %s", string(out))
+		}
+		glog.V(2).Infof("conflict resolution complete, retrying push")
+		// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
+		retryAfterResolve := exec.CommandContext(ctx, "git", "-C", g.localPath, "push")
+		if out, err := retryAfterResolve.CombinedOutput(); err != nil {
+			return errors.Wrapf(ctx, err, "push after conflict resolution failed: %s", string(out))
+		}
+		return nil
 	}
 	if rebaseErr != nil {
 		// Rebase failed but no conflict markers — some other error
@@ -212,6 +243,52 @@ func (g *gitClient) abortRebase(ctx context.Context) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		glog.Warningf("git rebase --abort failed: %v: %s", err, string(out))
 	}
+}
+
+// resolveConflicts calls the ConflictResolver for each conflicted file, writes the resolved content,
+// and stages the file with `git add`. Must be called with the rebase in-progress (inside the lock).
+func (g *gitClient) resolveConflicts(ctx context.Context, conflicted []string) error {
+	for _, relPath := range conflicted {
+		absPath := filepath.Join(g.localPath, relPath)
+		// #nosec G304 -- path constructed from trusted localPath + git-reported conflict list
+		contentBytes, err := os.ReadFile(absPath)
+		if err != nil {
+			return errors.Wrapf(ctx, err, "read conflicted file %s", relPath)
+		}
+		resolved, err := g.conflictResolver.Resolve(ctx, filepath.Base(relPath), string(contentBytes))
+		if err != nil {
+			return errors.Wrapf(ctx, err, "LLM resolution failed for %s", relPath)
+		}
+		// Safety check: resolved content must not contain conflict markers
+		if containsConflictMarkers(resolved) {
+			return errors.Errorf(ctx, "LLM returned content still containing conflict markers for %s", relPath)
+		}
+		// #nosec G306 -- 0600 is intentional for task files
+		if err := os.WriteFile(absPath, []byte(resolved), 0600); err != nil {
+			return errors.Wrapf(ctx, err, "write resolved file %s", relPath)
+		}
+		// Stage the resolved file
+		// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
+		addCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "add", relPath)
+		if out, err := addCmd.CombinedOutput(); err != nil {
+			return errors.Wrapf(ctx, err, "git add resolved file %s: %s", relPath, string(out))
+		}
+		glog.V(2).Infof("resolved conflict in %s", relPath)
+	}
+	return nil
+}
+
+// containsConflictMarkers returns true if the content contains git conflict markers.
+// Checks for line-start anchored markers to avoid false positives from markdown content.
+func containsConflictMarkers(content string) bool {
+	for _, line := range strings.Split(content, "\n") {
+		if strings.HasPrefix(line, "<<<<<<<") ||
+			strings.HasPrefix(line, "=======") ||
+			strings.HasPrefix(line, ">>>>>>>") {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *gitClient) AtomicWriteAndCommitPush(
