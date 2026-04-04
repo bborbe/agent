@@ -67,7 +67,7 @@ var _ = Describe("ResultWriter", func() {
 			It("writes frontmatter and content to the matched file", func() {
 				writeTaskFile(
 					"my-task.md",
-					"---\ntask_identifier: test-task-uuid-1234\nstatus: in-progress\n---\nOld content\n",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in-progress\nassignee: backtest-agent\ntags:\n  - agent-task\n  - test\n---\nOld content\n",
 				)
 
 				taskFile = lib.Task{
@@ -75,6 +75,7 @@ var _ = Describe("ResultWriter", func() {
 					Frontmatter: lib.TaskFrontmatter{
 						"task_identifier": "test-task-uuid-1234",
 						"status":          "done",
+						"phase":           "done",
 					},
 					Content: lib.TaskContent("New content\n"),
 				}
@@ -86,11 +87,75 @@ var _ = Describe("ResultWriter", func() {
 				Expect(readErr).NotTo(HaveOccurred())
 				Expect(string(written)).To(HavePrefix("---\n"))
 				Expect(string(written)).To(ContainSubstring("status: done"))
+				Expect(string(written)).To(ContainSubstring("phase: done"))
+				Expect(string(written)).To(ContainSubstring("assignee: backtest-agent"))
+				Expect(string(written)).To(ContainSubstring("agent-task"))
 				Expect(string(written)).To(ContainSubstring("---\nNew content\n"))
 
 				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
 				_, _, _, msg := fakeGit.AtomicWriteAndCommitPushArgsForCall(0)
 				Expect(msg).To(ContainSubstring(string(identifier)))
+			})
+		})
+
+		Context("frontmatter merge", func() {
+			It("preserves existing frontmatter keys not sent by agent", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nassignee: backtest-agent\ntags:\n  - a\n  - b\ncustom_field: hello\n---\nOld content\n",
+				)
+
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "completed",
+						"phase":           "done",
+					},
+					Content: lib.TaskContent("New content\n"),
+				}
+
+				err := writer.WriteResult(ctx, taskFile)
+				Expect(err).NotTo(HaveOccurred())
+
+				written, readErr := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				Expect(readErr).NotTo(HaveOccurred())
+				s := string(written)
+				Expect(s).To(ContainSubstring("assignee: backtest-agent"))
+				Expect(s).To(ContainSubstring("custom_field: hello"))
+				Expect(s).To(ContainSubstring("status: completed"))
+				Expect(s).To(ContainSubstring("phase: done"))
+				Expect(s).To(ContainSubstring("task_identifier: test-task-uuid-1234"))
+				// tags preserved
+				Expect(s).To(ContainSubstring("- a"))
+				Expect(s).To(ContainSubstring("- b"))
+			})
+
+			It("agent keys override existing keys", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: in_progress\n---\nOld content\n",
+				)
+
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "completed",
+						"phase":           "done",
+					},
+					Content: lib.TaskContent("New content\n"),
+				}
+
+				err := writer.WriteResult(ctx, taskFile)
+				Expect(err).NotTo(HaveOccurred())
+
+				written, readErr := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				Expect(readErr).NotTo(HaveOccurred())
+				s := string(written)
+				Expect(s).To(ContainSubstring("status: completed"))
+				Expect(s).To(ContainSubstring("phase: done"))
+				Expect(s).NotTo(ContainSubstring("in_progress"))
 			})
 		})
 
@@ -145,10 +210,10 @@ var _ = Describe("ResultWriter", func() {
 		})
 
 		Context("empty frontmatter", func() {
-			It("writes file with empty frontmatter block", func() {
+			It("preserves existing keys when agent sends empty frontmatter", func() {
 				writeTaskFile(
 					"my-task.md",
-					"---\ntask_identifier: test-task-uuid-1234\n---\nOld content\n",
+					"---\ntask_identifier: test-task-uuid-1234\nassignee: backtest-agent\n---\nOld content\n",
 				)
 
 				taskFile = lib.Task{
@@ -162,7 +227,10 @@ var _ = Describe("ResultWriter", func() {
 
 				written, readErr := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
 				Expect(readErr).NotTo(HaveOccurred())
-				Expect(string(written)).To(Equal("---\n{}\n---\nNew content\n"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("task_identifier: test-task-uuid-1234"))
+				Expect(s).To(ContainSubstring("assignee: backtest-agent"))
+				Expect(s).To(ContainSubstring("---\nNew content\n"))
 			})
 		})
 

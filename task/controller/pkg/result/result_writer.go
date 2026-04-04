@@ -51,6 +51,7 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 	fsys := os.DirFS(taskDirPath)
 
 	var matchedAbsPath string
+	var existingFrontmatter lib.TaskFrontmatter
 	if err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
 			return nil
@@ -76,6 +77,12 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 		if lib.TaskIdentifier(fm.TaskIdentifier) == req.TaskIdentifier {
 			matchedAbsPath = filepath.Join(taskDirPath, path)
 			glog.V(2).Infof("WriteResult: matched file %s for task %s", matchedAbsPath, req.TaskIdentifier)
+			var existingFm lib.TaskFrontmatter
+			if umErr := yaml.Unmarshal([]byte(frontmatter), &existingFm); umErr != nil {
+				glog.V(3).Infof("WriteResult: could not unmarshal existing frontmatter for %s: %v", path, umErr)
+			} else {
+				existingFrontmatter = existingFm
+			}
 		}
 		return nil
 	}); err != nil {
@@ -87,7 +94,8 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 		return nil
 	}
 
-	marshaledFrontmatter, err := yaml.Marshal(map[string]any(req.Frontmatter))
+	merged := mergeFrontmatter(existingFrontmatter, req.Frontmatter)
+	marshaledFrontmatter, err := yaml.Marshal(map[string]any(merged))
 	if err != nil {
 		return errors.Wrapf(ctx, err, "marshal frontmatter failed")
 	}
@@ -117,6 +125,19 @@ func sanitizeContent(content string) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// mergeFrontmatter returns a new frontmatter map with all keys from existing,
+// overridden by all keys from incoming. Neither input map is modified.
+func mergeFrontmatter(existing, incoming lib.TaskFrontmatter) lib.TaskFrontmatter {
+	merged := make(lib.TaskFrontmatter, len(existing)+len(incoming))
+	for k, v := range existing {
+		merged[k] = v
+	}
+	for k, v := range incoming {
+		merged[k] = v
+	}
+	return merged
 }
 
 func extractFrontmatter(ctx context.Context, content []byte) (string, error) {
