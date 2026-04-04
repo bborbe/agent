@@ -168,34 +168,7 @@ func (g *gitClient) pushWithRetry(ctx context.Context) error {
 		return errors.Wrapf(ctx, conflictErr, "check for conflicts after rebase")
 	}
 	if len(conflicted) > 0 {
-		if g.conflictResolver == nil {
-			g.abortRebase(ctx)
-			return errors.Errorf(
-				ctx,
-				"rebase produced merge conflicts in %d file(s) and no conflict resolver is configured: %v",
-				len(conflicted),
-				conflicted,
-			)
-		}
-		if err := g.resolveConflicts(ctx, conflicted); err != nil {
-			g.abortRebase(ctx)
-			return errors.Wrapf(ctx, err, "conflict resolution failed")
-		}
-		// After resolution, continue rebase
-		// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
-		continueCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "rebase", "--continue")
-		continueCmd.Env = append(os.Environ(), "GIT_EDITOR=true") // skip editor for commit message
-		if out, err := continueCmd.CombinedOutput(); err != nil {
-			g.abortRebase(ctx)
-			return errors.Wrapf(ctx, err, "git rebase --continue failed: %s", string(out))
-		}
-		glog.V(2).Infof("conflict resolution complete, retrying push")
-		// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
-		retryAfterResolve := exec.CommandContext(ctx, "git", "-C", g.localPath, "push")
-		if out, err := retryAfterResolve.CombinedOutput(); err != nil {
-			return errors.Wrapf(ctx, err, "push after conflict resolution failed: %s", string(out))
-		}
-		return nil
+		return g.handleConflictsAndPush(ctx, conflicted)
 	}
 	if rebaseErr != nil {
 		// Rebase failed but no conflict markers — some other error
@@ -207,6 +180,38 @@ func (g *gitClient) pushWithRetry(ctx context.Context) error {
 	retryCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "push")
 	if out, err := retryCmd.CombinedOutput(); err != nil {
 		return errors.Wrapf(ctx, err, "push retry failed: %s", string(out))
+	}
+	return nil
+}
+
+// handleConflictsAndPush resolves conflicts in the given files, continues the rebase, and retries push.
+func (g *gitClient) handleConflictsAndPush(ctx context.Context, conflicted []string) error {
+	if g.conflictResolver == nil {
+		g.abortRebase(ctx)
+		return errors.Errorf(
+			ctx,
+			"rebase produced merge conflicts in %d file(s) and no conflict resolver is configured: %v",
+			len(conflicted),
+			conflicted,
+		)
+	}
+	if err := g.resolveConflicts(ctx, conflicted); err != nil {
+		g.abortRebase(ctx)
+		return errors.Wrapf(ctx, err, "conflict resolution failed")
+	}
+	// After resolution, continue rebase
+	// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
+	continueCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "rebase", "--continue")
+	continueCmd.Env = append(os.Environ(), "GIT_EDITOR=true") // skip editor for commit message
+	if out, err := continueCmd.CombinedOutput(); err != nil {
+		g.abortRebase(ctx)
+		return errors.Wrapf(ctx, err, "git rebase --continue failed: %s", string(out))
+	}
+	glog.V(2).Infof("conflict resolution complete, retrying push")
+	// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
+	retryAfterResolve := exec.CommandContext(ctx, "git", "-C", g.localPath, "push")
+	if out, err := retryAfterResolve.CombinedOutput(); err != nil {
+		return errors.Wrapf(ctx, err, "push after conflict resolution failed: %s", string(out))
 	}
 	return nil
 }
@@ -276,7 +281,7 @@ func (g *gitClient) resolveConflicts(ctx context.Context, conflicted []string) e
 				relPath,
 			)
 		}
-		// #nosec G306 -- 0600 is intentional for task files
+		// #nosec G306 G703 -- 0600 is intentional; absPath is trusted localPath + git-reported conflict list
 		if err := os.WriteFile(absPath, []byte(resolved), 0600); err != nil {
 			return errors.Wrapf(ctx, err, "write resolved file %s", relPath)
 		}

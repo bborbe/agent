@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	bolt "go.etcd.io/bbolt"
 
+	"github.com/bborbe/agent/task/controller/pkg/conflict"
 	"github.com/bborbe/agent/task/controller/pkg/factory"
 	"github.com/bborbe/agent/task/controller/pkg/gitclient"
 	"github.com/bborbe/agent/task/controller/pkg/result"
@@ -40,23 +41,25 @@ func main() {
 }
 
 type application struct {
-	SentryDSN    string        `required:"true"  arg:"sentry-dsn"    env:"SENTRY_DSN"    usage:"SentryDSN"                                display:"length"`
-	SentryProxy  string        `required:"false" arg:"sentry-proxy"  env:"SENTRY_PROXY"  usage:"Sentry Proxy"`
-	Listen       string        `required:"true"  arg:"listen"        env:"LISTEN"        usage:"address to listen to"`
-	GitURL       string        `required:"true"  arg:"git-url"       env:"GIT_URL"       usage:"vault git repository URL (SSH format)"`
-	KafkaBrokers string        `required:"true"  arg:"kafka-brokers" env:"KAFKA_BROKERS" usage:"comma-separated Kafka broker addresses"`
-	Branch       base.Branch   `required:"true"  arg:"branch"        env:"BRANCH"        usage:"Kafka topic prefix branch (develop/live)"`
-	GitBranch    string        `required:"false" arg:"git-branch"    env:"GIT_BRANCH"    usage:"git branch to track"                                       default:"main"`
-	PollInterval time.Duration `required:"false" arg:"poll-interval" env:"POLL_INTERVAL" usage:"vault polling interval"                                    default:"60s"`
-	TaskDir      string        `required:"false" arg:"task-dir"      env:"TASK_DIR"      usage:"task directory within vault"                               default:"24 Tasks"`
-	DataDir      string        `required:"true"  arg:"data-dir"      env:"DATA_DIR"      usage:"directory for BoltDB offset storage"`
-	NoSync       bool          `required:"false" arg:"no-sync"       env:"NO_SYNC"       usage:"disable BoltDB fsync (for testing only)"`
+	SentryDSN    string        `required:"true"  arg:"sentry-dsn"     env:"SENTRY_DSN"     usage:"SentryDSN"                                  display:"length"`
+	SentryProxy  string        `required:"false" arg:"sentry-proxy"   env:"SENTRY_PROXY"   usage:"Sentry Proxy"`
+	Listen       string        `required:"true"  arg:"listen"         env:"LISTEN"         usage:"address to listen to"`
+	GitURL       string        `required:"true"  arg:"git-url"        env:"GIT_URL"        usage:"vault git repository URL (SSH format)"`
+	KafkaBrokers string        `required:"true"  arg:"kafka-brokers"  env:"KAFKA_BROKERS"  usage:"comma-separated Kafka broker addresses"`
+	Branch       base.Branch   `required:"true"  arg:"branch"         env:"BRANCH"         usage:"Kafka topic prefix branch (develop/live)"`
+	GitBranch    string        `required:"false" arg:"git-branch"     env:"GIT_BRANCH"     usage:"git branch to track"                                         default:"main"`
+	PollInterval time.Duration `required:"false" arg:"poll-interval"  env:"POLL_INTERVAL"  usage:"vault polling interval"                                      default:"60s"`
+	TaskDir      string        `required:"false" arg:"task-dir"       env:"TASK_DIR"       usage:"task directory within vault"                                 default:"24 Tasks"`
+	DataDir      string        `required:"true"  arg:"data-dir"       env:"DATA_DIR"       usage:"directory for BoltDB offset storage"`
+	NoSync       bool          `required:"false" arg:"no-sync"        env:"NO_SYNC"        usage:"disable BoltDB fsync (for testing only)"`
+	GeminiAPIKey string        `required:"true"  arg:"gemini-api-key" env:"GEMINI_API_KEY" usage:"Gemini API key for LLM conflict resolution" display:"length"`
 }
 
 func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
 	glog.V(1).Infof("agent-task-controller started")
 
-	gitClient := gitclient.NewGitClient(a.GitURL, vaultLocalPath, a.GitBranch)
+	conflictResolver := conflict.NewGeminiConflictResolver(a.GeminiAPIKey)
+	gitClient := gitclient.NewGitClient(a.GitURL, vaultLocalPath, a.GitBranch, conflictResolver)
 	if err := gitClient.EnsureCloned(ctx); err != nil {
 		return errors.Wrapf(ctx, err, "ensure git clone")
 	}

@@ -40,6 +40,7 @@ require (
 	github.com/shoenig/go-modtool v0.7.1
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/vuln v1.1.4
+	google.golang.org/genai v1.52.1
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -471,7 +472,6 @@ require (
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/genai v1.52.1 // indirect
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260319201613-d00831a3d3e7 // indirect
