@@ -171,4 +171,115 @@ var _ = Describe("JobSpawner", func() {
 			Expect(err).NotTo(BeNil())
 		})
 	})
+
+	Describe("IsJobActive", func() {
+		It("returns false when no jobs exist", func() {
+			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-1"))
+			Expect(err).To(BeNil())
+			Expect(active).To(BeFalse())
+		})
+
+		It("returns true when active job exists (status.active > 0)", func() {
+			job := &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "claude-20260403173500",
+					Namespace: "test-ns",
+					Labels:    map[string]string{"component": "tid-2"},
+				},
+				Status: batchv1.JobStatus{
+					Active: 1,
+				},
+			}
+			fakeClient = fake.NewClientset(job)
+			jobSpawner = spawner.NewJobSpawner(
+				fakeClient,
+				"test-ns",
+				"kafka:9092",
+				"develop",
+				"test-key",
+				currentDateTime,
+			)
+
+			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-2"))
+			Expect(err).To(BeNil())
+			Expect(active).To(BeTrue())
+		})
+
+		It("returns false when completed job exists (status.succeeded > 0)", func() {
+			job := &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "claude-20260403173500",
+					Namespace: "test-ns",
+					Labels:    map[string]string{"component": "tid-3"},
+				},
+				Status: batchv1.JobStatus{
+					Succeeded: 1,
+				},
+			}
+			fakeClient = fake.NewClientset(job)
+			jobSpawner = spawner.NewJobSpawner(
+				fakeClient,
+				"test-ns",
+				"kafka:9092",
+				"develop",
+				"test-key",
+				currentDateTime,
+			)
+
+			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-3"))
+			Expect(err).To(BeNil())
+			Expect(active).To(BeFalse())
+		})
+
+		It("returns false when failed job exists (status.failed > 0, active == 0)", func() {
+			job := &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "claude-20260403173500",
+					Namespace: "test-ns",
+					Labels:    map[string]string{"component": "tid-4"},
+				},
+				Status: batchv1.JobStatus{
+					Failed: 1,
+					Active: 0,
+				},
+			}
+			fakeClient = fake.NewClientset(job)
+			jobSpawner = spawner.NewJobSpawner(
+				fakeClient,
+				"test-ns",
+				"kafka:9092",
+				"develop",
+				"test-key",
+				currentDateTime,
+			)
+
+			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-4"))
+			Expect(err).To(BeNil())
+			Expect(active).To(BeFalse())
+		})
+
+		It("returns true for newly created job (no status set yet)", func() {
+			job := &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "claude-20260403173500",
+					Namespace: "test-ns",
+					Labels:    map[string]string{"component": "tid-5"},
+				},
+				Status: batchv1.JobStatus{},
+			}
+			fakeClient = fake.NewClientset(job)
+			jobSpawner = spawner.NewJobSpawner(
+				fakeClient,
+				"test-ns",
+				"kafka:9092",
+				"develop",
+				"test-key",
+				currentDateTime,
+			)
+
+			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-5"))
+			Expect(err).To(BeNil())
+			Expect(active).To(BeTrue())
+		})
+	})
 })

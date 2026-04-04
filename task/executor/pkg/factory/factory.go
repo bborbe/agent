@@ -39,8 +39,7 @@ func CreateConsumer(
 		geminiAPIKey,
 		currentDateTimeGetter,
 	)
-	duplicateTracker := handler.NewInMemoryDuplicateTracker()
-	taskEventHandler := handler.NewTaskEventHandler(duplicateTracker, jobSpawner, assigneeImages)
+	taskEventHandler := handler.NewTaskEventHandler(jobSpawner, assigneeImages)
 	topic := lib.TaskV1SchemaID.EventTopic(branch)
 	offsetManager := libkafka.NewSaramaOffsetManager(
 		saramaClient,

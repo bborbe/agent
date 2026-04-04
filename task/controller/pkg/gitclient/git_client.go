@@ -53,7 +53,12 @@ type gitClient struct {
 
 // NewGitClient creates a GitClient that uses the git binary via subprocess.
 // conflictResolver is called when a rebase produces merge conflicts; pass nil to disable LLM resolution.
-func NewGitClient(gitURL string, localPath string, branch string, conflictResolver ConflictResolver) GitClient {
+func NewGitClient(
+	gitURL string,
+	localPath string,
+	branch string,
+	conflictResolver ConflictResolver,
+) GitClient {
 	return &gitClient{
 		gitURL:           gitURL,
 		localPath:        localPath,
@@ -255,13 +260,21 @@ func (g *gitClient) resolveConflicts(ctx context.Context, conflicted []string) e
 		if err != nil {
 			return errors.Wrapf(ctx, err, "read conflicted file %s", relPath)
 		}
-		resolved, err := g.conflictResolver.Resolve(ctx, filepath.Base(relPath), string(contentBytes))
+		resolved, err := g.conflictResolver.Resolve(
+			ctx,
+			filepath.Base(relPath),
+			string(contentBytes),
+		)
 		if err != nil {
 			return errors.Wrapf(ctx, err, "LLM resolution failed for %s", relPath)
 		}
 		// Safety check: resolved content must not contain conflict markers
 		if containsConflictMarkers(resolved) {
-			return errors.Errorf(ctx, "LLM returned content still containing conflict markers for %s", relPath)
+			return errors.Errorf(
+				ctx,
+				"LLM returned content still containing conflict markers for %s",
+				relPath,
+			)
 		}
 		// #nosec G306 -- 0600 is intentional for task files
 		if err := os.WriteFile(absPath, []byte(resolved), 0600); err != nil {

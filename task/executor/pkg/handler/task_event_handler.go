@@ -24,36 +24,6 @@ var allowedPhases = domain.TaskPhases{
 	domain.TaskPhaseAIReview,
 }
 
-//counterfeiter:generate -o ../../mocks/duplicate_tracker.go --fake-name FakeDuplicateTracker . DuplicateTracker
-
-// DuplicateTracker tracks which TaskIdentifiers have already spawned a Job in this process lifetime.
-type DuplicateTracker interface {
-	// IsDuplicate returns true if the given TaskIdentifier was already processed.
-	IsDuplicate(id lib.TaskIdentifier) bool
-	// MarkProcessed records the TaskIdentifier so future calls to IsDuplicate return true.
-	MarkProcessed(id lib.TaskIdentifier)
-}
-
-// NewInMemoryDuplicateTracker creates a new in-memory DuplicateTracker.
-func NewInMemoryDuplicateTracker() DuplicateTracker {
-	return &inMemoryDuplicateTracker{
-		seen: make(map[lib.TaskIdentifier]struct{}),
-	}
-}
-
-type inMemoryDuplicateTracker struct {
-	seen map[lib.TaskIdentifier]struct{}
-}
-
-func (t *inMemoryDuplicateTracker) IsDuplicate(id lib.TaskIdentifier) bool {
-	_, ok := t.seen[id]
-	return ok
-}
-
-func (t *inMemoryDuplicateTracker) MarkProcessed(id lib.TaskIdentifier) {
-	t.seen[id] = struct{}{}
-}
-
 //counterfeiter:generate -o ../../mocks/task_event_handler.go --fake-name FakeTaskEventHandler . TaskEventHandler
 
 // TaskEventHandler processes a single task event message from Kafka.
@@ -63,21 +33,18 @@ type TaskEventHandler interface {
 
 // NewTaskEventHandler creates a new TaskEventHandler.
 func NewTaskEventHandler(
-	duplicateTracker DuplicateTracker,
 	jobSpawner spawner.JobSpawner,
 	assigneeImages map[string]string,
 ) TaskEventHandler {
 	return &taskEventHandler{
-		duplicateTracker: duplicateTracker,
-		jobSpawner:       jobSpawner,
-		assigneeImages:   assigneeImages,
+		jobSpawner:     jobSpawner,
+		assigneeImages: assigneeImages,
 	}
 }
 
 type taskEventHandler struct {
-	duplicateTracker DuplicateTracker
-	jobSpawner       spawner.JobSpawner
-	assigneeImages   map[string]string
+	jobSpawner     spawner.JobSpawner
+	assigneeImages map[string]string
 }
 
 func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.ConsumerMessage) error {
@@ -124,8 +91,12 @@ func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.Consu
 		return nil
 	}
 
-	if h.duplicateTracker.IsDuplicate(task.TaskIdentifier) {
-		glog.V(3).Infof("skip duplicate task %s", task.TaskIdentifier)
+	active, err := h.jobSpawner.IsJobActive(ctx, task.TaskIdentifier)
+	if err != nil {
+		return errors.Wrapf(ctx, err, "check active job for task %s", task.TaskIdentifier)
+	}
+	if active {
+		glog.V(3).Infof("skip task %s: active job exists", task.TaskIdentifier)
 		return nil
 	}
 
@@ -133,7 +104,6 @@ func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.Consu
 		return errors.Wrapf(ctx, err, "spawn job for task %s failed", task.TaskIdentifier)
 	}
 
-	h.duplicateTracker.MarkProcessed(task.TaskIdentifier)
 	glog.V(2).
 		Infof("spawned job for task %s (assignee=%s)", task.TaskIdentifier, task.Frontmatter.Assignee())
 	return nil

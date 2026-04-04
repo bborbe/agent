@@ -19,11 +19,16 @@ import (
 	lib "github.com/bborbe/agent/lib"
 )
 
+const componentLabelKey = "component"
+
 //counterfeiter:generate -o ../../mocks/job_spawner.go --fake-name FakeJobSpawner . JobSpawner
 
 // JobSpawner creates a K8s Job for a task.
 type JobSpawner interface {
 	SpawnJob(ctx context.Context, task lib.Task, image string) error
+	// IsJobActive returns true if an active (not completed/failed) K8s Job exists
+	// for the given task identifier. Uses the `component` label set by SpawnJob.
+	IsJobActive(ctx context.Context, taskIdentifier lib.TaskIdentifier) (bool, error)
 }
 
 // NewJobSpawner creates a new JobSpawner backed by the K8s batch/v1 API.
@@ -113,6 +118,29 @@ func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) 
 	glog.V(2).
 		Infof("created job %s for task %s with image %s", jobName, task.TaskIdentifier, image)
 	return nil
+}
+
+func (s *jobSpawner) IsJobActive(
+	ctx context.Context,
+	taskIdentifier lib.TaskIdentifier,
+) (bool, error) {
+	labelSelector := componentLabelKey + "=" + string(taskIdentifier)
+	jobs, err := s.kubeClient.BatchV1().Jobs(s.namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return false, errors.Wrapf(ctx, err, "list jobs for task %s", taskIdentifier)
+	}
+	for _, job := range jobs.Items {
+		if job.Status.Succeeded > 0 {
+			continue
+		}
+		if job.Status.Failed > 0 && job.Status.Active == 0 {
+			continue
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 // jobNameFromTask returns the K8s Job name for a task: "{assignee}-{YYYYMMDDHHMMSS}".

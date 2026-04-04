@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.23.1
+
+- refactor: Replace in-memory DuplicateTracker with K8s Job label lookup (IsJobActive) in task/executor so deduplication survives restarts and completed tasks can be retriggered
+
 ## v0.23.0
 
 - feat: Add push-retry with fetch+rebase in task/controller gitClient so concurrent pushes recover automatically; conflict markers abort rebase and return an error

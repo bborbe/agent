@@ -30,7 +30,6 @@ func TestHandler(t *testing.T) {
 var _ = Describe("TaskEventHandler", func() {
 	var (
 		ctx            context.Context
-		fakeTracker    *mocks.FakeDuplicateTracker
 		fakeSpawner    *mocks.FakeJobSpawner
 		assigneeImages map[string]string
 		h              handler.TaskEventHandler
@@ -38,12 +37,11 @@ var _ = Describe("TaskEventHandler", func() {
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		fakeTracker = new(mocks.FakeDuplicateTracker)
 		fakeSpawner = new(mocks.FakeJobSpawner)
 		assigneeImages = map[string]string{
 			"claude": "my-image:latest",
 		}
-		h = handler.NewTaskEventHandler(fakeTracker, fakeSpawner, assigneeImages)
+		h = handler.NewTaskEventHandler(fakeSpawner, assigneeImages)
 	})
 
 	buildMsg := func(task lib.Task) *sarama.ConsumerMessage {
@@ -160,8 +158,8 @@ var _ = Describe("TaskEventHandler", func() {
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
 		})
 
-		It("skips duplicate TaskIdentifier", func() {
-			fakeTracker.IsDuplicateReturns(true)
+		It("skips task when active job exists", func() {
+			fakeSpawner.IsJobActiveReturns(true, nil)
 			task := lib.Task{
 				TaskIdentifier: "tid-7",
 				Frontmatter: lib.TaskFrontmatter{
@@ -175,8 +173,8 @@ var _ = Describe("TaskEventHandler", func() {
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
 		})
 
-		It("spawns job for qualifying task with known assignee", func() {
-			fakeTracker.IsDuplicateReturns(false)
+		It("spawns job when no active job exists", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("tid-8"),
 				Frontmatter: lib.TaskFrontmatter{
@@ -194,8 +192,8 @@ var _ = Describe("TaskEventHandler", func() {
 			Expect(image).To(Equal("my-image:latest"))
 		})
 
-		It("marks task as processed after successful spawn", func() {
-			fakeTracker.IsDuplicateReturns(false)
+		It("returns error when IsJobActive fails", func() {
+			fakeSpawner.IsJobActiveReturns(false, errors.Errorf(ctx, "k8s unavailable"))
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("tid-9"),
 				Frontmatter: lib.TaskFrontmatter{
@@ -205,13 +203,12 @@ var _ = Describe("TaskEventHandler", func() {
 				},
 			}
 			err := h.ConsumeMessage(ctx, buildMsg(task))
-			Expect(err).To(BeNil())
-			Expect(fakeTracker.MarkProcessedCallCount()).To(Equal(1))
-			Expect(fakeTracker.MarkProcessedArgsForCall(0)).To(Equal(lib.TaskIdentifier("tid-9")))
+			Expect(err).NotTo(BeNil())
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
 		})
 
-		It("does not mark task as processed when spawn fails", func() {
-			fakeTracker.IsDuplicateReturns(false)
+		It("returns error when SpawnJob fails", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
 			fakeSpawner.SpawnJobReturns(errors.Errorf(ctx, "k8s unavailable"))
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("tid-10"),
@@ -223,11 +220,10 @@ var _ = Describe("TaskEventHandler", func() {
 			}
 			err := h.ConsumeMessage(ctx, buildMsg(task))
 			Expect(err).NotTo(BeNil())
-			Expect(fakeTracker.MarkProcessedCallCount()).To(Equal(0))
 		})
 
 		It("accepts task with phase planning", func() {
-			fakeTracker.IsDuplicateReturns(false)
+			fakeSpawner.IsJobActiveReturns(false, nil)
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("tid-11"),
 				Frontmatter: lib.TaskFrontmatter{
@@ -242,7 +238,7 @@ var _ = Describe("TaskEventHandler", func() {
 		})
 
 		It("accepts task with phase ai_review", func() {
-			fakeTracker.IsDuplicateReturns(false)
+			fakeSpawner.IsJobActiveReturns(false, nil)
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("tid-12"),
 				Frontmatter: lib.TaskFrontmatter{
