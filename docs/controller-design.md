@@ -40,6 +40,38 @@ On agent-task-v1-request (operation: "update"):
   └── CQRS framework publishes success/failure result to agent-task-v1-result
 ```
 
+## Frontmatter Merge
+
+When writing a result back, the ResultWriter merges frontmatter from the existing task file with frontmatter provided by the agent. Existing keys are preserved, agent keys override on conflict. This ensures fields like `assignee`, `tags`, and `task_identifier` survive result writeback even though agents don't receive frontmatter.
+
+```
+Existing file:  {assignee: backtest-agent, tags: [agent-task], task_identifier: xyz}
+Agent provides: {status: completed, phase: done}
+Merged result:  {assignee: backtest-agent, tags: [agent-task], task_identifier: xyz, status: completed, phase: done}
+```
+
+## Git Operation Serialization
+
+All git operations (pull, write, commit, push) are serialized via `sync.Mutex` in the GitClient. The `AtomicWriteAndCommitPush` method holds the lock for the entire write→commit→push sequence, preventing concurrent operations from interleaving.
+
+## Push Retry with Rebase
+
+When `git push` fails (remote has new commits), the controller:
+
+1. Fetches latest changes
+2. Rebases local commits on top
+3. If rebase is clean → retry push
+4. If rebase has conflicts → invoke LLM conflict resolver
+
+## LLM Conflict Resolution
+
+Git merge conflicts are resolved via Gemini API (`gemini-2.5-flash`). The resolver:
+
+- Receives the conflicted file content with `<<<<<<<`/`=======`/`>>>>>>>` markers
+- Returns clean merged markdown
+- Is generic (no task/domain knowledge) — works for any markdown file
+- Requires `GEMINI_API_KEY` env var (controller won't start without it)
+
 ## Content Sanitization
 
 Agent output may contain bare `---` lines that would corrupt YAML frontmatter boundaries. The ResultWriter escapes these to `\-\-\-` before writing.

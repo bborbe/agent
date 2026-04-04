@@ -51,7 +51,9 @@ task/executor passes these env vars to every spawned Job:
 
 ### TASK_CONTENT Format
 
-Raw markdown body of a vault task file. Example:
+The markdown body of a vault task file **after the frontmatter closing delimiter**. Frontmatter is stripped by task/executor before passing to the agent. The agent receives only the content section.
+
+Example task file in vault:
 
 ```markdown
 ---
@@ -60,11 +62,8 @@ phase: in_progress
 assignee: backtest-agent
 tags:
   - agent-task
+task_identifier: e2e-test-0001-bbr-eurusd-1h
 ---
-Tags: [[Build Backtest Agent as First Controller Job]]
-
----
-
 Run backtest for strategy `BBR-EURUSD-1H` from 2025-01-01 to 2025-12-31.
 
 ## Parameters
@@ -74,7 +73,19 @@ Run backtest for strategy `BBR-EURUSD-1H` from 2025-01-01 to 2025-12-31.
 - **Until:** 2025-12-31
 ```
 
-Each agent type defines what it expects in the task body. The frontmatter is included but agents should focus on the content section.
+What the agent receives in `TASK_CONTENT`:
+
+```markdown
+Run backtest for strategy `BBR-EURUSD-1H` from 2025-01-01 to 2025-12-31.
+
+## Parameters
+
+- **Strategy:** BBR-EURUSD-1H
+- **From:** 2025-01-01
+- **Until:** 2025-12-31
+```
+
+Each agent type defines what it expects in the task body. The agent does NOT receive frontmatter — it only gets the content after `---`.
 
 ### Result Publishing
 

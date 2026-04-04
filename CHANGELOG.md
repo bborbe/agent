@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.24.2
+
+- docs: Fix TASK_CONTENT example in agent-job-interface.md to show body-only (no frontmatter)
+- docs: Add frontmatter merge, git serialization, push retry, and LLM conflict resolution to controller-design.md
+- complete spec-006 (result-writer-conflict-resolution)
+- add Prometheus metrics prompt for controller and executor
+
 ## v0.24.1
 
 - fix: Merge existing task file frontmatter with agent-provided frontmatter in ResultWriter so keys like assignee, tags, and custom fields are preserved on writeback
