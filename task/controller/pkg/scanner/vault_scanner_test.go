@@ -35,6 +35,15 @@ func (t *testGitClient) CommitAndPush(_ context.Context, _ string) error {
 	return t.commitPushErr
 }
 
+func (t *testGitClient) AtomicWriteAndCommitPush(
+	_ context.Context,
+	_ string,
+	_ []byte,
+	_ string,
+) error {
+	return t.commitPushErr
+}
+
 func mustInitGitRepo(dir string) {
 	cmds := [][]string{
 		{"git", "-C", dir, "init"},

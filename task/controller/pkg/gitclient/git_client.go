@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 
 	"github.com/bborbe/errors"
 )
@@ -21,6 +22,14 @@ type GitClient interface {
 	Pull(ctx context.Context) error
 	// CommitAndPush stages all changes, creates a commit with the given message, and pushes to the remote.
 	CommitAndPush(ctx context.Context, message string) error
+	// AtomicWriteAndCommitPush writes content to absPath and commits+pushes under a single lock.
+	// No other git operation can interleave between the file write and the commit.
+	AtomicWriteAndCommitPush(
+		ctx context.Context,
+		absPath string,
+		content []byte,
+		message string,
+	) error
 	// Path returns the local clone path.
 	Path() string
 }
@@ -29,6 +38,7 @@ type gitClient struct {
 	gitURL    string
 	localPath string
 	branch    string
+	mu        sync.Mutex
 }
 
 // NewGitClient creates a GitClient that uses the git binary via subprocess.
@@ -73,6 +83,12 @@ func (g *gitClient) EnsureCloned(ctx context.Context) error {
 }
 
 func (g *gitClient) Pull(ctx context.Context) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.pull(ctx)
+}
+
+func (g *gitClient) pull(ctx context.Context) error {
 	// #nosec G204 -- binary is hardcoded "git", localPath is from trusted internal config
 	cmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "pull", "--rebase")
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -82,6 +98,12 @@ func (g *gitClient) Pull(ctx context.Context) error {
 }
 
 func (g *gitClient) CommitAndPush(ctx context.Context, message string) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.commitAndPush(ctx, message)
+}
+
+func (g *gitClient) commitAndPush(ctx context.Context, message string) error {
 	// #nosec G204 -- binary is hardcoded "git", localPath and message are from trusted internal config
 	addCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "add", "-A")
 	if out, err := addCmd.CombinedOutput(); err != nil {
@@ -98,6 +120,21 @@ func (g *gitClient) CommitAndPush(ctx context.Context, message string) error {
 		return errors.Wrapf(ctx, err, "git push failed: %s", string(out))
 	}
 	return nil
+}
+
+func (g *gitClient) AtomicWriteAndCommitPush(
+	ctx context.Context,
+	absPath string,
+	content []byte,
+	message string,
+) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	// #nosec G306 -- 0600 is intentional for task files (gosec requirement)
+	if err := os.WriteFile(absPath, content, 0600); err != nil {
+		return errors.Wrapf(ctx, err, "write file %s", absPath)
+	}
+	return g.commitAndPush(ctx, message)
 }
 
 func (g *gitClient) Path() string {

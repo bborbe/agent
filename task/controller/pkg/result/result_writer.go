@@ -95,14 +95,14 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 	newContent := []byte(
 		"---\n" + string(marshaledFrontmatter) + "---\n" + sanitizeContent(string(req.Content)),
 	)
-	glog.V(2).Infof("WriteResult: writing %d bytes to %s", len(newContent), matchedAbsPath)
-	if writeErr := os.WriteFile(matchedAbsPath, newContent, 0600); writeErr != nil {
-		return errors.Wrapf(ctx, writeErr, "write file failed")
-	}
-
-	glog.V(2).Infof("WriteResult: committing and pushing for task %s", req.TaskIdentifier)
-	if commitErr := r.gitClient.CommitAndPush(ctx, fmt.Sprintf("[agent-task-controller] write result for task %s", req.TaskIdentifier)); commitErr != nil {
-		return errors.Wrapf(ctx, commitErr, "commit and push failed")
+	glog.V(2).Infof("WriteResult: writing and pushing for task %s", req.TaskIdentifier)
+	if err := r.gitClient.AtomicWriteAndCommitPush(
+		ctx,
+		matchedAbsPath,
+		newContent,
+		fmt.Sprintf("[agent-task-controller] write result for task %s", req.TaskIdentifier),
+	); err != nil {
+		return errors.Wrapf(ctx, err, "atomic write and push failed")
 	}
 
 	glog.V(2).Infof("WriteResult: completed successfully for task %s", req.TaskIdentifier)

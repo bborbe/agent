@@ -44,6 +44,9 @@ var _ = Describe("ResultWriter", func() {
 
 		fakeGit = &mocks.FakeGitClient{}
 		fakeGit.PathReturns(tmpDir)
+		fakeGit.AtomicWriteAndCommitPushStub = func(ctx context.Context, absPath string, content []byte, message string) error {
+			return os.WriteFile(absPath, content, 0600)
+		}
 
 		identifier = lib.TaskIdentifier("test-task-uuid-1234")
 		writer = result.NewResultWriter(fakeGit, taskDir)
@@ -85,8 +88,8 @@ var _ = Describe("ResultWriter", func() {
 				Expect(string(written)).To(ContainSubstring("status: done"))
 				Expect(string(written)).To(ContainSubstring("---\nNew content\n"))
 
-				Expect(fakeGit.CommitAndPushCallCount()).To(Equal(1))
-				_, msg := fakeGit.CommitAndPushArgsForCall(0)
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+				_, _, _, msg := fakeGit.AtomicWriteAndCommitPushArgsForCall(0)
 				Expect(msg).To(ContainSubstring(string(identifier)))
 			})
 		})
@@ -118,7 +121,7 @@ var _ = Describe("ResultWriter", func() {
 				Expect(string(written)).To(ContainSubstring("status: closed"))
 				Expect(string(written)).NotTo(ContainSubstring("First result"))
 
-				Expect(fakeGit.CommitAndPushCallCount()).To(Equal(2))
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(2))
 			})
 		})
 
@@ -137,7 +140,7 @@ var _ = Describe("ResultWriter", func() {
 
 				err := writer.WriteResult(ctx, taskFile)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(fakeGit.CommitAndPushCallCount()).To(Equal(0))
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(0))
 			})
 		})
 
@@ -249,17 +252,19 @@ var _ = Describe("ResultWriter", func() {
 				Expect(parts[1]).To(ContainSubstring(`\-\-\-`))
 				Expect(parts[1]).NotTo(ContainSubstring("\n---\n"))
 
-				Expect(fakeGit.CommitAndPushCallCount()).To(Equal(1))
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
 			})
 		})
 
-		Context("commit and push error", func() {
-			It("returns error when CommitAndPush fails", func() {
+		Context("atomic write and push error", func() {
+			It("returns error when AtomicWriteAndCommitPush fails", func() {
 				writeTaskFile(
 					"my-task.md",
 					"---\ntask_identifier: test-task-uuid-1234\nstatus: open\n---\nOld content\n",
 				)
-				fakeGit.CommitAndPushReturns(errTest)
+				fakeGit.AtomicWriteAndCommitPushStub = func(ctx context.Context, absPath string, content []byte, message string) error {
+					return errTest
+				}
 
 				taskFile = lib.Task{
 					TaskIdentifier: identifier,
@@ -272,7 +277,7 @@ var _ = Describe("ResultWriter", func() {
 
 				err := writer.WriteResult(ctx, taskFile)
 				Expect(err).To(HaveOccurred())
-				Expect(fakeGit.CommitAndPushCallCount()).To(Equal(1))
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
 			})
 		})
 	})
