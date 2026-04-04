@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.22.4
+
+- fix: Enable CQRS result sending in task result executor so command senders receive processing confirmation
+
 ## v0.22.3
 
 - fix: Add diagnostic logging to task result executor and result writer for debugging e2e pipeline failures

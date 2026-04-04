@@ -46,8 +46,8 @@ var _ = Describe("NewTaskResultExecutor", func() {
 	})
 
 	Describe("SendResultEnabled", func() {
-		It("returns false", func() {
-			Expect(executor.SendResultEnabled()).To(BeFalse())
+		It("returns true", func() {
+			Expect(executor.SendResultEnabled()).To(BeTrue())
 		})
 	})
 
@@ -87,8 +87,9 @@ var _ = Describe("NewTaskResultExecutor", func() {
 
 				eventID, resultEvent, handleErr := executor.HandleCommand(ctx, nil, cmdObj)
 				Expect(handleErr).To(BeNil())
-				Expect(eventID).To(BeNil())
-				Expect(resultEvent).To(BeNil())
+				Expect(eventID).NotTo(BeNil())
+				Expect(string(*eventID)).To(Equal(string(task.TaskIdentifier)))
+				Expect(resultEvent).NotTo(BeNil())
 				Expect(fakeWriter.WriteResultCallCount()).To(Equal(1))
 
 				_, gotTask := fakeWriter.WriteResultArgsForCall(0)

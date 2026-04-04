@@ -25,7 +25,7 @@ const TaskResultCommandOperation base.CommandOperation = "update"
 func NewTaskResultExecutor(writer result.ResultWriter) cdb.CommandObjectExecutorTx {
 	return cdb.CommandObjectExecutorTxFunc(
 		TaskResultCommandOperation,
-		false, // sendResult: no result event needed
+		true,
 		func(ctx context.Context, tx libkv.Tx, commandObject cdb.CommandObject) (*base.EventID, base.Event, error) {
 			var req lib.Task
 			if err := commandObject.Command.Data.MarshalInto(ctx, &req); err != nil {
@@ -61,7 +61,17 @@ func NewTaskResultExecutor(writer result.ResultWriter) cdb.CommandObjectExecutor
 					req.TaskIdentifier,
 				)
 			}
-			return nil, nil, nil
+			event, err := base.ParseEvent(ctx, req)
+			if err != nil {
+				return nil, nil, errors.Wrapf(
+					ctx,
+					err,
+					"parse result event for task %s",
+					req.TaskIdentifier,
+				)
+			}
+			eventID := base.EventID(req.TaskIdentifier)
+			return eventID.Ptr(), event, nil
 		},
 	)
 }
