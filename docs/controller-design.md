@@ -8,6 +8,7 @@ The controller is the single writer to the vault git repo. It has two responsibi
 |-----------|-------|---------|
 | Produces | `agent-task-v1-event` | Task created or status changed in git |
 | Consumes | `agent-task-v1-request` | Update task commands (from agents) |
+| Produces | `agent-task-v1-result` | Command processing confirmation (CQRS auto) |
 
 ## Core Logic
 
@@ -35,7 +36,8 @@ On agent-task-v1-request (operation: "update"):
   ├── walk task directory, find file matching task_identifier in frontmatter
   ├── sanitize content (escape bare --- lines to prevent YAML corruption)
   ├── write frontmatter + content to file
-  └── git add + commit + push
+  ├── git add + commit + push
+  └── CQRS framework publishes success/failure result to agent-task-v1-result
 ```
 
 ## Content Sanitization

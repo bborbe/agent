@@ -13,7 +13,7 @@ One Kafka schema powers the agent system. Follows the existing cdb-schema-v1 pat
 ```
 develop-agent-task-v1-event       task/controller publishes when task files change
 develop-agent-task-v1-request     agents publish commands (update task with results)
-develop-agent-task-v1-result      (future: query responses)
+develop-agent-task-v1-result      CQRS command results (success/failure confirmation)
 ```
 
 ## Data Flow
@@ -33,7 +33,8 @@ Agent (K8s Job) does work
 task/controller consumes request
   → writes result to task file
   → git commit + push
-  → publishes agent-task-v1-event (confirms change)
+  → publishes agent-task-v1-result (success/failure confirmation)
+  → publishes agent-task-v1-event (confirms file change)
 ```
 
 ## Message Formats
@@ -80,6 +81,56 @@ Published by agents to update a task. Consumed by task/controller.
 ```
 
 The `content` field replaces the entire markdown body below the frontmatter. Include original task text + appended `## Result` section.
+
+### agent-task-v1-result
+
+Published automatically by the CQRS framework when the task/controller processes a command. Confirms whether the command was accepted or rejected. The command sender can correlate via `requestID`.
+
+```json
+{
+  "requestID": "original-request-uuid",
+  "success": true,
+  "eventID": "e2e-test-0001-bbr-eurusd-1h",
+  "event": { "...serialized task..." }
+}
+```
+
+On failure:
+```json
+{
+  "requestID": "original-request-uuid",
+  "success": false,
+  "message": "write result for task e2e-test-0001-bbr-eurusd-1h: commit and push failed: ..."
+}
+```
+
+## CQRS Command Result Pattern
+
+Every `CommandObjectExecutorTxFunc` has a `sendResultEnabled` flag (second parameter). This controls whether the CQRS framework automatically publishes to the `-result` topic.
+
+### sendResultEnabled = true (recommended)
+
+The framework handles result publishing:
+
+| Executor returns | Result topic message |
+|------------------|---------------------|
+| `eventID, event, nil` | Success result with eventID + event |
+| `nil, nil, err` | Failure result with error message |
+| `nil, nil, ErrCommandObjectSkipped` | Nothing (silently skipped) |
+
+The command sender receives confirmation that processing succeeded or failed. All trading command executors use this mode.
+
+### sendResultEnabled = false (manual results)
+
+The framework only publishes failure results (non-skipped errors). On success, no result is sent. Use this only when the executor needs to send results through a different channel (e.g., a custom topic or external system).
+
+If `sendResultEnabled = false`, the executor is responsible for confirming command receipt through its own mechanism. Otherwise the command sender has no way to know if the command was processed.
+
+### ErrCommandObjectSkipped
+
+Wrapping an error with `cdb.ErrCommandObjectSkipped` tells the framework to silently drop the command — no result is published, no error is logged at the handler level. Use this for expected conditions like malformed payloads or validation failures that don't warrant a result message.
+
+**Important**: The framework logs only "result returned skipped error => skip" at V3 — the wrapped reason is not visible. Add Warning-level logging before returning `ErrCommandObjectSkipped` if debugging visibility is needed.
 
 ### Status Mapping
 
