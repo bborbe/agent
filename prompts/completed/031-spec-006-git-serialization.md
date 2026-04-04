@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [006-result-writer-conflict-resolution]
+summary: Added sync.Mutex to gitClient, refactored Pull/CommitAndPush to use private unlocked variants, added AtomicWriteAndCommitPush method to serialize file write + commit + push under a single lock, updated ResultWriter to use the atomic method, regenerated counterfeiter mock, and updated tests accordingly.
+container: agent-031-spec-006-git-serialization
+dark-factory-version: v0.94.1-dirty
 created: "2026-04-04T00:00:00Z"
 queued: "2026-04-04T12:18:47Z"
+started: "2026-04-04T12:25:17Z"
+completed: "2026-04-04T12:42:14Z"
 ---
 
 <summary>
