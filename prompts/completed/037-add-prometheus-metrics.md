@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added Prometheus counters to task/controller and task/executor via package-level promauto vars, instrumented sync_loop, result_writer, git_client, and task_event_handler, with Ginkgo tests verifying all metrics are registered and pre-initialized.
+container: agent-037-add-prometheus-metrics
+dark-factory-version: v0.95.0
 created: "2026-04-04T20:19:27Z"
 queued: "2026-04-04T20:19:27Z"
+started: "2026-04-04T20:34:33Z"
+completed: "2026-04-04T20:47:36Z"
 ---
 
 <summary>
