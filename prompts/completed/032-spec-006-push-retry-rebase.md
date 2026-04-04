@@ -1,11 +1,13 @@
 ---
-status: executing
+status: completed
 spec: [006-result-writer-conflict-resolution]
+summary: Added pushWithRetry, conflictedFiles, and abortRebase to gitClient with fetch+rebase cycle on push failure; added Ginkgo tests for clean rebase and conflict scenarios
 container: agent-032-spec-006-push-retry-rebase
 dark-factory-version: v0.94.1-dirty
 created: "2026-04-04T00:00:00Z"
 queued: "2026-04-04T12:18:51Z"
 started: "2026-04-04T12:42:17Z"
+completed: "2026-04-04T12:53:03Z"
 ---
 
 <summary>
