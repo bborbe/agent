@@ -167,5 +167,120 @@ var _ = Describe("GitClient", func() {
 			err := badClient.CommitAndPush(ctx, "should fail")
 			Expect(err).NotTo(BeNil())
 		})
+
+		Context("when push fails due to remote advancing", func() {
+			var secondLocalPath string
+
+			BeforeEach(func() {
+				secondLocalPath = filepath.Join(os.TempDir(), "gitclient-local-second")
+				Expect(os.RemoveAll(secondLocalPath)).To(Succeed())
+
+				// Clone a second local copy and push a commit to advance the remote
+				secondClient := gitclient.NewGitClient(remoteDir, secondLocalPath, branch)
+				err := secondClient.EnsureCloned(ctx)
+				Expect(err).To(BeNil())
+				for _, args := range [][]string{
+					{"git", "-C", secondLocalPath, "config", "user.email", "test2@test.com"},
+					{"git", "-C", secondLocalPath, "config", "user.name", "Test2"},
+				} {
+					// #nosec G204 -- test helper: commands are hardcoded test setup git invocations
+					out, identErr := exec.Command(args[0], args[1:]...).CombinedOutput()
+					Expect(identErr).To(BeNil(), "cmd %v failed: %s", args, string(out))
+				}
+			})
+
+			AfterEach(func() {
+				Expect(os.RemoveAll(secondLocalPath)).To(Succeed())
+			})
+
+			It("rebases and retries push on clean rebase", func() {
+				// Advance remote: second clone writes a different file and pushes
+				remoteFile := filepath.Join(secondLocalPath, "remote.md")
+				Expect(os.WriteFile(remoteFile, []byte("remote change"), 0600)).To(Succeed())
+				for _, args := range [][]string{
+					{"git", "-C", secondLocalPath, "add", "-A"},
+					{"git", "-C", secondLocalPath, "commit", "-m", "remote advance"},
+					{"git", "-C", secondLocalPath, "push"},
+				} {
+					// #nosec G204 -- test helper: commands are hardcoded test setup git invocations
+					out, cmdErr := exec.Command(args[0], args[1:]...).CombinedOutput()
+					Expect(cmdErr).To(BeNil(), "cmd %v failed: %s", args, string(out))
+				}
+
+				// Now write a different file in the first local clone and commit+push
+				localFile := filepath.Join(localPath, "local.md")
+				Expect(os.WriteFile(localFile, []byte("local change"), 0600)).To(Succeed())
+
+				err := client.CommitAndPush(ctx, "[test] local change")
+				Expect(err).To(BeNil())
+
+				// Verify both commits are on the remote
+				// #nosec G204 -- test helper: command is hardcoded test verification git invocation
+				out, err := exec.Command("git", "-C", remoteDir, "log", "--oneline").
+					CombinedOutput()
+				Expect(err).To(BeNil())
+				Expect(string(out)).To(ContainSubstring("remote advance"))
+				Expect(string(out)).To(ContainSubstring("[test] local change"))
+			})
+
+			It(
+				"returns a conflict error and leaves working directory clean when rebase conflicts",
+				func() {
+					// Advance remote: second clone writes to the same file with conflicting content
+					conflictFile := filepath.Join(secondLocalPath, "conflict.md")
+					Expect(
+						os.WriteFile(conflictFile, []byte("remote version\n"), 0600),
+					).To(Succeed())
+					for _, args := range [][]string{
+						{"git", "-C", secondLocalPath, "add", "-A"},
+						{"git", "-C", secondLocalPath, "commit", "-m", "remote conflict base"},
+						{"git", "-C", secondLocalPath, "push"},
+					} {
+						// #nosec G204 -- test helper: commands are hardcoded test setup git invocations
+						out, cmdErr := exec.Command(args[0], args[1:]...).CombinedOutput()
+						Expect(cmdErr).To(BeNil(), "cmd %v failed: %s", args, string(out))
+					}
+
+					// Pull in the remote base to the first local so it has the file
+					// #nosec G204 -- test helper: command is hardcoded test setup git invocation
+					out, pullErr := exec.Command("git", "-C", localPath, "pull", "--rebase").
+						CombinedOutput()
+					Expect(pullErr).To(BeNil(), "pull failed: %s", string(out))
+
+					// Both clones now modify the same file with conflicting content
+					// Second clone advances remote with a new version
+					Expect(
+						os.WriteFile(conflictFile, []byte("remote line A\n"), 0600),
+					).To(Succeed())
+					for _, args := range [][]string{
+						{"git", "-C", secondLocalPath, "add", "-A"},
+						{"git", "-C", secondLocalPath, "commit", "-m", "remote line A"},
+						{"git", "-C", secondLocalPath, "push"},
+					} {
+						// #nosec G204 -- test helper: commands are hardcoded test setup git invocations
+						out, cmdErr := exec.Command(args[0], args[1:]...).CombinedOutput()
+						Expect(cmdErr).To(BeNil(), "cmd %v failed: %s", args, string(out))
+					}
+
+					// First local also modifies same file — this will conflict on rebase
+					localConflictFile := filepath.Join(localPath, "conflict.md")
+					Expect(
+						os.WriteFile(localConflictFile, []byte("local line B\n"), 0600),
+					).To(Succeed())
+
+					err := client.CommitAndPush(ctx, "[test] local conflict")
+					Expect(err).NotTo(BeNil())
+					Expect(err.Error()).To(ContainSubstring("merge conflicts"))
+
+					// Working directory must be clean — no rebase in progress
+					// #nosec G204 -- test helper: command is hardcoded test verification git invocation
+					rebaseDir := filepath.Join(localPath, ".git", "rebase-merge")
+					_, statErr := os.Stat(rebaseDir)
+					Expect(
+						os.IsNotExist(statErr),
+					).To(BeTrue(), "rebase-merge dir should not exist after abort")
+				},
+			)
+		})
 	})
 })

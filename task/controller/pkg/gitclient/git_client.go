@@ -9,9 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/bborbe/errors"
+	"github.com/golang/glog"
 )
 
 //counterfeiter:generate -o ../../mocks/git_client.go --fake-name FakeGitClient . GitClient
@@ -104,22 +106,112 @@ func (g *gitClient) CommitAndPush(ctx context.Context, message string) error {
 }
 
 func (g *gitClient) commitAndPush(ctx context.Context, message string) error {
-	// #nosec G204 -- binary is hardcoded "git", localPath and message are from trusted internal config
+	// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
 	addCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "add", "-A")
 	if out, err := addCmd.CombinedOutput(); err != nil {
 		return errors.Wrapf(ctx, err, "git add failed: %s", string(out))
 	}
-	// #nosec G204 -- binary is hardcoded "git", localPath and message are from trusted internal config
+	// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
 	commitCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "commit", "-m", message)
 	if out, err := commitCmd.CombinedOutput(); err != nil {
 		return errors.Wrapf(ctx, err, "git commit failed: %s", string(out))
 	}
-	// #nosec G204 -- binary is hardcoded "git", localPath is from trusted internal config
-	pushCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "push")
-	if out, err := pushCmd.CombinedOutput(); err != nil {
-		return errors.Wrapf(ctx, err, "git push failed: %s", string(out))
+	if err := g.pushWithRetry(ctx); err != nil {
+		return errors.Wrapf(ctx, err, "push failed")
 	}
 	return nil
+}
+
+// pushWithRetry attempts git push. On failure, fetches and rebases.
+// If rebase is clean, retries push once. If conflicts are detected, aborts and returns an error.
+func (g *gitClient) pushWithRetry(ctx context.Context) error {
+	// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
+	pushCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "push")
+	pushOut, pushErr := pushCmd.CombinedOutput()
+	if pushErr == nil {
+		return nil // fast path: push succeeded
+	}
+	glog.V(2).Infof("push failed (%v: %s), attempting fetch+rebase", pushErr, string(pushOut))
+
+	// Fetch remote changes
+	// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
+	fetchCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "fetch", "origin")
+	if out, err := fetchCmd.CombinedOutput(); err != nil {
+		return errors.Wrapf(ctx, err, "git fetch failed: %s", string(out))
+	}
+
+	// Rebase onto remote
+	// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
+	rebaseCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "rebase", "origin/"+g.branch)
+	rebaseOut, rebaseErr := rebaseCmd.CombinedOutput()
+
+	// Check for conflict markers regardless of rebase exit code
+	conflicted, conflictErr := g.conflictedFiles(ctx)
+	if conflictErr != nil {
+		// Can't determine state — abort to be safe
+		g.abortRebase(ctx)
+		return errors.Wrapf(ctx, conflictErr, "check for conflicts after rebase")
+	}
+	if len(conflicted) > 0 {
+		g.abortRebase(ctx)
+		return errors.Errorf(
+			ctx,
+			"rebase produced merge conflicts in %d file(s): %v",
+			len(conflicted),
+			conflicted,
+		)
+	}
+	if rebaseErr != nil {
+		// Rebase failed but no conflict markers — some other error
+		return errors.Wrapf(ctx, rebaseErr, "git rebase failed: %s", string(rebaseOut))
+	}
+
+	glog.V(2).Infof("rebase clean, retrying push")
+	// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
+	retryCmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "push")
+	if out, err := retryCmd.CombinedOutput(); err != nil {
+		return errors.Wrapf(ctx, err, "push retry failed: %s", string(out))
+	}
+	return nil
+}
+
+// conflictedFiles returns the list of files with unresolved conflict markers.
+// Uses `git diff --name-only --diff-filter=U` which lists unmerged (conflicted) paths.
+func (g *gitClient) conflictedFiles(ctx context.Context) ([]string, error) {
+	// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
+	cmd := exec.CommandContext(
+		ctx,
+		"git",
+		"-C",
+		g.localPath,
+		"diff",
+		"--name-only",
+		"--diff-filter=U",
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, errors.Wrapf(
+			ctx,
+			err,
+			"git diff --name-only --diff-filter=U failed: %s",
+			string(out),
+		)
+	}
+	output := strings.TrimSpace(string(out))
+	if output == "" {
+		return nil, nil
+	}
+	return strings.Split(output, "\n"), nil
+}
+
+// abortRebase runs `git rebase --abort` to restore the working directory to a clean state.
+// Errors are logged but not returned — this is a best-effort cleanup.
+func (g *gitClient) abortRebase(ctx context.Context) {
+	// #nosec G204 -- binary is hardcoded "git", args from trusted internal config
+	cmd := exec.CommandContext(ctx, "git", "-C", g.localPath, "rebase", "--abort")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		glog.Warningf("git rebase --abort failed: %v: %s", err, string(out))
+	}
 }
 
 func (g *gitClient) AtomicWriteAndCommitPush(
