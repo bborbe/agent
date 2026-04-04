@@ -45,7 +45,9 @@ type resultWriter struct {
 }
 
 func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
+	glog.V(2).Infof("WriteResult: starting for task %s", req.TaskIdentifier)
 	taskDirPath := filepath.Join(r.gitClient.Path(), r.taskDir)
+	glog.V(3).Infof("WriteResult: scanning taskDir=%s", taskDirPath)
 	fsys := os.DirFS(taskDirPath)
 
 	var matchedAbsPath string
@@ -55,20 +57,25 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 		}
 		content, readErr := fs.ReadFile(fsys, path)
 		if readErr != nil {
+			glog.V(3).Infof("WriteResult: skip %s (read error: %v)", path, readErr)
 			return nil
 		}
 		frontmatter, fmErr := extractFrontmatter(ctx, content)
 		if fmErr != nil {
+			glog.V(3).Infof("WriteResult: skip %s (frontmatter error: %v)", path, fmErr)
 			return nil
 		}
 		var fm struct {
 			TaskIdentifier string `yaml:"task_identifier"`
 		}
 		if umErr := yaml.Unmarshal([]byte(frontmatter), &fm); umErr != nil {
+			glog.V(3).Infof("WriteResult: skip %s (unmarshal error: %v)", path, umErr)
 			return nil
 		}
+		glog.V(3).Infof("WriteResult: file %s has task_identifier=%s", path, fm.TaskIdentifier)
 		if lib.TaskIdentifier(fm.TaskIdentifier) == req.TaskIdentifier {
 			matchedAbsPath = filepath.Join(taskDirPath, path)
+			glog.V(2).Infof("WriteResult: matched file %s for task %s", matchedAbsPath, req.TaskIdentifier)
 		}
 		return nil
 	}); err != nil {
@@ -80,7 +87,7 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 		return nil
 	}
 
-	marshaledFrontmatter, err := yaml.Marshal(map[string]interface{}(req.Frontmatter))
+	marshaledFrontmatter, err := yaml.Marshal(map[string]any(req.Frontmatter))
 	if err != nil {
 		return errors.Wrapf(ctx, err, "marshal frontmatter failed")
 	}
@@ -88,14 +95,17 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 	newContent := []byte(
 		"---\n" + string(marshaledFrontmatter) + "---\n" + sanitizeContent(string(req.Content)),
 	)
+	glog.V(2).Infof("WriteResult: writing %d bytes to %s", len(newContent), matchedAbsPath)
 	if writeErr := os.WriteFile(matchedAbsPath, newContent, 0600); writeErr != nil {
 		return errors.Wrapf(ctx, writeErr, "write file failed")
 	}
 
+	glog.V(2).Infof("WriteResult: committing and pushing for task %s", req.TaskIdentifier)
 	if commitErr := r.gitClient.CommitAndPush(ctx, fmt.Sprintf("[agent-task-controller] write result for task %s", req.TaskIdentifier)); commitErr != nil {
 		return errors.Wrapf(ctx, commitErr, "commit and push failed")
 	}
 
+	glog.V(2).Infof("WriteResult: completed successfully for task %s", req.TaskIdentifier)
 	return nil
 }
 
@@ -121,9 +131,9 @@ func extractFrontmatter(ctx context.Context, content []byte) (string, error) {
 	} else if strings.HasPrefix(rest, "\n") {
 		rest = rest[1:]
 	}
-	idx := strings.Index(rest, "\n---")
-	if idx == -1 {
+	before, _, found := strings.Cut(rest, "\n---")
+	if !found {
 		return "", errors.Errorf(ctx, "frontmatter not closed")
 	}
-	return rest[:idx], nil
+	return before, nil
 }

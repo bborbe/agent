@@ -6,6 +6,8 @@ Polls an Obsidian vault git repository on a configurable interval, scans the `24
 
 Dev:
 https://dev.quant.benjamin-borbe.de/admin/agent-task-controller/setloglevel/3
+https://dev.quant.benjamin-borbe.de/admin/agent-task-controller/trigger
 
 Prod:
 https://prod.quant.benjamin-borbe.de/admin/agent-task-controller/setloglevel/3
+https://prod.quant.benjamin-borbe.de/admin/agent-task-controller/trigger

@@ -11,6 +11,7 @@ import (
 	"github.com/bborbe/cqrs/cdb"
 	"github.com/bborbe/errors"
 	libkv "github.com/bborbe/kv"
+	"github.com/golang/glog"
 
 	lib "github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/task/controller/pkg/result"
@@ -28,6 +29,7 @@ func NewTaskResultExecutor(writer result.ResultWriter) cdb.CommandObjectExecutor
 		func(ctx context.Context, tx libkv.Tx, commandObject cdb.CommandObject) (*base.EventID, base.Event, error) {
 			var req lib.Task
 			if err := commandObject.Command.Data.MarshalInto(ctx, &req); err != nil {
+				glog.Warningf("task result executor: MarshalInto failed: %v", err)
 				return nil, nil, errors.Wrapf(
 					ctx,
 					cdb.ErrCommandObjectSkipped,
@@ -35,7 +37,14 @@ func NewTaskResultExecutor(writer result.ResultWriter) cdb.CommandObjectExecutor
 					err,
 				)
 			}
+			glog.V(2).
+				Infof("task result executor: deserialized task %s (content length=%d, frontmatter keys=%d)", req.TaskIdentifier, len(req.Content), len(req.Frontmatter))
 			if err := req.Validate(ctx); err != nil {
+				glog.Warningf(
+					"task result executor: Validate failed for task %s: %v",
+					req.TaskIdentifier,
+					err,
+				)
 				return nil, nil, errors.Wrapf(
 					ctx,
 					cdb.ErrCommandObjectSkipped,
