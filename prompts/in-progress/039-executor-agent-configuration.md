@@ -1,24 +1,27 @@
 ---
-status: inbox
+status: executing
+container: agent-039-executor-agent-configuration
+dark-factory-version: v0.108.0-dirty
 created: "2026-04-11T10:39:36Z"
+queued: "2026-04-11T10:56:16Z"
+started: "2026-04-11T10:56:17Z"
 ---
 
 <summary>
-- Replace `assigneeImages map[string]string` with typed `AgentConfigurations` slice
-- Each `AgentConfiguration` holds assignee name, image base, and per-agent env vars
-- JobSpawner merges shared env (TASK_CONTENT, TASK_ID, KAFKA_BROKERS, BRANCH) with per-agent env
-- Removes hardcoded `geminiAPIKey` from spawner — it becomes a per-agent env var
-- Backtest agent gets GEMINI_API_KEY, trade-analysis agent gets ANTHROPIC_API_KEY
-- New K8s secret entry for ANTHROPIC_API_KEY
-- No interface changes to JobSpawner
+- Each agent type gets its own configuration with image and environment variables
+- Agent configurations replace the flat assignee-to-image mapping
+- Per-agent secrets replace the shared API key passed to all agents
+- Backtest agent receives only the Gemini key, trade-analysis agent receives only the Anthropic key
+- New Kubernetes secret entry for the Anthropic API key
+- Shared environment variables (task content, Kafka, branch) remain in the job spawner
+- Lookup by assignee name routes tasks to the correct agent configuration
+- Image tagging with branch name preserved for dev/prod separation
 </summary>
 
 <objective>
-Replace the flat `assigneeImages map[string]string` with a typed `AgentConfigurations`
-slice so each agent can have its own environment variables (secrets, config).
-Currently `geminiAPIKey` is hardcoded in the spawner and passed to ALL agents —
-trade-analysis needs ANTHROPIC_API_KEY instead. This refactor enables per-agent
-secrets while keeping the same spawner interface.
+Enable per-agent environment variables so each agent type receives only the API keys
+it needs, instead of sharing a single key across all agents. The executor resolves
+assignee to a typed configuration (image + env vars) rather than a flat image string.
 </objective>
 
 <context>
@@ -127,16 +130,28 @@ Important facts:
    AnthropicAPIKey string `required:"false" arg:"anthropic-api-key" env:"ANTHROPIC_API_KEY" usage:"Anthropic API key for Claude-based agents" display:"length"`
    ```
 
-   c. In `Run()`, replace the `taggedImages` construction with runtime env injection + tagging:
+   c. In `Run()`, replace the `taggedImages` construction with runtime env injection + tagging.
+   **Important:** Do NOT mutate `agentConfigs` directly — its `Env` maps are shared. Build new configs with fresh maps:
    ```go
-   // Inject runtime secrets into agent configs
-   configs := agentConfigs
-   for i := range configs {
-       if _, ok := configs[i].Env["GEMINI_API_KEY"]; ok {
-           configs[i].Env["GEMINI_API_KEY"] = a.GeminiAPIKey
+   // Build configs with runtime secrets injected (do not mutate package-level agentConfigs)
+   secretMap := map[string]string{
+       "GEMINI_API_KEY":    a.GeminiAPIKey,
+       "ANTHROPIC_API_KEY": a.AnthropicAPIKey,
+   }
+   configs := make(pkg.AgentConfigurations, len(agentConfigs))
+   for i, ac := range agentConfigs {
+       env := make(map[string]string, len(ac.Env))
+       for k, v := range ac.Env {
+           if secret, ok := secretMap[k]; ok && v == "" {
+               env[k] = secret
+           } else {
+               env[k] = v
+           }
        }
-       if _, ok := configs[i].Env["ANTHROPIC_API_KEY"]; ok {
-           configs[i].Env["ANTHROPIC_API_KEY"] = a.AnthropicAPIKey
+       configs[i] = pkg.AgentConfiguration{
+           Assignee: ac.Assignee,
+           Image:    ac.Image,
+           Env:      env,
        }
    }
    taggedConfigs := configs.TaggedConfigurations(string(a.Branch))
@@ -251,9 +266,9 @@ Important facts:
 
 10. **Add ANTHROPIC_API_KEY to K8s secrets and deployment**
 
-    a. In `task/executor/k8s/agent-task-executor-secret.yaml`, add:
+    a. In `task/executor/k8s/agent-task-executor-secret.yaml`, add (note: `teamvaultPassword` not `teamvaultUrl`, matching the existing `gemini-api-key` pattern):
     ```yaml
-    anthropic-api-key: '{{ "ANTHROPIC_API_KEY" | env | teamvaultUrl | base64 }}'
+    anthropic-api-key: '{{ "ANTHROPIC_API_KEY_KEY" | env | teamvaultPassword | base64 }}'
     ```
 
     b. In `task/executor/k8s/agent-task-executor-deploy.yaml`, add env var:
@@ -265,8 +280,8 @@ Important facts:
           name: agent-task-executor
     ```
 
-    c. Add `export ANTHROPIC_API_KEY=PLACEHOLDER` to both `dev.env` and `prod.env`.
-    The actual teamvault key will be configured separately — use PLACEHOLDER for now.
+    c. Add `export ANTHROPIC_API_KEY_KEY=PLACEHOLDER` to both `dev.env` and `prod.env` (note: `_KEY` suffix matches the existing pattern, e.g. `GEMINI_API_KEY_KEY=Qqap6L`).
+    The actual teamvault key ID will be configured separately — use PLACEHOLDER for now.
 
 </requirements>
 
