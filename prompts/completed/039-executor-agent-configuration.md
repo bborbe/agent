@@ -1,10 +1,12 @@
 ---
-status: executing
+status: completed
+summary: Replaced flat assigneeImages map with typed AgentConfigurations, enabling per-agent environment variables (GEMINI_API_KEY for backtest-agent, ANTHROPIC_API_KEY for trade-analysis-agent), updated spawner/handler/factory/main accordingly, regenerated mocks, and added K8s secret/deployment entries for ANTHROPIC_API_KEY.
 container: agent-039-executor-agent-configuration
 dark-factory-version: v0.108.0-dirty
 created: "2026-04-11T10:39:36Z"
 queued: "2026-04-11T10:56:16Z"
 started: "2026-04-11T10:56:17Z"
+completed: "2026-04-11T11:02:23Z"
 ---
 
 <summary>
