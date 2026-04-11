@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.31.0
+
+- feat: Validate task_identifier in vault scanner — non-UUID and duplicate identifiers are automatically replaced with generated UUIDs; valid unique UUIDs are preserved unchanged
+
 ## v0.30.0
 
 - feat: Add optional PVC volume mount to AgentConfiguration (VolumeClaim, VolumeMountPath fields); SpawnJob mounts the PVC into agent containers when configured, returns error if VolumeMountPath is missing

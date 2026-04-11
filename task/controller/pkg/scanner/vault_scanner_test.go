@@ -95,7 +95,7 @@ var _ = Describe("VaultScanner", func() {
 
 	Describe("processFile edge cases", func() {
 		It("processes file with duplicate task_identifier (last wins)", func() {
-			content := "---\ntask_identifier: first-uuid\nstatus: todo\nassignee: claude\ntask_identifier: real-uuid\n---\n# Dup task"
+			content := "---\ntask_identifier: 11111111-1111-4111-8111-111111111121\nstatus: todo\nassignee: claude\ntask_identifier: 22222222-2222-4222-8222-222222222221\n---\n# Dup task"
 			absPath := filepath.Join(tmpDir, taskDir, "dup-key.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
@@ -103,11 +103,13 @@ var _ = Describe("VaultScanner", func() {
 			var result ScanResult
 			Expect(results).To(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
-			Expect(string(result.Changed[0].TaskIdentifier)).To(Equal("real-uuid"))
+			Expect(
+				string(result.Changed[0].TaskIdentifier),
+			).To(Equal("22222222-2222-4222-8222-222222222221"))
 		})
 
 		It("passes through file with non-empty unknown status", func() {
-			content := "---\ntask_identifier: bad-status-uuid\nstatus: definitely_invalid_status\nassignee: claude\n---\n"
+			content := "---\ntask_identifier: 55555555-5555-4555-8555-555555555555\nstatus: definitely_invalid_status\nassignee: claude\n---\n"
 			absPath := filepath.Join(tmpDir, taskDir, "bad-status.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
@@ -121,7 +123,7 @@ var _ = Describe("VaultScanner", func() {
 		})
 
 		It("handles CRLF line endings in full cycle", func() {
-			content := "---\r\ntask_identifier: crlf-uuid\r\nstatus: todo\r\nassignee: claude\r\n---\r\n# Task"
+			content := "---\r\ntask_identifier: 66666666-6666-4666-8666-666666666666\r\nstatus: todo\r\nassignee: claude\r\n---\r\n# Task"
 			absPath := filepath.Join(tmpDir, taskDir, "crlf-cycle.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
@@ -366,6 +368,74 @@ var _ = Describe("VaultScanner", func() {
 			Expect(
 				string(second.Changed[0].TaskIdentifier),
 			).To(MatchRegexp(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`))
+		})
+
+		It("non-UUID task_identifier is replaced with generated UUID", func() {
+			content := "---\ntask_identifier: my-custom-id\nstatus: todo\nassignee: claude\n---\n# Task with non-UUID id"
+			absPath := filepath.Join(tmpDir, taskDir, "non-uuid-task.md")
+			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+
+			// First cycle: replaces non-UUID id, writes file, no task published
+			s.runCycle(ctx, results)
+			var first ScanResult
+			Expect(results).To(Receive(&first))
+			Expect(first.Changed).To(BeEmpty())
+
+			// File on disk now contains a valid UUID
+			written, err := os.ReadFile(absPath) // #nosec G304 -- test-only path
+			Expect(err).To(BeNil())
+			Expect(string(written)).To(ContainSubstring("task_identifier:"))
+			Expect(string(written)).NotTo(ContainSubstring("my-custom-id"))
+
+			// Second cycle: publishes with generated UUID
+			s.runCycle(ctx, results)
+			var second ScanResult
+			Expect(results).To(Receive(&second))
+			Expect(second.Changed).To(HaveLen(1))
+			Expect(
+				string(second.Changed[0].TaskIdentifier),
+			).To(MatchRegexp(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`))
+		})
+
+		It("duplicate task_identifier across files is replaced with fresh UUID", func() {
+			sharedUUID := "77777777-7777-4777-8777-777777777777"
+			content1 := "---\ntask_identifier: " + sharedUUID + "\nstatus: todo\nassignee: claude\n---\n# First file"
+			content2 := "---\ntask_identifier: " + sharedUUID + "\nstatus: todo\nassignee: claude\n---\n# Second file (duplicate)"
+			absPath1 := filepath.Join(tmpDir, taskDir, "dup-first.md")
+			absPath2 := filepath.Join(tmpDir, taskDir, "dup-second.md")
+			Expect(os.WriteFile(absPath1, []byte(content1), 0600)).To(Succeed())
+			Expect(os.WriteFile(absPath2, []byte(content2), 0600)).To(Succeed())
+
+			// First cycle: first-seen keeps UUID, second gets replaced
+			s.runCycle(ctx, results)
+			var result ScanResult
+			Expect(results).To(Receive(&result))
+			// One file published (the first-seen), one replaced (the duplicate)
+			Expect(result.Changed).To(HaveLen(1))
+			Expect(string(result.Changed[0].TaskIdentifier)).To(Equal(sharedUUID))
+
+			// Replaced file now has a different UUID on disk
+			written, err := os.ReadFile(absPath2) // #nosec G304 -- test-only path
+			Expect(err).To(BeNil())
+			Expect(string(written)).NotTo(ContainSubstring(sharedUUID))
+		})
+
+		It("valid unique UUID task_identifier is preserved unchanged", func() {
+			validUUID := "88888888-8888-4888-8888-888888888888"
+			content := "---\ntask_identifier: " + validUUID + "\nstatus: todo\nassignee: claude\n---\n# Task with valid UUID"
+			absPath := filepath.Join(tmpDir, taskDir, "valid-uuid-task.md")
+			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+
+			s.runCycle(ctx, results)
+			var result ScanResult
+			Expect(results).To(Receive(&result))
+			Expect(result.Changed).To(HaveLen(1))
+			Expect(string(result.Changed[0].TaskIdentifier)).To(Equal(validUUID))
+
+			// File is unchanged on disk (not rewritten)
+			onDisk, err := os.ReadFile(absPath) // #nosec G304 -- test-only path
+			Expect(err).To(BeNil())
+			Expect(string(onDisk)).To(Equal(content))
 		})
 
 		It("CommitAndPush failure suppresses ScanResult", func() {

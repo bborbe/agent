@@ -175,6 +175,14 @@ func (v *vaultScanner) processFile(
 	if taskID == "" {
 		return v.injectAndStore(content, absPath, relPath)
 	}
+	if !isValidUUID(taskID) {
+		glog.Warningf("replacing non-UUID task_identifier %q in %s", taskID, relPath)
+		return v.injectAndStore(removeTaskIdentifier(content), absPath, relPath)
+	}
+	if !v.isIdentifierUnique(taskID, relPath) {
+		glog.Warningf("replacing duplicate task_identifier %q in %s", taskID, relPath)
+		return v.injectAndStore(removeTaskIdentifier(content), absPath, relPath)
+	}
 	v.hashes[relPath] = fileEntry{
 		hash:           hash,
 		taskIdentifier: lib.TaskIdentifier(taskID),
@@ -192,6 +200,22 @@ func (v *vaultScanner) processFile(
 		Frontmatter:    frontmatter,
 		Content:        lib.TaskContent(body),
 	}, "", false
+}
+
+// isValidUUID returns true if s can be parsed as a valid UUID.
+func isValidUUID(s string) bool {
+	_, err := uuid.Parse(s)
+	return err == nil
+}
+
+// isIdentifierUnique returns true if no other file in v.hashes uses the same task identifier.
+func (v *vaultScanner) isIdentifierUnique(id string, relPath string) bool {
+	for path, entry := range v.hashes {
+		if path != relPath && string(entry.taskIdentifier) == id {
+			return false
+		}
+	}
+	return true
 }
 
 // injectAndStore generates a UUID, writes it into the file, and records a sentinel hash entry.
@@ -223,6 +247,22 @@ func (v *vaultScanner) collectDeleted(seen map[string]struct{}) []lib.TaskIdenti
 		}
 	}
 	return deleted
+}
+
+// removeTaskIdentifier removes any existing task_identifier line(s) from the
+// frontmatter so that injectAndStore can safely prepend a fresh value.
+func removeTaskIdentifier(content []byte) []byte {
+	s := string(content)
+	const prefix = "task_identifier:"
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		trimmed := strings.TrimRight(line, "\r")
+		if strings.HasPrefix(trimmed, prefix) {
+			continue
+		}
+		out = append(out, line)
+	}
+	return []byte(strings.Join(out, "\n"))
 }
 
 func injectTaskIdentifier(content []byte, id string) ([]byte, error) {
