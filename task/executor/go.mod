@@ -1,6 +1,6 @@
 module github.com/bborbe/agent/task/executor
 
-go 1.26.1
+go 1.26.2
 
 replace (
 	github.com/opencontainers/runtime-spec => github.com/opencontainers/runtime-spec v1.2.0

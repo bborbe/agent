@@ -1,5 +1,5 @@
 ARG DOCKER_REGISTRY=docker.quant.benjamin-borbe.de:443
-FROM ${DOCKER_REGISTRY}/golang:1.26.1 AS build
+FROM ${DOCKER_REGISTRY}/golang:1.26.2 AS build
 ARG BUILD_GIT_COMMIT=none
 ARG BUILD_DATE=unknown
 COPY . /workspace
