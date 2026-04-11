@@ -14,6 +14,12 @@ type AgentConfiguration struct {
 	// These are merged with shared env vars (TASK_CONTENT, TASK_ID, KAFKA_BROKERS, BRANCH)
 	// when spawning the K8s Job.
 	Env map[string]string
+	// VolumeClaim is the name of an existing PVC to mount into the container.
+	// Empty means no volume mount.
+	VolumeClaim string
+	// VolumeMountPath is the container path where the PVC is mounted.
+	// Required when VolumeClaim is set.
+	VolumeMountPath string
 }
 
 // AgentConfigurations is a list of agent configurations.
@@ -36,9 +42,11 @@ func (a AgentConfigurations) TaggedConfigurations(branch string) AgentConfigurat
 	result := make(AgentConfigurations, len(a))
 	for i, c := range a {
 		result[i] = AgentConfiguration{
-			Assignee: c.Assignee,
-			Image:    c.Image + ":" + branch,
-			Env:      c.Env,
+			Assignee:        c.Assignee,
+			Image:           c.Image + ":" + branch,
+			Env:             c.Env,
+			VolumeClaim:     c.VolumeClaim,
+			VolumeMountPath: c.VolumeMountPath,
 		}
 	}
 	return result

@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.30.0
+
+- feat: Add optional PVC volume mount to AgentConfiguration (VolumeClaim, VolumeMountPath fields); SpawnJob mounts the PVC into agent containers when configured, returns error if VolumeMountPath is missing
+
 ## v0.29.0
 
 - refactor: Remove `ANTHROPIC_API_KEY` plumbing from task/executor; trade-analysis-agent now authenticates via `claude /login` instead of API key env var (k8s secret entry, env var, main.go field, and PLACEHOLDER references in dev.env/prod.env all removed)

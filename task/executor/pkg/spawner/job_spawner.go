@@ -80,10 +80,15 @@ func (s *jobSpawner) SpawnJob(
 	containerBuilder.SetImage(config.Image)
 	containerBuilder.SetEnvBuilder(envBuilder)
 
+	podSpecBuilder := k8s.NewPodSpecBuilder()
+
+	if err := applyVolumeMount(ctx, config, containerBuilder, podSpecBuilder); err != nil {
+		return err
+	}
+
 	containersBuilder := k8s.NewContainersBuilder()
 	containersBuilder.SetContainerBuilders([]k8s.HasBuildContainer{containerBuilder})
 
-	podSpecBuilder := k8s.NewPodSpecBuilder()
 	podSpecBuilder.SetContainersBuilder(containersBuilder)
 	podSpecBuilder.SetRestartPolicy(corev1.RestartPolicyNever)
 	podSpecBuilder.SetImagePullSecrets([]string{"docker"})
@@ -145,6 +150,37 @@ func (s *jobSpawner) IsJobActive(
 		return true, nil
 	}
 	return false, nil
+}
+
+// applyVolumeMount configures a PVC volume mount on the container and pod spec builders
+// when config.VolumeClaim is non-empty. Returns an error if VolumeMountPath is missing.
+func applyVolumeMount(
+	ctx context.Context,
+	config pkg.AgentConfiguration,
+	containerBuilder k8s.ContainerBuilder,
+	podSpecBuilder k8s.PodSpecBuilder,
+) error {
+	if config.VolumeClaim == "" {
+		return nil
+	}
+	if config.VolumeMountPath == "" {
+		return errors.Errorf(ctx, "VolumeMountPath required when VolumeClaim is set")
+	}
+	containerBuilder.AddVolumeMounts(corev1.VolumeMount{
+		Name:      "agent-data",
+		MountPath: config.VolumeMountPath,
+	})
+	podSpecBuilder.SetVolumes([]corev1.Volume{
+		{
+			Name: "agent-data",
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: config.VolumeClaim,
+				},
+			},
+		},
+	})
+	return nil
 }
 
 // jobNameFromTask returns the K8s Job name for a task: "{assignee}-{YYYYMMDDHHMMSS}".

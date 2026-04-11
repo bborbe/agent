@@ -104,9 +104,11 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 			}
 		}
 		configs[i] = pkg.AgentConfiguration{
-			Assignee: ac.Assignee,
-			Image:    ac.Image,
-			Env:      env,
+			Assignee:        ac.Assignee,
+			Image:           ac.Image,
+			Env:             env,
+			VolumeClaim:     ac.VolumeClaim,
+			VolumeMountPath: ac.VolumeMountPath,
 		}
 	}
 	taggedConfigs := configs.TaggedConfigurations(string(a.Branch))

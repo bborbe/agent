@@ -203,6 +203,85 @@ var _ = Describe("JobSpawner", func() {
 			Expect(err).To(BeNil())
 		})
 
+		It("mounts PVC when VolumeClaim is set", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("abc-pvc"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude",
+				},
+			}
+			config := pkg.AgentConfiguration{
+				Assignee:        "claude",
+				Image:           "my-image:latest",
+				Env:             map[string]string{},
+				VolumeClaim:     "agent-claude-pvc",
+				VolumeMountPath: "/data",
+			}
+			err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+
+			job := jobs.Items[0]
+			Expect(job.Spec.Template.Spec.Volumes).To(HaveLen(1))
+			Expect(job.Spec.Template.Spec.Volumes[0].Name).To(Equal("agent-data"))
+			Expect(job.Spec.Template.Spec.Volumes[0].PersistentVolumeClaim).NotTo(BeNil())
+			Expect(
+				job.Spec.Template.Spec.Volumes[0].PersistentVolumeClaim.ClaimName,
+			).To(Equal("agent-claude-pvc"))
+
+			container := job.Spec.Template.Spec.Containers[0]
+			Expect(container.VolumeMounts).To(HaveLen(1))
+			Expect(container.VolumeMounts[0].Name).To(Equal("agent-data"))
+			Expect(container.VolumeMounts[0].MountPath).To(Equal("/data"))
+		})
+
+		It("has no volumes when VolumeClaim is empty", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("abc-no-pvc"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude",
+				},
+			}
+			config := pkg.AgentConfiguration{
+				Assignee: "claude",
+				Image:    "my-image:latest",
+				Env:      map[string]string{},
+			}
+			err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+
+			job := jobs.Items[0]
+			Expect(job.Spec.Template.Spec.Volumes).To(BeEmpty())
+			Expect(job.Spec.Template.Spec.Containers[0].VolumeMounts).To(BeEmpty())
+		})
+
+		It("returns error when VolumeClaim is set but VolumeMountPath is empty", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("abc-bad-pvc"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude",
+				},
+			}
+			config := pkg.AgentConfiguration{
+				Assignee:    "claude",
+				Image:       "my-image:latest",
+				Env:         map[string]string{},
+				VolumeClaim: "agent-claude-pvc",
+			}
+			err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).NotTo(BeNil())
+			Expect(
+				err.Error(),
+			).To(ContainSubstring("VolumeMountPath required when VolumeClaim is set"))
+		})
+
 		It("returns error on unexpected K8s error", func() {
 			fakeClient.PrependReactor(
 				"create",
