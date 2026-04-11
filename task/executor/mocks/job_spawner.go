@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/bborbe/agent/lib"
+	"github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/spawner"
 )
 
@@ -24,12 +25,12 @@ type FakeJobSpawner struct {
 		result1 bool
 		result2 error
 	}
-	SpawnJobStub        func(context.Context, lib.Task, string) error
+	SpawnJobStub        func(context.Context, lib.Task, pkg.AgentConfiguration) error
 	spawnJobMutex       sync.RWMutex
 	spawnJobArgsForCall []struct {
 		arg1 context.Context
 		arg2 lib.Task
-		arg3 string
+		arg3 pkg.AgentConfiguration
 	}
 	spawnJobReturns struct {
 		result1 error
@@ -106,13 +107,13 @@ func (fake *FakeJobSpawner) IsJobActiveReturnsOnCall(i int, result1 bool, result
 	}{result1, result2}
 }
 
-func (fake *FakeJobSpawner) SpawnJob(arg1 context.Context, arg2 lib.Task, arg3 string) error {
+func (fake *FakeJobSpawner) SpawnJob(arg1 context.Context, arg2 lib.Task, arg3 pkg.AgentConfiguration) error {
 	fake.spawnJobMutex.Lock()
 	ret, specificReturn := fake.spawnJobReturnsOnCall[len(fake.spawnJobArgsForCall)]
 	fake.spawnJobArgsForCall = append(fake.spawnJobArgsForCall, struct {
 		arg1 context.Context
 		arg2 lib.Task
-		arg3 string
+		arg3 pkg.AgentConfiguration
 	}{arg1, arg2, arg3})
 	stub := fake.SpawnJobStub
 	fakeReturns := fake.spawnJobReturns
@@ -133,13 +134,13 @@ func (fake *FakeJobSpawner) SpawnJobCallCount() int {
 	return len(fake.spawnJobArgsForCall)
 }
 
-func (fake *FakeJobSpawner) SpawnJobCalls(stub func(context.Context, lib.Task, string) error) {
+func (fake *FakeJobSpawner) SpawnJobCalls(stub func(context.Context, lib.Task, pkg.AgentConfiguration) error) {
 	fake.spawnJobMutex.Lock()
 	defer fake.spawnJobMutex.Unlock()
 	fake.SpawnJobStub = stub
 }
 
-func (fake *FakeJobSpawner) SpawnJobArgsForCall(i int) (context.Context, lib.Task, string) {
+func (fake *FakeJobSpawner) SpawnJobArgsForCall(i int) (context.Context, lib.Task, pkg.AgentConfiguration) {
 	fake.spawnJobMutex.RLock()
 	defer fake.spawnJobMutex.RUnlock()
 	argsForCall := fake.spawnJobArgsForCall[i]

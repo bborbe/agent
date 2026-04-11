@@ -24,6 +24,7 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 
 	lib "github.com/bborbe/agent/lib"
+	pkg "github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/spawner"
 )
 
@@ -50,7 +51,6 @@ var _ = Describe("JobSpawner", func() {
 			"test-ns",
 			"kafka:9092",
 			"develop",
-			"test-gemini-key",
 			currentDateTime,
 		)
 	})
@@ -64,7 +64,12 @@ var _ = Describe("JobSpawner", func() {
 				},
 				Content: lib.TaskContent("do the work"),
 			}
-			err := jobSpawner.SpawnJob(ctx, task, "my-image:latest")
+			config := pkg.AgentConfiguration{
+				Assignee: "claude",
+				Image:    "my-image:latest",
+				Env:      map[string]string{"GEMINI_API_KEY": "test-gemini-key"},
+			}
+			err := jobSpawner.SpawnJob(ctx, task, config)
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -100,6 +105,37 @@ var _ = Describe("JobSpawner", func() {
 			Expect(envMap["GEMINI_API_KEY"]).To(Equal("test-gemini-key"))
 		})
 
+		It("includes all per-agent env vars from config", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("abc-multi-env"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "trade-analysis-agent",
+				},
+			}
+			config := pkg.AgentConfiguration{
+				Assignee: "trade-analysis-agent",
+				Image:    "registry/agent-trade-analysis:dev",
+				Env: map[string]string{
+					"ANTHROPIC_API_KEY": "test-anthropic-key",
+					"EXTRA_VAR":         "extra-value",
+				},
+			}
+			err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+
+			container := jobs.Items[0].Spec.Template.Spec.Containers[0]
+			envMap := make(map[string]string)
+			for _, e := range container.Env {
+				envMap[e.Name] = e.Value
+			}
+			Expect(envMap["ANTHROPIC_API_KEY"]).To(Equal("test-anthropic-key"))
+			Expect(envMap["EXTRA_VAR"]).To(Equal("extra-value"))
+		})
+
 		It("uses assignee from frontmatter in job name", func() {
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("abcdefghijklmnop"),
@@ -107,7 +143,11 @@ var _ = Describe("JobSpawner", func() {
 					"assignee": "backtest-agent",
 				},
 			}
-			err := jobSpawner.SpawnJob(ctx, task, "img:latest")
+			err := jobSpawner.SpawnJob(
+				ctx,
+				task,
+				pkg.AgentConfiguration{Image: "img:latest", Env: map[string]string{}},
+			)
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -120,7 +160,11 @@ var _ = Describe("JobSpawner", func() {
 				TaskIdentifier: lib.TaskIdentifier("abc"),
 				Frontmatter:    lib.TaskFrontmatter{},
 			}
-			err := jobSpawner.SpawnJob(ctx, task, "img:latest")
+			err := jobSpawner.SpawnJob(
+				ctx,
+				task,
+				pkg.AgentConfiguration{Image: "img:latest", Env: map[string]string{}},
+			)
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -142,7 +186,6 @@ var _ = Describe("JobSpawner", func() {
 				"test-ns",
 				"kafka:9092",
 				"develop",
-				"test-gemini-key",
 				currentDateTime,
 			)
 
@@ -152,7 +195,11 @@ var _ = Describe("JobSpawner", func() {
 					"assignee": "claude",
 				},
 			}
-			err := jobSpawner.SpawnJob(ctx, task, "img:latest")
+			err := jobSpawner.SpawnJob(
+				ctx,
+				task,
+				pkg.AgentConfiguration{Image: "img:latest", Env: map[string]string{}},
+			)
 			Expect(err).To(BeNil())
 		})
 
@@ -167,7 +214,11 @@ var _ = Describe("JobSpawner", func() {
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("abc12345"),
 			}
-			err := jobSpawner.SpawnJob(ctx, task, "img:latest")
+			err := jobSpawner.SpawnJob(
+				ctx,
+				task,
+				pkg.AgentConfiguration{Image: "img:latest", Env: map[string]string{}},
+			)
 			Expect(err).NotTo(BeNil())
 		})
 	})
@@ -196,7 +247,6 @@ var _ = Describe("JobSpawner", func() {
 				"test-ns",
 				"kafka:9092",
 				"develop",
-				"test-key",
 				currentDateTime,
 			)
 
@@ -222,7 +272,6 @@ var _ = Describe("JobSpawner", func() {
 				"test-ns",
 				"kafka:9092",
 				"develop",
-				"test-key",
 				currentDateTime,
 			)
 
@@ -249,7 +298,6 @@ var _ = Describe("JobSpawner", func() {
 				"test-ns",
 				"kafka:9092",
 				"develop",
-				"test-key",
 				currentDateTime,
 			)
 
@@ -273,7 +321,6 @@ var _ = Describe("JobSpawner", func() {
 				"test-ns",
 				"kafka:9092",
 				"develop",
-				"test-key",
 				currentDateTime,
 			)
 

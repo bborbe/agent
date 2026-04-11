@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	lib "github.com/bborbe/agent/lib"
+	pkg "github.com/bborbe/agent/task/executor/pkg"
 )
 
 const componentLabelKey = "component"
@@ -25,7 +26,7 @@ const componentLabelKey = "component"
 
 // JobSpawner creates a K8s Job for a task.
 type JobSpawner interface {
-	SpawnJob(ctx context.Context, task lib.Task, image string) error
+	SpawnJob(ctx context.Context, task lib.Task, config pkg.AgentConfiguration) error
 	// IsJobActive returns true if an active (not completed/failed) K8s Job exists
 	// for the given task identifier. Uses the `component` label set by SpawnJob.
 	IsJobActive(ctx context.Context, taskIdentifier lib.TaskIdentifier) (bool, error)
@@ -37,7 +38,6 @@ func NewJobSpawner(
 	namespace string,
 	kafkaBrokers string,
 	branch string,
-	geminiAPIKey string,
 	currentDateTimeGetter libtime.CurrentDateTimeGetter,
 ) JobSpawner {
 	return &jobSpawner{
@@ -45,7 +45,6 @@ func NewJobSpawner(
 		namespace:             namespace,
 		kafkaBrokers:          kafkaBrokers,
 		branch:                branch,
-		geminiAPIKey:          geminiAPIKey,
 		currentDateTimeGetter: currentDateTimeGetter,
 	}
 }
@@ -55,11 +54,14 @@ type jobSpawner struct {
 	namespace             string
 	kafkaBrokers          string
 	branch                string
-	geminiAPIKey          string
 	currentDateTimeGetter libtime.CurrentDateTimeGetter
 }
 
-func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) error {
+func (s *jobSpawner) SpawnJob(
+	ctx context.Context,
+	task lib.Task,
+	config pkg.AgentConfiguration,
+) error {
 	assignee := task.Frontmatter.Assignee().String()
 	now := s.currentDateTimeGetter.Now()
 	jobName := jobNameFromTask(assignee, now)
@@ -69,11 +71,13 @@ func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) 
 	envBuilder.Add("TASK_ID", string(task.TaskIdentifier))
 	envBuilder.Add("KAFKA_BROKERS", s.kafkaBrokers)
 	envBuilder.Add("BRANCH", s.branch)
-	envBuilder.Add("GEMINI_API_KEY", s.geminiAPIKey)
+	for key, value := range config.Env {
+		envBuilder.Add(key, value)
+	}
 
 	containerBuilder := k8s.NewContainerBuilder()
 	containerBuilder.SetName(k8s.Name("agent"))
-	containerBuilder.SetImage(image)
+	containerBuilder.SetImage(config.Image)
 	containerBuilder.SetEnvBuilder(envBuilder)
 
 	containersBuilder := k8s.NewContainersBuilder()
@@ -116,7 +120,7 @@ func (s *jobSpawner) SpawnJob(ctx context.Context, task lib.Task, image string) 
 		)
 	}
 	glog.V(2).
-		Infof("created job %s for task %s with image %s", jobName, task.TaskIdentifier, image)
+		Infof("created job %s for task %s with image %s", jobName, task.TaskIdentifier, config.Image)
 	return nil
 }
 

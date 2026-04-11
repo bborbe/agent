@@ -15,6 +15,7 @@ import (
 	"github.com/golang/glog"
 
 	lib "github.com/bborbe/agent/lib"
+	pkg "github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/metrics"
 	"github.com/bborbe/agent/task/executor/pkg/spawner"
 )
@@ -37,19 +38,19 @@ type TaskEventHandler interface {
 func NewTaskEventHandler(
 	jobSpawner spawner.JobSpawner,
 	branch base.Branch,
-	assigneeImages map[string]string,
+	agentConfigs pkg.AgentConfigurations,
 ) TaskEventHandler {
 	return &taskEventHandler{
-		jobSpawner:     jobSpawner,
-		branch:         branch,
-		assigneeImages: assigneeImages,
+		jobSpawner:   jobSpawner,
+		branch:       branch,
+		agentConfigs: agentConfigs,
 	}
 }
 
 type taskEventHandler struct {
-	jobSpawner     spawner.JobSpawner
-	branch         base.Branch
-	assigneeImages map[string]string
+	jobSpawner   spawner.JobSpawner
+	branch       base.Branch
+	agentConfigs pkg.AgentConfigurations
 }
 
 func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.ConsumerMessage) error {
@@ -99,7 +100,7 @@ func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.Consu
 		return nil
 	}
 
-	image, ok := h.assigneeImages[string(task.Frontmatter.Assignee())]
+	config, ok := h.agentConfigs.FindByAssignee(string(task.Frontmatter.Assignee()))
 	if !ok {
 		glog.Warningf(
 			"skip task %s: unknown assignee %s",
@@ -121,13 +122,13 @@ func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.Consu
 		return nil
 	}
 
-	if err := h.jobSpawner.SpawnJob(ctx, task, image); err != nil {
+	if err := h.jobSpawner.SpawnJob(ctx, task, config); err != nil {
 		metrics.TaskEventsTotal.WithLabelValues("error").Inc()
 		return errors.Wrapf(ctx, err, "spawn job for task %s failed", task.TaskIdentifier)
 	}
 
 	glog.V(2).
-		Infof("spawned job for task %s (assignee=%s)", task.TaskIdentifier, task.Frontmatter.Assignee())
+		Infof("spawned job for task %s (assignee=%s image=%s)", task.TaskIdentifier, task.Frontmatter.Assignee(), config.Image)
 	metrics.TaskEventsTotal.WithLabelValues("spawned").Inc()
 	metrics.JobsSpawnedTotal.Inc()
 	return nil

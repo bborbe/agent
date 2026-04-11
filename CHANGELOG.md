@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.27.0
+
+- feat: Add per-agent AgentConfiguration type to task/executor so each agent receives only its required API keys (backtest-agent gets GEMINI_API_KEY, trade-analysis-agent gets ANTHROPIC_API_KEY) instead of sharing a single key across all agents
+
 ## v0.26.0
 
 - feat: Add stage filter to task/executor so each executor (dev/prod) only spawns jobs for tasks whose frontmatter `stage` matches its branch; tasks without `stage` default to `prod`

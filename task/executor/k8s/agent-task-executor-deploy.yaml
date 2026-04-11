@@ -58,6 +58,11 @@ spec:
                 secretKeyRef:
                   key: gemini-api-key
                   name: agent-task-executor
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: anthropic-api-key
+                  name: agent-task-executor
             - name: NAMESPACE
               valueFrom:
                 fieldRef:

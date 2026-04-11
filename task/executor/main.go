@@ -24,15 +24,29 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/factory"
 )
 
-// assigneeImages maps assignee names to container image base names (without tag).
+// agentConfigs maps assignee names to agent configurations (image + env vars).
 // The BRANCH env var is appended as image tag at runtime.
-// Add new assignees here when new agent types are onboarded.
-var assigneeImages = map[string]string{
-	"claude":         "docker.quant.benjamin-borbe.de:443/agent-claude",
-	"backtest-agent": "docker.quant.benjamin-borbe.de:443/agent-backtest",
+// Add new agents here when new agent types are onboarded.
+var agentConfigs = pkg.AgentConfigurations{
+	{
+		Assignee: "claude",
+		Image:    "docker.quant.benjamin-borbe.de:443/agent-claude",
+		Env:      map[string]string{},
+	},
+	{
+		Assignee: "backtest-agent",
+		Image:    "docker.quant.benjamin-borbe.de:443/agent-backtest",
+		Env:      map[string]string{"GEMINI_API_KEY": ""},
+	},
+	{
+		Assignee: "trade-analysis-agent",
+		Image:    "docker.quant.benjamin-borbe.de:443/agent-trade-analysis",
+		Env:      map[string]string{"ANTHROPIC_API_KEY": ""},
+	},
 }
 
 func main() {
@@ -41,13 +55,14 @@ func main() {
 }
 
 type application struct {
-	SentryDSN    string      `required:"true"  arg:"sentry-dsn"     env:"SENTRY_DSN"     usage:"SentryDSN"                                  display:"length"`
-	SentryProxy  string      `required:"false" arg:"sentry-proxy"   env:"SENTRY_PROXY"   usage:"Sentry Proxy"`
-	Listen       string      `required:"true"  arg:"listen"         env:"LISTEN"         usage:"address to listen to"`
-	KafkaBrokers string      `required:"true"  arg:"kafka-brokers"  env:"KAFKA_BROKERS"  usage:"comma-separated Kafka broker addresses"`
-	Branch       base.Branch `required:"true"  arg:"branch"         env:"BRANCH"         usage:"Kafka topic prefix branch (develop/live)"`
-	Namespace    string      `required:"true"  arg:"namespace"      env:"NAMESPACE"      usage:"K8s namespace to spawn Jobs in"`
-	GeminiAPIKey string      `required:"true"  arg:"gemini-api-key" env:"GEMINI_API_KEY" usage:"Gemini API key forwarded to spawned agents" display:"length"`
+	SentryDSN       string      `required:"true"  arg:"sentry-dsn"        env:"SENTRY_DSN"        usage:"SentryDSN"                                  display:"length"`
+	SentryProxy     string      `required:"false" arg:"sentry-proxy"      env:"SENTRY_PROXY"      usage:"Sentry Proxy"`
+	Listen          string      `required:"true"  arg:"listen"            env:"LISTEN"            usage:"address to listen to"`
+	KafkaBrokers    string      `required:"true"  arg:"kafka-brokers"     env:"KAFKA_BROKERS"     usage:"comma-separated Kafka broker addresses"`
+	Branch          base.Branch `required:"true"  arg:"branch"            env:"BRANCH"            usage:"Kafka topic prefix branch (develop/live)"`
+	Namespace       string      `required:"true"  arg:"namespace"         env:"NAMESPACE"         usage:"K8s namespace to spawn Jobs in"`
+	GeminiAPIKey    string      `required:"true"  arg:"gemini-api-key"    env:"GEMINI_API_KEY"    usage:"Gemini API key forwarded to spawned agents" display:"length"`
+	AnthropicAPIKey string      `required:"false" arg:"anthropic-api-key" env:"ANTHROPIC_API_KEY" usage:"Anthropic API key for Claude-based agents"  display:"length"`
 }
 
 func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
@@ -71,10 +86,28 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	}
 	defer saramaClient.Close()
 
-	taggedImages := make(map[string]string, len(assigneeImages))
-	for assignee, baseImage := range assigneeImages {
-		taggedImages[assignee] = baseImage + ":" + string(a.Branch)
+	// Build configs with runtime secrets injected (do not mutate package-level agentConfigs)
+	secretMap := map[string]string{
+		"GEMINI_API_KEY":    a.GeminiAPIKey,
+		"ANTHROPIC_API_KEY": a.AnthropicAPIKey,
 	}
+	configs := make(pkg.AgentConfigurations, len(agentConfigs))
+	for i, ac := range agentConfigs {
+		env := make(map[string]string, len(ac.Env))
+		for k, v := range ac.Env {
+			if secret, ok := secretMap[k]; ok && v == "" {
+				env[k] = secret
+			} else {
+				env[k] = v
+			}
+		}
+		configs[i] = pkg.AgentConfiguration{
+			Assignee: ac.Assignee,
+			Image:    ac.Image,
+			Env:      env,
+		}
+	}
+	taggedConfigs := configs.TaggedConfigurations(string(a.Branch))
 
 	currentDateTimeGetter := libtime.NewCurrentDateTime()
 	consumer := factory.CreateConsumer(
@@ -83,9 +116,8 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		kubeClient,
 		a.Namespace,
 		a.KafkaBrokers,
-		taggedImages,
+		taggedConfigs,
 		log.DefaultSamplerFactory,
-		a.GeminiAPIKey,
 		currentDateTimeGetter,
 	)
 

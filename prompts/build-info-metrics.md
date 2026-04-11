@@ -27,7 +27,8 @@ Pattern to mirror (read first):
 Key files to read before making changes (agent repo):
 - `lib/go.mod` — lib is its own Go module (`github.com/bborbe/agent/lib`). `github.com/prometheus/client_golang v1.23.2` and `github.com/bborbe/time v1.25.3` are already present as indirect deps — `go mod tidy` will promote them to direct once the new code uses them.
 - `lib/agent_task-frontmatter.go` — existing lib code style, BSD license header, `// Copyright (c) 2026 Benjamin Borbe All rights reserved.`
-- `lib/lib_suite_test.go` — the Ginkgo suite entrypoint for the lib module. New metrics tests live in `lib/metrics/metrics_suite_test.go` to run in the same module test run.
+- `lib/lib_suite_test.go` — Ginkgo suite for `package lib_test`. The new `lib/metrics/` package is a separate Go package and needs its own standalone suite file (not added to `lib_suite_test.go`).
+- `agent/lib/` has **no** `//go:generate` directives anywhere — counterfeiter's magic comment would be a silent no-op here. Tests must use the real impl directly, no mocks.
 - `task/executor/main.go` — target for field + wiring. Existing application struct already uses the `required`/`arg`/`env`/`usage`/`default` tag style.
 - `task/controller/main.go` — same pattern as executor, identical wiring expected.
 - `task/executor/Dockerfile` and `task/controller/Dockerfile` — **already** declare `ARG BUILD_GIT_COMMIT=none`, `ARG BUILD_DATE=unknown`, and `ENV BUILD_GIT_COMMIT=${BUILD_GIT_COMMIT}` / `ENV BUILD_DATE=${BUILD_DATE}`. No Dockerfile change needed.
@@ -72,7 +73,6 @@ Important facts:
        prometheus.MustRegister(buildInfo)
    }
 
-   //counterfeiter:generate -o ../mocks/build-info-metrics.go --fake-name BuildInfoMetrics . BuildInfoMetrics
    type BuildInfoMetrics interface {
        SetBuildInfo(buildDate *libtime.DateTime)
    }
@@ -91,11 +91,13 @@ Important facts:
    }
    ```
 
-   Note: the counterfeiter directive path (`../mocks/build-info-metrics.go`) writes the mock into `lib/mocks/`, matching the existing lib mocks location.
+   Do NOT add a `//counterfeiter:generate` directive — `agent/lib/` has no `//go:generate` hook anywhere in the tree, so counterfeiter would silently skip. The tests below use the real impl directly, no mock needed.
 
 2. **Create `lib/metrics/metrics_suite_test.go` and `lib/metrics/build-info-metrics_test.go`**
 
-   Suite file:
+   Each Go package needs its own Ginkgo suite entrypoint — the new `lib/metrics/` package is a **standalone** test package, independent of `lib/lib_suite_test.go`.
+
+   Suite file (`lib/metrics/metrics_suite_test.go`):
    ```go
    // Copyright (c) 2026 Benjamin Borbe All rights reserved.
    // Use of this source code is governed by a BSD-style
@@ -116,13 +118,31 @@ Important facts:
    }
    ```
 
-   Test file must cover:
+   Test file (`lib/metrics/build-info-metrics_test.go`) must cover:
    - `agent_build_info` is registered in the default Prometheus registry
-   - `SetBuildInfo(nil)` does not panic and does not set the gauge
-   - `SetBuildInfo(&validDateTime)` sets the gauge to the unix timestamp
+   - `SetBuildInfo(nil)` does not panic and leaves the gauge unchanged
+   - `SetBuildInfo(&dt)` with a non-nil `*libtime.DateTime` sets the gauge to the unix timestamp
    - Coverage target: ≥80% for the new package (trivial — the package is ~20 LOC)
 
-   Use `prometheus.DefaultGatherer.Gather()` to read back the metric value, matching the style in `task/executor/pkg/metrics/metrics_test.go`. Use `libtime.NewDateTime(time.Unix(1234567890, 0))` or equivalent constructor to build a test `*libtime.DateTime` — check the `github.com/bborbe/time` package for the actual constructor signature before writing the test.
+   Use `prometheus.DefaultGatherer.Gather()` to read back the metric value, matching the style in `task/executor/pkg/metrics/metrics_test.go`.
+
+   **Constructing a test `*libtime.DateTime`** — the real API (verified from `github.com/bborbe/time/time_date-time.go:74`):
+   ```go
+   // NewDateTime(year, month, day, hour, min, sec, nsec, loc) DateTime  ← by value, NOT pointer
+   ```
+   `libtime.DateTime` is `type DateTime stdtime.Time`, so the idiomatic test helper is a direct type conversion. Use this exact pattern:
+   ```go
+   import (
+       stdtime "time"
+       libtime "github.com/bborbe/time"
+   )
+
+   dt := libtime.DateTime(stdtime.Unix(1234567890, 0))
+   metrics.NewBuildInfoMetrics().SetBuildInfo(&dt)
+   ```
+   Do NOT use `libtime.NewDateTime(stdtime.Unix(...))` — that constructor takes eight integer/location args, not a `time.Time`, and will not compile.
+
+   The test package is `package metrics_test` and imports the production package as `"github.com/bborbe/agent/lib/metrics"`.
 
 3. **Wire build-info fields into `task/executor/main.go`**
 
@@ -132,6 +152,8 @@ Important facts:
    BuildGitCommit string             `required:"false" arg:"build-git-commit" env:"BUILD_GIT_COMMIT" usage:"Build Git commit hash"    default:"none"`
    BuildDate      *libtime.DateTime  `required:"false" arg:"build-date"       env:"BUILD_DATE"       usage:"Build timestamp (RFC3339)"`
    ```
+
+   `BuildDate` intentionally has **no `default:`** — when the env var is unset, parsing yields `nil` and `SetBuildInfo(nil)` is a safe no-op (the gauge simply stays at 0). Do not invent a default.
 
    Add import alias `libmetrics "github.com/bborbe/agent/lib/metrics"` to the executor's import block.
 

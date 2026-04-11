@@ -14,6 +14,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	lib "github.com/bborbe/agent/lib"
+	pkg "github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/handler"
 	"github.com/bborbe/agent/task/executor/pkg/spawner"
 )
@@ -26,9 +27,8 @@ func CreateConsumer(
 	kubeClient kubernetes.Interface,
 	namespace string,
 	kafkaBrokers string,
-	assigneeImages map[string]string,
+	agentConfigs pkg.AgentConfigurations,
 	logSamplerFactory log.SamplerFactory,
-	geminiAPIKey string,
 	currentDateTimeGetter libtime.CurrentDateTimeGetter,
 ) libkafka.Consumer {
 	jobSpawner := spawner.NewJobSpawner(
@@ -36,10 +36,9 @@ func CreateConsumer(
 		namespace,
 		kafkaBrokers,
 		string(branch),
-		geminiAPIKey,
 		currentDateTimeGetter,
 	)
-	taskEventHandler := handler.NewTaskEventHandler(jobSpawner, branch, assigneeImages)
+	taskEventHandler := handler.NewTaskEventHandler(jobSpawner, branch, agentConfigs)
 	topic := lib.TaskV1SchemaID.EventTopic(branch)
 	offsetManager := libkafka.NewSaramaOffsetManager(
 		saramaClient,

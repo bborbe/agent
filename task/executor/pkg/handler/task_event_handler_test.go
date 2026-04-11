@@ -20,6 +20,7 @@ import (
 
 	lib "github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/task/executor/mocks"
+	pkg "github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/handler"
 )
 
@@ -30,19 +31,19 @@ func TestHandler(t *testing.T) {
 
 var _ = Describe("TaskEventHandler", func() {
 	var (
-		ctx            context.Context
-		fakeSpawner    *mocks.FakeJobSpawner
-		assigneeImages map[string]string
-		h              handler.TaskEventHandler
+		ctx          context.Context
+		fakeSpawner  *mocks.FakeJobSpawner
+		agentConfigs pkg.AgentConfigurations
+		h            handler.TaskEventHandler
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
 		fakeSpawner = new(mocks.FakeJobSpawner)
-		assigneeImages = map[string]string{
-			"claude": "my-image:latest",
+		agentConfigs = pkg.AgentConfigurations{
+			{Assignee: "claude", Image: "my-image:latest", Env: map[string]string{}},
 		}
-		h = handler.NewTaskEventHandler(fakeSpawner, base.Branch("prod"), assigneeImages)
+		h = handler.NewTaskEventHandler(fakeSpawner, base.Branch("prod"), agentConfigs)
 	})
 
 	buildMsg := func(task lib.Task) *sarama.ConsumerMessage {
@@ -188,9 +189,9 @@ var _ = Describe("TaskEventHandler", func() {
 			err := h.ConsumeMessage(ctx, buildMsg(task))
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
-			_, spawnedTask, image := fakeSpawner.SpawnJobArgsForCall(0)
+			_, spawnedTask, config := fakeSpawner.SpawnJobArgsForCall(0)
 			Expect(string(spawnedTask.TaskIdentifier)).To(Equal("tid-8"))
-			Expect(image).To(Equal("my-image:latest"))
+			Expect(config.Image).To(Equal("my-image:latest"))
 		})
 
 		It("returns error when IsJobActive fails", func() {
@@ -289,7 +290,7 @@ var _ = Describe("TaskEventHandler", func() {
 			localHandler := handler.NewTaskEventHandler(
 				localSpawner,
 				base.Branch("dev"),
-				assigneeImages,
+				agentConfigs,
 			)
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("tid-stage-3"),
@@ -310,7 +311,7 @@ var _ = Describe("TaskEventHandler", func() {
 			localHandler := handler.NewTaskEventHandler(
 				localSpawner,
 				base.Branch("dev"),
-				assigneeImages,
+				agentConfigs,
 			)
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("tid-stage-4"),
