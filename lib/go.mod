@@ -2,14 +2,13 @@ module github.com/bborbe/agent/lib
 
 go 1.26.2
 
-replace (
-	github.com/opencontainers/runtime-spec => github.com/opencontainers/runtime-spec v1.2.0
-)
+replace github.com/opencontainers/runtime-spec => github.com/opencontainers/runtime-spec v1.2.0
 
 require (
 	github.com/bborbe/collection v1.20.7
 	github.com/bborbe/cqrs v0.2.3
 	github.com/bborbe/errors v1.5.8
+	github.com/bborbe/time v1.25.3
 	github.com/bborbe/validation v1.4.9
 	github.com/bborbe/vault-cli v0.50.0
 	github.com/golangci/golangci-lint/v2 v2.11.4
@@ -20,6 +19,8 @@ require (
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.12.1
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
+	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_model v0.6.2
 	github.com/securego/gosec/v2 v2.25.0
 	github.com/segmentio/golines v0.13.0
 	github.com/shoenig/go-modtool v0.7.1
@@ -98,7 +99,6 @@ require (
 	github.com/bborbe/parse v1.10.8 // indirect
 	github.com/bborbe/run v1.9.11 // indirect
 	github.com/bborbe/sentry v1.9.13 // indirect
-	github.com/bborbe/time v1.25.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bkielbasa/cyclop v1.2.3 // indirect
 	github.com/blizzy78/varnamelen v0.8.0 // indirect
@@ -346,8 +346,6 @@ require (
 	github.com/pkg/xattr v0.4.9 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.23.2 // indirect
-	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/quasilyte/go-ruleguard v0.4.5 // indirect
