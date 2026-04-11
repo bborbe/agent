@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 
 	"github.com/IBM/sarama"
+	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
 	"github.com/bborbe/vault-cli/pkg/domain"
 	"github.com/golang/glog"
@@ -35,16 +36,19 @@ type TaskEventHandler interface {
 // NewTaskEventHandler creates a new TaskEventHandler.
 func NewTaskEventHandler(
 	jobSpawner spawner.JobSpawner,
+	branch base.Branch,
 	assigneeImages map[string]string,
 ) TaskEventHandler {
 	return &taskEventHandler{
 		jobSpawner:     jobSpawner,
+		branch:         branch,
 		assigneeImages: assigneeImages,
 	}
 }
 
 type taskEventHandler struct {
 	jobSpawner     spawner.JobSpawner
+	branch         base.Branch
 	assigneeImages map[string]string
 }
 
@@ -76,6 +80,16 @@ func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.Consu
 	if phase == nil || !allowedPhases.Contains(*phase) {
 		glog.V(3).Infof("skip task %s with phase %v", task.TaskIdentifier, phase)
 		metrics.TaskEventsTotal.WithLabelValues("skipped_phase").Inc()
+		return nil
+	}
+
+	stage := task.Frontmatter.Stage()
+	if stage != string(h.branch) {
+		glog.V(3).Infof(
+			"skip task %s with stage %s (executor branch %s)",
+			task.TaskIdentifier, stage, h.branch,
+		)
+		metrics.TaskEventsTotal.WithLabelValues("skipped_stage").Inc()
 		return nil
 	}
 

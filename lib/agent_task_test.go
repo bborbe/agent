@@ -105,4 +105,21 @@ var _ = Describe("TaskFrontmatter", func() {
 			Expect(fm.Phase()).To(BeNil())
 		})
 	})
+
+	Describe("Stage", func() {
+		It("returns prod when stage key is absent", func() {
+			fm := lib.TaskFrontmatter{}
+			Expect(fm.Stage()).To(Equal("prod"))
+		})
+
+		It("returns prod when stage value is empty string", func() {
+			fm := lib.TaskFrontmatter{"stage": ""}
+			Expect(fm.Stage()).To(Equal("prod"))
+		})
+
+		It("returns the stage value when stage is set", func() {
+			fm := lib.TaskFrontmatter{"stage": "dev"}
+			Expect(fm.Stage()).To(Equal("dev"))
+		})
+	})
 })

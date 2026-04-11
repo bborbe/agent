@@ -31,3 +31,13 @@ func (f TaskFrontmatter) Assignee() TaskAssignee {
 	v, _ := f["assignee"].(string)
 	return TaskAssignee(v)
 }
+
+// Stage returns the execution stage from the "stage" key.
+// Returns "prod" if the key is absent or empty.
+func (f TaskFrontmatter) Stage() string {
+	v, _ := f["stage"].(string)
+	if v == "" {
+		return "prod"
+	}
+	return v
+}

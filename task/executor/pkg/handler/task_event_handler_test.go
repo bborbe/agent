@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/IBM/sarama"
+	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
 	"github.com/bborbe/vault-cli/pkg/domain"
 	. "github.com/onsi/ginkgo/v2"
@@ -41,7 +42,7 @@ var _ = Describe("TaskEventHandler", func() {
 		assigneeImages = map[string]string{
 			"claude": "my-image:latest",
 		}
-		h = handler.NewTaskEventHandler(fakeSpawner, assigneeImages)
+		h = handler.NewTaskEventHandler(fakeSpawner, base.Branch("prod"), assigneeImages)
 	})
 
 	buildMsg := func(task lib.Task) *sarama.ConsumerMessage {
@@ -250,6 +251,78 @@ var _ = Describe("TaskEventHandler", func() {
 			err := h.ConsumeMessage(ctx, buildMsg(task))
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+		})
+
+		It("spawns job when stage is absent (defaults to prod) and executor is prod", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("tid-stage-1"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseInProgress),
+					"assignee": "claude",
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+		})
+
+		It("skips task with stage=dev when executor branch is prod", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("tid-stage-2"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseInProgress),
+					"assignee": "claude",
+					"stage":    "dev",
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+		})
+
+		It("spawns job with stage=dev when executor branch is dev", func() {
+			localSpawner := new(mocks.FakeJobSpawner)
+			localSpawner.IsJobActiveReturns(false, nil)
+			localHandler := handler.NewTaskEventHandler(
+				localSpawner,
+				base.Branch("dev"),
+				assigneeImages,
+			)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("tid-stage-3"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseInProgress),
+					"assignee": "claude",
+					"stage":    "dev",
+				},
+			}
+			err := localHandler.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(localSpawner.SpawnJobCallCount()).To(Equal(1))
+		})
+
+		It("skips task with absent stage (defaults to prod) when executor branch is dev", func() {
+			localSpawner := new(mocks.FakeJobSpawner)
+			localHandler := handler.NewTaskEventHandler(
+				localSpawner,
+				base.Branch("dev"),
+				assigneeImages,
+			)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("tid-stage-4"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseInProgress),
+					"assignee": "claude",
+				},
+			}
+			err := localHandler.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(localSpawner.SpawnJobCallCount()).To(Equal(0))
 		})
 	})
 })

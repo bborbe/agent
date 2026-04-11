@@ -39,7 +39,7 @@ func CreateConsumer(
 		geminiAPIKey,
 		currentDateTimeGetter,
 	)
-	taskEventHandler := handler.NewTaskEventHandler(jobSpawner, assigneeImages)
+	taskEventHandler := handler.NewTaskEventHandler(jobSpawner, branch, assigneeImages)
 	topic := lib.TaskV1SchemaID.EventTopic(branch)
 	offsetManager := libkafka.NewSaramaOffsetManager(
 		saramaClient,
