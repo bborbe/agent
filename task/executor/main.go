@@ -46,7 +46,7 @@ var agentConfigs = pkg.AgentConfigurations{
 	{
 		Assignee: "trade-analysis-agent",
 		Image:    "docker.quant.benjamin-borbe.de:443/agent-trade-analysis",
-		Env:      map[string]string{"ANTHROPIC_API_KEY": ""},
+		Env:      map[string]string{},
 	},
 }
 
@@ -56,16 +56,15 @@ func main() {
 }
 
 type application struct {
-	SentryDSN       string            `required:"true"  arg:"sentry-dsn"        env:"SENTRY_DSN"        usage:"SentryDSN"                                  display:"length"`
-	SentryProxy     string            `required:"false" arg:"sentry-proxy"      env:"SENTRY_PROXY"      usage:"Sentry Proxy"`
-	Listen          string            `required:"true"  arg:"listen"            env:"LISTEN"            usage:"address to listen to"`
-	KafkaBrokers    string            `required:"true"  arg:"kafka-brokers"     env:"KAFKA_BROKERS"     usage:"comma-separated Kafka broker addresses"`
-	Branch          base.Branch       `required:"true"  arg:"branch"            env:"BRANCH"            usage:"Kafka topic prefix branch (develop/live)"`
-	Namespace       string            `required:"true"  arg:"namespace"         env:"NAMESPACE"         usage:"K8s namespace to spawn Jobs in"`
-	GeminiAPIKey    string            `required:"true"  arg:"gemini-api-key"    env:"GEMINI_API_KEY"    usage:"Gemini API key forwarded to spawned agents" display:"length"`
-	AnthropicAPIKey string            `required:"false" arg:"anthropic-api-key" env:"ANTHROPIC_API_KEY" usage:"Anthropic API key for Claude-based agents"  display:"length"`
-	BuildGitCommit  string            `required:"false" arg:"build-git-commit"  env:"BUILD_GIT_COMMIT"  usage:"Build Git commit hash"                                       default:"none"`
-	BuildDate       *libtime.DateTime `required:"false" arg:"build-date"        env:"BUILD_DATE"        usage:"Build timestamp (RFC3339)"`
+	SentryDSN      string            `required:"true"  arg:"sentry-dsn"       env:"SENTRY_DSN"       usage:"SentryDSN"                                  display:"length"`
+	SentryProxy    string            `required:"false" arg:"sentry-proxy"     env:"SENTRY_PROXY"     usage:"Sentry Proxy"`
+	Listen         string            `required:"true"  arg:"listen"           env:"LISTEN"           usage:"address to listen to"`
+	KafkaBrokers   string            `required:"true"  arg:"kafka-brokers"    env:"KAFKA_BROKERS"    usage:"comma-separated Kafka broker addresses"`
+	Branch         base.Branch       `required:"true"  arg:"branch"           env:"BRANCH"           usage:"Kafka topic prefix branch (develop/live)"`
+	Namespace      string            `required:"true"  arg:"namespace"        env:"NAMESPACE"        usage:"K8s namespace to spawn Jobs in"`
+	GeminiAPIKey   string            `required:"true"  arg:"gemini-api-key"   env:"GEMINI_API_KEY"   usage:"Gemini API key forwarded to spawned agents" display:"length"`
+	BuildGitCommit string            `required:"false" arg:"build-git-commit" env:"BUILD_GIT_COMMIT" usage:"Build Git commit hash"                                       default:"none"`
+	BuildDate      *libtime.DateTime `required:"false" arg:"build-date"       env:"BUILD_DATE"       usage:"Build timestamp (RFC3339)"`
 }
 
 func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
@@ -92,8 +91,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 
 	// Build configs with runtime secrets injected (do not mutate package-level agentConfigs)
 	secretMap := map[string]string{
-		"GEMINI_API_KEY":    a.GeminiAPIKey,
-		"ANTHROPIC_API_KEY": a.AnthropicAPIKey,
+		"GEMINI_API_KEY": a.GeminiAPIKey,
 	}
 	configs := make(pkg.AgentConfigurations, len(agentConfigs))
 	for i, ac := range agentConfigs {
