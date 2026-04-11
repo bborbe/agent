@@ -1,11 +1,11 @@
 ---
-status: failed
+status: completed
 container: agent-038-executor-stage-filter
 dark-factory-version: v0.108.0-dirty
 created: "2026-04-11T10:20:32Z"
 queued: "2026-04-11T10:20:32Z"
 started: "2026-04-11T10:20:34Z"
-completed: "2026-04-11T10:29:53Z"
+completed: "2026-04-11T10:39:35Z"
 lastFailReason: 'validate completion report: completion report status: partial'
 ---
 
