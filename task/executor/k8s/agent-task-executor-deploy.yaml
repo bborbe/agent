@@ -53,11 +53,6 @@ spec:
               value: '{{ "BRANCH" | env }}'
             - name: KAFKA_BROKERS
               value: '{{ "KAFKA_BROKERS" | env }}'
-            - name: GEMINI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  key: gemini-api-key
-                  name: agent-task-executor
             - name: NAMESPACE
               valueFrom:
                 fieldRef:

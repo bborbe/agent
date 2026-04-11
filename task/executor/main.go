@@ -39,14 +39,18 @@ var agentConfigs = pkg.AgentConfigurations{
 		Env:      map[string]string{},
 	},
 	{
-		Assignee: "backtest-agent",
-		Image:    "docker.quant.benjamin-borbe.de:443/agent-backtest",
-		Env:      map[string]string{"GEMINI_API_KEY": ""},
+		Assignee:   "backtest-agent",
+		Image:      "docker.quant.benjamin-borbe.de:443/agent-backtest",
+		Env:        map[string]string{},
+		SecretName: "agent-backtest",
 	},
 	{
-		Assignee: "trade-analysis-agent",
-		Image:    "docker.quant.benjamin-borbe.de:443/agent-trade-analysis",
-		Env:      map[string]string{},
+		Assignee:        "trade-analysis-agent",
+		Image:           "docker.quant.benjamin-borbe.de:443/agent-trade-analysis",
+		Env:             map[string]string{},
+		SecretName:      "agent-trade-analysis",
+		VolumeClaim:     "agent-trade-analysis",
+		VolumeMountPath: "/home/claude/.claude",
 	},
 }
 
@@ -56,14 +60,13 @@ func main() {
 }
 
 type application struct {
-	SentryDSN      string            `required:"true"  arg:"sentry-dsn"       env:"SENTRY_DSN"       usage:"SentryDSN"                                  display:"length"`
+	SentryDSN      string            `required:"true"  arg:"sentry-dsn"       env:"SENTRY_DSN"       usage:"SentryDSN"                                display:"length"`
 	SentryProxy    string            `required:"false" arg:"sentry-proxy"     env:"SENTRY_PROXY"     usage:"Sentry Proxy"`
 	Listen         string            `required:"true"  arg:"listen"           env:"LISTEN"           usage:"address to listen to"`
 	KafkaBrokers   string            `required:"true"  arg:"kafka-brokers"    env:"KAFKA_BROKERS"    usage:"comma-separated Kafka broker addresses"`
 	Branch         base.Branch       `required:"true"  arg:"branch"           env:"BRANCH"           usage:"Kafka topic prefix branch (develop/live)"`
 	Namespace      string            `required:"true"  arg:"namespace"        env:"NAMESPACE"        usage:"K8s namespace to spawn Jobs in"`
-	GeminiAPIKey   string            `required:"true"  arg:"gemini-api-key"   env:"GEMINI_API_KEY"   usage:"Gemini API key forwarded to spawned agents" display:"length"`
-	BuildGitCommit string            `required:"false" arg:"build-git-commit" env:"BUILD_GIT_COMMIT" usage:"Build Git commit hash"                                       default:"none"`
+	BuildGitCommit string            `required:"false" arg:"build-git-commit" env:"BUILD_GIT_COMMIT" usage:"Build Git commit hash"                                     default:"none"`
 	BuildDate      *libtime.DateTime `required:"false" arg:"build-date"       env:"BUILD_DATE"       usage:"Build timestamp (RFC3339)"`
 }
 
@@ -89,29 +92,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	}
 	defer saramaClient.Close()
 
-	// Build configs with runtime secrets injected (do not mutate package-level agentConfigs)
-	secretMap := map[string]string{
-		"GEMINI_API_KEY": a.GeminiAPIKey,
-	}
-	configs := make(pkg.AgentConfigurations, len(agentConfigs))
-	for i, ac := range agentConfigs {
-		env := make(map[string]string, len(ac.Env))
-		for k, v := range ac.Env {
-			if secret, ok := secretMap[k]; ok && v == "" {
-				env[k] = secret
-			} else {
-				env[k] = v
-			}
-		}
-		configs[i] = pkg.AgentConfiguration{
-			Assignee:        ac.Assignee,
-			Image:           ac.Image,
-			Env:             env,
-			VolumeClaim:     ac.VolumeClaim,
-			VolumeMountPath: ac.VolumeMountPath,
-		}
-	}
-	taggedConfigs := configs.TaggedConfigurations(string(a.Branch))
+	taggedConfigs := agentConfigs.TaggedConfigurations(string(a.Branch))
 
 	currentDateTimeGetter := libtime.NewCurrentDateTime()
 	consumer := factory.CreateConsumer(

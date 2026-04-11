@@ -282,6 +282,55 @@ var _ = Describe("JobSpawner", func() {
 			).To(ContainSubstring("VolumeMountPath required when VolumeClaim is set"))
 		})
 
+		It("mounts secret as envFrom when SecretName is set", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("abc-secret"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "backtest-agent",
+				},
+			}
+			config := pkg.AgentConfiguration{
+				Assignee:   "backtest-agent",
+				Image:      "my-image:latest",
+				Env:        map[string]string{},
+				SecretName: "agent-backtest",
+			}
+			err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+
+			container := jobs.Items[0].Spec.Template.Spec.Containers[0]
+			Expect(container.EnvFrom).To(HaveLen(1))
+			Expect(container.EnvFrom[0].SecretRef).NotTo(BeNil())
+			Expect(container.EnvFrom[0].SecretRef.Name).To(Equal("agent-backtest"))
+		})
+
+		It("has no envFrom when SecretName is empty", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("abc-no-secret"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude",
+				},
+			}
+			config := pkg.AgentConfiguration{
+				Assignee: "claude",
+				Image:    "my-image:latest",
+				Env:      map[string]string{},
+			}
+			err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+
+			container := jobs.Items[0].Spec.Template.Spec.Containers[0]
+			Expect(container.EnvFrom).To(BeEmpty())
+		})
+
 		It("returns error on unexpected K8s error", func() {
 			fakeClient.PrependReactor(
 				"create",

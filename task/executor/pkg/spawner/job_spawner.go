@@ -11,6 +11,7 @@ import (
 	k8s "github.com/bborbe/k8s"
 	libtime "github.com/bborbe/time"
 	"github.com/golang/glog"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -109,6 +110,8 @@ func (s *jobSpawner) SpawnJob(
 		return errors.Wrapf(ctx, err, "build job for task %s", task.TaskIdentifier)
 	}
 
+	applySecretEnvFrom(config, job)
+
 	_, err = s.kubeClient.BatchV1().Jobs(s.namespace).Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
@@ -181,6 +184,24 @@ func applyVolumeMount(
 		},
 	})
 	return nil
+}
+
+// applySecretEnvFrom appends an envFrom secretRef to the first container of the job
+// when config.SecretName is non-empty.
+func applySecretEnvFrom(config pkg.AgentConfiguration, job *batchv1.Job) {
+	if config.SecretName == "" {
+		return
+	}
+	job.Spec.Template.Spec.Containers[0].EnvFrom = append(
+		job.Spec.Template.Spec.Containers[0].EnvFrom,
+		corev1.EnvFromSource{
+			SecretRef: &corev1.SecretEnvSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: config.SecretName,
+				},
+			},
+		},
+	)
 }
 
 // jobNameFromTask returns the K8s Job name for a task: "{assignee}-{YYYYMMDDHHMMSS}".

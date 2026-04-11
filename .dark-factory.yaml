@@ -1,5 +1,6 @@
 pr: false
 worktree: false
+testCommand: "make test"
 validationPrompt: docs/dod.md
 autoRelease: true
 maxContainers: 5

@@ -20,6 +20,9 @@ type AgentConfiguration struct {
 	// VolumeMountPath is the container path where the PVC is mounted.
 	// Required when VolumeClaim is set.
 	VolumeMountPath string
+	// SecretName is the name of a K8s Secret to mount as envFrom on the container.
+	// Empty means no secret is mounted.
+	SecretName string
 }
 
 // AgentConfigurations is a list of agent configurations.
@@ -47,6 +50,7 @@ func (a AgentConfigurations) TaggedConfigurations(branch string) AgentConfigurat
 			Env:             c.Env,
 			VolumeClaim:     c.VolumeClaim,
 			VolumeMountPath: c.VolumeMountPath,
+			SecretName:      c.SecretName,
 		}
 	}
 	return result
