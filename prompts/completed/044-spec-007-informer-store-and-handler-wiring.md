@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [007-agent-config-crd]
+summary: Replaced hardcoded agentConfigs slice with live in-memory store fed by Kubernetes informer on AgentConfig resources, introduced AgentConfigResolver with branch tagging, implemented K8sConnector.Listen via SharedInformerFactory, and updated all wiring in main.go, factory, and tests
+container: agent-044-spec-007-informer-store-and-handler-wiring
+dark-factory-version: v0.111.2
 created: "2026-04-16T17:30:00Z"
 queued: "2026-04-16T18:00:19Z"
+started: "2026-04-16T19:05:16Z"
+completed: "2026-04-16T19:14:34Z"
 ---
 
 <summary>
