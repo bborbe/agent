@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [007-agent-config-crd]
+summary: Created three AgentConfig CRs (agent-claude, agent-backtest-agent, agent-trade-analysis) under task/executor/k8s/, extended RBAC with AgentConfig watch grants and ClusterRole/ClusterRoleBinding for CRD self-install, and added two new bullets to the v0.34.0 CHANGELOG entry.
+container: agent-045-spec-007-agentconfig-yamls-rbac-changelog
+dark-factory-version: v0.111.2
 created: "2026-04-16T17:30:00Z"
 queued: "2026-04-16T17:27:43Z"
+started: "2026-04-16T19:14:37Z"
+completed: "2026-04-16T19:17:44Z"
 ---
 
 <summary>
