@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.33.0
+
+- docs: Promote `spec.env`, `spec.secretName`, `spec.volumeClaim`, `spec.volumeMountPath` from "Future Extensions" to first-class AgentConfig CRD fields in agent-crd-specification.md; update trade-analysis example to reflect real PVC/secret wiring; align Who-Uses-the-CRD table with job-creator field usage
+
 ## v0.32.0
 
 - feat: Add SecretName field to AgentConfiguration; SpawnJob injects per-agent K8s secret as envFrom on the container when SecretName is set; backtest-agent and trade-analysis-agent configured with their respective secrets
