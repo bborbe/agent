@@ -33,17 +33,19 @@ var _ = Describe("TaskEventHandler", func() {
 	var (
 		ctx          context.Context
 		fakeSpawner  *mocks.FakeJobSpawner
-		agentConfigs pkg.AgentConfigurations
+		fakeResolver *mocks.FakeAgentConfigResolver
 		h            handler.TaskEventHandler
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
 		fakeSpawner = new(mocks.FakeJobSpawner)
-		agentConfigs = pkg.AgentConfigurations{
-			{Assignee: "claude", Image: "my-image:latest", Env: map[string]string{}},
-		}
-		h = handler.NewTaskEventHandler(fakeSpawner, base.Branch("prod"), agentConfigs)
+		fakeResolver = &mocks.FakeAgentConfigResolver{}
+		fakeResolver.ResolveReturns(
+			pkg.AgentConfiguration{Assignee: "claude", Image: "my-image:latest"},
+			nil,
+		)
+		h = handler.NewTaskEventHandler(fakeSpawner, base.Branch("prod"), fakeResolver)
 	})
 
 	buildMsg := func(task lib.Task) *sarama.ConsumerMessage {
@@ -147,6 +149,10 @@ var _ = Describe("TaskEventHandler", func() {
 		})
 
 		It("skips unknown assignee without error", func() {
+			fakeResolver.ResolveReturns(
+				pkg.AgentConfiguration{},
+				errors.Wrapf(ctx, pkg.ErrAgentConfigNotFound, "find assignee"),
+			)
 			task := lib.Task{
 				TaskIdentifier: "tid-6",
 				Frontmatter: lib.TaskFrontmatter{
@@ -157,6 +163,21 @@ var _ = Describe("TaskEventHandler", func() {
 			}
 			err := h.ConsumeMessage(ctx, buildMsg(task))
 			Expect(err).To(BeNil())
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+		})
+
+		It("returns wrapped error when resolver fails with non-NotFound", func() {
+			fakeResolver.ResolveReturns(pkg.AgentConfiguration{}, errors.Errorf(ctx, "boom"))
+			task := lib.Task{
+				TaskIdentifier: "tid-6b",
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseInProgress),
+					"assignee": "some-agent",
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).NotTo(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
 		})
 
@@ -287,10 +308,15 @@ var _ = Describe("TaskEventHandler", func() {
 		It("spawns job with stage=dev when executor branch is dev", func() {
 			localSpawner := new(mocks.FakeJobSpawner)
 			localSpawner.IsJobActiveReturns(false, nil)
+			localResolver := &mocks.FakeAgentConfigResolver{}
+			localResolver.ResolveReturns(
+				pkg.AgentConfiguration{Assignee: "claude", Image: "my-image:latest"},
+				nil,
+			)
 			localHandler := handler.NewTaskEventHandler(
 				localSpawner,
 				base.Branch("dev"),
-				agentConfigs,
+				localResolver,
 			)
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("tid-stage-3"),
@@ -308,10 +334,15 @@ var _ = Describe("TaskEventHandler", func() {
 
 		It("skips task with absent stage (defaults to prod) when executor branch is dev", func() {
 			localSpawner := new(mocks.FakeJobSpawner)
+			localResolver := &mocks.FakeAgentConfigResolver{}
+			localResolver.ResolveReturns(
+				pkg.AgentConfiguration{Assignee: "claude", Image: "my-image:latest"},
+				nil,
+			)
 			localHandler := handler.NewTaskEventHandler(
 				localSpawner,
 				base.Branch("dev"),
-				agentConfigs,
+				localResolver,
 			)
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("tid-stage-4"),

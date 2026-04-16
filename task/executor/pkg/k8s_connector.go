@@ -6,6 +6,7 @@ package pkg
 
 import (
 	"context"
+	"time"
 
 	"github.com/bborbe/errors"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -14,6 +15,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+
+	versioned "github.com/bborbe/agent/task/executor/k8s/client/clientset/versioned"
+	agentinformers "github.com/bborbe/agent/task/executor/k8s/client/informers/externalversions"
 )
 
 //counterfeiter:generate -o ../mocks/k8s_connector.go --fake-name FakeK8sConnector . K8sConnector
@@ -72,14 +76,37 @@ func (c *k8sConnector) SetupCustomResourceDefinition(ctx context.Context) error 
 	return nil
 }
 
-// Listen is not yet wired — see spec 007 prompt 2.
-// TODO(spec-007-prompt-2): wire SharedInformerFactory
+// defaultResync is the re-sync period for the shared informer factory.
+const defaultResync = 5 * time.Minute
+
+// Listen starts a Kubernetes informer for AgentConfig resources in the given namespace
+// and dispatches events to the provided handler until ctx is cancelled.
 func (c *k8sConnector) Listen(
 	ctx context.Context,
-	_ string,
-	_ cache.ResourceEventHandler,
+	namespace string,
+	handler cache.ResourceEventHandler,
 ) error {
-	return errors.New(ctx, "Listen not yet wired — see spec 007 prompt 2")
+	clientset, err := versioned.NewForConfig(c.config)
+	if err != nil {
+		return errors.Wrapf(ctx, err, "build agentconfig clientset")
+	}
+	factory := agentinformers.NewSharedInformerFactoryWithOptions(
+		clientset,
+		defaultResync,
+		agentinformers.WithNamespace(namespace),
+	)
+	informer := factory.Agents().V1().AgentConfigs().Informer()
+	if _, err := informer.AddEventHandler(handler); err != nil {
+		return errors.Wrapf(ctx, err, "add event handler")
+	}
+	stopCh := make(chan struct{})
+	factory.Start(stopCh)
+	defer close(stopCh)
+	select {
+	case <-ctx.Done():
+	case <-stopCh:
+	}
+	return nil
 }
 
 func desiredCRDSpec() apiextensionsv1.CustomResourceDefinitionSpec {

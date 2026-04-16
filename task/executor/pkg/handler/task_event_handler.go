@@ -7,6 +7,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 
 	"github.com/IBM/sarama"
 	"github.com/bborbe/cqrs/base"
@@ -38,19 +39,19 @@ type TaskEventHandler interface {
 func NewTaskEventHandler(
 	jobSpawner spawner.JobSpawner,
 	branch base.Branch,
-	agentConfigs pkg.AgentConfigurations,
+	resolver pkg.AgentConfigResolver,
 ) TaskEventHandler {
 	return &taskEventHandler{
-		jobSpawner:   jobSpawner,
-		branch:       branch,
-		agentConfigs: agentConfigs,
+		jobSpawner: jobSpawner,
+		branch:     branch,
+		resolver:   resolver,
 	}
 }
 
 type taskEventHandler struct {
-	jobSpawner   spawner.JobSpawner
-	branch       base.Branch
-	agentConfigs pkg.AgentConfigurations
+	jobSpawner spawner.JobSpawner
+	branch     base.Branch
+	resolver   pkg.AgentConfigResolver
 }
 
 func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.ConsumerMessage) error {
@@ -100,14 +101,11 @@ func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.Consu
 		return nil
 	}
 
-	config, ok := h.agentConfigs.FindByAssignee(string(task.Frontmatter.Assignee()))
-	if !ok {
-		glog.Warningf(
-			"skip task %s: unknown assignee %s",
-			task.TaskIdentifier,
-			task.Frontmatter.Assignee(),
-		)
-		metrics.TaskEventsTotal.WithLabelValues("skipped_unknown_assignee").Inc()
+	config, err := h.resolveConfig(ctx, task)
+	if err != nil {
+		return err
+	}
+	if config == nil {
 		return nil
 	}
 
@@ -122,7 +120,7 @@ func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.Consu
 		return nil
 	}
 
-	if err := h.jobSpawner.SpawnJob(ctx, task, config); err != nil {
+	if err := h.jobSpawner.SpawnJob(ctx, task, *config); err != nil {
 		metrics.TaskEventsTotal.WithLabelValues("error").Inc()
 		return errors.Wrapf(ctx, err, "spawn job for task %s failed", task.TaskIdentifier)
 	}
@@ -132,4 +130,28 @@ func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.Consu
 	metrics.TaskEventsTotal.WithLabelValues("spawned").Inc()
 	metrics.JobsSpawnedTotal.Inc()
 	return nil
+}
+
+// resolveConfig looks up the agent configuration for the task's assignee.
+// Returns (nil, nil) when the task should be silently skipped (unknown assignee).
+// Returns (nil, err) for unexpected resolver failures.
+func (h *taskEventHandler) resolveConfig(
+	ctx context.Context,
+	task lib.Task,
+) (*pkg.AgentConfiguration, error) {
+	config, err := h.resolver.Resolve(ctx, string(task.Frontmatter.Assignee()))
+	if err != nil {
+		if stderrors.Is(err, pkg.ErrAgentConfigNotFound) {
+			glog.Warningf(
+				"skip task %s: unknown assignee %s",
+				task.TaskIdentifier,
+				task.Frontmatter.Assignee(),
+			)
+			metrics.TaskEventsTotal.WithLabelValues("skipped_unknown_assignee").Inc()
+			return nil, nil
+		}
+		metrics.TaskEventsTotal.WithLabelValues("error").Inc()
+		return nil, errors.Wrapf(ctx, err, "resolve agent config for task %s", task.TaskIdentifier)
+	}
+	return &config, nil
 }

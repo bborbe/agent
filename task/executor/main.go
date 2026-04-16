@@ -25,34 +25,8 @@ import (
 	"k8s.io/client-go/rest"
 
 	agentlib "github.com/bborbe/agent/lib"
-	"github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/factory"
 )
-
-// agentConfigs maps assignee names to agent configurations (image + env vars).
-// The BRANCH env var is appended as image tag at runtime.
-// Add new agents here when new agent types are onboarded.
-var agentConfigs = pkg.AgentConfigurations{
-	{
-		Assignee: "claude",
-		Image:    "docker.quant.benjamin-borbe.de:443/agent-claude",
-		Env:      map[string]string{},
-	},
-	{
-		Assignee:   "backtest-agent",
-		Image:      "docker.quant.benjamin-borbe.de:443/agent-backtest",
-		Env:        map[string]string{},
-		SecretName: "agent-backtest",
-	},
-	{
-		Assignee:        "trade-analysis-agent",
-		Image:           "docker.quant.benjamin-borbe.de:443/agent-trade-analysis",
-		Env:             map[string]string{},
-		SecretName:      "agent-trade-analysis",
-		VolumeClaim:     "agent-trade-analysis",
-		VolumeMountPath: "/home/claude/.claude",
-	},
-}
 
 func main() {
 	app := &application{}
@@ -83,6 +57,17 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		return errors.Wrapf(ctx, err, "create k8s client")
 	}
 
+	connector := factory.CreateK8sConnector(kubeConfig)
+	if err := connector.SetupCustomResourceDefinition(ctx); err != nil {
+		return errors.Wrapf(ctx, err, "setup AgentConfig CRD")
+	}
+	eventHandlerAgentConfig := factory.CreateEventHandlerAgentConfig()
+	resourceEventHandler := factory.CreateResourceEventHandlerAgentConfig(
+		ctx,
+		eventHandlerAgentConfig,
+	)
+	resolver := factory.CreateAgentConfigResolver(eventHandlerAgentConfig, a.Branch)
+
 	saramaClient, err := libkafka.CreateSaramaClient(
 		ctx,
 		libkafka.ParseBrokersFromString(a.KafkaBrokers),
@@ -92,8 +77,6 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	}
 	defer saramaClient.Close()
 
-	taggedConfigs := agentConfigs.TaggedConfigurations(string(a.Branch))
-
 	currentDateTimeGetter := libtime.NewCurrentDateTime()
 	consumer := factory.CreateConsumer(
 		saramaClient,
@@ -101,13 +84,16 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		kubeClient,
 		a.Namespace,
 		a.KafkaBrokers,
-		taggedConfigs,
+		resolver,
 		log.DefaultSamplerFactory,
 		currentDateTimeGetter,
 	)
 
 	return service.Run(
 		ctx,
+		func(ctx context.Context) error {
+			return connector.Listen(ctx, a.Namespace, resourceEventHandler)
+		},
 		func(ctx context.Context) error {
 			return consumer.Consume(ctx)
 		},
