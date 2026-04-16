@@ -23,6 +23,7 @@ require (
 	github.com/bborbe/sentry v1.9.13
 	github.com/bborbe/service v1.9.7
 	github.com/bborbe/time v1.25.6
+	github.com/bborbe/validation v1.4.9
 	github.com/bborbe/vault-cli v0.50.0
 	github.com/golang/glog v1.2.5
 	github.com/golangci/golangci-lint/v2 v2.11.4
@@ -41,8 +42,11 @@ require (
 	github.com/shoenig/go-modtool v0.7.1
 	golang.org/x/vuln v1.1.4
 	k8s.io/api v0.35.3
+	k8s.io/apiextensions-apiserver v0.35.3
 	k8s.io/apimachinery v0.35.3
 	k8s.io/client-go v0.35.3
+	k8s.io/code-generator v0.35.3
+	sigs.k8s.io/structured-merge-diff/v6 v6.3.2
 )
 
 require (
@@ -113,7 +117,6 @@ require (
 	github.com/bborbe/kv v1.19.2 // indirect
 	github.com/bborbe/math v1.3.5 // indirect
 	github.com/bborbe/parse v1.10.8 // indirect
-	github.com/bborbe/validation v1.4.9 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bkielbasa/cyclop v1.2.3 // indirect
 	github.com/blizzy78/varnamelen v0.8.0 // indirect
@@ -484,7 +487,7 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.7.0 // indirect
-	k8s.io/apiextensions-apiserver v0.35.3 // indirect
+	k8s.io/gengo/v2 v2.0.0-20250922181213-ec3ebc5fd46b // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 // indirect
@@ -497,7 +500,6 @@ require (
 	osv.dev/bindings/go v0.0.0-20260320052218-23b4005d7c39 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 	www.velocidex.com/golang/go-ntfs v0.2.0 // indirect
 	www.velocidex.com/golang/regparser v0.0.0-20250203141505-31e704a67ef7 // indirect

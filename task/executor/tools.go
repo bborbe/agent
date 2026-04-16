@@ -19,4 +19,5 @@ import (
 	_ "github.com/segmentio/golines"
 	_ "github.com/shoenig/go-modtool"
 	_ "golang.org/x/vuln/cmd/govulncheck"
+	_ "k8s.io/code-generator/cmd/validation-gen"
 )

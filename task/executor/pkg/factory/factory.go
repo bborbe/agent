@@ -12,12 +12,18 @@ import (
 	"github.com/bborbe/run"
 	libtime "github.com/bborbe/time"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	lib "github.com/bborbe/agent/lib"
 	pkg "github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/handler"
 	"github.com/bborbe/agent/task/executor/pkg/spawner"
 )
+
+// CreateK8sConnector returns a K8sConnector wired to the given rest.Config.
+func CreateK8sConnector(config *rest.Config) pkg.K8sConnector {
+	return pkg.NewK8sConnector(config, pkg.DefaultCRDClientBuilder)
+}
 
 // CreateConsumer wires together all components and returns a Kafka Consumer that
 // reads task events and spawns K8s Jobs for qualifying tasks.

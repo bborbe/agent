@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## v0.33.0
 
+- feat: Introduce AgentConfig CRD (`agents.bborbe.dev/v1`) with Go types under `task/executor/k8s/apis/agents.bborbe.dev/v1/`, typed clientset/informers/listers/applyconfigurations generated via `k8s.io/code-generator`, and `K8sConnector` with `SetupCustomResourceDefinition` for CRD self-install (create or update) on startup
+
+## v0.33.0
+
 - docs: Promote `spec.env`, `spec.secretName`, `spec.volumeClaim`, `spec.volumeMountPath` from "Future Extensions" to first-class AgentConfig CRD fields in agent-crd-specification.md; update trade-analysis example to reflect real PVC/secret wiring; align Who-Uses-the-CRD table with job-creator field usage
 
 ## v0.32.0
