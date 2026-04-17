@@ -6,6 +6,7 @@
 /.claude
 /.cursorignore
 /.dark-factory.lock
+/.dark-factory.log
 /.envrc
 /.mcp-*
 /.mcp-auth

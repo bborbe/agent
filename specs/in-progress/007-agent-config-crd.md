@@ -1,10 +1,11 @@
 ---
-status: approved
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-04-16T16:32:02Z"
 generating: "2026-04-16T18:11:08Z"
+verifying: "2026-04-16T19:17:44Z"
 branch: dark-factory/agent-config-crd
 ---
 

@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## v0.34.0
 
 - feat: Replace hardcoded `agentConfigs` slice in `task/executor/main.go` with a live in-memory store fed by a Kubernetes informer on `AgentConfig` resources; introduce `AgentConfigResolver` for per-lookup conversion with branch tagging; wire `K8sConnector.Listen` via `SharedInformerFactory`; executor binary has no compiled-in agent catalog
+- feat: Three example AgentConfig CRs under `task/executor/k8s/` (agent-claude, agent-backtest-agent, agent-trade-analysis) matching the previously hardcoded configuration
+- feat: RBAC extended to grant executor ServiceAccount cluster-scoped write on `customresourcedefinitions` (self-install) and namespace-scoped `get/list/watch` on `agentconfigs.agents.bborbe.dev`
 
 ## v0.33.0
 

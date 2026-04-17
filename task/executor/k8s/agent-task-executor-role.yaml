@@ -1,0 +1,24 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: agent-task-executor
+  namespace: '{{ "NAMESPACE" | env }}'
+rules:
+  - apiGroups:
+      - batch
+    resources:
+      - jobs
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - delete
+  - apiGroups:
+      - agents.bborbe.dev
+    resources:
+      - agentconfigs
+    verbs:
+      - get
+      - list
+      - watch
