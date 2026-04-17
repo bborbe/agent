@@ -1,8 +1,13 @@
 ---
-status: approved
-spec: ["007"]
+status: completed
+spec: [007-agent-config-crd]
+summary: Renamed AgentConfig CRD API group from agents.bborbe.dev to agent.benjamin-borbe.de and Kind from AgentConfig to Config across task/executor service, generated new k8s client code, updated all Go symbols, YAML manifests, docs, spec, and CHANGELOG with v0.35.0 entry.
+container: agent-046-spec-007-rename-crd-group
+dark-factory-version: v0.121.1-dirty
 created: "2026-04-16T20:00:00Z"
 queued: "2026-04-17T05:50:24Z"
+started: "2026-04-17T12:51:00Z"
+completed: "2026-04-17T13:11:47Z"
 ---
 
 <summary>
@@ -10,8 +15,7 @@ queued: "2026-04-17T05:50:24Z"
 - The API group moves from the throwaway `agents.bborbe.dev` to the canonical `agent.benjamin-borbe.de`
 - The CR Kind shortens from the redundant `AgentConfig` to the idiomatic `Config` (matching `Alert`, `Schema` in sibling CRDs)
 - No cluster migration is needed — the CRD was never applied to a live cluster, so this is a pure code rename
-- Resets staged-but-uncommitted changes that carry the old group name and re-creates them under the new name as part of the same atomic commit
-- Bundles the rename, the `agent-claude` example CR, and the RBAC extension into one v0.35.0 release; trading-specific CRs (backtest-agent, trade-analysis) are removed — they will live in the trading repo alongside each agent
+- Bundles the rename, the `agent-claude` example CR, and the RBAC group rename into one v0.35.0 release; trading-specific CRs (backtest-agent, trade-analysis) live in the trading repo
 - Example CR file, RBAC grants, the CHANGELOG entry, the spec file, the schema doc, the repo `README.md` / `CLAUDE.md` components lists, the `specs/ideas/agent-definition-crd.md` idea file, and the `lib/agent_task-assignee.go` doc comment all speak the new group/kind after this prompt
 - After the rename a fresh dev deploy self-installs `configs.agent.benjamin-borbe.de` and watches `kind: Config` resources via the informer
 </summary>
@@ -49,15 +53,13 @@ Read `CLAUDE.md` for project conventions.
 - Production CRDs already in the bborbe cluster confirming the `<resource>.<group>.benjamin-borbe.de` convention: `alerts.monitoring.benjamin-borbe.de`, `schemas.cdb.benjamin-borbe.de`, `schemas.raw.benjamin-borbe.de`. There is no `*.bborbe.dev` CRD in production — the old group was a mistake.
 
 **Starting state of the repo (must be read before editing):**
-- Tag `v0.34.0` exists (commit `9eff5a9 release v0.34.0`) — the informer/store/resolver work shipped. The `## v0.34.0` block in `CHANGELOG.md` at HEAD has exactly ONE bullet (the informer bullet). Do NOT rewrite or delete that block.
-- Working tree has 6 **staged-but-uncommitted** files from the aborted P045 run — these are the unreleased additions the new `## v0.35.0` block is meant to document (under new names):
-  - `M CHANGELOG.md` (contains two extra unreleased bullets appended to the shipped v0.34.0 block — discard; they re-emerge as fresh v0.35.0 bullets)
-  - `M specs/in-progress/007-agent-config-crd.md` (status transition artefact)
-  - `A task/executor/k8s/agent-claude.yaml` (uses wrong group)
-  - `A task/executor/k8s/agent-backtest-agent.yaml` (uses wrong group)
-  - `A task/executor/k8s/agent-trade-analysis.yaml` (uses wrong group)
-  - `M task/executor/k8s/agent-task-executor-role.yaml` (uses wrong group in `apiGroups` / `resources`)
-- The in-tree files under `task/executor/k8s/apis/agents.bborbe.dev/v1/` and `task/executor/pkg/k8s_connector.go` also contain the wrong names.
+- Working tree is **clean** (no staged, no unstaged changes).
+- `CHANGELOG.md` at HEAD has `## v0.34.0` with three bullets (informer wiring, example CRs, RBAC). All three use the old names (`AgentConfig`, `agentconfigs.agents.bborbe.dev`).
+- RBAC manifests are already split into one-resource-per-file: `agent-task-executor-{sa,role,rolebinding,clusterrole,clusterrolebinding}.yaml`.
+- `agent-task-executor-role.yaml` still references the old group `agents.bborbe.dev` / resource `agentconfigs` — this prompt renames it.
+- `agent-claude.yaml` does **not** exist yet — this prompt creates it (step 18).
+- Trading-specific CRs (backtest-agent, trade-analysis) are **not** in this repo — they live in the trading repo.
+- The in-tree files under `task/executor/k8s/apis/agents.bborbe.dev/v1/` and `task/executor/pkg/k8s_connector.go` contain the old names.
 
 **Internal Go struct naming — do NOT rename:**
 - `pkg.AgentConfiguration` (in `task/executor/pkg/agent_configuration.go`) is a **different** type from the CRD — it is the runtime conversion target. Leave it alone. Leave `AgentConfigurations` alone. Leave the factory method `CreateConsumer`'s parameter name `resolver` alone. The rename is scoped to the CRD-shaped types (`AgentConfig` → `Config`, `AgentConfigList` → `ConfigList`) and to names whose current spelling embeds the old CRD name (`EventHandlerAgentConfig`, `AgentConfigResolver`, `CreateEventHandlerAgentConfig`, etc.).
@@ -109,40 +111,14 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
 **Critical: before running codegen, the OLD `task/executor/k8s/client/` tree must be deleted** — otherwise leftover files under the old group path will be committed. After the move the `k8s/client/` directory should only contain files under `clientset/versioned/typed/agent.benjamin-borbe.de/`, `informers/externalversions/agent.benjamin-borbe.de/`, `listers/agent.benjamin-borbe.de/`, and `applyconfiguration/agent.benjamin-borbe.de/` — no `agents.bborbe.dev/` subdirectories.
 
 **Release convention:**
-- Bump to `v0.35.0` in `CHANGELOG.md` (one minor above the shipped `v0.34.0` tag). SemVer pre-1.0 permits a minor bump for a breaking change; the `feat!` marker signals the break independently.
-- Preserve the existing `## v0.34.0` block (one informer bullet) **intact** — it documents a tagged release.
-- Insert a fresh `## v0.35.0` block above it with three bullets: the rename itself, the `agent-claude` example CR (the two trading CRs are removed — they belong in the trading repo), and the RBAC extension.
-- Do NOT add an "informer" bullet to v0.35.0 — that work is already documented under v0.34.0 using the old symbol names; the rename bullet retcons them implicitly.
+- Bump to `v0.35.0` in `CHANGELOG.md` (one minor above `v0.34.0`). SemVer pre-1.0 permits a minor bump for a breaking change; the `feat!` marker signals the break independently.
+- The existing `## v0.34.0` block has three bullets with old names — rewrite them in place to use the new CRD names (so the changelog stays truthful about what shipped).
+- Insert a fresh `## v0.35.0` block above it with: the rename bullet and the `agent-claude` CR bullet.
 </context>
 
 <requirements>
 
-1. **Reset the 6 staged-but-uncommitted files**
-
-   From the repo root, run:
-   ```bash
-   git reset HEAD CHANGELOG.md \
-                  specs/in-progress/007-agent-config-crd.md \
-                  task/executor/k8s/agent-claude.yaml \
-                  task/executor/k8s/agent-backtest-agent.yaml \
-                  task/executor/k8s/agent-trade-analysis.yaml \
-                  task/executor/k8s/agent-task-executor-role.yaml
-   ```
-   Then restore the two **modified** (not new) files to their HEAD state so the rename below starts from a clean baseline:
-   ```bash
-   git checkout HEAD -- CHANGELOG.md \
-                        specs/in-progress/007-agent-config-crd.md \
-                        task/executor/k8s/agent-task-executor-role.yaml
-   ```
-   Leave the `agent-claude.yaml` on disk — it will be rewritten in step 19 under the new group name. **Delete** the two trading-specific YAMLs — they do not belong in this repo:
-   ```bash
-   rm -f task/executor/k8s/agent-backtest-agent.yaml \
-         task/executor/k8s/agent-trade-analysis.yaml
-   ```
-
-   Do NOT force-delete other files, do NOT `git clean`. Only the six listed files are unstaged; only the two trading YAMLs are removed.
-
-2. **Move the apis directory**
+1. **Move the apis directory**
 
    ```bash
    cd task/executor/k8s/apis
@@ -151,7 +127,7 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
    rm -f agent.benjamin-borbe.de/v1/zz_generated.deepcopy.go
    ```
 
-3. **Rewrite `task/executor/k8s/apis/agent.benjamin-borbe.de/register.go`**
+2. **Rewrite `task/executor/k8s/apis/agent.benjamin-borbe.de/register.go`**
 
    Replace the entire file body (keep the BSD license header):
    ```go
@@ -161,7 +137,7 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
    const GroupName = "agent.benjamin-borbe.de"
    ```
 
-4. **Rewrite `task/executor/k8s/apis/agent.benjamin-borbe.de/v1/doc.go`**
+3. **Rewrite `task/executor/k8s/apis/agent.benjamin-borbe.de/v1/doc.go`**
 
    Keep the BSD license header. Body:
    ```go
@@ -172,7 +148,7 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
    package v1
    ```
 
-5. **Rewrite `task/executor/k8s/apis/agent.benjamin-borbe.de/v1/register.go`**
+4. **Rewrite `task/executor/k8s/apis/agent.benjamin-borbe.de/v1/register.go`**
 
    Update the package import path from `…/agents.bborbe.dev` to `…/agent.benjamin-borbe.de`, rename the import alias from `agents` to `agent`, and rename the registered types. Concretely:
    - Import `agent "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de"`.
@@ -180,7 +156,7 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
    - `addKnownTypes` registers `&Config{}` and `&ConfigList{}` (not `&AgentConfig{}` / `&AgentConfigList{}`).
    - Comments that say "AgentConfig" must say "Config".
 
-6. **Rewrite `task/executor/k8s/apis/agent.benjamin-borbe.de/v1/types.go`**
+5. **Rewrite `task/executor/k8s/apis/agent.benjamin-borbe.de/v1/types.go`**
 
    Every occurrence of the CRD type names changes. Keep the BSD license header, imports, and method semantics. Concretely:
    - Rename the struct `AgentConfig` → `Config`.
@@ -201,11 +177,11 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
      ```
    - Update every doc comment that mentions "AgentConfig" to say "Config" (e.g. `// Config declares a single agent type …`).
 
-7. **Update `task/executor/k8s/apis/agent.benjamin-borbe.de/v1/types_test.go`**
+6. **Update `task/executor/k8s/apis/agent.benjamin-borbe.de/v1/types_test.go`**
 
    Replace the import alias `v1 "…/agents.bborbe.dev/v1"` with `agentv1 "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de/v1"`. Rewrite every `v1.AgentConfig`, `v1.AgentConfigSpec` reference to `agentv1.Config` / `agentv1.ConfigSpec`. Update `Describe("AgentConfig", …)` and `Describe("AgentConfigSpec", …)` to `Describe("Config", …)` and `Describe("ConfigSpec", …)`. Keep all assertions and sub-spec structure identical — only identifiers change.
 
-8. **Rename and update `task/executor/pkg/event_handler_agent_config.go` → `event_handler_config.go`**
+7. **Rename and update `task/executor/pkg/event_handler_agent_config.go` → `event_handler_config.go`**
 
    ```bash
    cd task/executor/pkg && git mv event_handler_agent_config.go event_handler_config.go
@@ -217,7 +193,7 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
    - Generic type parameters `k8s.EventHandler[v1.AgentConfig]` → `k8s.EventHandler[agentv1.Config]` and `k8s.NewEventHandler[v1.AgentConfig]()` → `k8s.NewEventHandler[agentv1.Config]()`.
    - Update doc comments to drop the "AgentConfig" phrasing in favour of "Config".
 
-9. **Rename and update `task/executor/pkg/resource_event_handler_agent_config.go` → `resource_event_handler_config.go`**
+8. **Rename and update `task/executor/pkg/resource_event_handler_agent_config.go` → `resource_event_handler_config.go`**
 
    ```bash
    cd task/executor/pkg && git mv resource_event_handler_agent_config.go resource_event_handler_config.go
@@ -228,7 +204,7 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
    - Parameter type `EventHandlerAgentConfig` → `EventHandlerConfig`.
    - Generic call `k8s.NewResourceEventHandler[v1.AgentConfig](ctx, handler)` → `k8s.NewResourceEventHandler[agentv1.Config](ctx, handler)`.
 
-10. **Rename and update `task/executor/pkg/agent_config_resolver.go` → `config_resolver.go`**
+9. **Rename and update `task/executor/pkg/agent_config_resolver.go` → `config_resolver.go`**
 
     ```bash
     cd task/executor/pkg && git mv agent_config_resolver.go config_resolver.go
@@ -243,14 +219,14 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
     - `k8s.Provider[v1.AgentConfig]` → `k8s.Provider[agentv1.Config]` (parameter and struct field).
     - Signature `convert(obj v1.AgentConfig, branch string) AgentConfiguration` → `convert(obj agentv1.Config, branch string) AgentConfiguration`.
 
-11. **Rename and update `task/executor/pkg/agent_config_resolver_test.go` → `config_resolver_test.go`**
+10. **Rename and update `task/executor/pkg/agent_config_resolver_test.go` → `config_resolver_test.go`**
 
     ```bash
     cd task/executor/pkg && git mv agent_config_resolver_test.go config_resolver_test.go
     ```
     Rewrite every reference following the symbol map in `<context>`. Specifically: import alias → `agentv1`, every `v1.AgentConfig`/`v1.AgentConfigSpec` → `agentv1.Config`/`agentv1.ConfigSpec`, every `pkg.NewAgentConfigResolver` → `pkg.NewConfigResolver`, every `pkg.ErrAgentConfigNotFound` → `pkg.ErrConfigNotFound`, every `Describe("AgentConfigResolver", …)` → `Describe("ConfigResolver", …)`. Keep all assertion bodies identical — only identifiers change.
 
-12. **Update `task/executor/pkg/k8s_connector.go` (keep filename)**
+11. **Update `task/executor/pkg/k8s_connector.go` (keep filename)**
 
     Internal strings and generated-client imports change; filename and exported `K8sConnector` interface stay.
     - Import paths of the generated clientset/informers packages (`…/k8s/client/clientset/versioned` and `…/k8s/client/informers/externalversions`) are unchanged, but the informer factory group accessor renames from `Agents()` to `Agent()` (group without dots becomes the accessor name).
@@ -265,13 +241,13 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
       - `ShortNames: []string{"ac"}` → `ShortNames: []string{"cfg"}`
     - Leave the OpenAPI v3 schema body (`assignee`/`image`/`heartbeat`/`resources`/`env`/`secretName`/`volumeClaim`/`volumeMountPath`) unchanged — only the enclosing CRD identifiers rename.
 
-13. **Update `task/executor/pkg/k8s_connector_test.go`**
+12. **Update `task/executor/pkg/k8s_connector_test.go`**
 
     - Replace every string literal `"agentconfigs.agents.bborbe.dev"` with `"configs.agent.benjamin-borbe.de"` (both in the `Get` path assertion and in the seeded `existingCRD`).
     - Replace every CR-embedded `Group: "agents.bborbe.dev"`, `Kind: "AgentConfig"`, `Plural: "agentconfigs"` with the new values.
     - Keep test structure, fake clientset usage, and assertion semantics identical.
 
-14. **Update `task/executor/pkg/factory/factory.go`**
+13. **Update `task/executor/pkg/factory/factory.go`**
 
     - `CreateEventHandlerAgentConfig` → `CreateEventHandlerConfig`. Return type `pkg.EventHandlerAgentConfig` → `pkg.EventHandlerConfig`. Body: `return pkg.NewEventHandlerConfig()`.
     - `CreateResourceEventHandlerAgentConfig` → `CreateResourceEventHandlerConfig`. Parameter type `pkg.EventHandlerAgentConfig` → `pkg.EventHandlerConfig`. Body: `return pkg.NewResourceEventHandlerConfig(ctx, handler)`.
@@ -279,20 +255,20 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
     - `CreateConsumer` parameter `resolver pkg.AgentConfigResolver` → `resolver pkg.ConfigResolver`. Leave the parameter **name** `resolver` unchanged.
     - Update doc comments accordingly.
 
-15. **Update `task/executor/pkg/handler/task_event_handler.go`**
+14. **Update `task/executor/pkg/handler/task_event_handler.go`**
 
     - Parameter `resolver pkg.AgentConfigResolver` → `resolver pkg.ConfigResolver` in `NewTaskEventHandler`.
     - Field `resolver pkg.AgentConfigResolver` → `resolver pkg.ConfigResolver` in `taskEventHandler`.
     - `stderrors.Is(err, pkg.ErrAgentConfigNotFound)` → `stderrors.Is(err, pkg.ErrConfigNotFound)`.
     - Leave all other logic (phases, branch filter, metric labels, log messages) **unchanged**. Metric label values like `"skipped_unknown_assignee"` are public-interface strings; do NOT touch them.
 
-16. **Update `task/executor/pkg/handler/task_event_handler_test.go`**
+15. **Update `task/executor/pkg/handler/task_event_handler_test.go`**
 
     - Every `mocks.FakeAgentConfigResolver` → `mocks.FakeConfigResolver` (the regenerated mock).
     - Every `pkg.ErrAgentConfigNotFound` → `pkg.ErrConfigNotFound`.
     - Leave all other test logic identical.
 
-17. **Update `task/executor/main.go`**
+16. **Update `task/executor/main.go`**
 
     - `factory.CreateEventHandlerAgentConfig()` → `factory.CreateEventHandlerConfig()`.
     - `factory.CreateResourceEventHandlerAgentConfig(...)` → `factory.CreateResourceEventHandlerConfig(...)`.
@@ -300,7 +276,7 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
     - Error wrap message `"setup AgentConfig CRD"` → `"setup Config CRD"`.
     - Local var `eventHandlerAgentConfig` → `eventHandlerConfig` (optional but preferred for consistency).
 
-18. **Regenerate codegen + mocks + verify**
+17. **Regenerate codegen + mocks + verify**
 
     After all hand-written edits are on disk, delete the stale generated client tree and rerun codegen:
     ```bash
@@ -315,9 +291,9 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
     ```
     `make precommit` must exit 0. If it fails because of leftover `v1.AgentConfig` / `pkg.AgentConfigResolver` references, search and fix them — do NOT paper over with `_ =` or build tags.
 
-19. **Rewrite the agent-claude example CR YAML**
+18. **Rewrite the agent-claude example CR YAML**
 
-    The file uses `apiVersion: agent.benjamin-borbe.de/v1` and `kind: Config`. This is the only CR that ships in the agent repo — trading-specific CRs (backtest-agent, trade-analysis) were deleted in step 1 and will be created in the trading repo (`trading/agent/backtest/k8s/`, `trading/agent/trade-analysis/k8s/`) as a follow-up.
+    Create `task/executor/k8s/agent-claude.yaml` with `apiVersion: agent.benjamin-borbe.de/v1` and `kind: Config`. This is the only CR that ships in the agent repo — trading-specific CRs live in the trading repo.
 
     `task/executor/k8s/agent-claude.yaml`:
     ```yaml
@@ -337,7 +313,7 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
     test ! -f task/executor/k8s/agent-trade-analysis.yaml && echo "OK"
     ```
 
-20. **Update `task/executor/k8s/agent-task-executor-role.yaml`**
+19. **Update `task/executor/k8s/agent-task-executor-role.yaml`**
 
     The RBAC manifests are already split into one-resource-per-file. Only the Role file needs editing — replace the AgentConfig rule:
       ```yaml
@@ -352,7 +328,7 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
       ```
     Leave the `batch/jobs` rule unchanged. The other RBAC files (sa, rolebinding, clusterrole, clusterrolebinding) need no edits.
 
-21. **Update `docs/agent-crd-specification.md`**
+20. **Update `docs/agent-crd-specification.md`**
 
     Perform a global rewrite of the doc:
     - Every `apiVersion: agents.bborbe.dev/v1` → `apiVersion: agent.benjamin-borbe.de/v1`.
@@ -363,7 +339,7 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
     - Every reference to the group `agents.bborbe.dev` updates to `agent.benjamin-borbe.de`.
     - The field table (`spec.assignee`, `spec.image`, …) stays unchanged — it describes the schema, not the Kind.
 
-22. **Update `specs/in-progress/007-agent-config-crd.md`**
+21. **Update `specs/in-progress/007-agent-config-crd.md`**
 
     Global rewrite:
     - Every `apiVersion: agents.bborbe.dev/v1` → `apiVersion: agent.benjamin-borbe.de/v1`.
@@ -373,7 +349,7 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
     - In the Verification section, `kubectlquant -n dev get crd agentconfigs.agents.bborbe.dev` → `kubectlquant -n dev get crd configs.agent.benjamin-borbe.de`; `kubectlquant -n dev get agentconfigs` → `kubectlquant -n dev get configs`; `kubectlquant -n dev delete agentconfig agent-trade-analysis` → `kubectlquant -n dev delete config agent-trade-analysis`.
     - Do NOT change the frontmatter `status:`, `approved:`, `generating:`, `verifying:`, or `branch:` fields.
 
-22a. **Update four repo-level references that sit outside `task/executor/`**
+21a. **Update four repo-level references that sit outside `task/executor/`**
 
     Rename the old CRD name in these four additional locations:
     - `README.md` — line ~9 in the components table: `AgentConfig CRD` → `Config CRD`.
@@ -381,23 +357,27 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
     - `lib/agent_task-assignee.go` — doc comment `// Matched against AgentConfig CRD spec.assignee.` → `// Matched against Config CRD spec.assignee.`.
     - `specs/ideas/agent-definition-crd.md` — global rewrite like step 21: every `AgentConfig` (Kind/CRD noun) → `Config`, every `agentconfigs.agents.bborbe.dev` → `configs.agent.benjamin-borbe.de`, every `agents.bborbe.dev` → `agent.benjamin-borbe.de`, every `apiVersion: agents.bborbe.dev/v1` → `apiVersion: agent.benjamin-borbe.de/v1`. This is an early idea file kept in-tree for history — it must still speak the current name so anyone reading the idea list does not confuse it with dead state.
 
-23. **Rewrite the CHANGELOG**
+22. **Rewrite the CHANGELOG**
 
-    Open `CHANGELOG.md`. The existing `## v0.34.0` block (ONE informer bullet — matches the shipped `v0.34.0` tag) is **preserved as-is**. Step 1 already restored it to HEAD state; confirm with `grep -c "^-" CHANGELOG.md | head -1` that the v0.34.0 block has exactly one bullet before proceeding.
+    Open `CHANGELOG.md`. The existing `## v0.34.0` block has three bullets using old names. **Rewrite all three in place** to use the new names, then insert a fresh `## v0.35.0` block above it.
 
-    Insert a fresh `## v0.35.0` block immediately above the `## v0.34.0` header:
+    Rewrite the v0.34.0 bullets:
+    - Bullet 1: `AgentConfig` → `Config`, `AgentConfigResolver` → `ConfigResolver`
+    - Bullet 2: `AgentConfig CRs` → `Config CRs`, note that trading CRs moved to trading repo
+    - Bullet 3: `agentconfigs.agents.bborbe.dev` → `configs.agent.benjamin-borbe.de`
+
+    Then insert a fresh `## v0.35.0` block immediately above `## v0.34.0`:
 
     ```
     ## v0.35.0
 
     - feat!: Rename AgentConfig CRD to Config and move the API group from `agents.bborbe.dev` to `agent.benjamin-borbe.de` to match the bborbe convention (`alerts.monitoring.benjamin-borbe.de`, `schemas.cdb.benjamin-borbe.de`, …); CRD is now `configs.agent.benjamin-borbe.de` with short name `cfg`; no cluster migration needed because the old CRD was never applied
-    - feat: Example Config CR `agent-claude` under `task/executor/k8s/`; trading-specific CRs (backtest-agent, trade-analysis) removed — they will ship from the trading repo alongside each agent
-    - feat: RBAC extended to grant executor ServiceAccount cluster-scoped write on `customresourcedefinitions` (self-install) and namespace-scoped `get/list/watch` on `configs.agent.benjamin-borbe.de`
+    - feat: Example Config CR `agent-claude` under `task/executor/k8s/`; trading-specific CRs (backtest-agent, trade-analysis) ship from the trading repo
     ```
 
-    Leave the `## v0.34.0` block and every entry below it untouched. The `feat!` marker signals the breaking rename even though the SemVer bump is minor (pre-1.0 carve-out). The v0.34.0 informer bullet is intentionally NOT repeated here — it already documents the shipped work under its original symbol names; the rename bullet retcons those names implicitly.
+    The `feat!` marker signals the breaking rename (pre-1.0 SemVer carve-out). Leave `## v0.33.0` and below untouched.
 
-24. **Final verification sweep**
+23. **Final verification sweep**
 
     After all edits and codegen, sweep the whole repo from the root (not just `task/executor/`):
     ```bash
@@ -452,12 +432,12 @@ Keep `task/executor/pkg/k8s_connector.go` and `task/executor/pkg/k8s_connector_t
 - Do NOT commit — dark-factory handles git.
 
 Failure-mode coverage (from spec §Failure Modes) confirming no regression:
-- "CRD missing at startup" — requirement 12 (Create branch with new CRD name).
-- "CRD exists with older schema" — requirement 12 (Update branch with new CRD name).
+- "CRD missing at startup" — requirement 11 (Create branch with new CRD name).
+- "CRD exists with older schema" — requirement 11 (Update branch with new CRD name).
 - "API server unavailable at startup" — unchanged (`SetupCustomResourceDefinition` still returns wrapped error).
 - "AgentConfig CR deleted while executor running" — unchanged (warning + `skipped_unknown_assignee` metric increment via renamed `ErrConfigNotFound`).
 - "AgentConfig CR updated" — unchanged (informer push path, only the watched type renames).
-- "RBAC missing" — requirement 20 (renamed `apiGroups: [agent.benjamin-borbe.de]`, `resources: [configs]`).
+- "RBAC missing" — requirement 19 (renamed `apiGroups: [agent.benjamin-borbe.de]`, `resources: [configs]`).
 - "`volumeClaim` set but `volumeMountPath` missing" — unchanged (spawner guard + `ConfigSpec.Validate` guard kept intact).
 - "Secret referenced by `spec.secretName` does not exist" — unchanged (K8s handles).
 </constraints>
@@ -468,11 +448,9 @@ cd task/executor && make precommit
 ```
 Must pass with exit code 0.
 
-Verify the staged reset worked (agent-claude.yaml still on disk, trading YAMLs removed, modified files back at HEAD):
+Verify agent-claude.yaml was created:
 ```bash
 test -f task/executor/k8s/agent-claude.yaml && echo "CLAUDE-OK"
-test ! -f task/executor/k8s/agent-backtest-agent.yaml && echo "BACKTEST-GONE"
-test ! -f task/executor/k8s/agent-trade-analysis.yaml && echo "TRADE-GONE"
 ```
 
 Verify the apis directory moved:
