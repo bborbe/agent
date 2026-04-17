@@ -60,20 +60,20 @@ var _ = Describe("K8sConnector", func() {
 			Expect(actions[0].GetResource().Resource).To(Equal("customresourcedefinitions"))
 			Expect(actions[1].GetVerb()).To(Equal("create"))
 			crd := getCRDFromCreateAction(actions)
-			Expect(crd.Name).To(Equal("agentconfigs.agents.bborbe.dev"))
+			Expect(crd.Name).To(Equal("configs.agent.benjamin-borbe.de"))
 			Expect(crd.Spec.Scope).To(Equal(apiextensionsv1.NamespaceScoped))
 		})
 
 		It("updates CRD when one already exists", func() {
 			existingCRD := &apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "agentconfigs.agents.bborbe.dev",
+					Name: "configs.agent.benjamin-borbe.de",
 				},
 				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
-					Group: "agents.bborbe.dev",
+					Group: "agent.benjamin-borbe.de",
 					Names: apiextensionsv1.CustomResourceDefinitionNames{
-						Kind:   "AgentConfig",
-						Plural: "agentconfigs",
+						Kind:   "Config",
+						Plural: "configs",
 					},
 					Scope: apiextensionsv1.NamespaceScoped,
 					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
@@ -148,10 +148,10 @@ var _ = Describe("desiredCRDSpec (via SetupCustomResourceDefinition)", func() {
 
 	It("sets Names correctly", func() {
 		crd := getCRDFromCreateAction(cs.Actions())
-		Expect(crd.Spec.Names.Plural).To(Equal("agentconfigs"))
-		Expect(crd.Spec.Names.Singular).To(Equal("agentconfig"))
-		Expect(crd.Spec.Names.Kind).To(Equal("AgentConfig"))
-		Expect(crd.Spec.Names.ListKind).To(Equal("AgentConfigList"))
+		Expect(crd.Spec.Names.Plural).To(Equal("configs"))
+		Expect(crd.Spec.Names.Singular).To(Equal("config"))
+		Expect(crd.Spec.Names.Kind).To(Equal("Config"))
+		Expect(crd.Spec.Names.ListKind).To(Equal("ConfigList"))
 	})
 
 	It("sets version v1 as served and storage", func() {

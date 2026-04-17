@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package agents
+package agent
 
-// GroupName is the Kubernetes API group for AgentConfig resources.
-const GroupName = "agents.bborbe.dev"
+// GroupName is the Kubernetes API group for Config resources.
+const GroupName = "agent.benjamin-borbe.de"

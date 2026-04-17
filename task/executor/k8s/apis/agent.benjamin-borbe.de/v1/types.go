@@ -14,23 +14,23 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// var _ k8s.Type = AgentConfig{} ensures AgentConfig implements k8s.Type at compile time.
-var _ libk8s.Type = AgentConfig{}
+// var _ k8s.Type = Config{} ensures Config implements k8s.Type at compile time.
+var _ libk8s.Type = Config{}
 
 // +genclient
 // +genclient:noStatus
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// AgentConfig declares a single agent type that the executor can spawn.
-type AgentConfig struct {
+// Config declares a single agent type that the executor can spawn.
+type Config struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// Spec holds the configuration for this agent type.
-	Spec AgentConfigSpec `json:"spec"`
+	Spec ConfigSpec `json:"spec"`
 }
 
-// AgentConfigSpec defines the desired state of an AgentConfig.
-type AgentConfigSpec struct {
+// ConfigSpec defines the desired state of a Config.
+type ConfigSpec struct {
 	// Assignee is the task frontmatter assignee value that routes to this agent.
 	Assignee string `json:"assignee"`
 	// Image is the container image base name (without tag).
@@ -61,43 +61,43 @@ type AgentResources struct {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// AgentConfigList is a list of AgentConfig resources.
-type AgentConfigList struct {
+// ConfigList is a list of Config resources.
+type ConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
-	// Items is the list of AgentConfig resources.
-	Items []AgentConfig `json:"items"`
+	// Items is the list of Config resources.
+	Items []Config `json:"items"`
 }
 
-// Equal returns true if this AgentConfig has the same spec as other.
-func (a AgentConfig) Equal(other libk8s.Type) bool {
+// Equal returns true if this Config has the same spec as other.
+func (a Config) Equal(other libk8s.Type) bool {
 	switch o := other.(type) {
-	case AgentConfig:
+	case Config:
 		return a.Spec.Equal(o.Spec)
-	case *AgentConfig:
+	case *Config:
 		return a.Spec.Equal(o.Spec)
 	default:
 		return false
 	}
 }
 
-// Identifier returns a unique identifier for this AgentConfig.
-func (a AgentConfig) Identifier() libk8s.Identifier {
+// Identifier returns a unique identifier for this Config.
+func (a Config) Identifier() libk8s.Identifier {
 	return libk8s.Identifier(libk8s.BuildName(a.Namespace, a.Name))
 }
 
-// Validate validates the AgentConfig spec.
-func (a AgentConfig) Validate(ctx context.Context) error {
+// Validate validates the Config spec.
+func (a Config) Validate(ctx context.Context) error {
 	return a.Spec.Validate(ctx)
 }
 
-// String returns the name of the AgentConfig.
-func (a AgentConfig) String() string {
+// String returns the name of the Config.
+func (a Config) String() string {
 	return a.Name
 }
 
-// Equal returns true if the two AgentConfigSpec values are identical.
-func (s AgentConfigSpec) Equal(o AgentConfigSpec) bool {
+// Equal returns true if the two ConfigSpec values are identical.
+func (s ConfigSpec) Equal(o ConfigSpec) bool {
 	return s.Assignee == o.Assignee &&
 		s.Image == o.Image &&
 		s.Heartbeat == o.Heartbeat &&
@@ -108,8 +108,8 @@ func (s AgentConfigSpec) Equal(o AgentConfigSpec) bool {
 		reflect.DeepEqual(s.Resources, o.Resources)
 }
 
-// Validate validates the AgentConfigSpec fields.
-func (s AgentConfigSpec) Validate(ctx context.Context) error {
+// Validate validates the ConfigSpec fields.
+func (s ConfigSpec) Validate(ctx context.Context) error {
 	if s.Assignee == "" {
 		return errors.Wrapf(ctx, validation.Error, "assignee is empty")
 	}

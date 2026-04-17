@@ -7,14 +7,14 @@ package pkg
 import (
 	"github.com/bborbe/k8s"
 
-	v1 "github.com/bborbe/agent/task/executor/k8s/apis/agents.bborbe.dev/v1"
+	agentv1 "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de/v1"
 )
 
-// EventHandlerAgentConfig is the typed in-memory event handler / store
-// for AgentConfig resources. Backed by github.com/bborbe/k8s generics.
-type EventHandlerAgentConfig k8s.EventHandler[v1.AgentConfig]
+// EventHandlerConfig is the typed in-memory event handler / store
+// for Config resources. Backed by github.com/bborbe/k8s generics.
+type EventHandlerConfig k8s.EventHandler[agentv1.Config]
 
-// NewEventHandlerAgentConfig returns an empty EventHandlerAgentConfig.
-func NewEventHandlerAgentConfig() EventHandlerAgentConfig {
-	return k8s.NewEventHandler[v1.AgentConfig]()
+// NewEventHandlerConfig returns an empty EventHandlerConfig.
+func NewEventHandlerConfig() EventHandlerConfig {
+	return k8s.NewEventHandler[agentv1.Config]()
 }

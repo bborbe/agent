@@ -14,7 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	v1 "github.com/bborbe/agent/task/executor/k8s/apis/agents.bborbe.dev/v1"
+	agentv1 "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de/v1"
 )
 
 func TestV1(t *testing.T) {
@@ -22,7 +22,7 @@ func TestV1(t *testing.T) {
 	RunSpecs(t, "V1 Suite")
 }
 
-var _ = Describe("AgentConfig", func() {
+var _ = Describe("Config", func() {
 	var ctx context.Context
 
 	BeforeEach(func() {
@@ -31,17 +31,17 @@ var _ = Describe("AgentConfig", func() {
 
 	Describe("Equal", func() {
 		It("returns true for identical specs", func() {
-			a := v1.AgentConfig{
+			a := agentv1.Config{
 				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-				Spec: v1.AgentConfigSpec{
+				Spec: agentv1.ConfigSpec{
 					Assignee:  "claude",
 					Image:     "registry/agent-claude",
 					Heartbeat: "30m",
 				},
 			}
-			b := v1.AgentConfig{
+			b := agentv1.Config{
 				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-				Spec: v1.AgentConfigSpec{
+				Spec: agentv1.ConfigSpec{
 					Assignee:  "claude",
 					Image:     "registry/agent-claude",
 					Heartbeat: "30m",
@@ -51,15 +51,15 @@ var _ = Describe("AgentConfig", func() {
 		})
 
 		It("returns false when Image differs", func() {
-			a := v1.AgentConfig{
-				Spec: v1.AgentConfigSpec{
+			a := agentv1.Config{
+				Spec: agentv1.ConfigSpec{
 					Assignee:  "claude",
 					Image:     "registry/agent-claude",
 					Heartbeat: "30m",
 				},
 			}
-			b := v1.AgentConfig{
-				Spec: v1.AgentConfigSpec{
+			b := agentv1.Config{
+				Spec: agentv1.ConfigSpec{
 					Assignee:  "claude",
 					Image:     "registry/agent-claude-v2",
 					Heartbeat: "30m",
@@ -69,15 +69,15 @@ var _ = Describe("AgentConfig", func() {
 		})
 
 		It("returns true when compared with pointer type", func() {
-			a := v1.AgentConfig{
-				Spec: v1.AgentConfigSpec{
+			a := agentv1.Config{
+				Spec: agentv1.ConfigSpec{
 					Assignee:  "claude",
 					Image:     "registry/agent-claude",
 					Heartbeat: "30m",
 				},
 			}
-			b := &v1.AgentConfig{
-				Spec: v1.AgentConfigSpec{
+			b := &agentv1.Config{
+				Spec: agentv1.ConfigSpec{
 					Assignee:  "claude",
 					Image:     "registry/agent-claude",
 					Heartbeat: "30m",
@@ -87,8 +87,8 @@ var _ = Describe("AgentConfig", func() {
 		})
 
 		It("returns false for unknown type", func() {
-			a := v1.AgentConfig{
-				Spec: v1.AgentConfigSpec{Assignee: "claude"},
+			a := agentv1.Config{
+				Spec: agentv1.ConfigSpec{Assignee: "claude"},
 			}
 			Expect(a.Equal(nil)).To(BeFalse())
 		})
@@ -96,7 +96,7 @@ var _ = Describe("AgentConfig", func() {
 
 	Describe("Identifier", func() {
 		It("returns BuildName of namespace and name", func() {
-			a := v1.AgentConfig{
+			a := agentv1.Config{
 				ObjectMeta: metav1.ObjectMeta{Name: "my-agent", Namespace: "production"},
 			}
 			Expect(
@@ -107,7 +107,7 @@ var _ = Describe("AgentConfig", func() {
 
 	Describe("String", func() {
 		It("returns metadata.name", func() {
-			a := v1.AgentConfig{
+			a := agentv1.Config{
 				ObjectMeta: metav1.ObjectMeta{Name: "my-agent"},
 			}
 			Expect(a.String()).To(Equal("my-agent"))
@@ -116,8 +116,8 @@ var _ = Describe("AgentConfig", func() {
 
 	Describe("Validate", func() {
 		It("returns nil for a complete valid spec", func() {
-			a := v1.AgentConfig{
-				Spec: v1.AgentConfigSpec{
+			a := agentv1.Config{
+				Spec: agentv1.ConfigSpec{
 					Assignee:  "claude",
 					Image:     "registry/agent-claude",
 					Heartbeat: "30m",
@@ -128,7 +128,7 @@ var _ = Describe("AgentConfig", func() {
 	})
 })
 
-var _ = Describe("AgentConfigSpec", func() {
+var _ = Describe("ConfigSpec", func() {
 	var ctx context.Context
 
 	BeforeEach(func() {
@@ -137,7 +137,7 @@ var _ = Describe("AgentConfigSpec", func() {
 
 	Describe("Validate", func() {
 		It("returns nil for a valid spec", func() {
-			s := v1.AgentConfigSpec{
+			s := agentv1.ConfigSpec{
 				Assignee:  "claude",
 				Image:     "registry/agent-claude",
 				Heartbeat: "30m",
@@ -146,7 +146,7 @@ var _ = Describe("AgentConfigSpec", func() {
 		})
 
 		It("returns a wrapped validation.Error when Assignee is empty", func() {
-			s := v1.AgentConfigSpec{
+			s := agentv1.ConfigSpec{
 				Image:     "registry/agent-claude",
 				Heartbeat: "30m",
 			}
@@ -156,7 +156,7 @@ var _ = Describe("AgentConfigSpec", func() {
 		})
 
 		It("returns a wrapped validation.Error when Image is empty", func() {
-			s := v1.AgentConfigSpec{
+			s := agentv1.ConfigSpec{
 				Assignee:  "claude",
 				Heartbeat: "30m",
 			}
@@ -166,7 +166,7 @@ var _ = Describe("AgentConfigSpec", func() {
 		})
 
 		It("returns a wrapped validation.Error when Heartbeat is empty", func() {
-			s := v1.AgentConfigSpec{
+			s := agentv1.ConfigSpec{
 				Assignee: "claude",
 				Image:    "registry/agent-claude",
 			}
@@ -178,7 +178,7 @@ var _ = Describe("AgentConfigSpec", func() {
 		It(
 			"returns a wrapped validation.Error when VolumeClaim is set but VolumeMountPath is empty",
 			func() {
-				s := v1.AgentConfigSpec{
+				s := agentv1.ConfigSpec{
 					Assignee:    "claude",
 					Image:       "registry/agent-claude",
 					Heartbeat:   "30m",
@@ -193,7 +193,7 @@ var _ = Describe("AgentConfigSpec", func() {
 		)
 
 		It("returns nil when both VolumeClaim and VolumeMountPath are set", func() {
-			s := v1.AgentConfigSpec{
+			s := agentv1.ConfigSpec{
 				Assignee:        "claude",
 				Image:           "registry/agent-claude",
 				Heartbeat:       "30m",
@@ -204,7 +204,7 @@ var _ = Describe("AgentConfigSpec", func() {
 		})
 
 		It("wraps error with validation.Error sentinel", func() {
-			s := v1.AgentConfigSpec{}
+			s := agentv1.ConfigSpec{}
 			err := s.Validate(ctx)
 			Expect(err).To(HaveOccurred())
 			// The error must wrap validation.Error

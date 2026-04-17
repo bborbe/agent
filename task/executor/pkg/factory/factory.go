@@ -28,25 +28,25 @@ func CreateK8sConnector(config *rest.Config) pkg.K8sConnector {
 	return pkg.NewK8sConnector(config, pkg.DefaultCRDClientBuilder)
 }
 
-// CreateEventHandlerAgentConfig returns an empty in-memory event handler for AgentConfig resources.
-func CreateEventHandlerAgentConfig() pkg.EventHandlerAgentConfig {
-	return pkg.NewEventHandlerAgentConfig()
+// CreateEventHandlerConfig returns an empty in-memory event handler for Config resources.
+func CreateEventHandlerConfig() pkg.EventHandlerConfig {
+	return pkg.NewEventHandlerConfig()
 }
 
-// CreateResourceEventHandlerAgentConfig adapts an EventHandlerAgentConfig to cache.ResourceEventHandler.
-func CreateResourceEventHandlerAgentConfig(
+// CreateResourceEventHandlerConfig adapts an EventHandlerConfig to cache.ResourceEventHandler.
+func CreateResourceEventHandlerConfig(
 	ctx context.Context,
-	handler pkg.EventHandlerAgentConfig,
+	handler pkg.EventHandlerConfig,
 ) cache.ResourceEventHandler {
-	return pkg.NewResourceEventHandlerAgentConfig(ctx, handler)
+	return pkg.NewResourceEventHandlerConfig(ctx, handler)
 }
 
-// CreateAgentConfigResolver returns an AgentConfigResolver backed by the given store.
-func CreateAgentConfigResolver(
-	handler pkg.EventHandlerAgentConfig,
+// CreateConfigResolver returns a ConfigResolver backed by the given store.
+func CreateConfigResolver(
+	handler pkg.EventHandlerConfig,
 	branch base.Branch,
-) pkg.AgentConfigResolver {
-	return pkg.NewAgentConfigResolver(handler, string(branch))
+) pkg.ConfigResolver {
+	return pkg.NewConfigResolver(handler, string(branch))
 }
 
 // CreateConsumer wires together all components and returns a Kafka Consumer that
@@ -57,7 +57,7 @@ func CreateConsumer(
 	kubeClient kubernetes.Interface,
 	namespace string,
 	kafkaBrokers string,
-	resolver pkg.AgentConfigResolver,
+	resolver pkg.ConfigResolver,
 	logSamplerFactory log.SamplerFactory,
 	currentDateTimeGetter libtime.CurrentDateTimeGetter,
 ) libkafka.Consumer {

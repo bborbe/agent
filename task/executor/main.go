@@ -59,14 +59,14 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 
 	connector := factory.CreateK8sConnector(kubeConfig)
 	if err := connector.SetupCustomResourceDefinition(ctx); err != nil {
-		return errors.Wrapf(ctx, err, "setup AgentConfig CRD")
+		return errors.Wrapf(ctx, err, "setup Config CRD")
 	}
-	eventHandlerAgentConfig := factory.CreateEventHandlerAgentConfig()
-	resourceEventHandler := factory.CreateResourceEventHandlerAgentConfig(
+	eventHandlerConfig := factory.CreateEventHandlerConfig()
+	resourceEventHandler := factory.CreateResourceEventHandlerConfig(
 		ctx,
-		eventHandlerAgentConfig,
+		eventHandlerConfig,
 	)
-	resolver := factory.CreateAgentConfigResolver(eventHandlerAgentConfig, a.Branch)
+	resolver := factory.CreateConfigResolver(eventHandlerConfig, a.Branch)
 
 	saramaClient, err := libkafka.CreateSaramaClient(
 		ctx,

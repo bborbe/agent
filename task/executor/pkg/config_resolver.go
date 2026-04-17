@@ -11,37 +11,37 @@ import (
 	"github.com/bborbe/errors"
 	"github.com/bborbe/k8s"
 
-	v1 "github.com/bborbe/agent/task/executor/k8s/apis/agents.bborbe.dev/v1"
+	agentv1 "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de/v1"
 )
 
-// ErrAgentConfigNotFound is returned by AgentConfigResolver.Resolve when no
-// AgentConfig in the store has a matching Spec.Assignee.
-var ErrAgentConfigNotFound = stderrors.New("agent config not found")
+// ErrConfigNotFound is returned by ConfigResolver.Resolve when no
+// Config in the store has a matching Spec.Assignee.
+var ErrConfigNotFound = stderrors.New("config not found")
 
-//counterfeiter:generate -o ../mocks/agent_config_resolver.go --fake-name FakeAgentConfigResolver . AgentConfigResolver
+//counterfeiter:generate -o ../mocks/config_resolver.go --fake-name FakeConfigResolver . ConfigResolver
 
-// AgentConfigResolver looks up the AgentConfiguration for an assignee by
-// iterating the in-memory AgentConfig store and converting the matching entry.
-type AgentConfigResolver interface {
+// ConfigResolver looks up the AgentConfiguration for an assignee by
+// iterating the in-memory Config store and converting the matching entry.
+type ConfigResolver interface {
 	Resolve(ctx context.Context, assignee string) (AgentConfiguration, error)
 }
 
-// NewAgentConfigResolver returns an AgentConfigResolver backed by the given
+// NewConfigResolver returns a ConfigResolver backed by the given
 // typed store. The branch is captured here and appended as the image tag at
 // resolution time.
-func NewAgentConfigResolver(
-	provider k8s.Provider[v1.AgentConfig],
+func NewConfigResolver(
+	provider k8s.Provider[agentv1.Config],
 	branch string,
-) AgentConfigResolver {
-	return &agentConfigResolver{provider: provider, branch: branch}
+) ConfigResolver {
+	return &configResolver{provider: provider, branch: branch}
 }
 
-type agentConfigResolver struct {
-	provider k8s.Provider[v1.AgentConfig]
+type configResolver struct {
+	provider k8s.Provider[agentv1.Config]
 	branch   string
 }
 
-func (r *agentConfigResolver) Resolve(
+func (r *configResolver) Resolve(
 	ctx context.Context,
 	assignee string,
 ) (AgentConfiguration, error) {
@@ -56,13 +56,13 @@ func (r *agentConfigResolver) Resolve(
 	}
 	return AgentConfiguration{}, errors.Wrapf(
 		ctx,
-		ErrAgentConfigNotFound,
+		ErrConfigNotFound,
 		"find assignee %q",
 		assignee,
 	)
 }
 
-func convert(obj v1.AgentConfig, branch string) AgentConfiguration {
+func convert(obj agentv1.Config, branch string) AgentConfiguration {
 	return AgentConfiguration{
 		Assignee:        obj.Spec.Assignee,
 		Image:           obj.Spec.Image + ":" + branch,

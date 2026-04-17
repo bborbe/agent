@@ -22,7 +22,7 @@ import (
 
 //counterfeiter:generate -o ../mocks/k8s_connector.go --fake-name FakeK8sConnector . K8sConnector
 
-// K8sConnector installs the AgentConfig CRD and starts an informer.
+// K8sConnector installs the Config CRD and starts an informer.
 type K8sConnector interface {
 	SetupCustomResourceDefinition(ctx context.Context) error
 	Listen(ctx context.Context, namespace string, handler cache.ResourceEventHandler) error
@@ -48,17 +48,17 @@ type k8sConnector struct {
 	crdBuilder CRDClientBuilder
 }
 
-// SetupCustomResourceDefinition installs or updates the AgentConfig CRD on the cluster.
+// SetupCustomResourceDefinition installs or updates the Config CRD on the cluster.
 func (c *k8sConnector) SetupCustomResourceDefinition(ctx context.Context) error {
 	clientset, err := c.crdBuilder(c.config)
 	if err != nil {
 		return errors.Wrapf(ctx, err, "build apiextensions clientset")
 	}
 	crds := clientset.ApiextensionsV1().CustomResourceDefinitions()
-	existing, err := crds.Get(ctx, "agentconfigs.agents.bborbe.dev", metav1.GetOptions{})
+	existing, err := crds.Get(ctx, "configs.agent.benjamin-borbe.de", metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		crd := &apiextensionsv1.CustomResourceDefinition{
-			ObjectMeta: metav1.ObjectMeta{Name: "agentconfigs.agents.bborbe.dev"},
+			ObjectMeta: metav1.ObjectMeta{Name: "configs.agent.benjamin-borbe.de"},
 			Spec:       desiredCRDSpec(),
 		}
 		if _, err := crds.Create(ctx, crd, metav1.CreateOptions{}); err != nil {
@@ -79,7 +79,7 @@ func (c *k8sConnector) SetupCustomResourceDefinition(ctx context.Context) error 
 // defaultResync is the re-sync period for the shared informer factory.
 const defaultResync = 5 * time.Minute
 
-// Listen starts a Kubernetes informer for AgentConfig resources in the given namespace
+// Listen starts a Kubernetes informer for Config resources in the given namespace
 // and dispatches events to the provided handler until ctx is cancelled.
 func (c *k8sConnector) Listen(
 	ctx context.Context,
@@ -95,7 +95,7 @@ func (c *k8sConnector) Listen(
 		defaultResync,
 		agentinformers.WithNamespace(namespace),
 	)
-	informer := factory.Agents().V1().AgentConfigs().Informer()
+	informer := factory.Agent().V1().Configs().Informer()
 	if _, err := informer.AddEventHandler(handler); err != nil {
 		return errors.Wrapf(ctx, err, "add event handler")
 	}
@@ -112,13 +112,13 @@ func (c *k8sConnector) Listen(
 func desiredCRDSpec() apiextensionsv1.CustomResourceDefinitionSpec {
 	minLen := int64(1)
 	return apiextensionsv1.CustomResourceDefinitionSpec{
-		Group: "agents.bborbe.dev",
+		Group: "agent.benjamin-borbe.de",
 		Names: apiextensionsv1.CustomResourceDefinitionNames{
-			Kind:       "AgentConfig",
-			ListKind:   "AgentConfigList",
-			Plural:     "agentconfigs",
-			Singular:   "agentconfig",
-			ShortNames: []string{"ac"},
+			Kind:       "Config",
+			ListKind:   "ConfigList",
+			Plural:     "configs",
+			Singular:   "config",
+			ShortNames: []string{"cfg"},
 		},
 		Scope: apiextensionsv1.NamespaceScoped,
 		Versions: []apiextensionsv1.CustomResourceDefinitionVersion{

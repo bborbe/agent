@@ -6,8 +6,8 @@
 package applyconfiguration
 
 import (
-	v1 "github.com/bborbe/agent/task/executor/k8s/apis/agents.bborbe.dev/v1"
-	agentsbborbedevv1 "github.com/bborbe/agent/task/executor/k8s/client/applyconfiguration/agents.bborbe.dev/v1"
+	v1 "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de/v1"
+	agentbenjaminborbedev1 "github.com/bborbe/agent/task/executor/k8s/client/applyconfiguration/agent.benjamin-borbe.de/v1"
 	internal "github.com/bborbe/agent/task/executor/k8s/client/applyconfiguration/internal"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -18,13 +18,13 @@ import (
 // apply configuration type exists for the given GroupVersionKind.
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
-	// Group=agents.bborbe.dev, Version=v1
-	case v1.SchemeGroupVersion.WithKind("AgentConfig"):
-		return &agentsbborbedevv1.AgentConfigApplyConfiguration{}
-	case v1.SchemeGroupVersion.WithKind("AgentConfigSpec"):
-		return &agentsbborbedevv1.AgentConfigSpecApplyConfiguration{}
+	// Group=agent.benjamin-borbe.de, Version=v1
 	case v1.SchemeGroupVersion.WithKind("AgentResources"):
-		return &agentsbborbedevv1.AgentResourcesApplyConfiguration{}
+		return &agentbenjaminborbedev1.AgentResourcesApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("Config"):
+		return &agentbenjaminborbedev1.ConfigApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("ConfigSpec"):
+		return &agentbenjaminborbedev1.ConfigSpecApplyConfiguration{}
 
 	}
 	return nil

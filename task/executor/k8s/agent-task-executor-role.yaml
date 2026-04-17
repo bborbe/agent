@@ -15,9 +15,9 @@ rules:
       - watch
       - delete
   - apiGroups:
-      - agents.bborbe.dev
+      - agent.benjamin-borbe.de
     resources:
-      - agentconfigs
+      - configs
     verbs:
       - get
       - list

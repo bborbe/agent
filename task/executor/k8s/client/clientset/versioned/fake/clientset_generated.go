@@ -8,8 +8,8 @@ package fake
 import (
 	applyconfiguration "github.com/bborbe/agent/task/executor/k8s/client/applyconfiguration"
 	clientset "github.com/bborbe/agent/task/executor/k8s/client/clientset/versioned"
-	agentsv1 "github.com/bborbe/agent/task/executor/k8s/client/clientset/versioned/typed/agents.bborbe.dev/v1"
-	fakeagentsv1 "github.com/bborbe/agent/task/executor/k8s/client/clientset/versioned/typed/agents.bborbe.dev/v1/fake"
+	agentv1 "github.com/bborbe/agent/task/executor/k8s/client/clientset/versioned/typed/agent.benjamin-borbe.de/v1"
+	fakeagentv1 "github.com/bborbe/agent/task/executor/k8s/client/clientset/versioned/typed/agent.benjamin-borbe.de/v1/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -123,7 +123,7 @@ var (
 	_ testing.FakeClient  = &Clientset{}
 )
 
-// AgentsV1 retrieves the AgentsV1Client
-func (c *Clientset) AgentsV1() agentsv1.AgentsV1Interface {
-	return &fakeagentsv1.FakeAgentsV1{Fake: &c.Fake}
+// AgentV1 retrieves the AgentV1Client
+func (c *Clientset) AgentV1() agentv1.AgentV1Interface {
+	return &fakeagentv1.FakeAgentV1{Fake: &c.Fake}
 }

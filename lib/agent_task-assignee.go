@@ -12,7 +12,7 @@ import (
 )
 
 // TaskAssignee identifies which agent type handles this task.
-// Matched against AgentConfig CRD spec.assignee.
+// Matched against Config CRD spec.assignee.
 type TaskAssignee string
 
 func (t TaskAssignee) String() string {

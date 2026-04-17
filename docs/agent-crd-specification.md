@@ -1,12 +1,12 @@
-# AgentConfig CRD Specification
+# Config CRD Specification
 
-AgentConfig is a Kubernetes Custom Resource Definition that declares an agent type. Both the controller and job creator read these to know which agents exist and how to handle them.
+Config (`agent.benjamin-borbe.de/v1`) is a Kubernetes Custom Resource Definition that declares an agent type. Both the controller and job creator read these to know which agents exist and how to handle them.
 
 ## CRD Definition
 
 ```yaml
-apiVersion: agents.bborbe.dev/v1
-kind: AgentConfig
+apiVersion: agent.benjamin-borbe.de/v1
+kind: Config
 metadata:
   name: backtest-agent
   namespace: dev
@@ -45,17 +45,17 @@ spec:
 
 ## Properties
 
-**Declarative** — apply a CRD, system picks it up. Remove it, system stops watching.
+**Declarative** — apply a Config CRD, system picks it up. Remove it, system stops watching.
 
-**Cheap** — 100 AgentConfig CRDs cost zero resources until a matching task exists.
+**Cheap** — 100 Config CRs cost zero resources until a matching task exists.
 
 **Independent** — adding an agent never requires controller or job creator changes.
 
 ## Examples
 
 ```yaml
-apiVersion: agents.bborbe.dev/v1
-kind: AgentConfig
+apiVersion: agent.benjamin-borbe.de/v1
+kind: Config
 metadata:
   name: trade-analysis-agent
 spec:
@@ -71,8 +71,8 @@ spec:
 ```
 
 ```yaml
-apiVersion: agents.bborbe.dev/v1
-kind: AgentConfig
+apiVersion: agent.benjamin-borbe.de/v1
+kind: Config
 metadata:
   name: youtube-processor
 spec:

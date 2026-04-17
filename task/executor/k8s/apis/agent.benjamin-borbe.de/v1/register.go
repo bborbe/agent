@@ -9,18 +9,18 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	agents "github.com/bborbe/agent/task/executor/k8s/apis/agents.bborbe.dev"
+	agent "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de"
 )
 
-// SchemeGroupVersion is the group and version for AgentConfig resources.
-var SchemeGroupVersion = schema.GroupVersion{Group: agents.GroupName, Version: "v1"}
+// SchemeGroupVersion is the group and version for Config resources.
+var SchemeGroupVersion = schema.GroupVersion{Group: agent.GroupName, Version: "v1"}
 
 // SchemeBuilder is used to register types with the scheme.
 var SchemeBuilder runtime.SchemeBuilder
 
 var localSchemeBuilder = &SchemeBuilder
 
-// AddToScheme adds AgentConfig types to the scheme.
+// AddToScheme adds Config types to the scheme.
 var AddToScheme = localSchemeBuilder.AddToScheme
 
 func init() {
@@ -34,8 +34,8 @@ func Resource(resource string) schema.GroupResource {
 
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&AgentConfig{},
-		&AgentConfigList{},
+		&Config{},
+		&ConfigList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

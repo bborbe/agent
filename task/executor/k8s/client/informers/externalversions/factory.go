@@ -11,7 +11,7 @@ import (
 	time "time"
 
 	versioned "github.com/bborbe/agent/task/executor/k8s/client/clientset/versioned"
-	agentsbborbedev "github.com/bborbe/agent/task/executor/k8s/client/informers/externalversions/agents.bborbe.dev"
+	agentbenjaminborbede "github.com/bborbe/agent/task/executor/k8s/client/informers/externalversions/agent.benjamin-borbe.de"
 	internalinterfaces "github.com/bborbe/agent/task/executor/k8s/client/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -242,9 +242,9 @@ type SharedInformerFactory interface {
 	// client.
 	InformerFor(obj runtime.Object, newFunc internalinterfaces.NewInformerFunc) cache.SharedIndexInformer
 
-	Agents() agentsbborbedev.Interface
+	Agent() agentbenjaminborbede.Interface
 }
 
-func (f *sharedInformerFactory) Agents() agentsbborbedev.Interface {
-	return agentsbborbedev.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Agent() agentbenjaminborbede.Interface {
+	return agentbenjaminborbede.New(f, f.namespace, f.tweakListOptions)
 }

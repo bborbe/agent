@@ -9,7 +9,7 @@ import (
 	fmt "fmt"
 	http "net/http"
 
-	agentsv1 "github.com/bborbe/agent/task/executor/k8s/client/clientset/versioned/typed/agents.bborbe.dev/v1"
+	agentv1 "github.com/bborbe/agent/task/executor/k8s/client/clientset/versioned/typed/agent.benjamin-borbe.de/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -17,18 +17,18 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	AgentsV1() agentsv1.AgentsV1Interface
+	AgentV1() agentv1.AgentV1Interface
 }
 
 // Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	agentsV1 *agentsv1.AgentsV1Client
+	agentV1 *agentv1.AgentV1Client
 }
 
-// AgentsV1 retrieves the AgentsV1Client
-func (c *Clientset) AgentsV1() agentsv1.AgentsV1Interface {
-	return c.agentsV1
+// AgentV1 retrieves the AgentV1Client
+func (c *Clientset) AgentV1() agentv1.AgentV1Interface {
+	return c.agentV1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -75,7 +75,7 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 
 	var cs Clientset
 	var err error
-	cs.agentsV1, err = agentsv1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	cs.agentV1, err = agentv1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.agentsV1 = agentsv1.New(c)
+	cs.agentV1 = agentv1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

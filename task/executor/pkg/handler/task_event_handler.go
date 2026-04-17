@@ -39,7 +39,7 @@ type TaskEventHandler interface {
 func NewTaskEventHandler(
 	jobSpawner spawner.JobSpawner,
 	branch base.Branch,
-	resolver pkg.AgentConfigResolver,
+	resolver pkg.ConfigResolver,
 ) TaskEventHandler {
 	return &taskEventHandler{
 		jobSpawner: jobSpawner,
@@ -51,7 +51,7 @@ func NewTaskEventHandler(
 type taskEventHandler struct {
 	jobSpawner spawner.JobSpawner
 	branch     base.Branch
-	resolver   pkg.AgentConfigResolver
+	resolver   pkg.ConfigResolver
 }
 
 func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.ConsumerMessage) error {
@@ -141,7 +141,7 @@ func (h *taskEventHandler) resolveConfig(
 ) (*pkg.AgentConfiguration, error) {
 	config, err := h.resolver.Resolve(ctx, string(task.Frontmatter.Assignee()))
 	if err != nil {
-		if stderrors.Is(err, pkg.ErrAgentConfigNotFound) {
+		if stderrors.Is(err, pkg.ErrConfigNotFound) {
 			glog.Warningf(
 				"skip task %s: unknown assignee %s",
 				task.TaskIdentifier,

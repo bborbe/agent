@@ -33,14 +33,14 @@ var _ = Describe("TaskEventHandler", func() {
 	var (
 		ctx          context.Context
 		fakeSpawner  *mocks.FakeJobSpawner
-		fakeResolver *mocks.FakeAgentConfigResolver
+		fakeResolver *mocks.FakeConfigResolver
 		h            handler.TaskEventHandler
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
 		fakeSpawner = new(mocks.FakeJobSpawner)
-		fakeResolver = &mocks.FakeAgentConfigResolver{}
+		fakeResolver = &mocks.FakeConfigResolver{}
 		fakeResolver.ResolveReturns(
 			pkg.AgentConfiguration{Assignee: "claude", Image: "my-image:latest"},
 			nil,
@@ -151,7 +151,7 @@ var _ = Describe("TaskEventHandler", func() {
 		It("skips unknown assignee without error", func() {
 			fakeResolver.ResolveReturns(
 				pkg.AgentConfiguration{},
-				errors.Wrapf(ctx, pkg.ErrAgentConfigNotFound, "find assignee"),
+				errors.Wrapf(ctx, pkg.ErrConfigNotFound, "find assignee"),
 			)
 			task := lib.Task{
 				TaskIdentifier: "tid-6",
@@ -308,7 +308,7 @@ var _ = Describe("TaskEventHandler", func() {
 		It("spawns job with stage=dev when executor branch is dev", func() {
 			localSpawner := new(mocks.FakeJobSpawner)
 			localSpawner.IsJobActiveReturns(false, nil)
-			localResolver := &mocks.FakeAgentConfigResolver{}
+			localResolver := &mocks.FakeConfigResolver{}
 			localResolver.ResolveReturns(
 				pkg.AgentConfiguration{Assignee: "claude", Image: "my-image:latest"},
 				nil,
@@ -334,7 +334,7 @@ var _ = Describe("TaskEventHandler", func() {
 
 		It("skips task with absent stage (defaults to prod) when executor branch is dev", func() {
 			localSpawner := new(mocks.FakeJobSpawner)
-			localResolver := &mocks.FakeAgentConfigResolver{}
+			localResolver := &mocks.FakeConfigResolver{}
 			localResolver.ResolveReturns(
 				pkg.AgentConfiguration{Assignee: "claude", Image: "my-image:latest"},
 				nil,

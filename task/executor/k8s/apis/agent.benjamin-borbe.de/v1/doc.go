@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // +k8s:deepcopy-gen=package,register
-// +groupName=agents.bborbe.dev
+// +groupName=agent.benjamin-borbe.de
 
-// Package v1 is the v1 version of the AgentConfig API.
+// Package v1 is the v1 version of the Config API.
 package v1
