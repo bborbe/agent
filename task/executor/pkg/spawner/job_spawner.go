@@ -36,7 +36,7 @@ type JobSpawner interface {
 // NewJobSpawner creates a new JobSpawner backed by the K8s batch/v1 API.
 func NewJobSpawner(
 	kubeClient kubernetes.Interface,
-	namespace string,
+	namespace k8s.Namespace,
 	kafkaBrokers string,
 	branch string,
 	currentDateTimeGetter libtime.CurrentDateTimeGetter,
@@ -52,7 +52,7 @@ func NewJobSpawner(
 
 type jobSpawner struct {
 	kubeClient            kubernetes.Interface
-	namespace             string
+	namespace             k8s.Namespace
 	kafkaBrokers          string
 	branch                string
 	currentDateTimeGetter libtime.CurrentDateTimeGetter
@@ -96,7 +96,7 @@ func (s *jobSpawner) SpawnJob(
 
 	objectMetaBuilder := k8s.NewObjectMetaBuilder()
 	objectMetaBuilder.SetName(k8s.Name(jobName))
-	objectMetaBuilder.SetNamespace(k8s.Namespace(s.namespace))
+	objectMetaBuilder.SetNamespace(s.namespace)
 
 	jobBuilder := k8s.NewJobBuilder()
 	jobBuilder.SetObjectMetaBuild(objectMetaBuilder)
@@ -112,7 +112,7 @@ func (s *jobSpawner) SpawnJob(
 
 	applySecretEnvFrom(config, job)
 
-	_, err = s.kubeClient.BatchV1().Jobs(s.namespace).Create(ctx, job, metav1.CreateOptions{})
+	_, err = s.kubeClient.BatchV1().Jobs(s.namespace.String()).Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
 			glog.V(2).
@@ -137,7 +137,7 @@ func (s *jobSpawner) IsJobActive(
 	taskIdentifier lib.TaskIdentifier,
 ) (bool, error) {
 	labelSelector := componentLabelKey + "=" + string(taskIdentifier)
-	jobs, err := s.kubeClient.BatchV1().Jobs(s.namespace).List(ctx, metav1.ListOptions{
+	jobs, err := s.kubeClient.BatchV1().Jobs(s.namespace.String()).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,
 	})
 	if err != nil {

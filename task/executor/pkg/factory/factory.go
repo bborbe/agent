@@ -9,6 +9,7 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/bborbe/cqrs/base"
+	libk8s "github.com/bborbe/k8s"
 	libkafka "github.com/bborbe/kafka"
 	"github.com/bborbe/log"
 	"github.com/bborbe/run"
@@ -46,7 +47,7 @@ func CreateConfigResolver(
 	handler pkg.EventHandlerConfig,
 	branch base.Branch,
 ) pkg.ConfigResolver {
-	return pkg.NewConfigResolver(handler, string(branch))
+	return pkg.NewConfigResolver(handler, branch)
 }
 
 // CreateConsumer wires together all components and returns a Kafka Consumer that
@@ -55,7 +56,7 @@ func CreateConsumer(
 	saramaClient sarama.Client,
 	branch base.Branch,
 	kubeClient kubernetes.Interface,
-	namespace string,
+	namespace libk8s.Namespace,
 	kafkaBrokers string,
 	resolver pkg.ConfigResolver,
 	logSamplerFactory log.SamplerFactory,

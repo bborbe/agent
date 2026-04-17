@@ -2,6 +2,7 @@ apiVersion: agent.benjamin-borbe.de/v1
 kind: Config
 metadata:
   name: agent-claude
+  namespace: '{{ "NAMESPACE" | env }}'
 spec:
   assignee: claude
   image: docker.quant.benjamin-borbe.de:443/agent-claude

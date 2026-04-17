@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bborbe/errors"
+	libk8s "github.com/bborbe/k8s"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -25,7 +26,7 @@ import (
 // K8sConnector installs the Config CRD and starts an informer.
 type K8sConnector interface {
 	SetupCustomResourceDefinition(ctx context.Context) error
-	Listen(ctx context.Context, namespace string, handler cache.ResourceEventHandler) error
+	Listen(ctx context.Context, namespace libk8s.Namespace, handler cache.ResourceEventHandler) error
 }
 
 // CRDClientBuilder constructs the apiextensions clientset from a rest.Config.
@@ -83,7 +84,7 @@ const defaultResync = 5 * time.Minute
 // and dispatches events to the provided handler until ctx is cancelled.
 func (c *k8sConnector) Listen(
 	ctx context.Context,
-	namespace string,
+	namespace libk8s.Namespace,
 	handler cache.ResourceEventHandler,
 ) error {
 	clientset, err := versioned.NewForConfig(c.config)
@@ -93,7 +94,7 @@ func (c *k8sConnector) Listen(
 	factory := agentinformers.NewSharedInformerFactoryWithOptions(
 		clientset,
 		defaultResync,
-		agentinformers.WithNamespace(namespace),
+		agentinformers.WithNamespace(namespace.String()),
 	)
 	informer := factory.Agent().V1().Configs().Informer()
 	if _, err := informer.AddEventHandler(handler); err != nil {

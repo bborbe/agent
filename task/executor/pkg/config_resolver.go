@@ -8,6 +8,7 @@ import (
 	"context"
 	stderrors "errors"
 
+	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
 	"github.com/bborbe/k8s"
 
@@ -31,14 +32,14 @@ type ConfigResolver interface {
 // resolution time.
 func NewConfigResolver(
 	provider k8s.Provider[agentv1.Config],
-	branch string,
+	branch base.Branch,
 ) ConfigResolver {
 	return &configResolver{provider: provider, branch: branch}
 }
 
 type configResolver struct {
 	provider k8s.Provider[agentv1.Config]
-	branch   string
+	branch   base.Branch
 }
 
 func (r *configResolver) Resolve(
@@ -51,7 +52,7 @@ func (r *configResolver) Resolve(
 	}
 	for _, it := range items {
 		if it.Spec.Assignee == assignee {
-			return convert(it, r.branch), nil
+			return convert(it, r.branch.String()), nil
 		}
 	}
 	return AgentConfiguration{}, errors.Wrapf(

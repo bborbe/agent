@@ -6,15 +6,16 @@ import (
 	"sync"
 
 	"github.com/bborbe/agent/task/executor/pkg"
+	"github.com/bborbe/k8s"
 	"k8s.io/client-go/tools/cache"
 )
 
 type FakeK8sConnector struct {
-	ListenStub        func(context.Context, string, cache.ResourceEventHandler) error
+	ListenStub        func(context.Context, k8s.Namespace, cache.ResourceEventHandler) error
 	listenMutex       sync.RWMutex
 	listenArgsForCall []struct {
 		arg1 context.Context
-		arg2 string
+		arg2 k8s.Namespace
 		arg3 cache.ResourceEventHandler
 	}
 	listenReturns struct {
@@ -38,12 +39,12 @@ type FakeK8sConnector struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeK8sConnector) Listen(arg1 context.Context, arg2 string, arg3 cache.ResourceEventHandler) error {
+func (fake *FakeK8sConnector) Listen(arg1 context.Context, arg2 k8s.Namespace, arg3 cache.ResourceEventHandler) error {
 	fake.listenMutex.Lock()
 	ret, specificReturn := fake.listenReturnsOnCall[len(fake.listenArgsForCall)]
 	fake.listenArgsForCall = append(fake.listenArgsForCall, struct {
 		arg1 context.Context
-		arg2 string
+		arg2 k8s.Namespace
 		arg3 cache.ResourceEventHandler
 	}{arg1, arg2, arg3})
 	stub := fake.ListenStub
@@ -65,13 +66,13 @@ func (fake *FakeK8sConnector) ListenCallCount() int {
 	return len(fake.listenArgsForCall)
 }
 
-func (fake *FakeK8sConnector) ListenCalls(stub func(context.Context, string, cache.ResourceEventHandler) error) {
+func (fake *FakeK8sConnector) ListenCalls(stub func(context.Context, k8s.Namespace, cache.ResourceEventHandler) error) {
 	fake.listenMutex.Lock()
 	defer fake.listenMutex.Unlock()
 	fake.ListenStub = stub
 }
 
-func (fake *FakeK8sConnector) ListenArgsForCall(i int) (context.Context, string, cache.ResourceEventHandler) {
+func (fake *FakeK8sConnector) ListenArgsForCall(i int) (context.Context, k8s.Namespace, cache.ResourceEventHandler) {
 	fake.listenMutex.RLock()
 	defer fake.listenMutex.RUnlock()
 	argsForCall := fake.listenArgsForCall[i]

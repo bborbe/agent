@@ -12,6 +12,7 @@ import (
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
 	libhttp "github.com/bborbe/http"
+	libk8s "github.com/bborbe/k8s"
 	libkafka "github.com/bborbe/kafka"
 	"github.com/bborbe/log"
 	"github.com/bborbe/run"
@@ -25,7 +26,9 @@ import (
 	"k8s.io/client-go/rest"
 
 	agentlib "github.com/bborbe/agent/lib"
+	"github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/factory"
+	"github.com/bborbe/agent/task/executor/pkg/handler"
 )
 
 func main() {
@@ -39,7 +42,7 @@ type application struct {
 	Listen         string            `required:"true"  arg:"listen"           env:"LISTEN"           usage:"address to listen to"`
 	KafkaBrokers   string            `required:"true"  arg:"kafka-brokers"    env:"KAFKA_BROKERS"    usage:"comma-separated Kafka broker addresses"`
 	Branch         base.Branch       `required:"true"  arg:"branch"           env:"BRANCH"           usage:"Kafka topic prefix branch (develop/live)"`
-	Namespace      string            `required:"true"  arg:"namespace"        env:"NAMESPACE"        usage:"K8s namespace to spawn Jobs in"`
+	Namespace      libk8s.Namespace  `required:"true"  arg:"namespace"        env:"NAMESPACE"        usage:"K8s namespace to spawn Jobs in"`
 	BuildGitCommit string            `required:"false" arg:"build-git-commit" env:"BUILD_GIT_COMMIT" usage:"Build Git commit hash"                                     default:"none"`
 	BuildDate      *libtime.DateTime `required:"false" arg:"build-date"       env:"BUILD_DATE"       usage:"Build timestamp (RFC3339)"`
 }
@@ -97,16 +100,17 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		func(ctx context.Context) error {
 			return consumer.Consume(ctx)
 		},
-		a.createHTTPServer(),
+		a.createHTTPServer(eventHandlerConfig),
 	)
 }
 
-func (a *application) createHTTPServer() run.Func {
+func (a *application) createHTTPServer(configProvider pkg.EventHandlerConfig) run.Func {
 	return func(ctx context.Context) error {
 		router := mux.NewRouter()
 		router.Path("/healthz").Handler(libhttp.NewPrintHandler("OK"))
 		router.Path("/readiness").Handler(libhttp.NewPrintHandler("OK"))
 		router.Path("/metrics").Handler(promhttp.Handler())
+		router.Path("/agents").Handler(handler.NewAgentsHandler(configProvider))
 		router.Path("/setloglevel/{level}").
 			Handler(log.NewSetLoglevelHandler(ctx, log.NewLogLevelSetter(2, 5*time.Minute)))
 
