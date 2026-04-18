@@ -22,6 +22,22 @@ import (
 
 var errTest = errors.New("test error")
 
+func extractTestFrontmatter(content string) (map[string]interface{}, error) {
+	if !strings.HasPrefix(content, "---\n") {
+		return nil, errors.New("no frontmatter")
+	}
+	rest := content[4:]
+	before, _, found := strings.Cut(rest, "\n---\n")
+	if !found {
+		return nil, errors.New("frontmatter not closed")
+	}
+	var fm map[string]interface{}
+	if err := yaml.Unmarshal([]byte(before), &fm); err != nil {
+		return nil, err
+	}
+	return fm, nil
+}
+
 var _ = Describe("ResultWriter", func() {
 	var (
 		ctx        context.Context
@@ -283,7 +299,7 @@ var _ = Describe("ResultWriter", func() {
 		})
 
 		Context("content with YAML delimiters", func() {
-			It("escapes bare --- lines so frontmatter is not corrupted", func() {
+			It("preserves bare --- lines in body without escaping", func() {
 				writeTaskFile(
 					"my-task.md",
 					"---\ntask_identifier: test-task-uuid-1234\nstatus: open\n---\nOld content\n",
@@ -307,7 +323,7 @@ var _ = Describe("ResultWriter", func() {
 				Expect(readErr).NotTo(HaveOccurred())
 
 				s := string(written)
-				// Verify frontmatter is parseable — exactly two delimiters wrap it
+				// Verify frontmatter is parseable
 				Expect(s).To(HavePrefix("---\n"))
 				parts := strings.SplitN(s[4:], "\n---\n", 2)
 				Expect(parts).To(HaveLen(2))
@@ -316,11 +332,128 @@ var _ = Describe("ResultWriter", func() {
 				Expect(yaml.Unmarshal([]byte(parts[0]), &parsedFm)).To(Succeed())
 				Expect(parsedFm["status"]).To(Equal("done"))
 
-				// Bare --- in content must be escaped
-				Expect(parts[1]).To(ContainSubstring(`\-\-\-`))
-				Expect(parts[1]).NotTo(ContainSubstring("\n---\n"))
+				// Body --- preserved as-is (valid markdown horizontal rule)
+				Expect(parts[1]).To(ContainSubstring("\n---\n"))
+				Expect(parts[1]).NotTo(ContainSubstring(`\-\-\-`))
 
 				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+			})
+		})
+
+		Context("realistic end-to-end", func() {
+			It("reads a real Obsidian task, applies agent result, and produces correct output", func() {
+				// Realistic task file matching actual Obsidian format:
+				// frontmatter + Tags line + --- separator + body
+				originalTask := `---
+task_identifier: e2e-uuid-1234-5678
+status: in_progress
+phase: ai_review
+assignee: backtest-agent
+stage: dev
+planned_date: "2026-04-17"
+page_type: task
+tags:
+  - agent-task
+  - backtest
+---
+Tags: [[Task]] [[Trading]]
+
+---
+
+Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 2026-04-17.
+
+## Details
+
+- **Strategy:** capitalcom-backtest-BACKTEST
+- **From:** 2026-04-10
+- **Until:** 2026-04-17
+`
+				writeTaskFile("e2e-backtest.md", originalTask)
+
+				// Simulate agent result: status completed, body includes --- separators
+				taskFile = lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("e2e-uuid-1234-5678"),
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "e2e-uuid-1234-5678",
+						"status":          "completed",
+						"phase":           "done",
+					},
+					Content: lib.TaskContent(`Tags: [[Task]] [[Trading]]
+
+---
+
+Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 2026-04-17.
+
+## Details
+
+- **Strategy:** capitalcom-backtest-BACKTEST
+- **From:** 2026-04-10
+- **Until:** 2026-04-17
+
+## Result
+
+- **Strategy:** capitalcom-backtest-BACKTEST
+- **Period:** 2026-04-10 — 2026-04-17
+- **Backtest ID:** b3b44eb0-60d9-40b9-9e7d-5afdc3272020
+- **Status:** DONE
+`),
+				}
+
+				err := writer.WriteResult(ctx, taskFile)
+				Expect(err).NotTo(HaveOccurred())
+
+				written, readErr := os.ReadFile(filepath.Join(tmpDir, taskDir, "e2e-backtest.md"))
+				Expect(readErr).NotTo(HaveOccurred())
+				s := string(written)
+
+				// 1. File starts with frontmatter delimiter
+				Expect(s).To(HavePrefix("---\n"))
+
+				// 2. Parse frontmatter correctly
+				parts := strings.SplitN(s[4:], "\n---\n", 2)
+				Expect(parts).To(HaveLen(2), "frontmatter must be closed by ---")
+
+				var parsedFm map[string]interface{}
+				Expect(yaml.Unmarshal([]byte(parts[0]), &parsedFm)).To(Succeed())
+
+				// 3. Agent keys override existing
+				Expect(parsedFm["status"]).To(Equal("completed"))
+				Expect(parsedFm["phase"]).To(Equal("done"))
+				Expect(parsedFm["task_identifier"]).To(Equal("e2e-uuid-1234-5678"))
+
+				// 4. Existing keys NOT in agent result are preserved
+				Expect(parsedFm["assignee"]).To(Equal("backtest-agent"))
+				Expect(parsedFm["stage"]).To(Equal("dev"))
+				Expect(parsedFm["page_type"]).To(Equal("task"))
+				Expect(parsedFm["planned_date"]).To(Equal("2026-04-17"))
+
+				// 5. Tags list preserved
+				tags, ok := parsedFm["tags"].([]interface{})
+				Expect(ok).To(BeTrue(), "tags should be a list")
+				Expect(tags).To(ContainElements("agent-task", "backtest"))
+
+				// 6. Body contains --- as-is (not escaped to \-\-\-)
+				body := parts[1]
+				Expect(body).To(ContainSubstring("\n---\n"), "body --- must be preserved")
+				Expect(body).NotTo(ContainSubstring(`\-\-\-`), "body --- must NOT be escaped")
+
+				// 7. Body contains result section
+				Expect(body).To(ContainSubstring("## Result"))
+				Expect(body).To(ContainSubstring("b3b44eb0-60d9-40b9-9e7d-5afdc3272020"))
+				Expect(body).To(ContainSubstring("DONE"))
+
+				// 8. Body contains Tags line (Obsidian links)
+				Expect(body).To(ContainSubstring("Tags: [[Task]] [[Trading]]"))
+
+				// 9. Committed exactly once
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+
+				// 10. Verify the full file can be re-read and re-parsed
+				// (simulates controller reading it again on next cycle)
+				reParsedFm, reParseErr := extractTestFrontmatter(s)
+				Expect(reParseErr).NotTo(HaveOccurred())
+				Expect(reParsedFm["status"]).To(Equal("completed"))
+				Expect(reParsedFm["phase"]).To(Equal("done"))
 			})
 		})
 

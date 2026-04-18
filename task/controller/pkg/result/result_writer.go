@@ -103,7 +103,7 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 	}
 
 	newContent := []byte(
-		"---\n" + string(marshaledFrontmatter) + "---\n" + sanitizeContent(string(req.Content)),
+		"---\n" + string(marshaledFrontmatter) + "---\n" + string(req.Content),
 	)
 	glog.V(2).Infof("WriteResult: writing and pushing for task %s", req.TaskIdentifier)
 	if err := r.gitClient.AtomicWriteAndCommitPush(
@@ -119,16 +119,6 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 	glog.V(2).Infof("WriteResult: completed successfully for task %s", req.TaskIdentifier)
 	metrics.ResultsWrittenTotal.WithLabelValues("success").Inc()
 	return nil
-}
-
-func sanitizeContent(content string) string {
-	lines := strings.Split(content, "\n")
-	for i, line := range lines {
-		if strings.TrimRight(line, " \t") == "---" {
-			lines[i] = `\-\-\-`
-		}
-	}
-	return strings.Join(lines, "\n")
 }
 
 // mergeFrontmatter returns a new frontmatter map with all keys from existing,
