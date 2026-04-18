@@ -1,13 +1,12 @@
 ---
-status: committing
+status: completed
 summary: 'Applied five code-review cleanups: deleted unused lib/claude/task-content.go, normalized errors.Wrapf to errors.Wrap in three lib validators, injected CurrentDateTimeGetter into CreateKafkaResultDeliverer, gated all glog calls to V(2).Infof in log-tool-use.go, and reordered ClaudeModel type above its constants; make precommit exits 0 in both lib/ and agent/claude/ (osv-scanner failure in github.com/containerd/containerd is pre-existing on unmodified tree).'
 container: agent-053-code-review-fixes-lib-and-claude
 dark-factory-version: v0.125.1
 created: "2026-04-18T19:49:11Z"
 queued: "2026-04-18T19:49:11Z"
 started: "2026-04-18T20:19:44Z"
-completed: "2026-04-18T20:05:27Z"
-lastFailReason: 'validate completion report: completion report status: partial'
+completed: "2026-04-18T20:22:14Z"
 ---
 <summary>
 - Deletes an unused duplicate `TaskContent` type from the `lib/claude` package (shadow of the canonical `lib.TaskContent`)
