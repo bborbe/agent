@@ -101,7 +101,7 @@ var _ = Describe("JobWatcher", func() {
 			Expect(err).To(BeNil())
 		})
 
-		It("publishes synthetic failure for Succeeded job when task is in store", func() {
+		It("does NOT publish synthetic failure for Succeeded job (trusts agent publish)", func() {
 			job := makeJob("job-2", string(testTaskID), succeededCondition())
 			_, err := fakeKubeClient.BatchV1().
 				Jobs("test-ns").
@@ -111,9 +111,10 @@ var _ = Describe("JobWatcher", func() {
 
 			watcher.HandleJob(ctx, job)
 
-			Expect(fakePublisher.PublishFailureCallCount()).To(Equal(1))
-			_, _, _, calledReason := fakePublisher.PublishFailureArgsForCall(0)
-			Expect(calledReason).To(ContainSubstring("without publishing result"))
+			Expect(fakePublisher.PublishFailureCallCount()).To(Equal(0))
+			// task cleaned up from store
+			_, ok := taskStore.Load(testTaskID)
+			Expect(ok).To(BeFalse())
 
 			_, err = fakeKubeClient.BatchV1().Jobs("test-ns").Get(ctx, "job-2", metav1.GetOptions{})
 			Expect(err).To(BeNil())

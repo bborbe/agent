@@ -109,8 +109,14 @@ func (w *jobWatcher) HandleJob(ctx context.Context, job *batchv1.Job) {
 		return
 	}
 	if isJobSucceeded(job) {
-		glog.V(2).Infof("job %s/%s succeeded (task %s)", job.Namespace, job.Name, taskID)
-		w.handleTerminal(ctx, taskID, job, "job completed without publishing result", false)
+		// Succeeded job (exit 0) means the agent's main.Run returned nil, which
+		// implies its result was published to Kafka successfully. Do NOT publish
+		// a synthetic failure — doing so races the real result and triggers an
+		// infinite respawn loop via the vault poll on the controller side.
+		glog.V(2).
+			Infof("job %s/%s succeeded (task %s): trusting agent publish, no synthetic result",
+				job.Namespace, job.Name, taskID)
+		w.taskStore.Delete(taskID)
 	}
 }
 
