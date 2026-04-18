@@ -4,12 +4,13 @@
 
 package claude
 
-const SonnetClaudeModel ClaudeModel = "sonnet"
-
-const OpusClaudeModel ClaudeModel = "opus"
-
 // ClaudeModel identifies which Claude model to use.
 type ClaudeModel string
 
 // String returns the model name.
 func (c ClaudeModel) String() string { return string(c) }
+
+const (
+	SonnetClaudeModel ClaudeModel = "sonnet"
+	OpusClaudeModel   ClaudeModel = "opus"
+)

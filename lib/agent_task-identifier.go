@@ -37,7 +37,7 @@ func (t TaskIdentifier) Bytes() []byte {
 
 func (t TaskIdentifier) Validate(ctx context.Context) error {
 	if t == "" {
-		return errors.Wrapf(ctx, validation.Error, "identifier missing")
+		return errors.Wrap(ctx, validation.Error, "identifier missing")
 	}
 	return nil
 }

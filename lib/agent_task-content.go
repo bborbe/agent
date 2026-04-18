@@ -20,7 +20,7 @@ func (t TaskContent) String() string {
 
 func (t TaskContent) Validate(ctx context.Context) error {
 	if len(t) == 0 {
-		return errors.Wrapf(ctx, validation.Error, "content missing")
+		return errors.Wrap(ctx, validation.Error, "content missing")
 	}
 	return nil
 }

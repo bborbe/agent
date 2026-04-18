@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.42.1
+
+- chore: remove unused duplicate `lib/claude.TaskContent` type (use `lib.TaskContent`)
+- refactor: replace `errors.Wrapf` with `errors.Wrap` in lib validation helpers (no format verbs)
+- refactor: inject `CurrentDateTimeGetter` into `CreateKafkaResultDeliverer` factory for testability
+- fix: use `glog.V(2).Infof` consistently inside the V(2)-guarded block in `lib/claude/log-tool-use.go`
+- chore: reorder `ClaudeModel` type above its constants
+
 ## v0.42.0
 
 - feat: executor watches batch/v1 Jobs via shared informer and publishes synthetic failure results for OOMKilled, evicted, and backoffLimit-exceeded Jobs; feeds controller's retry counter identically to agent-published failures

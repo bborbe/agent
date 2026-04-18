@@ -63,6 +63,7 @@ func CreateKafkaResultDeliverer(
 	branch base.Branch,
 	taskID agentlib.TaskIdentifier,
 	taskContent string,
+	currentDateTime libtime.CurrentDateTimeGetter,
 ) claudelib.ResultDeliverer {
 	return claudelib.NewResultDelivererAdapter(
 		delivery.NewKafkaResultDeliverer(
@@ -71,7 +72,7 @@ func CreateKafkaResultDeliverer(
 			taskID,
 			taskContent,
 			delivery.NewFallbackContentGenerator(),
-			libtime.NewCurrentDateTime(),
+			currentDateTime,
 		),
 	)
 }

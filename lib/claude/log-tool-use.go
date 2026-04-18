@@ -16,24 +16,24 @@ func logToolUse(c claudeContent) {
 	}
 	var inp map[string]any
 	if err := json.Unmarshal(c.Input, &inp); err != nil {
-		glog.Infof("claude: [%s]", c.Name)
+		glog.V(2).Infof("claude: [%s]", c.Name)
 		return
 	}
 
 	switch c.Name {
 	case "Read":
-		glog.Infof("claude: [read] %v", inp["file_path"])
+		glog.V(2).Infof("claude: [read] %v", inp["file_path"])
 	case "Write":
-		glog.Infof("claude: [write] %v", inp["file_path"])
+		glog.V(2).Infof("claude: [write] %v", inp["file_path"])
 	case "Edit":
-		glog.Infof("claude: [edit] %v", inp["file_path"])
+		glog.V(2).Infof("claude: [edit] %v", inp["file_path"])
 	case "Grep":
-		glog.Infof("claude: [grep] %v", inp["pattern"])
+		glog.V(2).Infof("claude: [grep] %v", inp["pattern"])
 	case "Glob":
-		glog.Infof("claude: [glob] %v", inp["pattern"])
+		glog.V(2).Infof("claude: [glob] %v", inp["pattern"])
 	case "Bash":
-		glog.Infof("claude: [bash] %v", inp["command"])
+		glog.V(2).Infof("claude: [bash] %v", inp["command"])
 	default:
-		glog.Infof("claude: [%s] %v", c.Name, inp)
+		glog.V(2).Infof("claude: [%s] %v", c.Name, inp)
 	}
 }

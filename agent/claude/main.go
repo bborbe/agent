@@ -15,6 +15,7 @@ import (
 	libkafka "github.com/bborbe/kafka"
 	libsentry "github.com/bborbe/sentry"
 	"github.com/bborbe/service"
+	libtime "github.com/bborbe/time"
 	"github.com/golang/glog"
 
 	"github.com/bborbe/agent/agent/claude/pkg/factory"
@@ -109,6 +110,7 @@ func (a *application) createDeliverer(
 			a.Branch,
 			taskID,
 			a.TaskContent,
+			libtime.NewCurrentDateTime(),
 		)
 		return deliverer, func() {
 			if err := syncProducer.Close(); err != nil {

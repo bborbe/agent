@@ -21,7 +21,7 @@ func (t TaskAssignee) String() string {
 
 func (t TaskAssignee) Validate(ctx context.Context) error {
 	if t == "" {
-		return errors.Wrapf(ctx, validation.Error, "assignee missing")
+		return errors.Wrap(ctx, validation.Error, "assignee missing")
 	}
 	return nil
 }
