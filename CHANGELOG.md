@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.36.0
+
+- feat: Add `agent-claude` service — headless Claude Code CLI runner for task execution; spawns `claude --print --output-format stream-json` with configurable model, allowed tools, env, working directory; publishes results via Kafka (when TASK_ID is set) or falls back to noop
+- feat: Add `lib/delivery` package — generic `ResultDeliverer` (noop/file/kafka) and `ContentGenerator` with markdown frontmatter helpers; agents in other repos can depend on it for Kafka task-update publishing
+- feat: Add `lib/claude` package — generic Claude CLI runtime (`ClaudeRunner`, `TaskRunner`, `BuildPrompt`, `Instructions` XML rendering, `AgentResult` types) moved out of `agent-claude/pkg/` so multiple agent services can share it
+- feat: Add agents config handler in task/controller
+- fix: Task file write via Kafka pipeline
+- docs: Move agent-crd-specification and related docs to `specs/`
+- docs: Task-retry design idea
+
 ## v0.35.0
 
 - feat!: Rename AgentConfig CRD to Config and move the API group from `agents.bborbe.dev` to `agent.benjamin-borbe.de` to match the bborbe convention (`alerts.monitoring.benjamin-borbe.de`, `schemas.cdb.benjamin-borbe.de`, …); CRD is now `configs.agent.benjamin-borbe.de` with short name `cfg`; no cluster migration needed because the old CRD was never applied
