@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package delivery_test
+package lib_test
 
 import (
 	"testing"
@@ -14,9 +14,9 @@ import (
 )
 
 //go:generate go run -mod=mod github.com/maxbrunsfeld/counterfeiter/v6 -generate
-func TestSuite(t *testing.T) {
+func TestLib(t *testing.T) {
 	time.Local = time.UTC
 	format.TruncatedDiff = false
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Agent Test Suite")
+	RunSpecs(t, "Lib Suite")
 }

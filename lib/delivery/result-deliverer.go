@@ -21,7 +21,7 @@ import (
 	agentlib "github.com/bborbe/agent/lib"
 )
 
-//counterfeiter:generate -o mocks/delivery-result-deliverer.go --fake-name AgentResultDeliverer . ResultDeliverer
+//counterfeiter:generate -o ../mocks/delivery-result-deliverer.go --fake-name AgentResultDeliverer . ResultDeliverer
 
 // ResultDeliverer publishes an agent result back to the task controller.
 type ResultDeliverer interface {

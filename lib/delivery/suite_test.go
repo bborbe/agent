@@ -2,16 +2,21 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package lib_test
+package delivery_test
 
 import (
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
 )
 
-func TestLib(t *testing.T) {
+//go:generate go run -mod=mod github.com/maxbrunsfeld/counterfeiter/v6 -generate
+func TestDelivery(t *testing.T) {
+	time.Local = time.UTC
+	format.TruncatedDiff = false
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Lib Suite")
+	RunSpecs(t, "Delivery Suite")
 }

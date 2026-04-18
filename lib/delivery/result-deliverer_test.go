@@ -12,7 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/bborbe/agent/lib/delivery"
-	libmocks "github.com/bborbe/agent/lib/delivery/mocks"
+	libmocks "github.com/bborbe/agent/lib/mocks"
 )
 
 var _ = Describe("NoopResultDeliverer", func() {

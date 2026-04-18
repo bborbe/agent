@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-//counterfeiter:generate -o mocks/delivery-content-generator.go --fake-name AgentContentGenerator . ContentGenerator
+//counterfeiter:generate -o ../mocks/delivery-content-generator.go --fake-name AgentContentGenerator . ContentGenerator
 
 // AgentResultInfo holds the minimum fields a ContentGenerator needs from any agent result.
 type AgentResultInfo struct {
