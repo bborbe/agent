@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [009-executor-job-failure-detection]
 summary: Added SpawnNotification() and CurrentJob() accessors to TaskFrontmatter, modified applyRetryCounter to skip retry increment for spawn notifications, and added tests for all new behavior in both lib and task/controller.
 container: agent-050-spec-009-lib-controller-spawn-notification
@@ -7,6 +7,7 @@ dark-factory-version: v0.125.1
 created: "2026-04-18T20:00:00Z"
 queued: "2026-04-18T19:29:44Z"
 started: "2026-04-18T19:35:39Z"
+completed: "2026-04-18T19:40:56Z"
 branch: dark-factory/executor-job-failure-detection
 ---
 
