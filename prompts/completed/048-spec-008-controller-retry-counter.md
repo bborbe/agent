@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [008-task-retry-protection]
+summary: 'Implemented retry counter in ResultWriter: increments retry_count on non-completed writes and escalates to human_review phase with Retry Escalation section when retry_count >= max_retries, with libtime.CurrentDateTimeGetter injection and full test coverage.'
+container: agent-048-spec-008-controller-retry-counter
+dark-factory-version: v0.122.0-6-g6b02e84
 created: "2026-04-18T15:30:00Z"
 queued: "2026-04-18T15:12:26Z"
+started: "2026-04-18T15:17:25Z"
+completed: "2026-04-18T15:24:39Z"
 branch: dark-factory/task-retry-protection
 ---
 
