@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.38.0
+
+- feat: Implement retry counter in `task/controller` `ResultWriter` — increments `retry_count` on each non-completed result write and escalates to `phase: human_review` with `## Retry Escalation` section when `retry_count >= max_retries` (default 3)
+
 ## v0.37.0
 
 - feat: Add `RetryCount()` and `MaxRetries()` typed accessors to `lib.TaskFrontmatter` with int/float64 dual-source handling (YAML and Kafka paths)

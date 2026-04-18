@@ -10,7 +10,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	libtime "github.com/bborbe/time"
+	libtimemocks "github.com/bborbe/time/mocks"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"
@@ -44,6 +47,7 @@ var _ = Describe("ResultWriter", func() {
 		tmpDir     string
 		taskDir    string
 		fakeGit    *mocks.FakeGitClient
+		fakeTime   *libtimemocks.CurrentDateTimeGetter
 		writer     result.ResultWriter
 		taskFile   lib.Task
 		identifier lib.TaskIdentifier
@@ -64,8 +68,11 @@ var _ = Describe("ResultWriter", func() {
 			return os.WriteFile(absPath, content, 0600)
 		}
 
+		fakeTime = &libtimemocks.CurrentDateTimeGetter{}
+		fakeTime.NowReturns(libtime.DateTime(time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC)))
+
 		identifier = lib.TaskIdentifier("test-task-uuid-1234")
-		writer = result.NewResultWriter(fakeGit, taskDir)
+		writer = result.NewResultWriter(fakeGit, taskDir, fakeTime)
 	})
 
 	AfterEach(func() {
@@ -460,6 +467,123 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					Expect(reParsedFm["phase"]).To(Equal("done"))
 				},
 			)
+		})
+
+		Context("retry counter", func() {
+			It("increments retry_count on first failure and keeps ai_review phase", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\nassignee: claude\n---\nAgent output\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "ai_review",
+					},
+					Content: lib.TaskContent("Failed output\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("retry_count: 1"))
+				Expect(s).To(ContainSubstring("phase: ai_review"))
+				Expect(s).NotTo(ContainSubstring("human_review"))
+				Expect(s).NotTo(ContainSubstring("Retry Escalation"))
+			})
+
+			It("escalates to human_review after three failures (default max_retries)", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nretry_count: 2\nassignee: claude\n---\nAgent output\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "ai_review",
+					},
+					Content: lib.TaskContent("Failed output\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("retry_count: 3"))
+				Expect(s).To(ContainSubstring("phase: human_review"))
+				Expect(s).To(ContainSubstring("## Retry Escalation"))
+				Expect(s).To(ContainSubstring("**Attempts:** 3"))
+				Expect(s).To(ContainSubstring("**Assignee:** claude"))
+				Expect(s).To(ContainSubstring("2026-04-18T12:00:00Z"))
+			})
+
+			It("does not modify retry_count when result is completed", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nretry_count: 2\nassignee: claude\n---\nAgent output\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "completed",
+						"phase":           "done",
+					},
+					Content: lib.TaskContent("Success output\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("retry_count: 2"))
+				Expect(s).To(ContainSubstring("phase: done"))
+				Expect(s).NotTo(ContainSubstring("human_review"))
+				Expect(s).NotTo(ContainSubstring("Retry Escalation"))
+			})
+
+			It("escalates on first failure when max_retries is 0", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nmax_retries: 0\nassignee: claude\n---\nAgent output\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "ai_review",
+					},
+					Content: lib.TaskContent("Failed\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("retry_count: 1"))
+				Expect(s).To(ContainSubstring("phase: human_review"))
+				Expect(s).To(ContainSubstring("## Retry Escalation"))
+			})
+
+			It("does not escalate before max_retries is reached", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nretry_count: 3\nmax_retries: 5\nassignee: claude\n---\nAgent output\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "ai_review",
+					},
+					Content: lib.TaskContent("Failed\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("retry_count: 4"))
+				Expect(s).NotTo(ContainSubstring("human_review"))
+				Expect(s).NotTo(ContainSubstring("Retry Escalation"))
+			})
 		})
 
 		Context("atomic write and push error", func() {

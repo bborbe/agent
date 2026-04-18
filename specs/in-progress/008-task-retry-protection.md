@@ -1,8 +1,9 @@
 ---
-status: prompted
+status: verifying
 approved: "2026-04-18T15:00:58Z"
 generating: "2026-04-18T15:01:01Z"
 prompted: "2026-04-18T15:08:35Z"
+verifying: "2026-04-18T15:24:39Z"
 branch: dark-factory/task-retry-protection
 ---
 
