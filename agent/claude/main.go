@@ -10,6 +10,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/bborbe/cqrs/base"
+	"github.com/bborbe/errors"
+	libkafka "github.com/bborbe/kafka"
 	libsentry "github.com/bborbe/sentry"
 	"github.com/bborbe/service"
 	"github.com/golang/glog"
@@ -17,6 +20,7 @@ import (
 	"github.com/bborbe/agent/agent/claude/pkg"
 	"github.com/bborbe/agent/agent/claude/pkg/factory"
 	"github.com/bborbe/agent/agent/claude/pkg/prompts"
+	agentlib "github.com/bborbe/agent/lib"
 )
 
 func main() {
@@ -48,10 +52,23 @@ type application struct {
 
 	// Environment variables passed to Claude CLI process (comma-separated KEY=VALUE pairs)
 	ClaudeEnvRaw string `required:"false" arg:"claude-env" env:"CLAUDE_ENV" usage:"Comma-separated KEY=VALUE pairs for Claude CLI environment"`
+
+	// Branch for Kafka result delivery
+	Branch base.Branch `required:"true" arg:"branch" env:"BRANCH" usage:"branch"`
+
+	// Kafka delivery (optional — only active when TASK_ID is set)
+	KafkaBrokers libkafka.Brokers `required:"false" arg:"kafka-brokers" env:"KAFKA_BROKERS" usage:"Comma separated list of Kafka brokers"`
+	TaskID       string           `required:"false" arg:"task-id"       env:"TASK_ID"       usage:"Agent task identifier for publishing results back to task controller"`
 }
 
 func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
 	glog.V(2).Infof("agent-claude started")
+
+	deliverer, cleanup, err := a.createDeliverer(ctx)
+	if err != nil {
+		return errors.Wrapf(ctx, err, "create deliverer")
+	}
+	defer cleanup()
 
 	taskRunner := factory.CreateTaskRunner(
 		a.ClaudeConfigDir,
@@ -61,7 +78,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		parseKeyValuePairs(a.ClaudeEnvRaw),
 		parseKeyValuePairs(a.EnvContextRaw),
 		prompts.BuildInstructions(),
-		pkg.NewNoopResultDeliverer(),
+		deliverer,
 	)
 
 	result, err := taskRunner.Run(ctx, a.TaskContent)
@@ -73,6 +90,32 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	}
 
 	return pkg.PrintResult(ctx, *result)
+}
+
+func (a *application) createDeliverer(ctx context.Context) (pkg.ResultDeliverer, func(), error) {
+	if a.TaskID != "" {
+		if len(a.KafkaBrokers) == 0 {
+			return nil, nil, errors.Errorf(ctx, "KAFKA_BROKERS must be set when TASK_ID is set")
+		}
+		syncProducer, err := factory.CreateSyncProducer(ctx, a.KafkaBrokers)
+		if err != nil {
+			return nil, nil, errors.Wrapf(ctx, err, "create sync producer failed")
+		}
+		taskID := agentlib.TaskIdentifier(a.TaskID)
+		deliverer := factory.CreateKafkaResultDeliverer(
+			syncProducer,
+			a.Branch,
+			taskID,
+			a.TaskContent,
+		)
+		return deliverer, func() {
+			if err := syncProducer.Close(); err != nil {
+				glog.Warningf("close sync producer failed: %v", err)
+			}
+		}, nil
+	}
+	glog.V(2).Infof("TASK_ID not set, skipping task result publishing")
+	return pkg.NewNoopResultDeliverer(), func() {}, nil
 }
 
 // parseKeyValuePairs parses "KEY1=VALUE1,KEY2=VALUE2" into a map.

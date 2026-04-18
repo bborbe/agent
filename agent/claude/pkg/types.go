@@ -4,16 +4,20 @@
 
 package pkg
 
-// AgentStatus represents the outcome status of an agent task.
-type AgentStatus string
+import (
+	delivery "github.com/bborbe/agent/lib/delivery"
+)
+
+// AgentStatus is the shared agent status type.
+type AgentStatus = delivery.AgentStatus
 
 const (
 	// AgentStatusDone indicates the task completed successfully.
-	AgentStatusDone AgentStatus = "done"
+	AgentStatusDone = delivery.AgentStatusDone
 	// AgentStatusFailed indicates the task failed.
-	AgentStatusFailed AgentStatus = "failed"
+	AgentStatusFailed = delivery.AgentStatusFailed
 	// AgentStatusNeedsInput indicates the task requires additional user input.
-	AgentStatusNeedsInput AgentStatus = "needs_input"
+	AgentStatusNeedsInput = delivery.AgentStatusNeedsInput
 )
 
 // AgentResult is the structured output written to stdout for the task/executor to read.
