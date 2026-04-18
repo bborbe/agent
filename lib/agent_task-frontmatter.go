@@ -41,3 +41,29 @@ func (f TaskFrontmatter) Stage() string {
 	}
 	return v
 }
+
+// RetryCount returns the number of failed attempts recorded in frontmatter.
+// Returns 0 when the field is absent.
+func (f TaskFrontmatter) RetryCount() int {
+	switch v := f["retry_count"].(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	default:
+		return 0
+	}
+}
+
+// MaxRetries returns the maximum number of failures allowed before escalation.
+// Returns 3 when the field is absent (spec default).
+func (f TaskFrontmatter) MaxRetries() int {
+	switch v := f["max_retries"].(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	default:
+		return 3
+	}
+}

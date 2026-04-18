@@ -38,7 +38,7 @@ var _ = Describe("FallbackContentGenerator", func() {
 			Expect(generated).To(ContainSubstring("Strategy: foo"))
 		})
 
-		It("sets status=in_progress and phase=human_review for failed result", func() {
+		It("sets status=in_progress and phase=ai_review for failed result", func() {
 			original := "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Task\n\nRun a backtest.\n"
 			result := delivery.AgentResultInfo{
 				Status:  delivery.AgentStatusFailed,
@@ -47,7 +47,7 @@ var _ = Describe("FallbackContentGenerator", func() {
 			generated, err := generator.Generate(ctx, original, result)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(generated).To(ContainSubstring("status: in_progress"))
-			Expect(generated).To(ContainSubstring("phase: human_review"))
+			Expect(generated).To(ContainSubstring("phase: ai_review"))
 			Expect(generated).To(ContainSubstring("timeout expired"))
 		})
 

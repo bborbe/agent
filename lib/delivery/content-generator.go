@@ -37,7 +37,7 @@ func (g *fallbackContentGenerator) Generate(
 		updated = SetFrontmatterField(updated, "phase", "done")
 	default: // failed, needs_input, and any other status
 		updated = SetFrontmatterField(updated, "status", "in_progress")
-		updated = SetFrontmatterField(updated, "phase", "human_review")
+		updated = SetFrontmatterField(updated, "phase", "ai_review")
 	}
 
 	var section strings.Builder

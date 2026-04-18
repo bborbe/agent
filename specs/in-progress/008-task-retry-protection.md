@@ -1,5 +1,9 @@
 ---
-status: draft
+status: prompted
+approved: "2026-04-18T15:00:58Z"
+generating: "2026-04-18T15:01:01Z"
+prompted: "2026-04-18T15:08:35Z"
+branch: dark-factory/task-retry-protection
 ---
 
 ## Summary
@@ -30,7 +34,7 @@ After this work, the controller automatically escalates persistently failing tas
 2. When `retry_count >= max_retries` (read from frontmatter, default 3), the controller overrides `phase` to `human_review` and appends a structured error message to the content (see Error Message Format)
 3. When the controller writes a completed result, `retry_count` is left as-is (shows how many attempts it took)
 4. The executor sees `phase: human_review` and skips — no code change needed
-5. The kafka result-deliverer (`lib/delivery/result-deliverer.go`) is the canonical path and already writes `phase: ai_review` on failure — compatible. The fallback content generator currently writes `phase: human_review` directly on failure and must be reconciled so the retry counter is not bypassed on the fallback path.
+5. All failure-writeback paths participate in the retry counter. The canonical kafka path already writes `phase: ai_review` on failure; the fallback content path must not bypass the counter by writing `human_review` directly.
 
 ## Error Message Format
 
@@ -41,20 +45,20 @@ When escalating to `human_review`, the appended error section contains:
 - Agent/assignee name
 - Last failure message from the agent result
 
-Rendered as a markdown section (e.g. `## Retry Escalation`) so a human operator sees it inline when opening the task.
+Rendered as a markdown section with heading `## Retry Escalation` (frozen so downstream tools can locate it) so a human operator sees it inline when opening the task.
 
 ## Recovery Procedure
 
 To retry a task escalated to `human_review`:
 
 1. Fix the root cause (config, input, quota)
-2. Reset frontmatter: `retry_count: 0`, `phase: ai_review`, `status: in_progress`
+2. Edit the task file frontmatter directly: `retry_count: 0`, `phase: ai_review`, `status: in_progress` (no dedicated CLI — raw edit + git commit)
 3. Executor respawns on the next scan cycle
 
 ## Constraints
 
 **Must not change:**
-- Executor code or phase filtering logic (`allowedPhases = {planning, in_progress, ai_review}`)
+- Executor code or phase filtering logic (`allowedPhases = {planning, in_progress, ai_review}` — see `docs/controller-design.md` and `docs/agent-job-lifecycle.md`)
 - Agent result publishing (agents don't know about retries)
 - Kafka event/request schema
 - Task frontmatter schema (new fields are additive)
@@ -100,7 +104,7 @@ Hints for the implementer. Final structure is at the implementer's discretion pr
 - [ ] A task with `max_retries: N` escalates once `retry_count >= N`
 - [ ] `max_retries: 0` escalates on the first failure
 - [ ] Resetting `retry_count: 0` + `phase: ai_review` allows the executor to respawn the task
-- [ ] Fallback content generator path does not bypass the retry counter
+- [ ] A failure written through the fallback content path leaves the task file with `retry_count` incremented (proving the counter is not bypassed)
 - [ ] `make precommit` passes in task/controller/ and lib/
 
 ## Verification

@@ -122,4 +122,51 @@ var _ = Describe("TaskFrontmatter", func() {
 			Expect(fm.Stage()).To(Equal("dev"))
 		})
 	})
+
+	Describe("RetryCount", func() {
+		It("returns 0 when key is absent", func() {
+			fm := lib.TaskFrontmatter{}
+			Expect(fm.RetryCount()).To(Equal(0))
+		})
+
+		It("returns value when key is int (YAML path)", func() {
+			fm := lib.TaskFrontmatter{"retry_count": int(2)}
+			Expect(fm.RetryCount()).To(Equal(2))
+		})
+
+		It("returns value when key is float64 (JSON/Kafka path)", func() {
+			fm := lib.TaskFrontmatter{"retry_count": float64(3)}
+			Expect(fm.RetryCount()).To(Equal(3))
+		})
+
+		It("returns 0 when key is explicitly 0", func() {
+			fm := lib.TaskFrontmatter{"retry_count": int(0)}
+			Expect(fm.RetryCount()).To(Equal(0))
+		})
+	})
+
+	Describe("MaxRetries", func() {
+		It("returns 3 when key is absent (spec default)", func() {
+			fm := lib.TaskFrontmatter{}
+			Expect(fm.MaxRetries()).To(Equal(3))
+		})
+
+		It("returns value when key is int 5", func() {
+			fm := lib.TaskFrontmatter{"max_retries": int(5)}
+			Expect(fm.MaxRetries()).To(Equal(5))
+		})
+
+		It("returns value when key is float64 10.0", func() {
+			fm := lib.TaskFrontmatter{"max_retries": float64(10)}
+			Expect(fm.MaxRetries()).To(Equal(10))
+		})
+
+		It(
+			"returns 0 when key is explicitly 0 (max_retries: 0 escalates on first failure)",
+			func() {
+				fm := lib.TaskFrontmatter{"max_retries": int(0)}
+				Expect(fm.MaxRetries()).To(Equal(0))
+			},
+		)
+	})
 })
