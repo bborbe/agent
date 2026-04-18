@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [009-executor-job-failure-detection]
 summary: Extended task/executor with job task-id labels, (string,error) SpawnJob return, ResultPublisher interface with Kafka publishing, thread-safe TaskStore, spawn notification publishing after job spawn, and current_job frontmatter idempotency check
 container: agent-051-spec-009-executor-producer-spawn-tracking
@@ -7,6 +7,7 @@ dark-factory-version: v0.125.1
 created: "2026-04-18T20:00:00Z"
 queued: "2026-04-18T19:29:44Z"
 started: "2026-04-18T19:40:57Z"
+completed: "2026-04-18T19:53:21Z"
 branch: dark-factory/executor-job-failure-detection
 ---
 
