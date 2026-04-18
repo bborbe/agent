@@ -113,7 +113,7 @@ gocommit:
 	@for dir in $$(pwd)/lib $$(find $$(pwd) -name go.mod -not -path "*/vendor/*" -not -path "*/lib/*" -exec dirname {} + | sort -u); do \
 		cd "$${dir}" && \
 		echo "precommit + commit started for $${dir}" && \
-		((git diff --quiet -- . && \
+		((git diff --quiet -- . && git diff --cached --quiet -- . && test -z "$$(git ls-files --others --exclude-standard -- .)" && \
 		echo "nothing changed => skip") || \
 		(make precommit && \
 		git add -- . && \
