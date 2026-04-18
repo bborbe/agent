@@ -11,13 +11,6 @@ import (
 
 //counterfeiter:generate -o ../mocks/delivery-content-generator.go --fake-name AgentContentGenerator . ContentGenerator
 
-// AgentResultInfo holds the minimum fields a ContentGenerator needs from any agent result.
-type AgentResultInfo struct {
-	Status  AgentStatus
-	Output  string // human-readable summary or result body
-	Message string // error or status message
-}
-
 // ContentGenerator produces a complete updated task markdown document from the original content and agent result.
 // The returned string must be valid markdown with YAML frontmatter.
 type ContentGenerator interface {

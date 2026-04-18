@@ -16,7 +16,7 @@ import (
 func PrintResult(ctx context.Context, result AgentResult) error {
 	data, err := json.Marshal(result)
 	if err != nil {
-		return errors.Wrapf(ctx, err, "marshal result")
+		return errors.Wrap(ctx, err, "marshal result")
 	}
 	fmt.Println(string(data))
 	return nil

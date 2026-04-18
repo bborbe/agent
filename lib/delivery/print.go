@@ -13,10 +13,10 @@ import (
 )
 
 // PrintResult marshals any value to JSON and prints to stdout.
-func PrintResult(ctx context.Context, result interface{}) error {
+func PrintResult(ctx context.Context, result any) error {
 	data, err := json.Marshal(result)
 	if err != nil {
-		return errors.Wrapf(ctx, err, "marshal result")
+		return errors.Wrap(ctx, err, "marshal result")
 	}
 	fmt.Println(string(data))
 	return nil

@@ -52,7 +52,6 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 	resultText := scanOutput(ctx, stdoutPipe)
 
 	if err := cmd.Wait(); err != nil {
-		glog.V(2).Infof("claude stderr: %s", stderr.String())
 		return nil, errors.Wrapf(ctx, err, "claude CLI failed: %s", stderr.String())
 	}
 
@@ -101,9 +100,7 @@ func (r *claudeRunner) buildCommand(
 	for k, v := range r.config.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
-	if glog.V(4) {
-		glog.Infof("env %+v", cmd.Env)
-	}
+	glog.V(4).Infof("env %+v", cmd.Env)
 
 	return cmd
 }

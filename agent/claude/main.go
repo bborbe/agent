@@ -66,7 +66,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 
 	deliverer, cleanup, err := a.createDeliverer(ctx)
 	if err != nil {
-		return errors.Wrapf(ctx, err, "create deliverer")
+		return errors.Wrap(ctx, err, "create deliverer")
 	}
 	defer cleanup()
 
@@ -101,7 +101,7 @@ func (a *application) createDeliverer(
 		}
 		syncProducer, err := factory.CreateSyncProducer(ctx, a.KafkaBrokers)
 		if err != nil {
-			return nil, nil, errors.Wrapf(ctx, err, "create sync producer failed")
+			return nil, nil, errors.Wrap(ctx, err, "create sync producer failed")
 		}
 		taskID := agentlib.TaskIdentifier(a.TaskID)
 		deliverer := factory.CreateKafkaResultDeliverer(

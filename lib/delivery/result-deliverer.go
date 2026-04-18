@@ -55,16 +55,16 @@ func (d *fileResultDeliverer) DeliverResult(ctx context.Context, result AgentRes
 		d.filePath,
 	) // #nosec G304 -- filePath validated by caller
 	if err != nil {
-		return errors.Wrapf(ctx, err, "read task file failed")
+		return errors.Wrap(ctx, err, "read task file failed")
 	}
 
 	generated, err := d.generator.Generate(ctx, string(original), result)
 	if err != nil {
-		return errors.Wrapf(ctx, err, "content generation failed")
+		return errors.Wrap(ctx, err, "content generation failed")
 	}
 
-	if err := os.WriteFile(d.filePath, []byte(generated), 0600); err != nil { // #nosec G703
-		return errors.Wrapf(ctx, err, "write task file failed")
+	if err := os.WriteFile(d.filePath, []byte(generated), 0600); err != nil { // #nosec G304 G703 -- filePath validated by caller
+		return errors.Wrap(ctx, err, "write task file failed")
 	}
 	return nil
 }
@@ -104,7 +104,7 @@ type kafkaResultDeliverer struct {
 func (d *kafkaResultDeliverer) DeliverResult(ctx context.Context, result AgentResultInfo) error {
 	generated, err := d.generator.Generate(ctx, d.originalContent, result)
 	if err != nil {
-		return errors.Wrapf(ctx, err, "content generation failed")
+		return errors.Wrap(ctx, err, "content generation failed")
 	}
 
 	fmMap, body := ParseMarkdownFrontmatter(generated)
@@ -142,7 +142,7 @@ func (d *kafkaResultDeliverer) DeliverResult(ctx context.Context, result AgentRe
 
 	event, err := base.ParseEvent(ctx, task)
 	if err != nil {
-		return errors.Wrapf(ctx, err, "parse task event failed")
+		return errors.Wrap(ctx, err, "parse task event failed")
 	}
 
 	requestIDCh := make(chan base.RequestID, 1)
@@ -160,7 +160,7 @@ func (d *kafkaResultDeliverer) DeliverResult(ctx context.Context, result AgentRe
 
 	glog.V(2).Infof("publishing task update for taskID=%s status=%s", d.taskID, result.Status)
 	if err := d.commandObjectSender.SendCommandObject(ctx, commandObject); err != nil {
-		return errors.Wrapf(ctx, err, "publish task update failed")
+		return errors.Wrap(ctx, err, "publish task update failed")
 	}
 	return nil
 }

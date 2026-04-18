@@ -15,3 +15,10 @@ const (
 	// AgentStatusNeedsInput indicates the task requires additional user input.
 	AgentStatusNeedsInput AgentStatus = "needs_input"
 )
+
+// AgentResultInfo holds the minimum fields a ContentGenerator needs from any agent result.
+type AgentResultInfo struct {
+	Status  AgentStatus
+	Output  string // human-readable summary or result body
+	Message string // error or status message
+}

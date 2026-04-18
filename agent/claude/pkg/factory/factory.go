@@ -52,7 +52,7 @@ func CreateSyncProducer(
 ) (libkafka.SyncProducer, error) {
 	producer, err := libkafka.NewSyncProducerWithName(ctx, brokers, serviceName)
 	if err != nil {
-		return nil, errors.Wrapf(ctx, err, "create sync producer failed")
+		return nil, errors.Wrap(ctx, err, "create sync producer failed")
 	}
 	return producer, nil
 }
