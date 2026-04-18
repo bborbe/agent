@@ -39,12 +39,13 @@ After this work, any terminal Job failure — whether the agent published a resu
 1. When the executor spawns a Job for a task, the task frontmatter gains `current_job: <job-name>` and `job_started_at: <ISO8601>`, and `status`/`phase` remain unchanged.
 2. The executor watches `batch/v1 Jobs` with a shared informer in its own namespace and maintains a Job-to-task lookup keyed by a label (e.g. `agent.benjamin-borbe.de/task-id`).
 3. When a Job reaches terminal state, the executor reacts:
-   - `Succeeded` without the agent having already published a result → publish synthetic failure (`status: in_progress`, phase stays `ai_review`, message: "job completed without publishing result") so the counter increments.
+   - `Succeeded` → trust the agent's own Kafka publish (exit 0 means `main.Run` returned nil, which implies `deliverer.Publish` succeeded). No synthetic emission; just clean up `taskStore`.
    - `Failed` → publish synthetic failure with the Job's failure reason in the message.
 4. If a subsequent task event arrives while the task's `current_job` still exists and is running, the executor skips spawning (idempotent) and logs a warning.
 5. The synthetic failure result flows through the same Kafka topic the agent uses; the controller's retry counter handles it identically.
-6. Jobs that reach terminal state are deleted by the executor after publishing the synthetic result, so future events spawn fresh Jobs.
-7. In the rare race where the agent publishes a result and the executor also emits a synthetic failure, both writes are processed (last-write-wins on frontmatter, counter increments twice) — accepted as a mild false positive rather than suppressed.
+6. Terminal Jobs are NOT eagerly deleted by the executor; cleanup is handled by K8s via `TTLSecondsAfterFinished=600` (default from `bborbe/k8s` JobBuilder). This keeps pods/logs available for 10 minutes after termination for debugging.
+7. Job names include a task ID prefix: `{assignee}-{taskID[:8]}-{YYYYMMDDHHMMSS}` to prevent collisions between concurrent tasks sharing the same assignee and second.
+8. The controller clears `spawn_notification` from frontmatter after the retry-bypass check so it cannot leak into subsequent synthetic failures and indefinitely suppress the counter.
 
 ## Constraints
 
@@ -55,7 +56,7 @@ After this work, any terminal Job failure — whether the agent published a resu
 - Phase filtering (`allowedPhases = {planning, in_progress, ai_review}` — see `docs/controller-design.md` and `docs/agent-job-lifecycle.md`)
 
 **Scope additions:**
-- Executor RBAC gains `delete` on `jobs.batch` in its own namespace (minimum required for terminal-Job cleanup)
+- Executor RBAC does NOT need `delete` on `jobs.batch` — K8s TTL handles terminal-Job cleanup
 
 **Frozen conventions:**
 - Counterfeiter mocks, Ginkgo/Gomega tests
@@ -70,17 +71,17 @@ After this work, any terminal Job failure — whether the agent published a resu
 - Agent Jobs either publish a result within a bounded time OR reach a terminal Job state — the informer sees every terminal transition
 - Jobs are labelled consistently at spawn time with the task identifier — this is a small extension to the existing job spawner
 - The executor's namespace scope is sufficient — all agent Jobs live in the same namespace as the executor
-- The agent's Kafka result, if published, arrives before the executor observes terminal Job state in practice; a late-arriving agent result after synthetic failure is acceptable (controller's mergeFrontmatter handles both, last-write-wins on frontmatter)
-- Job deletion by the executor does not race with other actors — no other controller reconciles these Jobs
+- Agent Jobs exit 0 only if their result was published successfully (agent runtime must uphold this invariant — verified for `agent-claude`)
+- K8s `TTLSecondsAfterFinished` is enabled cluster-side (standard since 1.23)
 
 ## Failure Modes
 
 | Trigger | Expected behavior | Recovery |
 |---------|-------------------|----------|
-| Pod OOMKilled, Job reaches `Failed` | Executor publishes synthetic failure, deletes Job; controller increments retry_count | Automatic — next scan respawns |
+| Pod OOMKilled, Job reaches `Failed` | Executor publishes synthetic failure; K8s TTL deletes Job after 600s; controller increments retry_count | Automatic — next scan respawns |
 | Node eviction, Job reaches `Failed` | Same as OOM | Automatic |
-| Agent publishes failure, Job then reaches `Succeeded` (exit 0 after publish) | Both results flow through Kafka; controller counter increments twice (per Desired Behavior #7) | Accepted as mild false positive — no suppression logic |
-| Agent publishes success, Job reaches `Succeeded` | Controller already wrote completed; executor skips synthetic emission | No action needed |
+| Agent publishes success, Job reaches `Succeeded` | Controller writes completed via agent's Kafka publish; executor does NOT emit synthetic failure (trusts exit 0) | No action needed |
+| Agent crashes before publishing, Job reaches `Failed` | Executor emits synthetic failure; controller increments retry_count | Automatic — next scan respawns |
 | Job stuck in `Running` forever (no OOM, no publish) | Out of scope for this spec — add a timeout label in follow-up | Manual: `kubectl delete job` |
 | `current_job` set but Job no longer exists in K8s | Executor clears `current_job` on next event and spawns a fresh Job | Automatic |
 | Informer desynced at startup | Executor re-lists on connect; terminal Jobs observed on first list produce synthetic failures | Automatic |
