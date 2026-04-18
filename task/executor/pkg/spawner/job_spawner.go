@@ -68,7 +68,7 @@ func (s *jobSpawner) SpawnJob(
 ) (string, error) {
 	assignee := task.Frontmatter.Assignee().String()
 	now := s.currentDateTimeGetter.Now()
-	jobName := jobNameFromTask(assignee, now)
+	jobName := jobNameFromTask(assignee, task.TaskIdentifier, now)
 
 	envBuilder := k8s.NewEnvBuilder()
 	envBuilder.Add("TASK_CONTENT", string(task.Content))
@@ -269,13 +269,19 @@ func applyTaskIDLabel(taskID lib.TaskIdentifier, job *batchv1.Job) {
 	job.Spec.Template.Labels["agent.benjamin-borbe.de/task-id"] = string(taskID)
 }
 
-// jobNameFromTask returns the K8s Job name for a task: "{assignee}-{YYYYMMDDHHMMSS}".
+// jobNameFromTask returns the K8s Job name for a task: "{assignee}-{taskID8}-{YYYYMMDDHHMMSS}".
+// taskID8 is the first 8 chars of the task UUID, included to prevent name collisions
+// between concurrent spawns of different tasks sharing the same assignee and second.
 // If assignee is empty, "agent" is used as the default prefix.
 // Job names are DNS-compliant (<=63 chars, [a-z0-9]([-a-z0-9]*[a-z0-9])?).
 // Assignees should be short lowercase strings (e.g. "claude", "backtest-agent").
-func jobNameFromTask(assignee string, now libtime.DateTime) string {
+func jobNameFromTask(assignee string, taskID lib.TaskIdentifier, now libtime.DateTime) string {
 	if assignee == "" {
 		assignee = "agent"
 	}
-	return assignee + "-" + now.UTC().Format("20060102150405")
+	id := string(taskID)
+	if len(id) > 8 {
+		id = id[:8]
+	}
+	return assignee + "-" + id + "-" + now.UTC().Format("20060102150405")
 }

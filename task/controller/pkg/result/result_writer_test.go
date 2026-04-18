@@ -613,6 +613,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				Expect(s).To(ContainSubstring("phase: ai_review"))
 				Expect(s).NotTo(ContainSubstring("human_review"))
 				Expect(s).NotTo(ContainSubstring("Retry Escalation"))
+				Expect(s).NotTo(ContainSubstring("spawn_notification"))
 			})
 
 			It("does increment retry_count when spawn_notification is absent", func() {

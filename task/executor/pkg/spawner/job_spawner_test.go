@@ -79,7 +79,7 @@ var _ = Describe("JobSpawner", func() {
 			Expect(jobs.Items).To(HaveLen(1))
 
 			job := jobs.Items[0]
-			Expect(job.Name).To(Equal("claude-20260403173500"))
+			Expect(job.Name).To(Equal("claude-abc12345-20260403173500"))
 			Expect(job.Namespace).To(Equal("test-ns"))
 			Expect(*job.Spec.BackoffLimit).To(Equal(int32(0)))
 			Expect(job.Spec.Template.Spec.RestartPolicy).To(Equal(corev1.RestartPolicyNever))
@@ -181,7 +181,7 @@ var _ = Describe("JobSpawner", func() {
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
 			Expect(err).To(BeNil())
-			Expect(jobs.Items[0].Name).To(Equal("backtest-agent-20260403173500"))
+			Expect(jobs.Items[0].Name).To(Equal("backtest-agent-abcdefgh-20260403173500"))
 		})
 
 		It("falls back to 'agent' prefix when assignee is empty", func() {
@@ -199,13 +199,13 @@ var _ = Describe("JobSpawner", func() {
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
 			Expect(err).To(BeNil())
 			Expect(jobs.Items[0].Name).To(HavePrefix("agent-"))
-			Expect(jobs.Items[0].Name).To(Equal("agent-20260403173500"))
+			Expect(jobs.Items[0].Name).To(Equal("agent-abc-20260403173500"))
 		})
 
 		It("returns job name when job already exists (AlreadyExists)", func() {
 			existingJob := &batchv1.Job{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "claude-20260403173500",
+					Name:      "claude-abc12345-20260403173500",
 					Namespace: "test-ns",
 				},
 			}
@@ -230,7 +230,7 @@ var _ = Describe("JobSpawner", func() {
 				pkg.AgentConfiguration{Image: "img:latest", Env: map[string]string{}},
 			)
 			Expect(err).To(BeNil())
-			Expect(jobName).To(Equal("claude-20260403173500"))
+			Expect(jobName).To(Equal("claude-abc12345-20260403173500"))
 		})
 
 		It("mounts PVC when VolumeClaim is set", func() {
