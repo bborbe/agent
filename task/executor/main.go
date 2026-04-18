@@ -81,6 +81,16 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	defer saramaClient.Close()
 
 	currentDateTimeGetter := libtime.NewCurrentDateTime()
+
+	syncProducer, err := libkafka.NewSyncProducerFromSaramaClient(ctx, saramaClient)
+	if err != nil {
+		return errors.Wrapf(ctx, err, "create kafka sync producer")
+	}
+	defer syncProducer.Close()
+
+	resultPublisher := pkg.NewResultPublisher(syncProducer, a.Branch, currentDateTimeGetter)
+	taskStore := pkg.NewTaskStore()
+
 	consumer := factory.CreateConsumer(
 		saramaClient,
 		a.Branch,
@@ -90,6 +100,8 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		resolver,
 		log.DefaultSamplerFactory,
 		currentDateTimeGetter,
+		resultPublisher,
+		taskStore,
 	)
 
 	return service.Run(

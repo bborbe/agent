@@ -25,7 +25,7 @@ type FakeJobSpawner struct {
 		result1 bool
 		result2 error
 	}
-	SpawnJobStub        func(context.Context, lib.Task, pkg.AgentConfiguration) error
+	SpawnJobStub        func(context.Context, lib.Task, pkg.AgentConfiguration) (string, error)
 	spawnJobMutex       sync.RWMutex
 	spawnJobArgsForCall []struct {
 		arg1 context.Context
@@ -33,10 +33,12 @@ type FakeJobSpawner struct {
 		arg3 pkg.AgentConfiguration
 	}
 	spawnJobReturns struct {
-		result1 error
+		result1 string
+		result2 error
 	}
 	spawnJobReturnsOnCall map[int]struct {
-		result1 error
+		result1 string
+		result2 error
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
@@ -107,7 +109,7 @@ func (fake *FakeJobSpawner) IsJobActiveReturnsOnCall(i int, result1 bool, result
 	}{result1, result2}
 }
 
-func (fake *FakeJobSpawner) SpawnJob(arg1 context.Context, arg2 lib.Task, arg3 pkg.AgentConfiguration) error {
+func (fake *FakeJobSpawner) SpawnJob(arg1 context.Context, arg2 lib.Task, arg3 pkg.AgentConfiguration) (string, error) {
 	fake.spawnJobMutex.Lock()
 	ret, specificReturn := fake.spawnJobReturnsOnCall[len(fake.spawnJobArgsForCall)]
 	fake.spawnJobArgsForCall = append(fake.spawnJobArgsForCall, struct {
@@ -123,9 +125,9 @@ func (fake *FakeJobSpawner) SpawnJob(arg1 context.Context, arg2 lib.Task, arg3 p
 		return stub(arg1, arg2, arg3)
 	}
 	if specificReturn {
-		return ret.result1
+		return ret.result1, ret.result2
 	}
-	return fakeReturns.result1
+	return fakeReturns.result1, fakeReturns.result2
 }
 
 func (fake *FakeJobSpawner) SpawnJobCallCount() int {
@@ -134,7 +136,7 @@ func (fake *FakeJobSpawner) SpawnJobCallCount() int {
 	return len(fake.spawnJobArgsForCall)
 }
 
-func (fake *FakeJobSpawner) SpawnJobCalls(stub func(context.Context, lib.Task, pkg.AgentConfiguration) error) {
+func (fake *FakeJobSpawner) SpawnJobCalls(stub func(context.Context, lib.Task, pkg.AgentConfiguration) (string, error)) {
 	fake.spawnJobMutex.Lock()
 	defer fake.spawnJobMutex.Unlock()
 	fake.SpawnJobStub = stub
@@ -147,27 +149,30 @@ func (fake *FakeJobSpawner) SpawnJobArgsForCall(i int) (context.Context, lib.Tas
 	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
-func (fake *FakeJobSpawner) SpawnJobReturns(result1 error) {
+func (fake *FakeJobSpawner) SpawnJobReturns(result1 string, result2 error) {
 	fake.spawnJobMutex.Lock()
 	defer fake.spawnJobMutex.Unlock()
 	fake.SpawnJobStub = nil
 	fake.spawnJobReturns = struct {
-		result1 error
-	}{result1}
+		result1 string
+		result2 error
+	}{result1, result2}
 }
 
-func (fake *FakeJobSpawner) SpawnJobReturnsOnCall(i int, result1 error) {
+func (fake *FakeJobSpawner) SpawnJobReturnsOnCall(i int, result1 string, result2 error) {
 	fake.spawnJobMutex.Lock()
 	defer fake.spawnJobMutex.Unlock()
 	fake.SpawnJobStub = nil
 	if fake.spawnJobReturnsOnCall == nil {
 		fake.spawnJobReturnsOnCall = make(map[int]struct {
-			result1 error
+			result1 string
+			result2 error
 		})
 	}
 	fake.spawnJobReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
+		result1 string
+		result2 error
+	}{result1, result2}
 }
 
 func (fake *FakeJobSpawner) Invocations() map[string][][]interface{} {

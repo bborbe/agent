@@ -31,10 +31,12 @@ func TestHandler(t *testing.T) {
 
 var _ = Describe("TaskEventHandler", func() {
 	var (
-		ctx          context.Context
-		fakeSpawner  *mocks.FakeJobSpawner
-		fakeResolver *mocks.FakeConfigResolver
-		h            handler.TaskEventHandler
+		ctx                 context.Context
+		fakeSpawner         *mocks.FakeJobSpawner
+		fakeResolver        *mocks.FakeConfigResolver
+		fakeResultPublisher *mocks.FakeResultPublisher
+		taskStore           *pkg.TaskStore
+		h                   handler.TaskEventHandler
 	)
 
 	BeforeEach(func() {
@@ -45,7 +47,15 @@ var _ = Describe("TaskEventHandler", func() {
 			pkg.AgentConfiguration{Assignee: "claude", Image: "my-image:latest"},
 			nil,
 		)
-		h = handler.NewTaskEventHandler(fakeSpawner, base.Branch("prod"), fakeResolver)
+		fakeResultPublisher = &mocks.FakeResultPublisher{}
+		taskStore = pkg.NewTaskStore()
+		h = handler.NewTaskEventHandler(
+			fakeSpawner,
+			base.Branch("prod"),
+			fakeResolver,
+			fakeResultPublisher,
+			taskStore,
+		)
 	})
 
 	buildMsg := func(task lib.Task) *sarama.ConsumerMessage {
@@ -232,7 +242,7 @@ var _ = Describe("TaskEventHandler", func() {
 
 		It("returns error when SpawnJob fails", func() {
 			fakeSpawner.IsJobActiveReturns(false, nil)
-			fakeSpawner.SpawnJobReturns(errors.Errorf(ctx, "k8s unavailable"))
+			fakeSpawner.SpawnJobReturns("", errors.Errorf(ctx, "k8s unavailable"))
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("tid-10"),
 				Frontmatter: lib.TaskFrontmatter{
@@ -273,6 +283,63 @@ var _ = Describe("TaskEventHandler", func() {
 			err := h.ConsumeMessage(ctx, buildMsg(task))
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+		})
+
+		It("publishes spawn notification after successful spawn", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
+			fakeSpawner.SpawnJobReturns("claude-20260418120000", nil)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-uuid-1234"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseAIReview),
+					"assignee": "claude",
+					"stage":    "prod",
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakeResultPublisher.PublishSpawnNotificationCallCount()).To(Equal(1))
+			_, calledTask, calledJobName := fakeResultPublisher.PublishSpawnNotificationArgsForCall(
+				0,
+			)
+			Expect(string(calledTask.TaskIdentifier)).To(Equal("test-task-uuid-1234"))
+			Expect(calledJobName).To(Equal("claude-20260418120000"))
+		})
+
+		It("stores task in taskStore after successful spawn", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
+			fakeSpawner.SpawnJobReturns("claude-20260418120000", nil)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-uuid-1234"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseAIReview),
+					"assignee": "claude",
+					"stage":    "prod",
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			_, ok := taskStore.Load(lib.TaskIdentifier("test-task-uuid-1234"))
+			Expect(ok).To(BeTrue())
+		})
+
+		It("skips spawn when current_job in frontmatter and K8s job is active", func() {
+			fakeSpawner.IsJobActiveReturns(true, nil)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-uuid-1234"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":      "in_progress",
+					"phase":       string(domain.TaskPhaseAIReview),
+					"assignee":    "claude",
+					"stage":       "prod",
+					"current_job": "claude-20260418000000",
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
 		})
 
 		It("spawns job when stage is absent (defaults to prod) and executor is prod", func() {
@@ -317,6 +384,8 @@ var _ = Describe("TaskEventHandler", func() {
 				localSpawner,
 				base.Branch("dev"),
 				localResolver,
+				&mocks.FakeResultPublisher{},
+				pkg.NewTaskStore(),
 			)
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("tid-stage-3"),
@@ -343,6 +412,8 @@ var _ = Describe("TaskEventHandler", func() {
 				localSpawner,
 				base.Branch("dev"),
 				localResolver,
+				&mocks.FakeResultPublisher{},
+				pkg.NewTaskStore(),
 			)
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("tid-stage-4"),

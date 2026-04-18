@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.41.0
+
+- feat: executor adds `agent.benjamin-borbe.de/task-id` label to spawned K8s Jobs for informer lookup
+- feat: `SpawnJob` returns `(string, error)` with the spawned job name for spawn-notification publishing
+- feat: executor publishes spawn notification to `agent-task-v1-request` after spawning, writing `current_job` and `job_started_at` to task file without incrementing retry counter
+- feat: thread-safe `TaskStore` stores original task on spawn for informer failure publishing
+- feat: executor checks `current_job` frontmatter field for idempotent spawn detection alongside K8s `IsJobActive`
+- refactor: extract `parseAndFilter` and `spawnIfNeeded` helpers in `ConsumeMessage` to satisfy funlen limit
+
 ## v0.40.0
 
 - feat: add `SpawnNotification()` and `CurrentJob()` accessors to `TaskFrontmatter` for executor job-spawn tracking

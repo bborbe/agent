@@ -61,6 +61,8 @@ func CreateConsumer(
 	resolver pkg.ConfigResolver,
 	logSamplerFactory log.SamplerFactory,
 	currentDateTimeGetter libtime.CurrentDateTimeGetter,
+	resultPublisher pkg.ResultPublisher,
+	taskStore *pkg.TaskStore,
 ) libkafka.Consumer {
 	jobSpawner := spawner.NewJobSpawner(
 		kubeClient,
@@ -69,7 +71,13 @@ func CreateConsumer(
 		string(branch),
 		currentDateTimeGetter,
 	)
-	taskEventHandler := handler.NewTaskEventHandler(jobSpawner, branch, resolver)
+	taskEventHandler := handler.NewTaskEventHandler(
+		jobSpawner,
+		branch,
+		resolver,
+		resultPublisher,
+		taskStore,
+	)
 	topic := lib.TaskV1SchemaID.EventTopic(branch)
 	offsetManager := libkafka.NewSaramaOffsetManager(
 		saramaClient,

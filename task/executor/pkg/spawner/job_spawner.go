@@ -28,7 +28,9 @@ const componentLabelKey = "component"
 
 // JobSpawner creates a K8s Job for a task.
 type JobSpawner interface {
-	SpawnJob(ctx context.Context, task lib.Task, config pkg.AgentConfiguration) error
+	// SpawnJob creates a K8s Job for the task and returns the job name.
+	// Returns the job name even when the job already exists (idempotent).
+	SpawnJob(ctx context.Context, task lib.Task, config pkg.AgentConfiguration) (string, error)
 	// IsJobActive returns true if an active (not completed/failed) K8s Job exists
 	// for the given task identifier. Uses the `component` label set by SpawnJob.
 	IsJobActive(ctx context.Context, taskIdentifier lib.TaskIdentifier) (bool, error)
@@ -63,7 +65,7 @@ func (s *jobSpawner) SpawnJob(
 	ctx context.Context,
 	task lib.Task,
 	config pkg.AgentConfiguration,
-) error {
+) (string, error) {
 	assignee := task.Frontmatter.Assignee().String()
 	now := s.currentDateTimeGetter.Now()
 	jobName := jobNameFromTask(assignee, now)
@@ -86,7 +88,7 @@ func (s *jobSpawner) SpawnJob(
 	podSpecBuilder := k8s.NewPodSpecBuilder()
 
 	if err := applyVolumeMount(ctx, config, containerBuilder, podSpecBuilder); err != nil {
-		return err
+		return "", err
 	}
 
 	containersBuilder := k8s.NewContainersBuilder()
@@ -109,9 +111,10 @@ func (s *jobSpawner) SpawnJob(
 
 	job, err := jobBuilder.Build(ctx)
 	if err != nil {
-		return errors.Wrapf(ctx, err, "build job for task %s", task.TaskIdentifier)
+		return "", errors.Wrapf(ctx, err, "build job for task %s", task.TaskIdentifier)
 	}
 
+	applyTaskIDLabel(task.TaskIdentifier, job)
 	applySecretEnvFrom(config, job)
 	applyEphemeralStorage(config, job)
 
@@ -122,9 +125,9 @@ func (s *jobSpawner) SpawnJob(
 		if k8serrors.IsAlreadyExists(err) {
 			glog.V(2).
 				Infof("job %s already exists for task %s, treating as success", jobName, task.TaskIdentifier)
-			return nil
+			return jobName, nil
 		}
-		return errors.Wrapf(
+		return "", errors.Wrapf(
 			ctx,
 			err,
 			"create job %s for task %s failed",
@@ -134,7 +137,7 @@ func (s *jobSpawner) SpawnJob(
 	}
 	glog.V(2).
 		Infof("created job %s for task %s with image %s", jobName, task.TaskIdentifier, config.Image)
-	return nil
+	return jobName, nil
 }
 
 func (s *jobSpawner) IsJobActive(
@@ -251,6 +254,19 @@ func applyEphemeralStorage(config pkg.AgentConfiguration, job *batchv1.Job) {
 		}
 		c.Resources.Limits[corev1.ResourceEphemeralStorage] = resource.MustParse(v)
 	}
+}
+
+// applyTaskIDLabel sets the agent.benjamin-borbe.de/task-id label on the Job and its pod template
+// so the job informer can look up the owning task by label selector.
+func applyTaskIDLabel(taskID lib.TaskIdentifier, job *batchv1.Job) {
+	if job.Labels == nil {
+		job.Labels = map[string]string{}
+	}
+	job.Labels["agent.benjamin-borbe.de/task-id"] = string(taskID)
+	if job.Spec.Template.Labels == nil {
+		job.Spec.Template.Labels = map[string]string{}
+	}
+	job.Spec.Template.Labels["agent.benjamin-borbe.de/task-id"] = string(taskID)
 }
 
 // jobNameFromTask returns the K8s Job name for a task: "{assignee}-{YYYYMMDDHHMMSS}".

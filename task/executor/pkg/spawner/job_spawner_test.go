@@ -71,7 +71,7 @@ var _ = Describe("JobSpawner", func() {
 				Image:    "my-image:latest",
 				Env:      map[string]string{"GEMINI_API_KEY": "test-gemini-key"},
 			}
-			err := jobSpawner.SpawnJob(ctx, task, config)
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -107,6 +107,33 @@ var _ = Describe("JobSpawner", func() {
 			Expect(envMap["GEMINI_API_KEY"]).To(Equal("test-gemini-key"))
 		})
 
+		It("sets agent.benjamin-borbe.de/task-id label on spawned job", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("task-uuid-label-test"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude",
+				},
+			}
+			config := pkg.AgentConfiguration{
+				Assignee: "claude",
+				Image:    "my-image:latest",
+				Env:      map[string]string{},
+			}
+			jobName, err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(jobName).NotTo(BeEmpty())
+
+			jobs, listErr := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(listErr).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+			Expect(
+				jobs.Items[0].Labels,
+			).To(HaveKeyWithValue("agent.benjamin-borbe.de/task-id", string(task.TaskIdentifier)))
+			Expect(
+				jobs.Items[0].Spec.Template.Labels,
+			).To(HaveKeyWithValue("agent.benjamin-borbe.de/task-id", string(task.TaskIdentifier)))
+		})
+
 		It("includes all per-agent env vars from config", func() {
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("abc-multi-env"),
@@ -122,7 +149,7 @@ var _ = Describe("JobSpawner", func() {
 					"EXTRA_VAR":         "extra-value",
 				},
 			}
-			err := jobSpawner.SpawnJob(ctx, task, config)
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -145,7 +172,7 @@ var _ = Describe("JobSpawner", func() {
 					"assignee": "backtest-agent",
 				},
 			}
-			err := jobSpawner.SpawnJob(
+			_, err := jobSpawner.SpawnJob(
 				ctx,
 				task,
 				pkg.AgentConfiguration{Image: "img:latest", Env: map[string]string{}},
@@ -162,7 +189,7 @@ var _ = Describe("JobSpawner", func() {
 				TaskIdentifier: lib.TaskIdentifier("abc"),
 				Frontmatter:    lib.TaskFrontmatter{},
 			}
-			err := jobSpawner.SpawnJob(
+			_, err := jobSpawner.SpawnJob(
 				ctx,
 				task,
 				pkg.AgentConfiguration{Image: "img:latest", Env: map[string]string{}},
@@ -175,7 +202,7 @@ var _ = Describe("JobSpawner", func() {
 			Expect(jobs.Items[0].Name).To(Equal("agent-20260403173500"))
 		})
 
-		It("returns nil when job already exists (AlreadyExists)", func() {
+		It("returns job name when job already exists (AlreadyExists)", func() {
 			existingJob := &batchv1.Job{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "claude-20260403173500",
@@ -197,12 +224,13 @@ var _ = Describe("JobSpawner", func() {
 					"assignee": "claude",
 				},
 			}
-			err := jobSpawner.SpawnJob(
+			jobName, err := jobSpawner.SpawnJob(
 				ctx,
 				task,
 				pkg.AgentConfiguration{Image: "img:latest", Env: map[string]string{}},
 			)
 			Expect(err).To(BeNil())
+			Expect(jobName).To(Equal("claude-20260403173500"))
 		})
 
 		It("mounts PVC when VolumeClaim is set", func() {
@@ -219,7 +247,7 @@ var _ = Describe("JobSpawner", func() {
 				VolumeClaim:     "agent-claude-pvc",
 				VolumeMountPath: "/data",
 			}
-			err := jobSpawner.SpawnJob(ctx, task, config)
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -252,7 +280,7 @@ var _ = Describe("JobSpawner", func() {
 				Image:    "my-image:latest",
 				Env:      map[string]string{},
 			}
-			err := jobSpawner.SpawnJob(ctx, task, config)
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -277,7 +305,7 @@ var _ = Describe("JobSpawner", func() {
 				Env:         map[string]string{},
 				VolumeClaim: "agent-claude-pvc",
 			}
-			err := jobSpawner.SpawnJob(ctx, task, config)
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
 			Expect(err).NotTo(BeNil())
 			Expect(
 				err.Error(),
@@ -297,7 +325,7 @@ var _ = Describe("JobSpawner", func() {
 				Env:        map[string]string{},
 				SecretName: "agent-backtest",
 			}
-			err := jobSpawner.SpawnJob(ctx, task, config)
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -322,7 +350,7 @@ var _ = Describe("JobSpawner", func() {
 				Image:    "my-image:latest",
 				Env:      map[string]string{},
 			}
-			err := jobSpawner.SpawnJob(ctx, task, config)
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -357,7 +385,7 @@ var _ = Describe("JobSpawner", func() {
 					},
 				},
 			}
-			err := jobSpawner.SpawnJob(ctx, task, config)
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -388,7 +416,7 @@ var _ = Describe("JobSpawner", func() {
 				Env:       map[string]string{},
 				Resources: nil,
 			}
-			err := jobSpawner.SpawnJob(ctx, task, config)
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -421,7 +449,7 @@ var _ = Describe("JobSpawner", func() {
 					Requests: agentv1.AgentResourceList{CPU: "500m"},
 				},
 			}
-			err := jobSpawner.SpawnJob(ctx, task, config)
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
 			Expect(err).To(BeNil())
 
 			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
@@ -444,7 +472,7 @@ var _ = Describe("JobSpawner", func() {
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("abc12345"),
 			}
-			err := jobSpawner.SpawnJob(
+			_, err := jobSpawner.SpawnJob(
 				ctx,
 				task,
 				pkg.AgentConfiguration{Image: "img:latest", Env: map[string]string{}},
