@@ -586,6 +586,56 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 			})
 		})
 
+		Context("spawn notification", func() {
+			It("does not increment retry_count when spawn_notification is true", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\nassignee: claude\nretry_count: 0\n---\nOriginal body\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier":    "test-task-uuid-1234",
+						"status":             "in_progress",
+						"phase":              "ai_review",
+						"spawn_notification": true,
+						"current_job":        "claude-20260418120000",
+						"job_started_at":     "2026-04-18T12:00:00Z",
+					},
+					Content: lib.TaskContent("Original body\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("retry_count: 0"))
+				Expect(s).To(ContainSubstring("current_job: claude-20260418120000"))
+				Expect(s).To(ContainSubstring("2026-04-18T12:00:00Z"))
+				Expect(s).To(ContainSubstring("phase: ai_review"))
+				Expect(s).NotTo(ContainSubstring("human_review"))
+				Expect(s).NotTo(ContainSubstring("Retry Escalation"))
+			})
+
+			It("does increment retry_count when spawn_notification is absent", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\nassignee: claude\nretry_count: 0\n---\nOriginal body\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "ai_review",
+					},
+					Content: lib.TaskContent("Failed output\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("retry_count: 1"))
+			})
+		})
+
 		Context("atomic write and push error", func() {
 			It("returns error when AtomicWriteAndCommitPush fails", func() {
 				writeTaskFile(

@@ -169,4 +169,38 @@ var _ = Describe("TaskFrontmatter", func() {
 			},
 		)
 	})
+
+	Describe("SpawnNotification", func() {
+		It("returns false when key is absent", func() {
+			fm := lib.TaskFrontmatter{}
+			Expect(fm.SpawnNotification()).To(BeFalse())
+		})
+
+		It("returns true when key is bool true", func() {
+			fm := lib.TaskFrontmatter{"spawn_notification": bool(true)}
+			Expect(fm.SpawnNotification()).To(BeTrue())
+		})
+
+		It("returns false when key is bool false", func() {
+			fm := lib.TaskFrontmatter{"spawn_notification": bool(false)}
+			Expect(fm.SpawnNotification()).To(BeFalse())
+		})
+	})
+
+	Describe("CurrentJob", func() {
+		It("returns empty string when key is absent", func() {
+			fm := lib.TaskFrontmatter{}
+			Expect(fm.CurrentJob()).To(Equal(""))
+		})
+
+		It("returns the job name when key is a non-empty string", func() {
+			fm := lib.TaskFrontmatter{"current_job": "claude-20260418120000"}
+			Expect(fm.CurrentJob()).To(Equal("claude-20260418120000"))
+		})
+
+		It("returns empty string when key is empty string", func() {
+			fm := lib.TaskFrontmatter{"current_job": ""}
+			Expect(fm.CurrentJob()).To(Equal(""))
+		})
+	})
 })

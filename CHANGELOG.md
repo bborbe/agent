@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.40.0
+
+- feat: add `SpawnNotification()` and `CurrentJob()` accessors to `TaskFrontmatter` for executor job-spawn tracking
+- feat: controller skips retry counter increment when result carries `spawn_notification: true`
+
 ## v0.39.0
 
 - BREAKING: `agent.benjamin-borbe.de/v1` `AgentResources` now has nested `requests` and `limits` sub-objects instead of flat `cpu`/`memory`/`ephemeral-storage`. Update existing `Config` manifests before re-applying. Apply the updated CRD first, then re-apply any `Config` resources.

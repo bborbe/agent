@@ -67,3 +67,17 @@ func (f TaskFrontmatter) MaxRetries() int {
 		return 3
 	}
 }
+
+// SpawnNotification returns true when this result is a job-spawn tracking update
+// rather than an agent outcome. The controller skips the retry counter for these.
+func (f TaskFrontmatter) SpawnNotification() bool {
+	v, _ := f["spawn_notification"].(bool)
+	return v
+}
+
+// CurrentJob returns the K8s Job name recorded when the executor spawned a Job for this task.
+// Returns an empty string when not set.
+func (f TaskFrontmatter) CurrentJob() string {
+	v, _ := f["current_job"].(string)
+	return v
+}

@@ -129,7 +129,7 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 }
 
 func (r *resultWriter) applyRetryCounter(merged lib.TaskFrontmatter, body string) string {
-	if string(merged.Status()) == "completed" {
+	if string(merged.Status()) == "completed" || merged.SpawnNotification() {
 		return body
 	}
 	retryCount := merged.RetryCount() + 1
