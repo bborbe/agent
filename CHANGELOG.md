@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.39.0
+
+- BREAKING: `agent.benjamin-borbe.de/v1` `AgentResources` now has nested `requests` and `limits` sub-objects instead of flat `cpu`/`memory`/`ephemeral-storage`. Update existing `Config` manifests before re-applying. Apply the updated CRD first, then re-apply any `Config` resources.
+- feat: Propagate `Resources` from `Config` CRD (cpu/memory/ephemeral-storage, requests and limits independent) to spawned agent Job container; fixes OOMKill of Claude-Code-based agents that inherited the namespace LimitRange default of 50Mi.
+
 ## v0.38.0
 
 - feat: Implement retry counter in `task/controller` `ResultWriter` — increments `retry_count` on each non-completed result write and escalates to `phase: human_review` with `## Retry Escalation` section when `retry_count >= max_retries` (default 3)

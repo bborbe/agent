@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	agentv1 "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de/v1"
 	"github.com/bborbe/agent/task/executor/pkg"
 )
 
@@ -27,6 +28,18 @@ var _ = Describe("AgentConfigurations", func() {
 				Assignee: "claude",
 				Image:    "registry/agent-claude",
 				Env:      map[string]string{},
+				Resources: &agentv1.AgentResources{
+					Requests: agentv1.AgentResourceList{
+						CPU:              "500m",
+						Memory:           "1Gi",
+						EphemeralStorage: "2Gi",
+					},
+					Limits: agentv1.AgentResourceList{
+						CPU:              "1",
+						Memory:           "2Gi",
+						EphemeralStorage: "4Gi",
+					},
+				},
 			},
 			{
 				Assignee: "backtest-agent",
@@ -85,6 +98,30 @@ var _ = Describe("AgentConfigurations", func() {
 		It("returns same length as input", func() {
 			tagged := configs.TaggedConfigurations("dev")
 			Expect(tagged).To(HaveLen(len(configs)))
+		})
+
+		It("preserves resource requests and limits independently", func() {
+			result := configs.TaggedConfigurations("prod")
+			Expect(result[0].Resources).NotTo(BeNil())
+			Expect(result[0].Resources.Requests.CPU).To(Equal("500m"))
+			Expect(result[0].Resources.Limits.CPU).To(Equal("1"))
+			Expect(result[0].Resources.Requests.Memory).To(Equal("1Gi"))
+			Expect(result[0].Resources.Limits.Memory).To(Equal("2Gi"))
+			Expect(result[0].Resources.Requests.EphemeralStorage).To(Equal("2Gi"))
+			Expect(result[0].Resources.Limits.EphemeralStorage).To(Equal("4Gi"))
+		})
+
+		It("deep-copies Resources so mutating output does not affect input", func() {
+			result := configs.TaggedConfigurations("prod")
+			Expect(result[0].Resources).NotTo(BeNil())
+			Expect(result[0].Resources).NotTo(BeIdenticalTo(configs[0].Resources))
+			result[0].Resources.Requests.CPU = "999m"
+			Expect(configs[0].Resources.Requests.CPU).To(Equal("500m"))
+		})
+
+		It("preserves nil Resources for configs without resources", func() {
+			result := configs.TaggedConfigurations("prod")
+			Expect(result[1].Resources).To(BeNil())
 		})
 	})
 })

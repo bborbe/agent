@@ -14,6 +14,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -80,6 +81,7 @@ func (s *jobSpawner) SpawnJob(
 	containerBuilder.SetName(k8s.Name("agent"))
 	containerBuilder.SetImage(config.Image)
 	containerBuilder.SetEnvBuilder(envBuilder)
+	applyCPUMemoryResources(config, containerBuilder)
 
 	podSpecBuilder := k8s.NewPodSpecBuilder()
 
@@ -111,6 +113,7 @@ func (s *jobSpawner) SpawnJob(
 	}
 
 	applySecretEnvFrom(config, job)
+	applyEphemeralStorage(config, job)
 
 	_, err = s.kubeClient.BatchV1().
 		Jobs(s.namespace.String()).
@@ -188,6 +191,26 @@ func applyVolumeMount(
 	return nil
 }
 
+// applyCPUMemoryResources sets CPU and memory requests/limits on the container builder
+// when the corresponding config values are non-empty. Empty values leave builder defaults untouched.
+func applyCPUMemoryResources(config pkg.AgentConfiguration, containerBuilder k8s.ContainerBuilder) {
+	if config.Resources == nil {
+		return
+	}
+	if v := config.Resources.Requests.CPU; v != "" {
+		containerBuilder.SetCpuRequest(v)
+	}
+	if v := config.Resources.Limits.CPU; v != "" {
+		containerBuilder.SetCpuLimit(v)
+	}
+	if v := config.Resources.Requests.Memory; v != "" {
+		containerBuilder.SetMemoryRequest(v)
+	}
+	if v := config.Resources.Limits.Memory; v != "" {
+		containerBuilder.SetMemoryLimit(v)
+	}
+}
+
 // applySecretEnvFrom appends an envFrom secretRef to the first container of the job
 // when config.SecretName is non-empty.
 func applySecretEnvFrom(config pkg.AgentConfiguration, job *batchv1.Job) {
@@ -204,6 +227,30 @@ func applySecretEnvFrom(config pkg.AgentConfiguration, job *batchv1.Job) {
 			},
 		},
 	)
+}
+
+// applyEphemeralStorage sets ephemeral-storage as Requests and/or Limits on the
+// first container of the job based on config.Resources.
+// Each value is applied independently — empty means "leave unset".
+// The bborbe/k8s container builder does not expose setters for ephemeral-storage,
+// so we patch the built job directly.
+func applyEphemeralStorage(config pkg.AgentConfiguration, job *batchv1.Job) {
+	if config.Resources == nil {
+		return
+	}
+	c := &job.Spec.Template.Spec.Containers[0]
+	if v := config.Resources.Requests.EphemeralStorage; v != "" {
+		if c.Resources.Requests == nil {
+			c.Resources.Requests = corev1.ResourceList{}
+		}
+		c.Resources.Requests[corev1.ResourceEphemeralStorage] = resource.MustParse(v)
+	}
+	if v := config.Resources.Limits.EphemeralStorage; v != "" {
+		if c.Resources.Limits == nil {
+			c.Resources.Limits = corev1.ResourceList{}
+		}
+		c.Resources.Limits[corev1.ResourceEphemeralStorage] = resource.MustParse(v)
+	}
 }
 
 // jobNameFromTask returns the K8s Job name for a task: "{assignee}-{YYYYMMDDHHMMSS}".

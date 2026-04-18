@@ -11,6 +11,11 @@ spec:
   volumeClaim: agent-claude
   volumeMountPath: /home/claude/.claude
   resources:
-    cpu: 500m
-    memory: 1Gi
-    ephemeral-storage: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+      ephemeral-storage: 2Gi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+      ephemeral-storage: 2Gi

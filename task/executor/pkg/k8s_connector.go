@@ -154,9 +154,22 @@ func desiredCRDSpec() apiextensionsv1.CustomResourceDefinitionSpec {
 									"resources": {
 										Type: "object",
 										Properties: map[string]apiextensionsv1.JSONSchemaProps{
-											"cpu":               {Type: "string"},
-											"memory":            {Type: "string"},
-											"ephemeral-storage": {Type: "string"},
+											"requests": {
+												Type: "object",
+												Properties: map[string]apiextensionsv1.JSONSchemaProps{
+													"cpu":               {Type: "string"},
+													"memory":            {Type: "string"},
+													"ephemeral-storage": {Type: "string"},
+												},
+											},
+											"limits": {
+												Type: "object",
+												Properties: map[string]apiextensionsv1.JSONSchemaProps{
+													"cpu":               {Type: "string"},
+													"memory":            {Type: "string"},
+													"ephemeral-storage": {Type: "string"},
+												},
+											},
 										},
 									},
 									"env": {

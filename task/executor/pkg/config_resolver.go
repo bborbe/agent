@@ -71,6 +71,7 @@ func convert(obj agentv1.Config, branch string) AgentConfiguration {
 		SecretName:      obj.Spec.SecretName,
 		VolumeClaim:     obj.Spec.VolumeClaim,
 		VolumeMountPath: obj.Spec.VolumeMountPath,
+		Resources:       obj.Spec.Resources.DeepCopy(),
 	}
 }
 

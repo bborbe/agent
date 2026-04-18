@@ -8,42 +8,32 @@ package v1
 // AgentResourcesApplyConfiguration represents a declarative configuration of the AgentResources type for use
 // with apply.
 //
-// AgentResources holds optional resource requests for the agent container.
+// AgentResources holds optional resource requests and limits for the agent container.
 type AgentResourcesApplyConfiguration struct {
-	// CPU is the CPU resource request (e.g. "500m").
-	CPU *string `json:"cpu,omitempty"`
-	// Memory is the memory resource request (e.g. "256Mi").
-	Memory *string `json:"memory,omitempty"`
-	// EphemeralStorage is the ephemeral storage request (e.g. "1Gi").
-	EphemeralStorage *string `json:"ephemeral-storage,omitempty"`
+	// Requests declares the minimum resources the container needs.
+	Requests *AgentResourceListApplyConfiguration `json:"requests,omitempty"`
+	// Limits declares the maximum resources the container may use.
+	Limits *AgentResourceListApplyConfiguration `json:"limits,omitempty"`
 }
 
-// AgentResourcesApplyConfiguration constructs a declarative configuration of the AgentResources type for use with
+// AgentResources constructs a declarative configuration of the AgentResources type for use with
 // apply.
 func AgentResources() *AgentResourcesApplyConfiguration {
 	return &AgentResourcesApplyConfiguration{}
 }
 
-// WithCPU sets the CPU field in the declarative configuration to the given value
+// WithRequests sets the Requests field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the CPU field is set to the value of the last call.
-func (b *AgentResourcesApplyConfiguration) WithCPU(value string) *AgentResourcesApplyConfiguration {
-	b.CPU = &value
+// If called multiple times, the Requests field is set to the value of the last call.
+func (b *AgentResourcesApplyConfiguration) WithRequests(value *AgentResourceListApplyConfiguration) *AgentResourcesApplyConfiguration {
+	b.Requests = value
 	return b
 }
 
-// WithMemory sets the Memory field in the declarative configuration to the given value
+// WithLimits sets the Limits field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the Memory field is set to the value of the last call.
-func (b *AgentResourcesApplyConfiguration) WithMemory(value string) *AgentResourcesApplyConfiguration {
-	b.Memory = &value
-	return b
-}
-
-// WithEphemeralStorage sets the EphemeralStorage field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the EphemeralStorage field is set to the value of the last call.
-func (b *AgentResourcesApplyConfiguration) WithEphemeralStorage(value string) *AgentResourcesApplyConfiguration {
-	b.EphemeralStorage = &value
+// If called multiple times, the Limits field is set to the value of the last call.
+func (b *AgentResourcesApplyConfiguration) WithLimits(value *AgentResourceListApplyConfiguration) *AgentResourcesApplyConfiguration {
+	b.Limits = value
 	return b
 }

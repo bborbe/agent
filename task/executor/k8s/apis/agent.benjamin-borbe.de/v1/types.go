@@ -49,13 +49,22 @@ type ConfigSpec struct {
 	VolumeMountPath string `json:"volumeMountPath,omitempty"`
 }
 
-// AgentResources holds optional resource requests for the agent container.
+// AgentResources holds optional resource requests and limits for the agent container.
 type AgentResources struct {
-	// CPU is the CPU resource request (e.g. "500m").
+	// Requests declares the minimum resources the container needs.
+	Requests AgentResourceList `json:"requests,omitempty"`
+	// Limits declares the maximum resources the container may use.
+	Limits AgentResourceList `json:"limits,omitempty"`
+}
+
+// AgentResourceList describes a CPU / memory / ephemeral-storage triple
+// used by both Requests and Limits on AgentResources.
+type AgentResourceList struct {
+	// CPU is the CPU resource value (e.g. "500m").
 	CPU string `json:"cpu,omitempty"`
-	// Memory is the memory resource request (e.g. "256Mi").
+	// Memory is the memory resource value (e.g. "256Mi").
 	Memory string `json:"memory,omitempty"`
-	// EphemeralStorage is the ephemeral storage request (e.g. "1Gi").
+	// EphemeralStorage is the ephemeral-storage resource value (e.g. "1Gi").
 	EphemeralStorage string `json:"ephemeral-storage,omitempty"`
 }
 

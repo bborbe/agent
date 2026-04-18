@@ -19,6 +19,8 @@ import (
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
 	// Group=agent.benjamin-borbe.de, Version=v1
+	case v1.SchemeGroupVersion.WithKind("AgentResourceList"):
+		return &agentbenjaminborbedev1.AgentResourceListApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("AgentResources"):
 		return &agentbenjaminborbedev1.AgentResourcesApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("Config"):

@@ -18,12 +18,14 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 
 	lib "github.com/bborbe/agent/lib"
+	agentv1 "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de/v1"
 	pkg "github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/spawner"
 )
@@ -329,6 +331,106 @@ var _ = Describe("JobSpawner", func() {
 
 			container := jobs.Items[0].Spec.Template.Spec.Containers[0]
 			Expect(container.EnvFrom).To(BeEmpty())
+		})
+
+		It("applies resource requests and limits from config.Resources", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("abc-resources"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude",
+				},
+			}
+			config := pkg.AgentConfiguration{
+				Assignee: "claude",
+				Image:    "my-image:latest",
+				Env:      map[string]string{},
+				Resources: &agentv1.AgentResources{
+					Requests: agentv1.AgentResourceList{
+						CPU:              "500m",
+						Memory:           "1Gi",
+						EphemeralStorage: "2Gi",
+					},
+					Limits: agentv1.AgentResourceList{
+						CPU:              "1",
+						Memory:           "2Gi",
+						EphemeralStorage: "4Gi",
+					},
+				},
+			}
+			err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+
+			container := jobs.Items[0].Spec.Template.Spec.Containers[0]
+			Expect(container.Resources.Requests.Cpu().String()).To(Equal("500m"))
+			Expect(container.Resources.Limits.Cpu().String()).To(Equal("1"))
+			Expect(container.Resources.Requests.Memory().String()).To(Equal("1Gi"))
+			Expect(container.Resources.Limits.Memory().String()).To(Equal("2Gi"))
+			Expect(container.Resources.Requests[corev1.ResourceEphemeralStorage]).
+				To(Equal(resource.MustParse("2Gi")))
+			Expect(container.Resources.Limits[corev1.ResourceEphemeralStorage]).
+				To(Equal(resource.MustParse("4Gi")))
+		})
+
+		It("uses k8s builder defaults when Resources is nil", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("abc-nil-resources"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude",
+				},
+			}
+			config := pkg.AgentConfiguration{
+				Assignee:  "claude",
+				Image:     "my-image:latest",
+				Env:       map[string]string{},
+				Resources: nil,
+			}
+			err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+
+			container := jobs.Items[0].Spec.Template.Spec.Containers[0]
+			Expect(container.Resources.Limits.Cpu().String()).To(Equal("50m"))
+			Expect(container.Resources.Requests.Cpu().String()).To(Equal("20m"))
+			Expect(container.Resources.Limits.Memory().String()).To(Equal("50Mi"))
+			Expect(container.Resources.Requests.Memory().String()).To(Equal("20Mi"))
+			_, hasEphReq := container.Resources.Requests[corev1.ResourceEphemeralStorage]
+			Expect(hasEphReq).To(BeFalse())
+			_, hasEphLim := container.Resources.Limits[corev1.ResourceEphemeralStorage]
+			Expect(hasEphLim).To(BeFalse())
+		})
+
+		It("leaves CPU limit at builder default when only Requests.CPU is set", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("abc-one-sided"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude",
+				},
+			}
+			config := pkg.AgentConfiguration{
+				Assignee: "claude",
+				Image:    "my-image:latest",
+				Env:      map[string]string{},
+				Resources: &agentv1.AgentResources{
+					Requests: agentv1.AgentResourceList{CPU: "500m"},
+				},
+			}
+			err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+
+			container := jobs.Items[0].Spec.Template.Spec.Containers[0]
+			Expect(container.Resources.Requests.Cpu().String()).To(Equal("500m"))
+			Expect(container.Resources.Limits.Cpu().String()).To(Equal("50m"))
 		})
 
 		It("returns error on unexpected K8s error", func() {

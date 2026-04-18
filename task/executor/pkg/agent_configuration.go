@@ -4,6 +4,10 @@
 
 package pkg
 
+import (
+	agentv1 "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de/v1"
+)
+
 // AgentConfiguration defines the container image and environment for one agent type.
 type AgentConfiguration struct {
 	// Assignee is the task frontmatter assignee value that routes to this agent.
@@ -23,6 +27,9 @@ type AgentConfiguration struct {
 	// SecretName is the name of a K8s Secret to mount as envFrom on the container.
 	// Empty means no secret is mounted.
 	SecretName string
+	// Resources declares optional resource requests and limits for the agent container.
+	// Nil means "do not set, keep the k8s builder default".
+	Resources *agentv1.AgentResources
 }
 
 // AgentConfigurations is a list of agent configurations.
@@ -51,6 +58,7 @@ func (a AgentConfigurations) TaggedConfigurations(branch string) AgentConfigurat
 			VolumeClaim:     c.VolumeClaim,
 			VolumeMountPath: c.VolumeMountPath,
 			SecretName:      c.SecretName,
+			Resources:       c.Resources.DeepCopy(),
 		}
 	}
 	return result

@@ -49,6 +49,18 @@ var _ = Describe("ConfigResolver", func() {
 					SecretName:      "my-secret",
 					VolumeClaim:     "my-pvc",
 					VolumeMountPath: "/mnt/data",
+					Resources: &agentv1.AgentResources{
+						Requests: agentv1.AgentResourceList{
+							CPU:              "500m",
+							Memory:           "1Gi",
+							EphemeralStorage: "2Gi",
+						},
+						Limits: agentv1.AgentResourceList{
+							CPU:              "1",
+							Memory:           "2Gi",
+							EphemeralStorage: "4Gi",
+						},
+					},
 				},
 			},
 		}
@@ -60,6 +72,28 @@ var _ = Describe("ConfigResolver", func() {
 		Expect(config.SecretName).To(Equal("my-secret"))
 		Expect(config.VolumeClaim).To(Equal("my-pvc"))
 		Expect(config.VolumeMountPath).To(Equal("/mnt/data"))
+		Expect(config.Resources).NotTo(BeNil())
+		Expect(config.Resources.Requests.CPU).To(Equal("500m"))
+		Expect(config.Resources.Requests.Memory).To(Equal("1Gi"))
+		Expect(config.Resources.Requests.EphemeralStorage).To(Equal("2Gi"))
+		Expect(config.Resources.Limits.CPU).To(Equal("1"))
+		Expect(config.Resources.Limits.Memory).To(Equal("2Gi"))
+		Expect(config.Resources.Limits.EphemeralStorage).To(Equal("4Gi"))
+	})
+
+	It("leaves Resources nil when Spec.Resources is nil", func() {
+		provider.items = []agentv1.Config{
+			{
+				Spec: agentv1.ConfigSpec{
+					Assignee:  "claude",
+					Image:     "foo/bar",
+					Heartbeat: "30m",
+				},
+			},
+		}
+		config, err := resolver.Resolve(ctx, "claude")
+		Expect(err).To(BeNil())
+		Expect(config.Resources).To(BeNil())
 	})
 
 	It("returns ErrConfigNotFound when no item matches", func() {
