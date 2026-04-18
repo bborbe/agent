@@ -98,7 +98,7 @@ var _ = Describe("JobWatcher", func() {
 			Expect(calledReason).To(ContainSubstring("OOMKilled"))
 
 			_, err = fakeKubeClient.BatchV1().Jobs("test-ns").Get(ctx, "job-1", metav1.GetOptions{})
-			Expect(err).NotTo(BeNil())
+			Expect(err).To(BeNil())
 		})
 
 		It("publishes synthetic failure for Succeeded job when task is in store", func() {
@@ -116,7 +116,7 @@ var _ = Describe("JobWatcher", func() {
 			Expect(calledReason).To(ContainSubstring("without publishing result"))
 
 			_, err = fakeKubeClient.BatchV1().Jobs("test-ns").Get(ctx, "job-2", metav1.GetOptions{})
-			Expect(err).NotTo(BeNil())
+			Expect(err).To(BeNil())
 		})
 
 		It("skips synthetic failure for Succeeded job when task is not in store", func() {
@@ -132,7 +132,7 @@ var _ = Describe("JobWatcher", func() {
 			Expect(fakePublisher.PublishFailureCallCount()).To(Equal(0))
 
 			_, err = fakeKubeClient.BatchV1().Jobs("test-ns").Get(ctx, "job-3", metav1.GetOptions{})
-			Expect(err).NotTo(BeNil())
+			Expect(err).To(BeNil())
 		})
 
 		It("ignores jobs without task-id label", func() {
@@ -150,7 +150,7 @@ var _ = Describe("JobWatcher", func() {
 			Expect(err).To(BeNil())
 		})
 
-		It("deletes Failed job even when task is not in taskStore", func() {
+		It("keeps Failed job (TTL cleanup) when task is not in taskStore", func() {
 			job := makeJob("job-5", string(testTaskID), failedCondition("evicted"))
 			_, err := fakeKubeClient.BatchV1().
 				Jobs("test-ns").
@@ -163,7 +163,7 @@ var _ = Describe("JobWatcher", func() {
 			Expect(fakePublisher.PublishFailureCallCount()).To(Equal(0))
 
 			_, err = fakeKubeClient.BatchV1().Jobs("test-ns").Get(ctx, "job-5", metav1.GetOptions{})
-			Expect(err).NotTo(BeNil())
+			Expect(err).To(BeNil())
 		})
 
 		It("removes task from taskStore after handling terminal job", func() {

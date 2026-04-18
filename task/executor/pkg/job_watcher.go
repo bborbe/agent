@@ -114,9 +114,11 @@ func (w *jobWatcher) HandleJob(ctx context.Context, job *batchv1.Job) {
 	}
 }
 
-// handleTerminal publishes a synthetic failure (when appropriate) and deletes the Job.
-// alwaysPublish is true for Failed jobs; for Succeeded jobs it only publishes if the
-// task is still in the TaskStore (agent has not yet published a result).
+// handleTerminal publishes a synthetic failure when appropriate. Job cleanup is
+// handled by K8s via TTLSecondsAfterFinished (set on the spawned Job), so the
+// pod/log stays available until TTL expires for debugging.
+// alwaysPublish is true for Failed jobs; for Succeeded jobs it only publishes if
+// the task is still in the TaskStore (agent has not yet published a result).
 func (w *jobWatcher) handleTerminal(
 	ctx context.Context,
 	taskID lib.TaskIdentifier,
@@ -127,10 +129,9 @@ func (w *jobWatcher) handleTerminal(
 	task, ok := w.taskStore.Load(taskID)
 	if ok {
 		w.publishSyntheticFailure(ctx, taskID, task, job, reason)
-	} else {
-		w.logMissingTask(taskID, job, alwaysPublish)
+		return
 	}
-	w.deleteJob(ctx, job)
+	w.logMissingTask(taskID, job, alwaysPublish)
 }
 
 func (w *jobWatcher) publishSyntheticFailure(
@@ -166,17 +167,6 @@ func (w *jobWatcher) logMissingTask(
 		"task %s not in task store; job %s/%s succeeded — agent likely published result already",
 		taskID, job.Namespace, job.Name,
 	)
-}
-
-func (w *jobWatcher) deleteJob(ctx context.Context, job *batchv1.Job) {
-	propagation := metav1.DeletePropagationBackground
-	if err := w.kubeClient.BatchV1().Jobs(job.Namespace).Delete(ctx, job.Name, metav1.DeleteOptions{
-		PropagationPolicy: &propagation,
-	}); err != nil {
-		glog.Warningf("delete job %s/%s failed: %v", job.Namespace, job.Name, err)
-	} else {
-		glog.V(2).Infof("deleted terminal job %s/%s", job.Namespace, job.Name)
-	}
 }
 
 func isJobFailed(job *batchv1.Job) bool {
