@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.42.0
+
+- feat: executor watches batch/v1 Jobs via shared informer and publishes synthetic failure results for OOMKilled, evicted, and backoffLimit-exceeded Jobs; feeds controller's retry counter identically to agent-published failures
+- feat: executor deletes terminal Jobs after publishing synthetic failure result, preventing stale Job accumulation
+- fix: executor taskStore is cleaned up on completed task events so job informer does not emit spurious synthetic failures after agent success
+
 ## v0.41.0
 
 - feat: executor adds `agent.benjamin-borbe.de/task-id` label to spawned K8s Jobs for informer lookup

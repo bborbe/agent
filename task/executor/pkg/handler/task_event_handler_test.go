@@ -401,6 +401,23 @@ var _ = Describe("TaskEventHandler", func() {
 			Expect(localSpawner.SpawnJobCallCount()).To(Equal(1))
 		})
 
+		It("removes task from taskStore when event has status=completed", func() {
+			taskStore.Store(lib.TaskIdentifier("test-task-uuid-1234"), lib.Task{
+				TaskIdentifier: "test-task-uuid-1234",
+			})
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-uuid-1234"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status": "completed",
+					"phase":  "done",
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			_, ok := taskStore.Load(lib.TaskIdentifier("test-task-uuid-1234"))
+			Expect(ok).To(BeFalse())
+		})
+
 		It("skips task with absent stage (defaults to prod) when executor branch is dev", func() {
 			localSpawner := new(mocks.FakeJobSpawner)
 			localResolver := &mocks.FakeConfigResolver{}

@@ -88,6 +88,13 @@ func (h *taskEventHandler) parseAndFilter(msg *sarama.ConsumerMessage) (lib.Task
 		return lib.Task{}, true
 	}
 
+	// Clean up taskStore for completed tasks so the job informer does not emit
+	// a spurious synthetic failure after the agent has already published success.
+	if string(task.Frontmatter.Status()) == "completed" {
+		h.taskStore.Delete(task.TaskIdentifier)
+		glog.V(3).Infof("task %s completed: removed from task store", task.TaskIdentifier)
+	}
+
 	if task.Frontmatter.Status() != "in_progress" {
 		glog.V(3).
 			Infof("skip task %s with status %s", task.TaskIdentifier, task.Frontmatter.Status())

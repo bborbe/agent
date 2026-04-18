@@ -90,6 +90,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 
 	resultPublisher := pkg.NewResultPublisher(syncProducer, a.Branch, currentDateTimeGetter)
 	taskStore := pkg.NewTaskStore()
+	jobWatcher := factory.CreateJobWatcher(kubeClient, a.Namespace, taskStore, resultPublisher)
 
 	consumer := factory.CreateConsumer(
 		saramaClient,
@@ -111,6 +112,9 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		},
 		func(ctx context.Context) error {
 			return consumer.Consume(ctx)
+		},
+		func(ctx context.Context) error {
+			return jobWatcher.Run(ctx)
 		},
 		a.createHTTPServer(eventHandlerConfig),
 	)

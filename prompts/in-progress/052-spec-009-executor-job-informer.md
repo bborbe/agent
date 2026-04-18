@@ -1,8 +1,12 @@
 ---
-status: approved
+status: committing
 spec: [009-executor-job-failure-detection]
+summary: Added K8s Job informer (JobWatcher) to executor that publishes synthetic failure results for terminal-state Jobs, wired into main.go, factory function added, taskStore cleanup on completed events, and CHANGELOG updated.
+container: agent-052-spec-009-executor-job-informer
+dark-factory-version: v0.125.1
 created: "2026-04-18T20:00:00Z"
 queued: "2026-04-18T19:29:44Z"
+started: "2026-04-18T19:53:22Z"
 branch: dark-factory/executor-job-failure-detection
 ---
 

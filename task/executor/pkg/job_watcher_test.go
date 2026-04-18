@@ -1,0 +1,217 @@
+// Copyright (c) 2026 Benjamin Borbe All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package pkg_test
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
+
+	lib "github.com/bborbe/agent/lib"
+	"github.com/bborbe/agent/task/executor/mocks"
+	"github.com/bborbe/agent/task/executor/pkg"
+)
+
+var _ = Describe("JobWatcher", func() {
+	var (
+		ctx            context.Context
+		fakePublisher  *mocks.FakeResultPublisher
+		taskStore      *pkg.TaskStore
+		fakeKubeClient *fake.Clientset
+		watcher        pkg.JobWatcher
+		testTask       lib.Task
+		testTaskID     lib.TaskIdentifier
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		fakePublisher = &mocks.FakeResultPublisher{}
+		taskStore = pkg.NewTaskStore()
+		fakeKubeClient = fake.NewClientset()
+		testTaskID = lib.TaskIdentifier("test-task-uuid-1234")
+		testTask = lib.Task{
+			TaskIdentifier: testTaskID,
+			Frontmatter: lib.TaskFrontmatter{
+				"status":   "in_progress",
+				"assignee": "claude",
+			},
+			Content: lib.TaskContent("do the work"),
+		}
+		watcher = pkg.NewJobWatcher(fakeKubeClient, "test-ns", taskStore, fakePublisher)
+	})
+
+	makeJob := func(name string, taskID string, conditions ...batchv1.JobCondition) *batchv1.Job {
+		labels := map[string]string{}
+		if taskID != "" {
+			labels["agent.benjamin-borbe.de/task-id"] = taskID
+		}
+		job := &batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: "test-ns",
+				Labels:    labels,
+			},
+			Status: batchv1.JobStatus{
+				Conditions: conditions,
+			},
+		}
+		return job
+	}
+
+	failedCondition := func(msg string) batchv1.JobCondition {
+		return batchv1.JobCondition{
+			Type:    batchv1.JobFailed,
+			Status:  corev1.ConditionTrue,
+			Message: msg,
+		}
+	}
+
+	succeededCondition := func() batchv1.JobCondition {
+		return batchv1.JobCondition{
+			Type:   batchv1.JobComplete,
+			Status: corev1.ConditionTrue,
+		}
+	}
+
+	Describe("HandleJob", func() {
+		It("publishes synthetic failure and deletes job on Failed state", func() {
+			job := makeJob("job-1", string(testTaskID), failedCondition("OOMKilled"))
+			_, err := fakeKubeClient.BatchV1().
+				Jobs("test-ns").
+				Create(ctx, job, metav1.CreateOptions{})
+			Expect(err).To(BeNil())
+			taskStore.Store(testTaskID, testTask)
+
+			watcher.HandleJob(ctx, job)
+
+			Expect(fakePublisher.PublishFailureCallCount()).To(Equal(1))
+			_, calledTask, calledJobName, calledReason := fakePublisher.PublishFailureArgsForCall(0)
+			Expect(string(calledTask.TaskIdentifier)).To(Equal(string(testTaskID)))
+			Expect(calledJobName).To(Equal("job-1"))
+			Expect(calledReason).To(ContainSubstring("OOMKilled"))
+
+			_, err = fakeKubeClient.BatchV1().Jobs("test-ns").Get(ctx, "job-1", metav1.GetOptions{})
+			Expect(err).NotTo(BeNil())
+		})
+
+		It("publishes synthetic failure for Succeeded job when task is in store", func() {
+			job := makeJob("job-2", string(testTaskID), succeededCondition())
+			_, err := fakeKubeClient.BatchV1().
+				Jobs("test-ns").
+				Create(ctx, job, metav1.CreateOptions{})
+			Expect(err).To(BeNil())
+			taskStore.Store(testTaskID, testTask)
+
+			watcher.HandleJob(ctx, job)
+
+			Expect(fakePublisher.PublishFailureCallCount()).To(Equal(1))
+			_, _, _, calledReason := fakePublisher.PublishFailureArgsForCall(0)
+			Expect(calledReason).To(ContainSubstring("without publishing result"))
+
+			_, err = fakeKubeClient.BatchV1().Jobs("test-ns").Get(ctx, "job-2", metav1.GetOptions{})
+			Expect(err).NotTo(BeNil())
+		})
+
+		It("skips synthetic failure for Succeeded job when task is not in store", func() {
+			job := makeJob("job-3", string(testTaskID), succeededCondition())
+			_, err := fakeKubeClient.BatchV1().
+				Jobs("test-ns").
+				Create(ctx, job, metav1.CreateOptions{})
+			Expect(err).To(BeNil())
+			// intentionally NOT storing task in taskStore
+
+			watcher.HandleJob(ctx, job)
+
+			Expect(fakePublisher.PublishFailureCallCount()).To(Equal(0))
+
+			_, err = fakeKubeClient.BatchV1().Jobs("test-ns").Get(ctx, "job-3", metav1.GetOptions{})
+			Expect(err).NotTo(BeNil())
+		})
+
+		It("ignores jobs without task-id label", func() {
+			job := makeJob("job-4", "", failedCondition("crash"))
+			_, err := fakeKubeClient.BatchV1().
+				Jobs("test-ns").
+				Create(ctx, job, metav1.CreateOptions{})
+			Expect(err).To(BeNil())
+
+			watcher.HandleJob(ctx, job)
+
+			Expect(fakePublisher.PublishFailureCallCount()).To(Equal(0))
+			// job should NOT be deleted
+			_, err = fakeKubeClient.BatchV1().Jobs("test-ns").Get(ctx, "job-4", metav1.GetOptions{})
+			Expect(err).To(BeNil())
+		})
+
+		It("deletes Failed job even when task is not in taskStore", func() {
+			job := makeJob("job-5", string(testTaskID), failedCondition("evicted"))
+			_, err := fakeKubeClient.BatchV1().
+				Jobs("test-ns").
+				Create(ctx, job, metav1.CreateOptions{})
+			Expect(err).To(BeNil())
+			// intentionally NOT storing task in taskStore
+
+			watcher.HandleJob(ctx, job)
+
+			Expect(fakePublisher.PublishFailureCallCount()).To(Equal(0))
+
+			_, err = fakeKubeClient.BatchV1().Jobs("test-ns").Get(ctx, "job-5", metav1.GetOptions{})
+			Expect(err).NotTo(BeNil())
+		})
+
+		It("removes task from taskStore after handling terminal job", func() {
+			job := makeJob("job-6", string(testTaskID), failedCondition("crash"))
+			_, err := fakeKubeClient.BatchV1().
+				Jobs("test-ns").
+				Create(ctx, job, metav1.CreateOptions{})
+			Expect(err).To(BeNil())
+			taskStore.Store(testTaskID, testTask)
+
+			watcher.HandleJob(ctx, job)
+
+			_, ok := taskStore.Load(testTaskID)
+			Expect(ok).To(BeFalse())
+		})
+
+		It("ignores jobs that are neither failed nor succeeded", func() {
+			job := makeJob("job-8", string(testTaskID))
+			_, err := fakeKubeClient.BatchV1().
+				Jobs("test-ns").
+				Create(ctx, job, metav1.CreateOptions{})
+			Expect(err).To(BeNil())
+			taskStore.Store(testTaskID, testTask)
+
+			watcher.HandleJob(ctx, job)
+
+			Expect(fakePublisher.PublishFailureCallCount()).To(Equal(0))
+			// job still exists (not terminal)
+			_, err = fakeKubeClient.BatchV1().Jobs("test-ns").Get(ctx, "job-8", metav1.GetOptions{})
+			Expect(err).To(BeNil())
+		})
+
+		It("uses unknown failure reason when condition has no message", func() {
+			job := makeJob("job-7", string(testTaskID), batchv1.JobCondition{
+				Type:   batchv1.JobFailed,
+				Status: corev1.ConditionTrue,
+			})
+			_, err := fakeKubeClient.BatchV1().
+				Jobs("test-ns").
+				Create(ctx, job, metav1.CreateOptions{})
+			Expect(err).To(BeNil())
+			taskStore.Store(testTaskID, testTask)
+
+			watcher.HandleJob(ctx, job)
+
+			Expect(fakePublisher.PublishFailureCallCount()).To(Equal(1))
+			_, _, _, calledReason := fakePublisher.PublishFailureArgsForCall(0)
+			Expect(calledReason).To(ContainSubstring("unknown failure reason"))
+		})
+	})
+})

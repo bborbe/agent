@@ -24,6 +24,16 @@ import (
 	"github.com/bborbe/agent/task/executor/pkg/spawner"
 )
 
+// CreateJobWatcher creates a JobWatcher that reacts to terminal batch/v1 Job states.
+func CreateJobWatcher(
+	kubeClient kubernetes.Interface,
+	namespace libk8s.Namespace,
+	taskStore *pkg.TaskStore,
+	publisher pkg.ResultPublisher,
+) pkg.JobWatcher {
+	return pkg.NewJobWatcher(kubeClient, namespace, taskStore, publisher)
+}
+
 // CreateK8sConnector returns a K8sConnector wired to the given rest.Config.
 func CreateK8sConnector(config *rest.Config) pkg.K8sConnector {
 	return pkg.NewK8sConnector(config, pkg.DefaultCRDClientBuilder)
