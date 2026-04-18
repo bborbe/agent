@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Reshaped AgentResources to nested requests/limits, propagated Resources through AgentConfiguration, config_resolver, and SpawnJob (including ephemeral-storage post-build patch), migrated agent-claude.yaml manifest, and extended tests in all three test files.
 container: agent-049-propagate-crd-resources-to-spawned-job
 dark-factory-version: v0.125.1
 created: "2026-04-18T00:00:00Z"
 queued: "2026-04-18T15:56:16Z"
 started: "2026-04-18T15:56:19Z"
+completed: "2026-04-18T16:06:18Z"
 ---
 
 <summary>
