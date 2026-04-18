@@ -17,10 +17,10 @@ import (
 	"github.com/bborbe/service"
 	"github.com/golang/glog"
 
-	"github.com/bborbe/agent/agent/claude/pkg"
 	"github.com/bborbe/agent/agent/claude/pkg/factory"
 	"github.com/bborbe/agent/agent/claude/pkg/prompts"
 	agentlib "github.com/bborbe/agent/lib"
+	claudelib "github.com/bborbe/agent/lib/claude"
 )
 
 func main() {
@@ -33,13 +33,13 @@ type application struct {
 	SentryProxy string `required:"false" arg:"sentry-proxy" env:"SENTRY_PROXY" usage:"Sentry Proxy"`
 
 	// Claude Code CLI configuration
-	ClaudeConfigDir pkg.ClaudeConfigDir `required:"false" arg:"claude-config-dir" env:"CLAUDE_CONFIG_DIR" usage:"Claude Code config directory"`
+	ClaudeConfigDir claudelib.ClaudeConfigDir `required:"false" arg:"claude-config-dir" env:"CLAUDE_CONFIG_DIR" usage:"Claude Code config directory"`
 
 	// Agent directory (contains .claude/ with CLAUDE.md and commands)
-	AgentDir pkg.AgentDir `required:"false" arg:"agent-dir" env:"AGENT_DIR" usage:"Agent directory with .claude/ config" default:"agent"`
+	AgentDir claudelib.AgentDir `required:"false" arg:"agent-dir" env:"AGENT_DIR" usage:"Agent directory with .claude/ config" default:"agent"`
 
 	// Model selection
-	Model pkg.ClaudeModel `required:"false" arg:"model" env:"MODEL" usage:"Claude model to use (sonnet, opus)" default:"sonnet"`
+	Model claudelib.ClaudeModel `required:"false" arg:"model" env:"MODEL" usage:"Claude model to use (sonnet, opus)" default:"sonnet"`
 
 	// Allowed tools (comma-separated)
 	AllowedToolsRaw string `required:"false" arg:"allowed-tools" env:"ALLOWED_TOOLS" usage:"Comma-separated list of allowed tools"`
@@ -73,7 +73,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	taskRunner := factory.CreateTaskRunner(
 		a.ClaudeConfigDir,
 		a.AgentDir,
-		pkg.ParseAllowedTools(a.AllowedToolsRaw),
+		claudelib.ParseAllowedTools(a.AllowedToolsRaw),
 		a.Model,
 		parseKeyValuePairs(a.ClaudeEnvRaw),
 		parseKeyValuePairs(a.EnvContextRaw),
@@ -83,16 +83,18 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 
 	result, err := taskRunner.Run(ctx, a.TaskContent)
 	if err != nil {
-		return pkg.PrintResult(ctx, pkg.AgentResult{
-			Status:  pkg.AgentStatusFailed,
+		return claudelib.PrintResult(ctx, claudelib.AgentResult{
+			Status:  claudelib.AgentStatusFailed,
 			Message: fmt.Sprintf("task runner failed: %v", err),
 		})
 	}
 
-	return pkg.PrintResult(ctx, *result)
+	return claudelib.PrintResult(ctx, *result)
 }
 
-func (a *application) createDeliverer(ctx context.Context) (pkg.ResultDeliverer, func(), error) {
+func (a *application) createDeliverer(
+	ctx context.Context,
+) (claudelib.ResultDeliverer, func(), error) {
 	if a.TaskID != "" {
 		if len(a.KafkaBrokers) == 0 {
 			return nil, nil, errors.Errorf(ctx, "KAFKA_BROKERS must be set when TASK_ID is set")
@@ -115,7 +117,7 @@ func (a *application) createDeliverer(ctx context.Context) (pkg.ResultDeliverer,
 		}, nil
 	}
 	glog.V(2).Infof("TASK_ID not set, skipping task result publishing")
-	return pkg.NewNoopResultDeliverer(), func() {}, nil
+	return claudelib.NewNoopResultDeliverer(), func() {}, nil
 }
 
 // parseKeyValuePairs parses "KEY1=VALUE1,KEY2=VALUE2" into a map.

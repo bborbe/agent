@@ -112,7 +112,9 @@ func (s *jobSpawner) SpawnJob(
 
 	applySecretEnvFrom(config, job)
 
-	_, err = s.kubeClient.BatchV1().Jobs(s.namespace.String()).Create(ctx, job, metav1.CreateOptions{})
+	_, err = s.kubeClient.BatchV1().
+		Jobs(s.namespace.String()).
+		Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
 			glog.V(2).

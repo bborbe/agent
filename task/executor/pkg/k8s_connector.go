@@ -26,7 +26,11 @@ import (
 // K8sConnector installs the Config CRD and starts an informer.
 type K8sConnector interface {
 	SetupCustomResourceDefinition(ctx context.Context) error
-	Listen(ctx context.Context, namespace libk8s.Namespace, handler cache.ResourceEventHandler) error
+	Listen(
+		ctx context.Context,
+		namespace libk8s.Namespace,
+		handler cache.ResourceEventHandler,
+	) error
 }
 
 // CRDClientBuilder constructs the apiextensions clientset from a rest.Config.

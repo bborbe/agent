@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package pkg
+package claude
 
-// ClaudeConfigDir is the path to the Claude Code configuration directory (~/.claude).
-type ClaudeConfigDir string
+// AgentDir is the path to the agent directory containing .claude/ config.
+type AgentDir string
 
 // String returns the path as a string.
-func (c ClaudeConfigDir) String() string { return string(c) }
+func (a AgentDir) String() string { return string(a) }

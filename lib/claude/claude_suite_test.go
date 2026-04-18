@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package pkg_test
+package claude_test
 
 import (
 	"testing"
@@ -13,11 +13,11 @@ import (
 	"github.com/onsi/gomega/format"
 )
 
-func TestSuite(t *testing.T) {
+func TestClaude(t *testing.T) {
 	time.Local = time.UTC
 	format.TruncatedDiff = false
 	RegisterFailHandler(Fail)
 	suiteConfig, reporterConfig := GinkgoConfiguration()
 	suiteConfig.Timeout = 60 * time.Second
-	RunSpecs(t, "Pkg Suite", suiteConfig, reporterConfig)
+	RunSpecs(t, "Claude Suite", suiteConfig, reporterConfig)
 }

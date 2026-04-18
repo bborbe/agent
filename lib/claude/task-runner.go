@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package pkg
+package claude
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"github.com/golang/glog"
 )
 
-//counterfeiter:generate -o ../mocks/pkg-task-runner.go --fake-name PkgTaskRunner . TaskRunner
+//counterfeiter:generate -o ../mocks/claude-task-runner.go --fake-name ClaudeTaskRunner . TaskRunner
 
 // TaskRunner orchestrates task execution by launching a single Claude Code session.
 type TaskRunner interface {

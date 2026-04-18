@@ -7,7 +7,7 @@ package prompts
 import (
 	_ "embed"
 
-	"github.com/bborbe/agent/agent/claude/pkg"
+	claudelib "github.com/bborbe/agent/lib/claude"
 )
 
 //go:embed workflow.md
@@ -18,8 +18,8 @@ var outputFormat string
 
 // BuildInstructions assembles the full agent prompt from embedded modules.
 // Each section is wrapped in XML tags for clear separation.
-func BuildInstructions() pkg.Instructions {
-	return pkg.Instructions{
+func BuildInstructions() claudelib.Instructions {
+	return claudelib.Instructions{
 		{Name: "workflow", Content: workflow},
 		{Name: "output-format", Content: outputFormat},
 	}

@@ -12,8 +12,8 @@ import (
 	libkafka "github.com/bborbe/kafka"
 	libtime "github.com/bborbe/time"
 
-	"github.com/bborbe/agent/agent/claude/pkg"
 	agentlib "github.com/bborbe/agent/lib"
+	claudelib "github.com/bborbe/agent/lib/claude"
 	delivery "github.com/bborbe/agent/lib/delivery"
 )
 
@@ -22,17 +22,17 @@ const serviceName = "agent-claude"
 // CreateTaskRunner wires a complete TaskRunner with ClaudeRunner,
 // prompt assembly, and result delivery.
 func CreateTaskRunner(
-	claudeConfigDir pkg.ClaudeConfigDir,
-	agentDir pkg.AgentDir,
-	allowedTools pkg.AllowedTools,
-	model pkg.ClaudeModel,
+	claudeConfigDir claudelib.ClaudeConfigDir,
+	agentDir claudelib.AgentDir,
+	allowedTools claudelib.AllowedTools,
+	model claudelib.ClaudeModel,
 	env map[string]string,
 	envContext map[string]string,
-	instructions pkg.Instructions,
-	deliverer pkg.ResultDeliverer,
-) pkg.TaskRunner {
-	return pkg.NewTaskRunner(
-		pkg.NewClaudeRunner(pkg.ClaudeRunnerConfig{
+	instructions claudelib.Instructions,
+	deliverer claudelib.ResultDeliverer,
+) claudelib.TaskRunner {
+	return claudelib.NewTaskRunner(
+		claudelib.NewClaudeRunner(claudelib.ClaudeRunnerConfig{
 			ClaudeConfigDir:  claudeConfigDir,
 			AllowedTools:     allowedTools,
 			Model:            model,
@@ -63,8 +63,8 @@ func CreateKafkaResultDeliverer(
 	branch base.Branch,
 	taskID agentlib.TaskIdentifier,
 	taskContent string,
-) pkg.ResultDeliverer {
-	return pkg.NewResultDelivererAdapter(
+) claudelib.ResultDeliverer {
+	return claudelib.NewResultDelivererAdapter(
 		delivery.NewKafkaResultDeliverer(
 			syncProducer,
 			branch,

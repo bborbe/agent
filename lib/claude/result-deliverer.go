@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package pkg
+package claude
 
 import (
 	"context"
@@ -11,14 +11,14 @@ import (
 	delivery "github.com/bborbe/agent/lib/delivery"
 )
 
-//counterfeiter:generate -o ../mocks/pkg-result-deliverer.go --fake-name PkgResultDeliverer . ResultDeliverer
+//counterfeiter:generate -o ../mocks/claude-result-deliverer.go --fake-name ClaudeResultDeliverer . ResultDeliverer
 
 // ResultDeliverer publishes an AgentResult back after task execution completes.
 type ResultDeliverer interface {
 	DeliverResult(ctx context.Context, result AgentResult) error
 }
 
-// NewResultDelivererAdapter wraps a delivery.ResultDeliverer to accept agent-claude AgentResult.
+// NewResultDelivererAdapter wraps a delivery.ResultDeliverer to accept AgentResult.
 func NewResultDelivererAdapter(inner delivery.ResultDeliverer) ResultDeliverer {
 	return &resultDelivererAdapter{inner: inner}
 }

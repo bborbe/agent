@@ -341,10 +341,12 @@ var _ = Describe("ResultWriter", func() {
 		})
 
 		Context("realistic end-to-end", func() {
-			It("reads a real Obsidian task, applies agent result, and produces correct output", func() {
-				// Realistic task file matching actual Obsidian format:
-				// frontmatter + Tags line + --- separator + body
-				originalTask := `---
+			It(
+				"reads a real Obsidian task, applies agent result, and produces correct output",
+				func() {
+					// Realistic task file matching actual Obsidian format:
+					// frontmatter + Tags line + --- separator + body
+					originalTask := `---
 task_identifier: e2e-uuid-1234-5678
 status: in_progress
 phase: ai_review
@@ -368,17 +370,17 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 - **From:** 2026-04-10
 - **Until:** 2026-04-17
 `
-				writeTaskFile("e2e-backtest.md", originalTask)
+					writeTaskFile("e2e-backtest.md", originalTask)
 
-				// Simulate agent result: status completed, body includes --- separators
-				taskFile = lib.Task{
-					TaskIdentifier: lib.TaskIdentifier("e2e-uuid-1234-5678"),
-					Frontmatter: lib.TaskFrontmatter{
-						"task_identifier": "e2e-uuid-1234-5678",
-						"status":          "completed",
-						"phase":           "done",
-					},
-					Content: lib.TaskContent(`Tags: [[Task]] [[Trading]]
+					// Simulate agent result: status completed, body includes --- separators
+					taskFile = lib.Task{
+						TaskIdentifier: lib.TaskIdentifier("e2e-uuid-1234-5678"),
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "e2e-uuid-1234-5678",
+							"status":          "completed",
+							"phase":           "done",
+						},
+						Content: lib.TaskContent(`Tags: [[Task]] [[Trading]]
 
 ---
 
@@ -397,64 +399,67 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 - **Backtest ID:** b3b44eb0-60d9-40b9-9e7d-5afdc3272020
 - **Status:** DONE
 `),
-				}
+					}
 
-				err := writer.WriteResult(ctx, taskFile)
-				Expect(err).NotTo(HaveOccurred())
+					err := writer.WriteResult(ctx, taskFile)
+					Expect(err).NotTo(HaveOccurred())
 
-				written, readErr := os.ReadFile(filepath.Join(tmpDir, taskDir, "e2e-backtest.md"))
-				Expect(readErr).NotTo(HaveOccurred())
-				s := string(written)
+					written, readErr := os.ReadFile(
+						filepath.Join(tmpDir, taskDir, "e2e-backtest.md"),
+					)
+					Expect(readErr).NotTo(HaveOccurred())
+					s := string(written)
 
-				// 1. File starts with frontmatter delimiter
-				Expect(s).To(HavePrefix("---\n"))
+					// 1. File starts with frontmatter delimiter
+					Expect(s).To(HavePrefix("---\n"))
 
-				// 2. Parse frontmatter correctly
-				parts := strings.SplitN(s[4:], "\n---\n", 2)
-				Expect(parts).To(HaveLen(2), "frontmatter must be closed by ---")
+					// 2. Parse frontmatter correctly
+					parts := strings.SplitN(s[4:], "\n---\n", 2)
+					Expect(parts).To(HaveLen(2), "frontmatter must be closed by ---")
 
-				var parsedFm map[string]interface{}
-				Expect(yaml.Unmarshal([]byte(parts[0]), &parsedFm)).To(Succeed())
+					var parsedFm map[string]interface{}
+					Expect(yaml.Unmarshal([]byte(parts[0]), &parsedFm)).To(Succeed())
 
-				// 3. Agent keys override existing
-				Expect(parsedFm["status"]).To(Equal("completed"))
-				Expect(parsedFm["phase"]).To(Equal("done"))
-				Expect(parsedFm["task_identifier"]).To(Equal("e2e-uuid-1234-5678"))
+					// 3. Agent keys override existing
+					Expect(parsedFm["status"]).To(Equal("completed"))
+					Expect(parsedFm["phase"]).To(Equal("done"))
+					Expect(parsedFm["task_identifier"]).To(Equal("e2e-uuid-1234-5678"))
 
-				// 4. Existing keys NOT in agent result are preserved
-				Expect(parsedFm["assignee"]).To(Equal("backtest-agent"))
-				Expect(parsedFm["stage"]).To(Equal("dev"))
-				Expect(parsedFm["page_type"]).To(Equal("task"))
-				Expect(parsedFm["planned_date"]).To(Equal("2026-04-17"))
+					// 4. Existing keys NOT in agent result are preserved
+					Expect(parsedFm["assignee"]).To(Equal("backtest-agent"))
+					Expect(parsedFm["stage"]).To(Equal("dev"))
+					Expect(parsedFm["page_type"]).To(Equal("task"))
+					Expect(parsedFm["planned_date"]).To(Equal("2026-04-17"))
 
-				// 5. Tags list preserved
-				tags, ok := parsedFm["tags"].([]interface{})
-				Expect(ok).To(BeTrue(), "tags should be a list")
-				Expect(tags).To(ContainElements("agent-task", "backtest"))
+					// 5. Tags list preserved
+					tags, ok := parsedFm["tags"].([]interface{})
+					Expect(ok).To(BeTrue(), "tags should be a list")
+					Expect(tags).To(ContainElements("agent-task", "backtest"))
 
-				// 6. Body contains --- as-is (not escaped to \-\-\-)
-				body := parts[1]
-				Expect(body).To(ContainSubstring("\n---\n"), "body --- must be preserved")
-				Expect(body).NotTo(ContainSubstring(`\-\-\-`), "body --- must NOT be escaped")
+					// 6. Body contains --- as-is (not escaped to \-\-\-)
+					body := parts[1]
+					Expect(body).To(ContainSubstring("\n---\n"), "body --- must be preserved")
+					Expect(body).NotTo(ContainSubstring(`\-\-\-`), "body --- must NOT be escaped")
 
-				// 7. Body contains result section
-				Expect(body).To(ContainSubstring("## Result"))
-				Expect(body).To(ContainSubstring("b3b44eb0-60d9-40b9-9e7d-5afdc3272020"))
-				Expect(body).To(ContainSubstring("DONE"))
+					// 7. Body contains result section
+					Expect(body).To(ContainSubstring("## Result"))
+					Expect(body).To(ContainSubstring("b3b44eb0-60d9-40b9-9e7d-5afdc3272020"))
+					Expect(body).To(ContainSubstring("DONE"))
 
-				// 8. Body contains Tags line (Obsidian links)
-				Expect(body).To(ContainSubstring("Tags: [[Task]] [[Trading]]"))
+					// 8. Body contains Tags line (Obsidian links)
+					Expect(body).To(ContainSubstring("Tags: [[Task]] [[Trading]]"))
 
-				// 9. Committed exactly once
-				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+					// 9. Committed exactly once
+					Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
 
-				// 10. Verify the full file can be re-read and re-parsed
-				// (simulates controller reading it again on next cycle)
-				reParsedFm, reParseErr := extractTestFrontmatter(s)
-				Expect(reParseErr).NotTo(HaveOccurred())
-				Expect(reParsedFm["status"]).To(Equal("completed"))
-				Expect(reParsedFm["phase"]).To(Equal("done"))
-			})
+					// 10. Verify the full file can be re-read and re-parsed
+					// (simulates controller reading it again on next cycle)
+					reParsedFm, reParseErr := extractTestFrontmatter(s)
+					Expect(reParseErr).NotTo(HaveOccurred())
+					Expect(reParsedFm["status"]).To(Equal("completed"))
+					Expect(reParsedFm["phase"]).To(Equal("done"))
+				},
+			)
 		})
 
 		Context("atomic write and push error", func() {

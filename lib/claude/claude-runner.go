@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package pkg
+package claude
 
 import (
 	"bufio"
@@ -16,7 +16,7 @@ import (
 	"github.com/golang/glog"
 )
 
-//counterfeiter:generate -o ../mocks/pkg-claude-runner.go --fake-name PkgClaudeRunner . ClaudeRunner
+//counterfeiter:generate -o ../mocks/claude-claude-runner.go --fake-name ClaudeRunner . ClaudeRunner
 
 // ClaudeRunner spawns a headless Claude Code CLI session with a prompt and MCP tools.
 type ClaudeRunner interface {

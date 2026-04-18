@@ -106,13 +106,13 @@ require (
 	github.com/bborbe/http v1.26.9 // indirect
 	github.com/bborbe/k8s v1.13.5 // indirect
 	github.com/bborbe/kv v1.19.4 // indirect
-	github.com/bborbe/log v1.6.10 // indirect
+	github.com/bborbe/log v1.6.11 // indirect
 	github.com/bborbe/math v1.3.7 // indirect
 	github.com/bborbe/parse v1.10.10 // indirect
 	github.com/bborbe/run v1.9.18 // indirect
 	github.com/bborbe/strimzi v1.8.2 // indirect
 	github.com/bborbe/validation v1.4.11 // indirect
-	github.com/bborbe/vault-cli v0.50.0 // indirect
+	github.com/bborbe/vault-cli v0.55.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bkielbasa/cyclop v1.2.3 // indirect
 	github.com/blizzy78/varnamelen v0.8.0 // indirect
