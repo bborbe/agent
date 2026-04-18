@@ -1,0 +1,16 @@
+apiVersion: agent.benjamin-borbe.de/v1
+kind: Config
+metadata:
+  name: agent-claude
+  namespace: '{{ "NAMESPACE" | env }}'
+spec:
+  assignee: claude-agent
+  image: docker.quant.benjamin-borbe.de:443/agent-claude
+  heartbeat: 5m
+  secretName: agent-claude
+  volumeClaim: agent-claude
+  volumeMountPath: /home/claude/.claude
+  resources:
+    cpu: 500m
+    memory: 1Gi
+    ephemeral-storage: 2Gi
