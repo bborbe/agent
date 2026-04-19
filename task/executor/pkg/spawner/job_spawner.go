@@ -22,7 +22,9 @@ import (
 	pkg "github.com/bborbe/agent/task/executor/pkg"
 )
 
-const componentLabelKey = "component"
+// taskIDLabelKey labels a spawned Job with the task UUID so IsJobActive
+// can look it up. Must match the selector used in IsJobActive.
+const taskIDLabelKey = "agent.benjamin-borbe.de/task-id"
 
 //counterfeiter:generate -o ../../mocks/job_spawner.go --fake-name FakeJobSpawner . JobSpawner
 
@@ -32,7 +34,8 @@ type JobSpawner interface {
 	// Returns the job name even when the job already exists (idempotent).
 	SpawnJob(ctx context.Context, task lib.Task, config pkg.AgentConfiguration) (string, error)
 	// IsJobActive returns true if an active (not completed/failed) K8s Job exists
-	// for the given task identifier. Uses the `component` label set by SpawnJob.
+	// for the given task identifier. Uses the agent.benjamin-borbe.de/task-id
+	// label set by SpawnJob.
 	IsJobActive(ctx context.Context, taskIdentifier lib.TaskIdentifier) (bool, error)
 }
 
@@ -144,7 +147,7 @@ func (s *jobSpawner) IsJobActive(
 	ctx context.Context,
 	taskIdentifier lib.TaskIdentifier,
 ) (bool, error) {
-	labelSelector := componentLabelKey + "=" + string(taskIdentifier)
+	labelSelector := taskIDLabelKey + "=" + string(taskIdentifier)
 	jobs, err := s.kubeClient.BatchV1().Jobs(s.namespace.String()).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,
 	})
@@ -262,11 +265,11 @@ func applyTaskIDLabel(taskID lib.TaskIdentifier, job *batchv1.Job) {
 	if job.Labels == nil {
 		job.Labels = map[string]string{}
 	}
-	job.Labels["agent.benjamin-borbe.de/task-id"] = string(taskID)
+	job.Labels[taskIDLabelKey] = string(taskID)
 	if job.Spec.Template.Labels == nil {
 		job.Spec.Template.Labels = map[string]string{}
 	}
-	job.Spec.Template.Labels["agent.benjamin-borbe.de/task-id"] = string(taskID)
+	job.Spec.Template.Labels[taskIDLabelKey] = string(taskID)
 }
 
 // jobNameFromTask returns the K8s Job name for a task: "{assignee}-{taskID8}-{YYYYMMDDHHMMSS}".

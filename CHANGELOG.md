@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.43.2
+
+- fix: executor `IsJobActive` now queries the same `agent.benjamin-borbe.de/task-id` label that `SpawnJob` writes onto the Job metadata, fixing the respawn loop where the controller repeatedly spawned duplicate jobs because it could not detect the existing one
+- test: add integration test verifying `SpawnJob` + `IsJobActive` share the same label contract
+- chore: add go.mod replace directives to work around osv-scanner compile error in containerd@v1.7.30
+
 ## v0.43.1
 
 - docs: update agent/claude workflow.md to distinguish `needs_input` (semantically impossible/underspecified task) from `failed` (infrastructure error eligible for retry)

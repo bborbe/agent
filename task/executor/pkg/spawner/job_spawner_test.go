@@ -493,7 +493,7 @@ var _ = Describe("JobSpawner", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "claude-20260403173500",
 					Namespace: "test-ns",
-					Labels:    map[string]string{"component": "tid-2"},
+					Labels:    map[string]string{"agent.benjamin-borbe.de/task-id": "tid-2"},
 				},
 				Status: batchv1.JobStatus{
 					Active: 1,
@@ -518,7 +518,7 @@ var _ = Describe("JobSpawner", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "claude-20260403173500",
 					Namespace: "test-ns",
-					Labels:    map[string]string{"component": "tid-3"},
+					Labels:    map[string]string{"agent.benjamin-borbe.de/task-id": "tid-3"},
 				},
 				Status: batchv1.JobStatus{
 					Succeeded: 1,
@@ -543,7 +543,7 @@ var _ = Describe("JobSpawner", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "claude-20260403173500",
 					Namespace: "test-ns",
-					Labels:    map[string]string{"component": "tid-4"},
+					Labels:    map[string]string{"agent.benjamin-borbe.de/task-id": "tid-4"},
 				},
 				Status: batchv1.JobStatus{
 					Failed: 1,
@@ -569,7 +569,7 @@ var _ = Describe("JobSpawner", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "claude-20260403173500",
 					Namespace: "test-ns",
-					Labels:    map[string]string{"component": "tid-5"},
+					Labels:    map[string]string{"agent.benjamin-borbe.de/task-id": "tid-5"},
 				},
 				Status: batchv1.JobStatus{},
 			}
@@ -585,6 +585,50 @@ var _ = Describe("JobSpawner", func() {
 			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-5"))
 			Expect(err).To(BeNil())
 			Expect(active).To(BeTrue())
+		})
+	})
+
+	// Regression guard: SpawnJob and IsJobActive must agree on the label key used
+	// to identify a Job. A mismatch causes the executor to treat a freshly-spawned
+	// Job as "no active job" and respawn another every poll cycle.
+	Describe("SpawnJob + IsJobActive label contract", func() {
+		It("IsJobActive returns true for a Job just spawned via SpawnJob (same taskID)", func() {
+			taskID := lib.TaskIdentifier("e2e-tid-contract-1")
+			task := lib.Task{
+				TaskIdentifier: taskID,
+				Frontmatter:    lib.TaskFrontmatter{"assignee": "claude"},
+				Content:        lib.TaskContent("do the work"),
+			}
+			config := pkg.AgentConfiguration{
+				Assignee: "claude",
+				Image:    "my-image:latest",
+			}
+
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			active, err := jobSpawner.IsJobActive(ctx, taskID)
+			Expect(err).To(BeNil())
+			Expect(active).
+				To(BeTrue(), "IsJobActive must recognise the Job that SpawnJob just created")
+		})
+
+		It("IsJobActive returns false for a different taskID than the one spawned", func() {
+			spawned := lib.TaskIdentifier("e2e-tid-contract-2")
+			other := lib.TaskIdentifier("e2e-tid-contract-other")
+			task := lib.Task{
+				TaskIdentifier: spawned,
+				Frontmatter:    lib.TaskFrontmatter{"assignee": "claude"},
+			}
+			_, err := jobSpawner.SpawnJob(ctx, task, pkg.AgentConfiguration{
+				Assignee: "claude", Image: "my-image:latest",
+			})
+			Expect(err).To(BeNil())
+
+			active, err := jobSpawner.IsJobActive(ctx, other)
+			Expect(err).To(BeNil())
+			Expect(active).
+				To(BeFalse(), "IsJobActive must not match a different task's spawned Job")
 		})
 	})
 })
