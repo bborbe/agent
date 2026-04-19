@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.45.0
+
+- Generalize ResultDeliverer and TaskRunner interfaces with AgentResultLike type parameter
+- Add AgentResultLike constraint interface with GetStatus/GetMessage/GetFiles/RenderResultSection
+- Add getter methods to AgentResult to satisfy AgentResultLike
+- Wire agent/claude to use generic claude.TaskRunner[claude.AgentResult] and claude.ResultDeliverer[claude.AgentResult]
+- Update golang.org/x/* dependencies (crypto, net, sys, tools, vuln, etc.)
+- Bump counterfeiter to v6.12.2
+
 ## v0.44.1
 
 - fix: controller result writer no longer increments retry_count — counter is maintained by executor at spawn time, preventing inflation from kubectl job deletions (spec 011)

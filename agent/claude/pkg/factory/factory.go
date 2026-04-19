@@ -29,9 +29,9 @@ func CreateTaskRunner(
 	env map[string]string,
 	envContext map[string]string,
 	instructions claudelib.Instructions,
-	deliverer claudelib.ResultDeliverer,
-) claudelib.TaskRunner {
-	return claudelib.NewTaskRunner(
+	deliverer claudelib.ResultDeliverer[claudelib.AgentResult],
+) claudelib.TaskRunner[claudelib.AgentResult] {
+	return claudelib.NewTaskRunner[claudelib.AgentResult](
 		claudelib.NewClaudeRunner(claudelib.ClaudeRunnerConfig{
 			ClaudeConfigDir:  claudeConfigDir,
 			AllowedTools:     allowedTools,
@@ -64,8 +64,8 @@ func CreateKafkaResultDeliverer(
 	taskID agentlib.TaskIdentifier,
 	taskContent string,
 	currentDateTime libtime.CurrentDateTimeGetter,
-) claudelib.ResultDeliverer {
-	return claudelib.NewResultDelivererAdapter(
+) claudelib.ResultDeliverer[claudelib.AgentResult] {
+	return claudelib.NewResultDelivererAdapter[claudelib.AgentResult](
 		delivery.NewKafkaResultDeliverer(
 			syncProducer,
 			branch,

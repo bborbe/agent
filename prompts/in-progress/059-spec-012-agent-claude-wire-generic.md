@@ -1,9 +1,14 @@
 ---
-status: approved
+status: failed
 spec: [012-generic-claude-task-runner]
+container: agent-059-spec-012-agent-claude-wire-generic
+dark-factory-version: v0.128.1-3-gf1cfca3-dirty
 created: "2026-04-19T18:00:00Z"
 queued: "2026-04-19T20:03:37Z"
+started: "2026-04-19T20:12:08Z"
+completed: "2026-04-19T20:14:32Z"
 branch: dark-factory/generic-claude-task-runner
+lastFailReason: 'validate completion report: completion report status: partial'
 ---
 
 <summary>

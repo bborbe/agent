@@ -95,7 +95,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 
 func (a *application) createDeliverer(
 	ctx context.Context,
-) (claudelib.ResultDeliverer, func(), error) {
+) (claudelib.ResultDeliverer[claudelib.AgentResult], func(), error) {
 	if a.TaskID != "" {
 		if len(a.KafkaBrokers) == 0 {
 			return nil, nil, errors.Errorf(ctx, "KAFKA_BROKERS must be set when TASK_ID is set")
