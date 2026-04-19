@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [010-failure-vs-needs-input-semantics]
 summary: 'Added `needs_input result` test context with two cases (human_review skips retry, terminal guard) to result_writer_test.go and inserted ## Unreleased CHANGELOG entries for spec 010 shipped changes.'
 container: agent-054-spec-010-controller-test-coverage
@@ -7,6 +7,7 @@ dark-factory-version: v0.125.1
 created: "2026-04-19T11:00:00Z"
 queued: "2026-04-19T10:51:02Z"
 started: "2026-04-19T10:51:04Z"
+completed: "2026-04-19T10:58:38Z"
 branch: dark-factory/failure-vs-needs-input-semantics
 ---
 
