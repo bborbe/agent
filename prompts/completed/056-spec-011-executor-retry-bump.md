@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [011-retry-counter-spawn-time-semantics]
 summary: Added PublishRetryCountBump to ResultPublisher interface and implementation, inserted call before SpawnJob in spawnIfNeeded, regenerated counterfeiter mock, added two new tests, and updated CHANGELOG.md
 container: agent-056-spec-011-executor-retry-bump
@@ -7,6 +7,7 @@ dark-factory-version: v0.128.1-3-gf1cfca3-dirty
 created: "2026-04-19T17:30:00Z"
 queued: "2026-04-19T18:31:24Z"
 started: "2026-04-19T19:46:06Z"
+completed: "2026-04-19T19:52:09Z"
 branch: dark-factory/retry-counter-spawn-time-semantics
 ---
 
