@@ -9,6 +9,7 @@ Related specs:
 - `specs/completed/008-task-retry-protection.md` — retry counter
 - `specs/completed/009-executor-job-failure-detection.md` — synthetic failure on K8s Job terminal states
 - `specs/in-progress/010-failure-vs-needs-input-semantics.md` — `failed` vs `needs_input` split
+- `specs/in-progress/011-retry-counter-spawn-time-semantics.md` — retry_count moved to spawn time
 
 ## Terminology
 
@@ -17,7 +18,7 @@ Related specs:
 | **Task** | A markdown file in the Obsidian vault with frontmatter (`status`, `phase`, `assignee`, `task_identifier`, …) |
 | **AgentStatus** | What the agent reports: `done`, `failed`, or `needs_input` |
 | **Phase** | Task lifecycle step: `planning` → `in_progress` → (`ai_review` | `done` | `human_review`) |
-| **Retry counter** | `retry_count` frontmatter field, incremented by controller on each `failed`-like result |
+| **Retry counter** | `retry_count` frontmatter field, incremented by the executor at job spawn time (spec 011). The controller reads it but never modifies it. |
 | **Escalation** | Controller flips phase to `human_review` once `retry_count >= max_retries` |
 
 ## Status Taxonomy
@@ -81,7 +82,7 @@ case needs_input:
 default (failed):
     status = in_progress
     phase  = ai_review           ← re-enters executor allowlist
-    retry_count++
+    retry_count: unchanged        ← executor already bumped it at spawn time (spec 011)
     if retry_count >= max_retries:
         phase = human_review     ← escalated
 }
@@ -89,7 +90,7 @@ default (failed):
 
 **Why `needs_input` skips the retry counter:** the agent already did the work; re-running it cannot change the outcome (zero trades is zero trades). Retrying wastes compute and appends duplicate `## Result` sections to the task, which poisons the next invocation's context.
 
-**Why `failed` counts:** could be transient (network, rate limit, OOM). Next attempt might succeed.
+**Why `failed` counts:** could be transient (network, rate limit, OOM). The executor bumps `retry_count` before each spawn attempt so the counter equals invocations attempted, not failure events observed.
 
 ## Failure Scenarios
 
@@ -123,7 +124,7 @@ default (failed):
 1. Agent process is SIGKILL'd (OOM, evict, backoffLimit) — never publishes.
 2. Executor's Job informer sees `Failed` terminal state.
 3. Executor synthesises a `failed` result and publishes to Kafka.
-4. Flows through the normal `failed` path (ai_review + retry).
+4. Flows through the normal `failed` path (ai_review). `retry_count` was already bumped when the Job was spawned; the synthesised failure does not bump it again.
 
 ### Spawn collision (idempotency)
 

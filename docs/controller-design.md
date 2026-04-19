@@ -34,6 +34,9 @@ On agent-task-v1-request (operation: "update"):
   ├── validate: TaskIdentifier and Content must be non-empty
   │
   ├── walk task directory, find file matching task_identifier in frontmatter
+  ├── merge frontmatter + apply escalation check (counter set by executor, not incremented here)
+  │     ├── read retry_count from merged frontmatter (set by executor at spawn time, spec 011)
+  │     └── if retry_count >= max_retries → set phase: human_review, append ## Retry Escalation
   ├── sanitize content (escape bare --- lines to prevent YAML corruption)
   ├── write frontmatter + content to file
   ├── git add + commit + push

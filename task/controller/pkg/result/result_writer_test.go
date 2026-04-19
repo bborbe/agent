@@ -470,10 +470,10 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 		})
 
 		Context("retry counter", func() {
-			It("increments retry_count on first failure and keeps ai_review phase", func() {
+			It("does not modify retry_count on failure and keeps ai_review phase", func() {
 				writeTaskFile(
 					"my-task.md",
-					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\nassignee: claude\n---\nAgent output\n",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nassignee: claude\nretry_count: 1\n---\nAgent output\n",
 				)
 				taskFile = lib.Task{
 					TaskIdentifier: identifier,
@@ -482,41 +482,47 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 						"status":          "in_progress",
 						"phase":           "ai_review",
 					},
-					Content: lib.TaskContent("Failed output\n"),
+					Content: lib.TaskContent("Result body\n"),
 				}
 				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
 				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
 				s := string(written)
-				Expect(s).To(ContainSubstring("retry_count: 1"))
+				Expect(
+					s,
+				).To(ContainSubstring("retry_count: 1"))
+				// unchanged — executor owns the counter
 				Expect(s).To(ContainSubstring("phase: ai_review"))
 				Expect(s).NotTo(ContainSubstring("human_review"))
-				Expect(s).NotTo(ContainSubstring("Retry Escalation"))
 			})
 
-			It("escalates to human_review after three failures (default max_retries)", func() {
-				writeTaskFile(
-					"my-task.md",
-					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nretry_count: 2\nassignee: claude\n---\nAgent output\n",
-				)
-				taskFile = lib.Task{
-					TaskIdentifier: identifier,
-					Frontmatter: lib.TaskFrontmatter{
-						"task_identifier": "test-task-uuid-1234",
-						"status":          "in_progress",
-						"phase":           "ai_review",
-					},
-					Content: lib.TaskContent("Failed output\n"),
-				}
-				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
-				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
-				s := string(written)
-				Expect(s).To(ContainSubstring("retry_count: 3"))
-				Expect(s).To(ContainSubstring("phase: human_review"))
-				Expect(s).To(ContainSubstring("## Retry Escalation"))
-				Expect(s).To(ContainSubstring("**Attempts:** 3"))
-				Expect(s).To(ContainSubstring("**Assignee:** claude"))
-				Expect(s).To(ContainSubstring("2026-04-18T12:00:00Z"))
-			})
+			It(
+				"escalates to human_review when retry_count (set by executor) meets default max_retries",
+				func() {
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nretry_count: 3\nassignee: claude\n---\nAgent output\n",
+					)
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "ai_review",
+							"retry_count":     3,
+						},
+						Content: lib.TaskContent("Agent output\n"),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					Expect(s).To(ContainSubstring("retry_count: 3")) // unchanged — executor set it
+					Expect(s).To(ContainSubstring("phase: human_review"))
+					Expect(s).To(ContainSubstring("## Retry Escalation"))
+					Expect(s).To(ContainSubstring("**Attempts:** 3"))
+					Expect(s).To(ContainSubstring("**Assignee:** claude"))
+					Expect(s).To(ContainSubstring("2026-04-18T12:00:00Z"))
+				},
+			)
 
 			It("does not modify retry_count when result is completed", func() {
 				writeTaskFile(
@@ -541,29 +547,34 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				Expect(s).NotTo(ContainSubstring("Retry Escalation"))
 			})
 
-			It("escalates on first failure when max_retries is 0", func() {
-				writeTaskFile(
-					"my-task.md",
-					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nmax_retries: 0\nassignee: claude\n---\nAgent output\n",
-				)
-				taskFile = lib.Task{
-					TaskIdentifier: identifier,
-					Frontmatter: lib.TaskFrontmatter{
-						"task_identifier": "test-task-uuid-1234",
-						"status":          "in_progress",
-						"phase":           "ai_review",
-					},
-					Content: lib.TaskContent("Failed\n"),
-				}
-				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
-				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
-				s := string(written)
-				Expect(s).To(ContainSubstring("retry_count: 1"))
-				Expect(s).To(ContainSubstring("phase: human_review"))
-				Expect(s).To(ContainSubstring("## Retry Escalation"))
-			})
+			It(
+				"escalates immediately when retry_count (set by executor) meets max_retries 0",
+				func() {
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nmax_retries: 0\nretry_count: 1\nassignee: claude\n---\nAgent output\n",
+					)
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "ai_review",
+							"max_retries":     0,
+							"retry_count":     1,
+						},
+						Content: lib.TaskContent("Agent output\n"),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					Expect(s).To(ContainSubstring("retry_count: 1")) // unchanged
+					Expect(s).To(ContainSubstring("phase: human_review"))
+					Expect(s).To(ContainSubstring("## Retry Escalation"))
+				},
+			)
 
-			It("does not escalate before max_retries is reached", func() {
+			It("does not escalate when retry_count (set by executor) is below max_retries", func() {
 				writeTaskFile(
 					"my-task.md",
 					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nretry_count: 3\nmax_retries: 5\nassignee: claude\n---\nAgent output\n",
@@ -574,13 +585,15 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 						"task_identifier": "test-task-uuid-1234",
 						"status":          "in_progress",
 						"phase":           "ai_review",
+						"retry_count":     3,
+						"max_retries":     5,
 					},
-					Content: lib.TaskContent("Failed\n"),
+					Content: lib.TaskContent("Agent output\n"),
 				}
 				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
 				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
 				s := string(written)
-				Expect(s).To(ContainSubstring("retry_count: 4"))
+				Expect(s).To(ContainSubstring("retry_count: 3")) // unchanged — 3 < 5, no escalation
 				Expect(s).NotTo(ContainSubstring("human_review"))
 				Expect(s).NotTo(ContainSubstring("Retry Escalation"))
 			})
@@ -616,7 +629,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				Expect(s).NotTo(ContainSubstring("spawn_notification"))
 			})
 
-			It("does increment retry_count when spawn_notification is absent", func() {
+			It("does not modify retry_count when spawn_notification is absent", func() {
 				writeTaskFile(
 					"my-task.md",
 					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\nassignee: claude\nretry_count: 0\n---\nOriginal body\n",
@@ -628,12 +641,15 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 						"status":          "in_progress",
 						"phase":           "ai_review",
 					},
-					Content: lib.TaskContent("Failed output\n"),
+					Content: lib.TaskContent("Result body\n"),
 				}
 				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
 				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
 				s := string(written)
-				Expect(s).To(ContainSubstring("retry_count: 1"))
+				Expect(
+					s,
+				).To(ContainSubstring("retry_count: 0"))
+				// unchanged — executor owns the counter
 			})
 		})
 

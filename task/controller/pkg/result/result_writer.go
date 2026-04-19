@@ -132,17 +132,13 @@ func (r *resultWriter) applyRetryCounter(merged lib.TaskFrontmatter, body string
 	if string(merged.Status()) == "completed" {
 		return body
 	}
-	// needs_input path (spec 010): agent already set phase=human_review.
-	// Task-level failure — no retry, just escalate.
-	if phase, _ := merged["phase"].(string); phase == "human_review" {
-		return body
-	}
 	if merged.SpawnNotification() {
 		delete(merged, "spawn_notification")
 		return body
 	}
-	retryCount := merged.RetryCount() + 1
-	merged["retry_count"] = retryCount
+	// retry_count is authoritative in the task file — the executor bumped it
+	// at spawn time (spec 011). The writer only applies escalation.
+	retryCount := merged.RetryCount()
 	if retryCount >= merged.MaxRetries() {
 		merged["phase"] = "human_review"
 		body += r.escalationSection(retryCount, merged)

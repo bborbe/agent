@@ -1,8 +1,12 @@
 ---
-status: approved
+status: committing
 spec: [011-retry-counter-spawn-time-semantics]
+summary: Removed retry_count increment from result_writer.go (executor now owns the counter), updated tests to match new read-only semantics, and updated docs/CHANGELOG accordingly.
+container: agent-057-spec-011-controller-remove-retry-increment
+dark-factory-version: v0.128.1-3-gf1cfca3-dirty
 created: "2026-04-19T17:30:00Z"
 queued: "2026-04-19T18:31:24Z"
+started: "2026-04-19T19:54:12Z"
 branch: dark-factory/retry-counter-spawn-time-semantics
 ---
 
