@@ -19,6 +19,26 @@ Today `lib/delivery/content-generator.go` maps both `failed` and `needs_input` t
 
 Observed: smoke test task `0dd09314` (window 2026-04-03 → 2026-04-04, zero live trades in that window). Agent correctly identified no trades but emitted `status: done` with narrative prose prefix. Prose prefix broke strict JSON parser → synthesised `failed` result → retry loop ×4 → `human_review`. Two bugs chained: parser too strict, and the retry would have been wrong even if parsing had succeeded.
 
+## Goal
+
+Agents and the controller share one coherent vocabulary for task outcomes:
+
+- **Success** ends the task.
+- **Task-wrong** (`needs_input`) escalates to a human immediately — no retry, no duplicate Result sections.
+- **Infra-failure** (`failed`) still retries up to `max_retries`, then escalates.
+- Parser tolerates prose around the JSON so real infra failures aren't synthesised from normal Claude output.
+
+A human reading the frontmatter of an escalated task can tell at a glance whether the task is wrong or the agent is broken.
+
+## Non-goals
+
+- Not replacing spec 008's retry counter — refining what counts as one attempt.
+- Not changing AgentStatus enum values or Kafka topic schemas.
+- Not introducing a new `task_impossible` phase — reusing existing `human_review`.
+- Not changing executor phase filtering or allowed-phase list.
+- Not teaching the controller to grade agent output quality — agents self-classify via status.
+- Not building a prompt-approval loop — prompt-side changes are a one-time edit to existing output-format docs.
+
 ## Assumptions
 
 - Claude occasionally emits prose around its final JSON object under reasoning pressure; this is a recurring pattern, not a one-off.
@@ -99,13 +119,15 @@ End-to-end smoke:
 
 ## Acceptance Criteria
 
-- [ ] Smoke-test task in a zero-trade window completes in one job, lands at `phase: human_review` with `retry_count: 0`, and has exactly one `## Result` block.
-- [ ] A genuinely-failing run (e.g. CLI exits non-zero) retries up to `max_retries` then escalates to `human_review` with a `## Retry Escalation` section.
-- [ ] Unit tests cover all three `AgentStatus` values in `lib/delivery/content-generator`.
-- [ ] Unit tests cover prose-prefix, prose-suffix, and nested-braces cases in `lib/claude/task-runner`.
-- [ ] Unit test covers "phase already `human_review`" skip-retry path in `task/controller/pkg/result`.
-- [ ] Trade-analysis agent prompt documents when to emit `needs_input` vs `done` vs `failed`.
-- [ ] `make precommit` passes.
+- [ ] A task in a zero-trade window completes in exactly one agent job, lands at `phase: human_review` with `retry_count: 0`, and has a single `## Result` block.
+- [ ] A genuine infra-failure run (e.g. CLI exits non-zero) still retries up to `max_retries` and then escalates to `human_review` with a `## Retry Escalation` section appended.
+- [ ] Unit tests cover all three `AgentStatus` values (`done`, `failed`, `needs_input`) in the content-generator.
+- [ ] Unit tests cover prose-prefix, prose-suffix, and nested-braces cases in the Claude result parser.
+- [ ] Unit test covers the "phase already `human_review`" skip-retry path in the controller's result writer.
+- [ ] A task emitting `needs_input` does not increment `retry_count`.
+- [ ] A task whose agent emits prose-wrapped JSON is not counted as an infra failure.
+- [ ] Agent prompts document when to emit `needs_input` vs `done` vs `failed`.
+- [ ] `make precommit` passes across affected modules.
 
 ## Open Questions
 
