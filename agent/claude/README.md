@@ -1,5 +1,7 @@
 # Agent Claude
 
+**Reference implementation / copy-paste template** for Claude-based agents. Not a production agent itself — use this as the starting point when building a new domain-specific agent.
+
 Generic, domain-agnostic Claude Code runner. Receives a task from the agent pipeline, spawns `claude --print` with configurable tools and instructions, and returns a structured JSON result.
 
 New agents are created by swapping instructions (agent `.claude/CLAUDE.md`) and `ALLOWED_TOOLS` — no Go code changes needed.
@@ -36,6 +38,31 @@ To add a domain-specific agent that reuses this binary:
 2. Mount a PVC or Secret containing the domain-specific `.claude/CLAUDE.md` and any API credentials.
 3. Set `ALLOWED_TOOLS` on the Config CRD to the minimum tools the agent needs.
 4. Set `ENV_CONTEXT` to inject domain context (e.g. API URLs) into the prompt without modifying the binary.
+
+### Config CRD env pattern
+
+The `Config` CRD's `spec.env` map becomes pod env vars, which `main.go` consumes via struct tags. Example from `k8s/agent-claude.yaml`:
+
+```yaml
+spec:
+  env:
+    ALLOWED_TOOLS: WebSearch,WebFetch,Read,Grep
+```
+
+Tune `ALLOWED_TOOLS` per task shape (minimum viable set):
+
+| Task shape | Minimum tools |
+|---|---|
+| Web research | `WebSearch,WebFetch,Read,Grep` |
+| Vault I/O via scripts | `Bash(scripts/vault-read.sh:*),Bash(scripts/vault-write.sh:*),Bash(scripts/vault-list.sh:*),Grep` |
+| API query via script | `Bash(scripts/trading-api-read.sh:*),Grep` |
+| Code edit | `Read,Write,Edit,Grep,Glob,Bash(go:*),Bash(make:*)` |
+
+Prefer constrained `Bash(path:*)` forms over bare `Bash` to minimize shell attack surface.
+
+### Claude subprocess env allowlist
+
+`lib/claude/claude-runner.go` strips pod env down to a safe allowlist (`HOME,PATH,USER,TZ,...`) before spawning `claude`. Custom env vars (API URLs, credentials) **must** be threaded explicitly via `ClaudeRunnerConfig.Env map[string]string` in `main.go`. Don't expect pod env to reach Claude by default. See `docs/` for precedent (trade-analysis commit `1ccfa674cf`).
 
 ## Local Quick Test
 

@@ -10,6 +10,8 @@ spec:
   secretName: agent-claude
   volumeClaim: agent-claude
   volumeMountPath: /home/claude/.claude
+  env:
+    ALLOWED_TOOLS: WebSearch,WebFetch,Read,Grep
   resources:
     requests:
       cpu: 500m
