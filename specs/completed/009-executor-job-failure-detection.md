@@ -1,9 +1,10 @@
 ---
-status: verifying
+status: completed
 approved: "2026-04-18T19:07:02Z"
 generating: "2026-04-18T19:07:02Z"
 prompted: "2026-04-18T19:21:43Z"
 verifying: "2026-04-19T10:41:09Z"
+completed: "2026-04-19T17:26:53Z"
 branch: dark-factory/executor-job-failure-detection
 ---
 
