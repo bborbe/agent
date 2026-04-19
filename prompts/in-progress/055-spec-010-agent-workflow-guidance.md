@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [010-failure-vs-needs-input-semantics]
 created: "2026-04-19T11:00:00Z"
+queued: "2026-04-19T10:51:05Z"
 branch: dark-factory/failure-vs-needs-input-semantics
 ---
 
