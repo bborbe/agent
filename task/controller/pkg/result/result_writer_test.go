@@ -637,6 +637,63 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 			})
 		})
 
+		Context("needs_input result", func() {
+			It(
+				"does not increment retry_count when phase is human_review (needs_input path)",
+				func() {
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\nassignee: claude\nretry_count: 0\n---\nOriginal body\n",
+					)
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "human_review",
+						},
+						Content: lib.TaskContent("No trades found in the requested window.\n"),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					// retry_count must NOT be incremented
+					Expect(s).To(ContainSubstring("retry_count: 0"))
+					// phase must stay human_review — not overwritten by escalation logic
+					Expect(s).To(ContainSubstring("phase: human_review"))
+					// no escalation section — needs_input is not an infra failure
+					Expect(s).NotTo(ContainSubstring("## Retry Escalation"))
+					Expect(s).To(ContainSubstring("No trades found"))
+				},
+			)
+
+			It(
+				"does not increment retry_count when phase is already human_review and retry_count > 0 (terminal guard)",
+				func() {
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: human_review\nassignee: claude\nretry_count: 2\n---\nPrevious body\n",
+					)
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "human_review",
+						},
+						Content: lib.TaskContent("Another result arrives but task is terminal.\n"),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					// retry_count must remain at 2 — not incremented again
+					Expect(s).To(ContainSubstring("retry_count: 2"))
+					Expect(s).To(ContainSubstring("phase: human_review"))
+					Expect(s).NotTo(ContainSubstring("## Retry Escalation"))
+				},
+			)
+		})
+
 		Context("atomic write and push error", func() {
 			It("returns error when AtomicWriteAndCommitPush fails", func() {
 				writeTaskFile(

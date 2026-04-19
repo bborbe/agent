@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.43.0
+
+- feat: distinguish `needs_input` (task-level, human_review immediately, no retry) from `failed` (infra-level, retry up to max_retries)
+- fix: prose-wrapped Claude output no longer synthesises an infra failure; result parser extracts the last balanced JSON object from any surrounding text
+- fix: controller result writer skips retry counter when incoming result already has `phase: human_review`
+
 ## v0.42.1
 
 - chore: remove unused duplicate `lib/claude.TaskContent` type (use `lib.TaskContent`)
