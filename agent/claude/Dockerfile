@@ -22,4 +22,4 @@ ENV ZONEINFO=/zoneinfo.zip
 COPY --from=build /usr/local/go/lib/time/zoneinfo.zip /
 ENV BUILD_GIT_COMMIT=${BUILD_GIT_COMMIT}
 ENV BUILD_DATE=${BUILD_DATE}
-ENTRYPOINT ["/main"]
+ENTRYPOINT ["/main", "-v=2"]
