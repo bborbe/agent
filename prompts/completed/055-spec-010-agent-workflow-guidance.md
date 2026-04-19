@@ -1,8 +1,12 @@
 ---
-status: approved
+status: completed
 spec: [010-failure-vs-needs-input-semantics]
+container: agent-055-spec-010-agent-workflow-guidance
+dark-factory-version: v0.125.1
 created: "2026-04-19T11:00:00Z"
 queued: "2026-04-19T10:51:05Z"
+started: "2026-04-19T10:58:40Z"
+completed: "2026-04-19T11:09:06Z"
 branch: dark-factory/failure-vs-needs-input-semantics
 ---
 
