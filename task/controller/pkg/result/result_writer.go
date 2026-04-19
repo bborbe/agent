@@ -132,6 +132,11 @@ func (r *resultWriter) applyRetryCounter(merged lib.TaskFrontmatter, body string
 	if string(merged.Status()) == "completed" {
 		return body
 	}
+	// needs_input path (spec 010): agent already set phase=human_review.
+	// Task-level failure — no retry, just escalate.
+	if phase, _ := merged["phase"].(string); phase == "human_review" {
+		return body
+	}
 	if merged.SpawnNotification() {
 		delete(merged, "spawn_notification")
 		return body

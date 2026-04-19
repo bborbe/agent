@@ -132,4 +132,46 @@ var _ = Describe("TaskRunner", func() {
 			Expect(delivered.Message).To(Equal("task complete"))
 		})
 	})
+
+	Context("when runner returns JSON preceded by prose (spec 010)", func() {
+		BeforeEach(func() {
+			runner.RunReturns(&claude.ClaudeResult{
+				Result: "No live-stage trades exist for 2026-04-03.\n\n{\"status\":\"needs_input\",\"message\":\"no trades\"}",
+			}, nil)
+		})
+
+		It("parses the trailing JSON object", func() {
+			Expect(runErr).To(BeNil())
+			Expect(result).NotTo(BeNil())
+			Expect(result.Status).To(Equal(claude.AgentStatusNeedsInput))
+			Expect(result.Message).To(Equal("no trades"))
+		})
+	})
+
+	Context("when runner returns JSON with trailing prose (spec 010)", func() {
+		BeforeEach(func() {
+			runner.RunReturns(&claude.ClaudeResult{
+				Result: "{\"status\":\"done\",\"message\":\"ok\"}\n\nThat concludes the analysis.",
+			}, nil)
+		})
+
+		It("parses the leading JSON object", func() {
+			Expect(runErr).To(BeNil())
+			Expect(result.Status).To(Equal(claude.AgentStatusDone))
+		})
+	})
+
+	Context("when runner returns JSON with nested braces and quoted strings (spec 010)", func() {
+		BeforeEach(func() {
+			runner.RunReturns(&claude.ClaudeResult{
+				Result: `Narrative text. {"status":"done","message":"result with }curly{ inside","data":{"nested":true}}`,
+			}, nil)
+		})
+
+		It("extracts the outermost balanced object", func() {
+			Expect(runErr).To(BeNil())
+			Expect(result.Status).To(Equal(claude.AgentStatusDone))
+			Expect(result.Message).To(Equal("result with }curly{ inside"))
+		})
+	})
 })

@@ -35,7 +35,12 @@ func (g *fallbackContentGenerator) Generate(
 	case AgentStatusDone:
 		updated = SetFrontmatterField(updated, "status", "completed")
 		updated = SetFrontmatterField(updated, "phase", "done")
-	default: // failed, needs_input, and any other status
+	case AgentStatusNeedsInput:
+		// task-level failure: agent ran cleanly but task is impossible/underspecified.
+		// Route straight to human_review — retrying a semantically-wrong task wastes compute.
+		updated = SetFrontmatterField(updated, "status", "in_progress")
+		updated = SetFrontmatterField(updated, "phase", "human_review")
+	default: // failed and any other status — infra failure, eligible for retry
 		updated = SetFrontmatterField(updated, "status", "in_progress")
 		updated = SetFrontmatterField(updated, "phase", "ai_review")
 	}

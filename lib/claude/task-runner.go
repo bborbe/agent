@@ -67,11 +67,21 @@ func (r *taskRunner) Run(ctx context.Context, taskContent string) (*AgentResult,
 		})
 	}
 
+	jsonBlob, ok := extractLastJSONObject(result.Result)
+	if !ok {
+		return r.deliver(ctx, AgentResult{
+			Status: AgentStatusFailed,
+			Message: fmt.Sprintf(
+				"parse claude result failed (no JSON object found): %s",
+				result.Result,
+			),
+		})
+	}
 	var agentResult AgentResult
-	if err := json.Unmarshal([]byte(result.Result), &agentResult); err != nil {
+	if err := json.Unmarshal([]byte(jsonBlob), &agentResult); err != nil {
 		return r.deliver(ctx, AgentResult{
 			Status:  AgentStatusFailed,
-			Message: fmt.Sprintf("parse claude result failed: %s", result.Result),
+			Message: fmt.Sprintf("parse claude result failed: %v (raw: %s)", err, result.Result),
 		})
 	}
 
@@ -84,4 +94,72 @@ func (r *taskRunner) deliver(ctx context.Context, result AgentResult) (*AgentRes
 		glog.Warningf("deliver result failed: %v", err)
 	}
 	return &result, nil
+}
+
+// extractLastJSONObject scans s for the last balanced top-level JSON object and returns it.
+// Robust to Claude emitting narrative prose around the result (spec 010).
+// String literals and escaped braces are handled correctly.
+func extractLastJSONObject(s string) (string, bool) {
+	sc := jsonScanner{bestStart: -1, bestEnd: -1, start: -1}
+	for i := 0; i < len(s); i++ {
+		sc.step(i, s[i])
+	}
+	if sc.bestStart < 0 || sc.bestEnd < 0 {
+		return "", false
+	}
+	return s[sc.bestStart : sc.bestEnd+1], true
+}
+
+type jsonScanner struct {
+	bestStart, bestEnd int
+	depth              int
+	start              int
+	inString           bool
+	escaped            bool
+}
+
+func (sc *jsonScanner) step(i int, c byte) {
+	if sc.inString {
+		sc.stepString(c)
+		return
+	}
+	sc.stepCode(i, c)
+}
+
+func (sc *jsonScanner) stepString(c byte) {
+	if sc.escaped {
+		sc.escaped = false
+		return
+	}
+	switch c {
+	case '\\':
+		sc.escaped = true
+	case '"':
+		sc.inString = false
+	}
+}
+
+func (sc *jsonScanner) stepCode(i int, c byte) {
+	switch c {
+	case '"':
+		sc.inString = true
+	case '{':
+		if sc.depth == 0 {
+			sc.start = i
+		}
+		sc.depth++
+	case '}':
+		sc.closeBrace(i)
+	}
+}
+
+func (sc *jsonScanner) closeBrace(i int) {
+	if sc.depth == 0 {
+		return
+	}
+	sc.depth--
+	if sc.depth == 0 && sc.start >= 0 {
+		sc.bestStart, sc.bestEnd = sc.start, i
+		sc.start = -1
+	}
 }

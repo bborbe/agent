@@ -97,11 +97,15 @@ The agent publishes its result as an `agent-task-v1-request` command to Kafka us
 
 ### Status Mapping
 
-| Agent Outcome | Task Status | Task Phase |
-|---------------|-------------|------------|
-| Success | completed | done |
-| Needs human input | in_progress | human_review |
-| Failed (recoverable) | in_progress | human_review |
+The agent emits one of three statuses. The controller translates each into a task phase with distinct retry semantics (see [task-flow-and-failure-semantics.md](task-flow-and-failure-semantics.md)).
+
+| Agent Outcome (`AgentStatus`) | Meaning | Task Status | Task Phase | Retries? |
+|---|---|---|---|---|
+| `done` | Task finished successfully | `completed` | `done` | — |
+| `needs_input` | Task is impossible / underspecified (task content, not infra, is wrong) | `in_progress` | `human_review` | **No — escalates immediately** |
+| `failed` | Infrastructure failure — agent/CLI error, transient issue | `in_progress` | `ai_review` | Yes — up to `max_retries`, then escalates to `human_review` |
+
+**Rule of thumb for agents:** if a fresh run might succeed (transient error, rate limit, race), emit `failed`. If the task itself is wrong and retrying would produce the same answer, emit `needs_input`.
 
 ### Stdout (optional, debug only)
 
