@@ -1,5 +1,9 @@
 ---
-status: draft
+status: prompted
+approved: "2026-04-19T17:44:05Z"
+generating: "2026-04-19T17:44:05Z"
+prompted: "2026-04-19T17:49:29Z"
+branch: dark-factory/generic-claude-task-runner
 ---
 
 ## Summary

@@ -325,6 +325,45 @@ var _ = Describe("TaskEventHandler", func() {
 			Expect(ok).To(BeTrue())
 		})
 
+		It("publishes retry count bump before spawning job", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
+			fakeSpawner.SpawnJobReturns("claude-20260418120000", nil)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-uuid-1234"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":      "in_progress",
+					"phase":       string(domain.TaskPhaseAIReview),
+					"assignee":    "claude",
+					"stage":       "prod",
+					"retry_count": 2,
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakeResultPublisher.PublishRetryCountBumpCallCount()).To(Equal(1))
+			_, calledTask := fakeResultPublisher.PublishRetryCountBumpArgsForCall(0)
+			Expect(string(calledTask.TaskIdentifier)).To(Equal("test-task-uuid-1234"))
+			// Bump must have been called before SpawnJob
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+		})
+
+		It("does not spawn job when retry count bump publish fails", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
+			fakeResultPublisher.PublishRetryCountBumpReturns(errors.New(ctx, "kafka unavailable"))
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-uuid-1234"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseAIReview),
+					"assignee": "claude",
+					"stage":    "prod",
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(HaveOccurred())
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+		})
+
 		It("skips spawn when current_job in frontmatter and K8s job is active", func() {
 			fakeSpawner.IsJobActiveReturns(true, nil)
 			task := lib.Task{

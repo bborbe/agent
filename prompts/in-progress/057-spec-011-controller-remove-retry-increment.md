@@ -1,7 +1,8 @@
 ---
-status: created
-spec: [012-retry-counter-spawn-time-semantics]
+status: approved
+spec: [011-retry-counter-spawn-time-semantics]
 created: "2026-04-19T17:30:00Z"
+queued: "2026-04-19T18:31:24Z"
 branch: dark-factory/retry-counter-spawn-time-semantics
 ---
 
@@ -16,7 +17,7 @@ branch: dark-factory/retry-counter-spawn-time-semantics
 </summary>
 
 <objective>
-Remove `retry_count` increment from `task/controller/pkg/result/result_writer.go`. The executor (prompt 1) now publishes the bump before spawning; the controller only applies escalation when `retry_count >= max_retries`. This is the second and final half of spec 012. Precondition: prompt 1 must already be applied (executor `PublishRetryCountBump` method must exist).
+Remove `retry_count` increment from `task/controller/pkg/result/result_writer.go`. The executor (prompt 1) now publishes the bump before spawning; the controller only applies escalation when `retry_count >= max_retries`. This is the second and final half of spec 011. Precondition: prompt 1 must already be applied (executor `PublishRetryCountBump` method must exist).
 </objective>
 
 <context>
@@ -65,7 +66,7 @@ Both files must show the method. If missing, STOP and report that prompt 1 has n
            return body
        }
        // retry_count is authoritative in the task file — the executor bumped it
-       // at spawn time (spec 012). The writer only applies escalation.
+       // at spawn time (spec 011). The writer only applies escalation.
        retryCount := merged.RetryCount()
        if retryCount >= merged.MaxRetries() {
            merged["phase"] = "human_review"
@@ -235,7 +236,7 @@ Both files must show the method. If missing, STOP and report that prompt 1 has n
 
    a. In the `## Terminology` table, update the "Retry counter" row:
    ```
-   | **Retry counter** | `retry_count` frontmatter field, incremented by the executor at job spawn time (spec 012). The controller reads it but never modifies it. |
+   | **Retry counter** | `retry_count` frontmatter field, incremented by the executor at job spawn time (spec 011). The controller reads it but never modifies it. |
    ```
 
    b. In the `## Result Routing (spec 010)` pseudocode block, update the `default (failed)` branch:
@@ -243,7 +244,7 @@ Both files must show the method. If missing, STOP and report that prompt 1 has n
    default (failed):
        status = in_progress
        phase  = ai_review           ← re-enters executor allowlist
-       retry_count: unchanged        ← executor already bumped it at spawn time (spec 012)
+       retry_count: unchanged        ← executor already bumped it at spawn time (spec 011)
        if retry_count >= max_retries:
            phase = human_review     ← escalated
    ```
@@ -261,14 +262,14 @@ Both files must show the method. If missing, STOP and report that prompt 1 has n
 
    e. In the **Related specs** list at the top, add:
    ```
-   - `specs/in-progress/012-retry-counter-spawn-time-semantics.md` — retry_count moved to spawn time
+   - `specs/in-progress/011-retry-counter-spawn-time-semantics.md` — retry_count moved to spawn time
    ```
 
 6. **Update `docs/controller-design.md`**
 
    In the **"Command Processing (Kafka → git)"** section, add a note after "merge frontmatter + apply retry counter":
    ```
-   ├── read retry_count from merged frontmatter (set by executor at spawn time, spec 012)
+   ├── read retry_count from merged frontmatter (set by executor at spawn time, spec 011)
    ├── if retry_count >= max_retries → set phase: human_review, append ## Retry Escalation
    ```
    Replace the old note "merge frontmatter + apply retry counter" with:
@@ -284,7 +285,7 @@ Both files must show the method. If missing, STOP and report that prompt 1 has n
    ```
    If `## Unreleased` already exists (e.g., from prompt 1), APPEND the bullet. Otherwise INSERT a new section immediately above the first `## v` heading:
    ```markdown
-   - fix: controller result writer no longer increments retry_count — counter is maintained by executor at spawn time, preventing inflation from kubectl job deletions (spec 012)
+   - fix: controller result writer no longer increments retry_count — counter is maintained by executor at spawn time, preventing inflation from kubectl job deletions (spec 011)
    - refactor: remove spec 010's phase==human_review guard from result writer — dead code after spawn-time accounting
    ```
 
@@ -342,7 +343,7 @@ Must return nothing (old increment assertions removed).
 
 Verify docs updated:
 ```bash
-grep -n "spec 012\|spawn time\|executor.*bump\|bumped" docs/task-flow-and-failure-semantics.md
+grep -n "spec 011\|spawn time\|executor.*bump\|bumped" docs/task-flow-and-failure-semantics.md
 ```
 Must show the new wording.
 

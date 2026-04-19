@@ -176,6 +176,11 @@ func (h *taskEventHandler) spawnIfNeeded(ctx context.Context, task lib.Task) err
 		return nil
 	}
 
+	if err := h.resultPublisher.PublishRetryCountBump(ctx, task); err != nil {
+		metrics.TaskEventsTotal.WithLabelValues("error").Inc()
+		return errors.Wrapf(ctx, err, "publish retry count bump for task %s", task.TaskIdentifier)
+	}
+
 	jobName, err := h.jobSpawner.SpawnJob(ctx, task, *config)
 	if err != nil {
 		metrics.TaskEventsTotal.WithLabelValues("error").Inc()

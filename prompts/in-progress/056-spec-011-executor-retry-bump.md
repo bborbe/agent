@@ -1,7 +1,12 @@
 ---
-status: created
-spec: [012-retry-counter-spawn-time-semantics]
+status: committing
+spec: [011-retry-counter-spawn-time-semantics]
+summary: Added PublishRetryCountBump to ResultPublisher interface and implementation, inserted call before SpawnJob in spawnIfNeeded, regenerated counterfeiter mock, added two new tests, and updated CHANGELOG.md
+container: agent-056-spec-011-executor-retry-bump
+dark-factory-version: v0.128.1-3-gf1cfca3-dirty
 created: "2026-04-19T17:30:00Z"
+queued: "2026-04-19T18:31:24Z"
+started: "2026-04-19T19:46:06Z"
 branch: dark-factory/retry-counter-spawn-time-semantics
 ---
 
@@ -16,7 +21,7 @@ branch: dark-factory/retry-counter-spawn-time-semantics
 </summary>
 
 <objective>
-Add `PublishRetryCountBump(ctx, task)` to the executor's `ResultPublisher` interface and call it immediately before `SpawnJob` in `spawnIfNeeded`. This is the first half of spec 012: the executor becomes the authoritative source for `retry_count`, replacing the controller's failure-time increment (removed in prompt 2). If the Kafka publish fails, the executor must abort the spawn so the counter and actual attempts stay in sync.
+Add `PublishRetryCountBump(ctx, task)` to the executor's `ResultPublisher` interface and call it immediately before `SpawnJob` in `spawnIfNeeded`. This is the first half of spec 011: the executor becomes the authoritative source for `retry_count`, replacing the controller's failure-time increment (removed in prompt 2). If the Kafka publish fails, the executor must abort the spawn so the counter and actual attempts stay in sync.
 </objective>
 
 <context>
@@ -36,7 +41,7 @@ Read these guides before starting:
 - `lib/agent_task-frontmatter.go` — `RetryCount()` accessor (line 47); use this to compute `current + 1`
 - `CHANGELOG.md` — top-level; check if `## Unreleased` exists before writing
 
-**Design constraint from spec 012:**
+**Design constraint from spec 011:**
 > "Ordering: executor MUST publish the bump request before calling `kubectl create Job`."
 > "If Job creation fails after the bump is published, the counter stays incremented. Over-count is capped at 1 per spawn attempt; max_retries absorbs it."
 > "Executor publishes bump request, Kafka broker unreachable → Executor logs error, does NOT spawn K8s Job. Next event cycle retries publish."
@@ -153,7 +158,7 @@ So `PublishRetryCountBump` failure MUST return an error (abort spawn); unlike `P
    ```markdown
    ## Unreleased
 
-   - feat: executor publishes retry_count bump to agent-task-v1-request before spawning K8s Job (spawn-time accounting, spec 012)
+   - feat: executor publishes retry_count bump to agent-task-v1-request before spawning K8s Job (spawn-time accounting, spec 011)
    ```
 
 </requirements>

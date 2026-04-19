@@ -30,6 +30,10 @@ type ResultPublisher interface {
 	// PublishFailure publishes a synthetic failure result that increments the
 	// controller's retry counter. jobName and reason are appended to the task body.
 	PublishFailure(ctx context.Context, task lib.Task, jobName string, reason string) error
+	// PublishRetryCountBump increments retry_count by 1 in the task frontmatter and
+	// publishes the update to agent-task-v1-request BEFORE the K8s Job is created.
+	// If this publish fails the caller must NOT spawn the Job.
+	PublishRetryCountBump(ctx context.Context, task lib.Task) error
 }
 
 // NewResultPublisher creates a ResultPublisher.
@@ -87,6 +91,15 @@ func (p *resultPublisher) PublishFailure(
 		task.Content,
 	) + "\n\n## Job Failure\n\nJob `" + jobName + "` failed: " + reason + "\n"
 	return p.publish(ctx, task.TaskIdentifier, fm, lib.TaskContent(body))
+}
+
+func (p *resultPublisher) PublishRetryCountBump(ctx context.Context, task lib.Task) error {
+	fm := lib.TaskFrontmatter{}
+	for k, v := range task.Frontmatter {
+		fm[k] = v
+	}
+	fm["retry_count"] = task.Frontmatter.RetryCount() + 1
+	return p.publish(ctx, task.TaskIdentifier, fm, task.Content)
 }
 
 func (p *resultPublisher) publish(
