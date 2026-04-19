@@ -8,12 +8,12 @@ import (
 	"github.com/bborbe/agent/lib/claude"
 )
 
-type ClaudeResultDeliverer struct {
-	DeliverResultStub        func(context.Context, claude.AgentResult) error
+type ClaudeResultDeliverer[T claude.AgentResultLike] struct {
+	DeliverResultStub        func(context.Context, T) error
 	deliverResultMutex       sync.RWMutex
 	deliverResultArgsForCall []struct {
 		arg1 context.Context
-		arg2 claude.AgentResult
+		arg2 T
 	}
 	deliverResultReturns struct {
 		result1 error
@@ -25,12 +25,12 @@ type ClaudeResultDeliverer struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *ClaudeResultDeliverer) DeliverResult(arg1 context.Context, arg2 claude.AgentResult) error {
+func (fake *ClaudeResultDeliverer[T]) DeliverResult(arg1 context.Context, arg2 T) error {
 	fake.deliverResultMutex.Lock()
 	ret, specificReturn := fake.deliverResultReturnsOnCall[len(fake.deliverResultArgsForCall)]
 	fake.deliverResultArgsForCall = append(fake.deliverResultArgsForCall, struct {
 		arg1 context.Context
-		arg2 claude.AgentResult
+		arg2 T
 	}{arg1, arg2})
 	stub := fake.DeliverResultStub
 	fakeReturns := fake.deliverResultReturns
@@ -45,26 +45,26 @@ func (fake *ClaudeResultDeliverer) DeliverResult(arg1 context.Context, arg2 clau
 	return fakeReturns.result1
 }
 
-func (fake *ClaudeResultDeliverer) DeliverResultCallCount() int {
+func (fake *ClaudeResultDeliverer[T]) DeliverResultCallCount() int {
 	fake.deliverResultMutex.RLock()
 	defer fake.deliverResultMutex.RUnlock()
 	return len(fake.deliverResultArgsForCall)
 }
 
-func (fake *ClaudeResultDeliverer) DeliverResultCalls(stub func(context.Context, claude.AgentResult) error) {
+func (fake *ClaudeResultDeliverer[T]) DeliverResultCalls(stub func(context.Context, T) error) {
 	fake.deliverResultMutex.Lock()
 	defer fake.deliverResultMutex.Unlock()
 	fake.DeliverResultStub = stub
 }
 
-func (fake *ClaudeResultDeliverer) DeliverResultArgsForCall(i int) (context.Context, claude.AgentResult) {
+func (fake *ClaudeResultDeliverer[T]) DeliverResultArgsForCall(i int) (context.Context, T) {
 	fake.deliverResultMutex.RLock()
 	defer fake.deliverResultMutex.RUnlock()
 	argsForCall := fake.deliverResultArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *ClaudeResultDeliverer) DeliverResultReturns(result1 error) {
+func (fake *ClaudeResultDeliverer[T]) DeliverResultReturns(result1 error) {
 	fake.deliverResultMutex.Lock()
 	defer fake.deliverResultMutex.Unlock()
 	fake.DeliverResultStub = nil
@@ -73,7 +73,7 @@ func (fake *ClaudeResultDeliverer) DeliverResultReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *ClaudeResultDeliverer) DeliverResultReturnsOnCall(i int, result1 error) {
+func (fake *ClaudeResultDeliverer[T]) DeliverResultReturnsOnCall(i int, result1 error) {
 	fake.deliverResultMutex.Lock()
 	defer fake.deliverResultMutex.Unlock()
 	fake.DeliverResultStub = nil
@@ -87,7 +87,7 @@ func (fake *ClaudeResultDeliverer) DeliverResultReturnsOnCall(i int, result1 err
 	}{result1}
 }
 
-func (fake *ClaudeResultDeliverer) Invocations() map[string][][]interface{} {
+func (fake *ClaudeResultDeliverer[T]) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
@@ -97,7 +97,7 @@ func (fake *ClaudeResultDeliverer) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *ClaudeResultDeliverer) recordInvocation(key string, args []interface{}) {
+func (fake *ClaudeResultDeliverer[T]) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -109,4 +109,4 @@ func (fake *ClaudeResultDeliverer) recordInvocation(key string, args []interface
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ claude.ResultDeliverer = new(ClaudeResultDeliverer)
+var _ claude.ResultDeliverer[claude.AgentResultLike] = new(ClaudeResultDeliverer[claude.AgentResultLike])

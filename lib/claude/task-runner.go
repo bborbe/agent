@@ -16,18 +16,18 @@ import (
 //counterfeiter:generate -o ../mocks/claude-task-runner.go --fake-name ClaudeTaskRunner . TaskRunner
 
 // TaskRunner orchestrates task execution by launching a single Claude Code session.
-type TaskRunner interface {
-	Run(ctx context.Context, taskContent string) (*AgentResult, error)
+type TaskRunner[T AgentResultLike] interface {
+	Run(ctx context.Context, taskContent string) (*T, error)
 }
 
 // NewTaskRunner creates a TaskRunner with injected dependencies.
-func NewTaskRunner(
+func NewTaskRunner[T AgentResultLike](
 	runner ClaudeRunner,
 	instructions Instructions,
 	envContext map[string]string,
-	deliverer ResultDeliverer,
-) TaskRunner {
-	return &taskRunner{
+	deliverer ResultDeliverer[T],
+) TaskRunner[T] {
+	return &taskRunner[T]{
 		runner:       runner,
 		instructions: instructions,
 		envContext:   envContext,
@@ -35,20 +35,17 @@ func NewTaskRunner(
 	}
 }
 
-type taskRunner struct {
+type taskRunner[T AgentResultLike] struct {
 	runner       ClaudeRunner
 	instructions Instructions
 	envContext   map[string]string
-	deliverer    ResultDeliverer
+	deliverer    ResultDeliverer[T]
 }
 
-func (r *taskRunner) Run(ctx context.Context, taskContent string) (*AgentResult, error) {
+func (r *taskRunner[T]) Run(ctx context.Context, taskContent string) (*T, error) {
 	taskContent = strings.TrimSpace(taskContent)
 	if taskContent == "" {
-		return r.deliver(ctx, AgentResult{
-			Status:  AgentStatusNeedsInput,
-			Message: "task content is empty",
-		})
+		return r.deliver(ctx, newErrorResult[T](AgentStatusNeedsInput, "task content is empty"))
 	}
 
 	prompt := BuildPrompt(
@@ -61,39 +58,43 @@ func (r *taskRunner) Run(ctx context.Context, taskContent string) (*AgentResult,
 
 	result, err := r.runner.Run(ctx, prompt)
 	if err != nil {
-		return r.deliver(ctx, AgentResult{
-			Status:  AgentStatusFailed,
-			Message: fmt.Sprintf("claude CLI failed: %v", err),
-		})
+		return r.deliver(
+			ctx,
+			newErrorResult[T](AgentStatusFailed, fmt.Sprintf("claude CLI failed: %v", err)),
+		)
 	}
 
 	jsonBlob, ok := extractLastJSONObject(result.Result)
 	if !ok {
-		return r.deliver(ctx, AgentResult{
-			Status: AgentStatusFailed,
-			Message: fmt.Sprintf(
-				"parse claude result failed (no JSON object found): %s",
-				result.Result,
-			),
-		})
+		return r.deliver(ctx, newErrorResult[T](AgentStatusFailed, fmt.Sprintf(
+			"parse claude result failed (no JSON object found): %s",
+			result.Result,
+		)))
 	}
-	var agentResult AgentResult
+	var agentResult T
 	if err := json.Unmarshal([]byte(jsonBlob), &agentResult); err != nil {
-		return r.deliver(ctx, AgentResult{
-			Status:  AgentStatusFailed,
-			Message: fmt.Sprintf("parse claude result failed: %v (raw: %s)", err, result.Result),
-		})
+		return r.deliver(ctx, newErrorResult[T](AgentStatusFailed, fmt.Sprintf(
+			"parse claude result failed: %v (raw: %s)",
+			err, result.Result,
+		)))
 	}
 
 	return r.deliver(ctx, agentResult)
 }
 
-// deliver sends the result to the deliverer and returns it.
-func (r *taskRunner) deliver(ctx context.Context, result AgentResult) (*AgentResult, error) {
+func (r *taskRunner[T]) deliver(ctx context.Context, result T) (*T, error) {
 	if err := r.deliverer.DeliverResult(ctx, result); err != nil {
 		glog.Warningf("deliver result failed: %v", err)
 	}
 	return &result, nil
+}
+
+// newErrorResult creates a T with status and message set via JSON round-trip.
+func newErrorResult[T AgentResultLike](status AgentStatus, message string) T {
+	var zero T
+	data, _ := json.Marshal(AgentResult{Status: status, Message: message})
+	_ = json.Unmarshal(data, &zero)
+	return zero
 }
 
 // extractLastJSONObject scans s for the last balanced top-level JSON object and returns it.

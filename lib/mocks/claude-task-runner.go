@@ -8,26 +8,26 @@ import (
 	"github.com/bborbe/agent/lib/claude"
 )
 
-type ClaudeTaskRunner struct {
-	RunStub        func(context.Context, string) (*claude.AgentResult, error)
+type ClaudeTaskRunner[T claude.AgentResultLike] struct {
+	RunStub        func(context.Context, string) (*T, error)
 	runMutex       sync.RWMutex
 	runArgsForCall []struct {
 		arg1 context.Context
 		arg2 string
 	}
 	runReturns struct {
-		result1 *claude.AgentResult
+		result1 *T
 		result2 error
 	}
 	runReturnsOnCall map[int]struct {
-		result1 *claude.AgentResult
+		result1 *T
 		result2 error
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *ClaudeTaskRunner) Run(arg1 context.Context, arg2 string) (*claude.AgentResult, error) {
+func (fake *ClaudeTaskRunner[T]) Run(arg1 context.Context, arg2 string) (*T, error) {
 	fake.runMutex.Lock()
 	ret, specificReturn := fake.runReturnsOnCall[len(fake.runArgsForCall)]
 	fake.runArgsForCall = append(fake.runArgsForCall, struct {
@@ -47,52 +47,52 @@ func (fake *ClaudeTaskRunner) Run(arg1 context.Context, arg2 string) (*claude.Ag
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *ClaudeTaskRunner) RunCallCount() int {
+func (fake *ClaudeTaskRunner[T]) RunCallCount() int {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	return len(fake.runArgsForCall)
 }
 
-func (fake *ClaudeTaskRunner) RunCalls(stub func(context.Context, string) (*claude.AgentResult, error)) {
+func (fake *ClaudeTaskRunner[T]) RunCalls(stub func(context.Context, string) (*T, error)) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = stub
 }
 
-func (fake *ClaudeTaskRunner) RunArgsForCall(i int) (context.Context, string) {
+func (fake *ClaudeTaskRunner[T]) RunArgsForCall(i int) (context.Context, string) {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	argsForCall := fake.runArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *ClaudeTaskRunner) RunReturns(result1 *claude.AgentResult, result2 error) {
+func (fake *ClaudeTaskRunner[T]) RunReturns(result1 *T, result2 error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = nil
 	fake.runReturns = struct {
-		result1 *claude.AgentResult
+		result1 *T
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *ClaudeTaskRunner) RunReturnsOnCall(i int, result1 *claude.AgentResult, result2 error) {
+func (fake *ClaudeTaskRunner[T]) RunReturnsOnCall(i int, result1 *T, result2 error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = nil
 	if fake.runReturnsOnCall == nil {
 		fake.runReturnsOnCall = make(map[int]struct {
-			result1 *claude.AgentResult
+			result1 *T
 			result2 error
 		})
 	}
 	fake.runReturnsOnCall[i] = struct {
-		result1 *claude.AgentResult
+		result1 *T
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *ClaudeTaskRunner) Invocations() map[string][][]interface{} {
+func (fake *ClaudeTaskRunner[T]) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
@@ -102,7 +102,7 @@ func (fake *ClaudeTaskRunner) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *ClaudeTaskRunner) recordInvocation(key string, args []interface{}) {
+func (fake *ClaudeTaskRunner[T]) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -114,4 +114,4 @@ func (fake *ClaudeTaskRunner) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ claude.TaskRunner = new(ClaudeTaskRunner)
+var _ claude.TaskRunner[claude.AgentResultLike] = new(ClaudeTaskRunner[claude.AgentResultLike])

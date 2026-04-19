@@ -26,3 +26,19 @@ type AgentResult struct {
 	Message string      `json:"message,omitempty"`
 	Files   []string    `json:"files,omitempty"`
 }
+
+func (r AgentResult) GetStatus() AgentStatus { return r.Status }
+
+func (r AgentResult) GetMessage() string { return r.Message }
+
+func (r AgentResult) GetFiles() []string { return r.Files }
+
+func (r AgentResult) RenderResultSection() string { return BuildResultSection(r) }
+
+// AgentResultLike is the constraint for types that can be delivered as task results.
+type AgentResultLike interface {
+	GetStatus() AgentStatus
+	GetMessage() string
+	GetFiles() []string
+	RenderResultSection() string
+}

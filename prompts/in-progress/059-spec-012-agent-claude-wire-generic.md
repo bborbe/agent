@@ -1,7 +1,8 @@
 ---
-status: created
+status: approved
 spec: [012-generic-claude-task-runner]
 created: "2026-04-19T18:00:00Z"
+queued: "2026-04-19T20:03:37Z"
 branch: dark-factory/generic-claude-task-runner
 ---
 

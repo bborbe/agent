@@ -13,48 +13,50 @@ import (
 
 //counterfeiter:generate -o ../mocks/claude-result-deliverer.go --fake-name ClaudeResultDeliverer . ResultDeliverer
 
-// ResultDeliverer publishes an AgentResult back after task execution completes.
-type ResultDeliverer interface {
-	DeliverResult(ctx context.Context, result AgentResult) error
+// ResultDeliverer publishes a task result back after execution completes.
+type ResultDeliverer[T AgentResultLike] interface {
+	DeliverResult(ctx context.Context, result T) error
 }
 
-// NewResultDelivererAdapter wraps a delivery.ResultDeliverer to accept AgentResult.
-func NewResultDelivererAdapter(inner delivery.ResultDeliverer) ResultDeliverer {
-	return &resultDelivererAdapter{inner: inner}
+// NewResultDelivererAdapter wraps a delivery.ResultDeliverer to accept any AgentResultLike.
+func NewResultDelivererAdapter[T AgentResultLike](
+	inner delivery.ResultDeliverer,
+) ResultDeliverer[T] {
+	return &resultDelivererAdapter[T]{inner: inner}
 }
 
-type resultDelivererAdapter struct {
+type resultDelivererAdapter[T AgentResultLike] struct {
 	inner delivery.ResultDeliverer
 }
 
-func (a *resultDelivererAdapter) DeliverResult(ctx context.Context, result AgentResult) error {
+func (a *resultDelivererAdapter[T]) DeliverResult(ctx context.Context, result T) error {
 	return a.inner.DeliverResult(ctx, delivery.AgentResultInfo{
-		Status:  result.Status,
-		Output:  BuildResultSection(result),
-		Message: result.Message,
+		Status:  result.GetStatus(),
+		Output:  result.RenderResultSection(),
+		Message: result.GetMessage(),
 	})
 }
 
-// NewNoopResultDeliverer creates a ResultDeliverer that does nothing.
-func NewNoopResultDeliverer() ResultDeliverer {
-	return NewResultDelivererAdapter(delivery.NewNoopResultDeliverer())
+// NewNoopResultDeliverer creates a ResultDeliverer[AgentResult] that does nothing.
+func NewNoopResultDeliverer() ResultDeliverer[AgentResult] {
+	return NewResultDelivererAdapter[AgentResult](delivery.NewNoopResultDeliverer())
 }
 
-// BuildResultSection creates a markdown section from an AgentResult.
-func BuildResultSection(result AgentResult) string {
+// BuildResultSection renders the default ## Result markdown block for any AgentResultLike.
+func BuildResultSection(result AgentResultLike) string {
 	var sb strings.Builder
 	sb.WriteString("## Result\n\n")
 	sb.WriteString("**Status:** ")
-	sb.WriteString(string(result.Status))
+	sb.WriteString(string(result.GetStatus()))
 	sb.WriteString("\n")
-	if result.Message != "" {
+	if result.GetMessage() != "" {
 		sb.WriteString("**Message:** ")
-		sb.WriteString(result.Message)
+		sb.WriteString(result.GetMessage())
 		sb.WriteString("\n")
 	}
-	if len(result.Files) > 0 {
+	if len(result.GetFiles()) > 0 {
 		sb.WriteString("\n**Files:**\n")
-		for _, f := range result.Files {
+		for _, f := range result.GetFiles() {
 			sb.WriteString("- [[")
 			sb.WriteString(f)
 			sb.WriteString("]]\n")

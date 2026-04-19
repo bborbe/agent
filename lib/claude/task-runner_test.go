@@ -19,8 +19,8 @@ var _ = Describe("TaskRunner", func() {
 	var (
 		ctx         context.Context
 		runner      *libmocks.ClaudeRunner
-		deliverer   *libmocks.ClaudeResultDeliverer
-		taskRunner  claude.TaskRunner
+		deliverer   *libmocks.ClaudeResultDeliverer[claude.AgentResult]
+		taskRunner  claude.TaskRunner[claude.AgentResult]
 		taskContent string
 		result      *claude.AgentResult
 		runErr      error
@@ -29,8 +29,8 @@ var _ = Describe("TaskRunner", func() {
 	BeforeEach(func() {
 		ctx = context.Background()
 		runner = &libmocks.ClaudeRunner{}
-		deliverer = &libmocks.ClaudeResultDeliverer{}
-		taskRunner = claude.NewTaskRunner(
+		deliverer = &libmocks.ClaudeResultDeliverer[claude.AgentResult]{}
+		taskRunner = claude.NewTaskRunner[claude.AgentResult](
 			runner,
 			claude.Instructions{
 				{Name: "system", Content: "You are helpful."},

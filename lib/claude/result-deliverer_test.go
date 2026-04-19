@@ -95,7 +95,7 @@ var _ = Describe("resultDelivererAdapter", func() {
 	var (
 		ctx         context.Context
 		inner       *libmocks.AgentResultDeliverer
-		adapter     claude.ResultDeliverer
+		adapter     claude.ResultDeliverer[claude.AgentResult]
 		agentResult claude.AgentResult
 		deliverErr  error
 	)
@@ -103,7 +103,7 @@ var _ = Describe("resultDelivererAdapter", func() {
 	BeforeEach(func() {
 		ctx = context.Background()
 		inner = &libmocks.AgentResultDeliverer{}
-		adapter = claude.NewResultDelivererAdapter(inner)
+		adapter = claude.NewResultDelivererAdapter[claude.AgentResult](inner)
 		agentResult = claude.AgentResult{
 			Status:  claude.AgentStatusDone,
 			Message: "all good",

@@ -1,7 +1,12 @@
 ---
-status: created
+status: committing
 spec: [012-generic-claude-task-runner]
+summary: Made TaskRunner and ResultDeliverer generic over T AgentResultLike, added AgentResultLike interface with four methods on AgentResult, updated BuildResultSection to accept AgentResultLike, regenerated mocks as generic ClaudeTaskRunner[T]/ClaudeResultDeliverer[T], updated tests, and created lib/CHANGELOG.md.
+container: agent-058-spec-012-lib-generic-task-runner
+dark-factory-version: v0.128.1-3-gf1cfca3-dirty
 created: "2026-04-19T18:00:00Z"
+queued: "2026-04-19T20:03:37Z"
+started: "2026-04-19T20:05:48Z"
 branch: dark-factory/generic-claude-task-runner
 ---
 
