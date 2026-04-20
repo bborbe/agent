@@ -4,6 +4,8 @@ testCommand: "make test"
 validationPrompt: docs/dod.md
 autoRelease: true
 maxContainers: 5
+preflightCommand: "true"
+preflightInterval: "8h"
 env:
   GOPATH: /home/node/go
   GOCACHE: /home/node/.cache/go-build
