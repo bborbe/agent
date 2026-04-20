@@ -1,8 +1,9 @@
 ---
-status: prompted
+status: verifying
 approved: "2026-04-19T17:14:36Z"
 generating: "2026-04-19T17:21:52Z"
 prompted: "2026-04-19T17:26:55Z"
+verifying: "2026-04-20T17:04:23Z"
 branch: dark-factory/retry-counter-spawn-time-semantics
 ---
 

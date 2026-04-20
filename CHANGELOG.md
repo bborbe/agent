@@ -8,6 +8,11 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.45.1
+
+- fix: ReplaceOrAppendSection now coalesces multiple existing `## Result` sections into exactly one, fixing duplicate sections observed in 2026-04-20 smoke writebacks
+- refactor: split markdown section helpers into HasSection, AppendSection, ReplaceSection (ReplaceOrAppendSection now composes them); public API unchanged
+
 ## v0.45.0
 
 - Generalize ResultDeliverer and TaskRunner interfaces with AgentResultLike type parameter

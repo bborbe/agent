@@ -1,8 +1,9 @@
 ---
-status: prompted
+status: verifying
 approved: "2026-04-19T17:44:05Z"
 generating: "2026-04-19T17:44:05Z"
 prompted: "2026-04-19T17:49:29Z"
+verifying: "2026-04-20T17:04:23Z"
 branch: dark-factory/generic-claude-task-runner
 ---
 

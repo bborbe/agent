@@ -43,28 +43,67 @@ func SetFrontmatterField(content, key, value string) string {
 	return "---" + frontmatter + "---" + rest
 }
 
-// ReplaceOrAppendSection replaces an existing ## section or appends it at the end.
-func ReplaceOrAppendSection(content, heading, newSection string) string {
-	idx := strings.Index(content, heading)
-	if idx == -1 {
-		return strings.TrimRight(content, "\n") + "\n\n" + newSection
+// HasSection reports whether content contains at least one line that
+// matches heading at line-start. A match requires the line to equal
+// heading exactly, or to start with heading followed by a space or tab.
+// Substrings like "## Results" do NOT match "## Result".
+func HasSection(content, heading string) bool {
+	for _, line := range strings.Split(content, "\n") {
+		if isSectionStart(line, heading) {
+			return true
+		}
 	}
+	return false
+}
 
-	// Find the end of this section (next ## heading or EOF).
-	after := content[idx+len(heading):]
-	nextHeading := strings.Index(after, "\n## ")
-	if nextHeading == -1 {
-		// Last section — replace everything from heading to end.
-		return strings.TrimRight(content[:idx], "\n") + "\n\n" + newSection
+// AppendSection appends newSection to content, ensuring a single blank
+// line separator and exactly one trailing newline in the result.
+func AppendSection(content, newSection string) string {
+	trimmed := strings.TrimRight(content, "\n")
+	return trimmed + "\n\n" + strings.TrimRight(newSection, "\n") + "\n"
+}
+
+// ReplaceSection removes every section whose heading line matches
+// heading (line-start match) and appends newSection once at the end.
+// If no section matches, behaves identically to AppendSection.
+func ReplaceSection(content, heading, newSection string) string {
+	lines := strings.Split(content, "\n")
+	kept := make([]string, 0, len(lines))
+	skipping := false
+	for _, line := range lines {
+		if isSectionStart(line, heading) {
+			skipping = true
+			continue
+		}
+		if skipping && strings.HasPrefix(line, "## ") {
+			skipping = false
+		}
+		if !skipping {
+			kept = append(kept, line)
+		}
 	}
-	// Replace up to (but not including) the next heading.
-	return strings.TrimRight(
-		content[:idx],
-		"\n",
-	) + "\n\n" + newSection + "\n" + strings.TrimLeft(
-		after[nextHeading+1:],
-		"\n",
-	)
+	return AppendSection(strings.Join(kept, "\n"), newSection)
+}
+
+// ReplaceOrAppendSection replaces every section matching heading with
+// newSection, or appends newSection if no matching section exists.
+// The result always contains exactly one section with this heading.
+func ReplaceOrAppendSection(content, heading, newSection string) string {
+	if HasSection(content, heading) {
+		return ReplaceSection(content, heading, newSection)
+	}
+	return AppendSection(content, newSection)
+}
+
+func isSectionStart(line, heading string) bool {
+	if !strings.HasPrefix(line, heading) {
+		return false
+	}
+	if len(line) == len(heading) {
+		return true
+	}
+	c := line[len(heading)]
+	return c == ' ' || c == '\t'
 }
 
 // ParseMarkdownFrontmatter splits a markdown document with YAML frontmatter into

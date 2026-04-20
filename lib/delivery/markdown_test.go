@@ -5,6 +5,8 @@
 package delivery_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -68,6 +70,94 @@ var _ = Describe("ReplaceOrAppendSection", func() {
 		Expect(result).NotTo(ContainSubstring("Old."))
 		Expect(result).To(ContainSubstring("New."))
 		Expect(result).To(ContainSubstring("## Appendix"))
+	})
+
+	It("coalesces multiple existing sections into exactly one", func() {
+		content := "prefix\n\n## Result\n\n## Result\n\nstale\n"
+		result := delivery.ReplaceOrAppendSection(content, "## Result", "## Result\n\nfresh\n")
+		Expect(strings.Count(result, "## Result")).To(Equal(1))
+		Expect(result).To(ContainSubstring("fresh"))
+		Expect(result).NotTo(ContainSubstring("stale"))
+	})
+
+	It("does not match a heading substring", func() {
+		content := "## Results (summary)\n\nr1\n"
+		result := delivery.ReplaceOrAppendSection(content, "## Result", "## Result\n\nnew\n")
+		Expect(result).To(ContainSubstring("## Results (summary)"))
+		Expect(result).To(ContainSubstring("## Result\n\nnew"))
+	})
+})
+
+var _ = Describe("HasSection", func() {
+	It("returns true for an exact heading line", func() {
+		Expect(delivery.HasSection("## Result\n", "## Result")).To(BeTrue())
+	})
+	It("returns true when heading is followed by space", func() {
+		Expect(delivery.HasSection("## Result stuff\n", "## Result")).To(BeTrue())
+	})
+	It("returns true when heading is followed by tab", func() {
+		Expect(delivery.HasSection("## Result\ttrailing\n", "## Result")).To(BeTrue())
+	})
+	It("returns false for a heading substring (no word boundary)", func() {
+		Expect(delivery.HasSection("## Results (summary)\n", "## Result")).To(BeFalse())
+	})
+	It("returns false for empty content", func() {
+		Expect(delivery.HasSection("", "## Result")).To(BeFalse())
+	})
+	It("returns true when heading appears after other content", func() {
+		Expect(delivery.HasSection("prefix\n\n## Result\n", "## Result")).To(BeTrue())
+	})
+})
+
+var _ = Describe("AppendSection", func() {
+	It("appends to empty content", func() {
+		result := delivery.AppendSection("", "## Result\n\nnew\n")
+		Expect(result).To(Equal("\n\n## Result\n\nnew\n"))
+	})
+	It("appends with single blank-line separator regardless of trailing newlines", func() {
+		result := delivery.AppendSection("body\n\n\n", "## Result\n\nnew\n")
+		Expect(result).To(Equal("body\n\n## Result\n\nnew\n"))
+	})
+	It("normalises trailing newlines to exactly one", func() {
+		result := delivery.AppendSection("body", "## Result\n\nnew\n\n\n")
+		Expect(strings.HasSuffix(result, "\n\n")).To(BeFalse())
+		Expect(strings.HasSuffix(result, "\n")).To(BeTrue())
+	})
+})
+
+var _ = Describe("ReplaceSection", func() {
+	It("coalesces two existing sections with the same heading into one", func() {
+		content := "prefix\n\n## Result\n\n## Result\n\n**Message:** stale\n"
+		result := delivery.ReplaceSection(content, "## Result", "## Result\n\n**Message:** fresh\n")
+		Expect(strings.Count(result, "## Result")).To(Equal(1))
+		Expect(result).To(ContainSubstring("**Message:** fresh"))
+		Expect(result).NotTo(ContainSubstring("**Message:** stale"))
+	})
+	It("coalesces three existing sections into one", func() {
+		content := "body\n\n## Result\n\nA\n\n## Result\n\nB\n\n## Result\n\nC\n"
+		result := delivery.ReplaceSection(content, "## Result", "## Result\n\nX\n")
+		Expect(strings.Count(result, "## Result")).To(Equal(1))
+		Expect(result).To(ContainSubstring("X"))
+		Expect(result).NotTo(ContainSubstring("A"))
+		Expect(result).NotTo(ContainSubstring("B"))
+		Expect(result).NotTo(ContainSubstring("C"))
+	})
+	It("preserves unrelated sections when coalescing duplicates", func() {
+		content := "## Details\n\nd1\n\n## Result\n\nA\n\n## Notes\n\nn1\n\n## Result\n\nB\n"
+		result := delivery.ReplaceSection(content, "## Result", "## Result\n\nX\n")
+		Expect(strings.Count(result, "## Result")).To(Equal(1))
+		Expect(result).To(ContainSubstring("## Details"))
+		Expect(result).To(ContainSubstring("d1"))
+		Expect(result).To(ContainSubstring("## Notes"))
+		Expect(result).To(ContainSubstring("n1"))
+		Expect(result).To(ContainSubstring("X"))
+	})
+	It("does not treat a heading substring as a match", func() {
+		content := "## Results (summary)\n\nr1\n"
+		result := delivery.ReplaceSection(content, "## Result", "## Result\n\nnew\n")
+		Expect(result).To(ContainSubstring("## Results (summary)"))
+		Expect(result).To(ContainSubstring("r1"))
+		Expect(result).To(ContainSubstring("## Result\n\nnew"))
 	})
 })
 
