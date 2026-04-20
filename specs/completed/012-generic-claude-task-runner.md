@@ -1,9 +1,10 @@
 ---
-status: verifying
+status: completed
 approved: "2026-04-19T17:44:05Z"
 generating: "2026-04-19T17:44:05Z"
 prompted: "2026-04-19T17:49:29Z"
 verifying: "2026-04-20T17:04:23Z"
+completed: "2026-04-20T19:29:02Z"
 branch: dark-factory/generic-claude-task-runner
 ---
 
@@ -108,14 +109,14 @@ No new attack surface. Generics are a compile-time transformation; the runtime b
 - [ ] `lib/claude/task-runner_test.go` instantiates `TaskRunner[claude.AgentResult]`; existing prose-prefix/suffix/nested-braces parser tests still pass
 - [ ] `lib/claude/result-deliverer_test.go` updated to new generic signature
 - [ ] `lib/mocks/claude-task-runner.go` and `lib/mocks/claude-result-deliverer.go` regenerated via counterfeiter for generic interfaces; upgrade counterfeiter to ≥ v6.8 in `lib/tools.go` if needed
-- [ ] `lib/CHANGELOG.md` `## Unreleased` entry: "claude: generic TaskRunner[T AgentResultLike], adds RenderResultSection method for per-type result markdown"
+- [ ] Root `CHANGELOG.md` `## Unreleased` entry: "lib/claude: generic TaskRunner[T AgentResultLike], adds RenderResultSection method for per-type result markdown" (this repo keeps a single `CHANGELOG.md` at git root — no per-module changelog)
 - [ ] `lib/` submodule tagged `lib/vX.Y.Z` after merge (required before trade-analysis consumes it)
 
 **agent/claude changes**
 
 - [ ] `agent/claude/pkg/factory/factory.go` updated to return `claude.TaskRunner[claude.AgentResult]` and `claude.ResultDeliverer[claude.AgentResult]`
 - [ ] `agent/claude/main.go` compiles; runtime behavior identical
-- [ ] Root `agent/CHANGELOG.md` `## Unreleased` entry: "agent/claude: wire generic claude.TaskRunner[claude.AgentResult]"
+- [ ] Root `CHANGELOG.md` `## Unreleased` entry: "agent/claude: wire generic claude.TaskRunner[claude.AgentResult]"
 
 **trade-analysis changes** (separate repo: `~/Documents/workspaces/trading/agent/trade-analysis`)
 
@@ -127,7 +128,7 @@ No new attack surface. Generics are a compile-time transformation; the runtime b
 - [ ] `main.go` compiles; no other signature changes required
 - [ ] `go.mod` bumped to the new `lib/vX.Y.Z` tag; `go mod tidy`
 - [ ] `make precommit` passes
-- [ ] `CHANGELOG.md` `## Unreleased` entry: "trade-analysis: migrate to lib/claude generic TaskRunner, delete duplicated parser"
+- (no changelog — the trading monorepo does not maintain CHANGELOG files)
 
 **End-to-end verification** (post-deploy)
 
