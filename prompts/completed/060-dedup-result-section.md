@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: 'Rewrote ReplaceOrAppendSection in lib/delivery/markdown.go to coalesce all duplicate ## heading sections into one, split into HasSection/AppendSection/ReplaceSection helpers, added Ginkgo specs for all new helpers and end-to-end coalesce scenarios, and updated CHANGELOG.md.'
 container: agent-060-dedup-result-section
 dark-factory-version: v0.129.0
 created: "2026-04-20T16:45:06Z"
 queued: "2026-04-20T16:45:06Z"
 started: "2026-04-20T17:04:24Z"
+completed: "2026-04-20T17:07:01Z"
 ---
 
 <summary>
