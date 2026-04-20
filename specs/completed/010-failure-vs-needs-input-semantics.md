@@ -1,9 +1,10 @@
 ---
-status: verifying
+status: completed
 approved: "2026-04-19T10:39:21Z"
 generating: "2026-04-19T10:41:09Z"
 prompted: "2026-04-19T10:45:12Z"
 verifying: "2026-04-19T16:47:15Z"
+completed: "2026-04-20T18:31:29Z"
 branch: dark-factory/failure-vs-needs-input-semantics
 ---
 
