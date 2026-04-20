@@ -8,6 +8,11 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.45.2
+
+- fix: fallbackContentGenerator.Generate now trusts AgentResultInfo.Output verbatim when non-empty, eliminating the double `## Result` heading and duplicated `**Message:**` line observed in 2026-04-20b smoke writebacks
+- refactor: split fallbackContentGenerator internals into applyStatusFrontmatter + buildMinimalResultSection helpers; public ContentGenerator interface unchanged
+
 ## v0.45.1
 
 - fix: ReplaceOrAppendSection now coalesces multiple existing `## Result` sections into exactly one, fixing duplicate sections observed in 2026-04-20 smoke writebacks

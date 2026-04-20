@@ -29,34 +29,44 @@ func (g *fallbackContentGenerator) Generate(
 	originalContent string,
 	result AgentResultInfo,
 ) (string, error) {
-	updated := originalContent
+	updated := applyStatusFrontmatter(originalContent, result.Status)
+	section := result.Output
+	if section == "" {
+		section = buildMinimalResultSection(result)
+	}
+	return ReplaceOrAppendSection(updated, "## Result", section), nil
+}
 
-	switch result.Status {
+// applyStatusFrontmatter updates status+phase frontmatter fields based on agent result status.
+func applyStatusFrontmatter(content string, status AgentStatus) string {
+	switch status {
 	case AgentStatusDone:
-		updated = SetFrontmatterField(updated, "status", "completed")
-		updated = SetFrontmatterField(updated, "phase", "done")
+		content = SetFrontmatterField(content, "status", "completed")
+		content = SetFrontmatterField(content, "phase", "done")
 	case AgentStatusNeedsInput:
 		// task-level failure: agent ran cleanly but task is impossible/underspecified.
 		// Route straight to human_review — retrying a semantically-wrong task wastes compute.
-		updated = SetFrontmatterField(updated, "status", "in_progress")
-		updated = SetFrontmatterField(updated, "phase", "human_review")
+		content = SetFrontmatterField(content, "status", "in_progress")
+		content = SetFrontmatterField(content, "phase", "human_review")
 	default: // failed and any other status — infra failure, eligible for retry
-		updated = SetFrontmatterField(updated, "status", "in_progress")
-		updated = SetFrontmatterField(updated, "phase", "ai_review")
+		content = SetFrontmatterField(content, "status", "in_progress")
+		content = SetFrontmatterField(content, "phase", "ai_review")
 	}
+	return content
+}
 
-	var section strings.Builder
-	section.WriteString("## Result\n\n")
-	if result.Output != "" {
-		section.WriteString(result.Output)
-		section.WriteString("\n")
-	}
+// buildMinimalResultSection renders a fallback ## Result block when AgentResultInfo.Output is empty.
+// Callers that supply a non-empty Output are trusted to provide the full section verbatim.
+func buildMinimalResultSection(result AgentResultInfo) string {
+	var b strings.Builder
+	b.WriteString("## Result\n\n")
+	b.WriteString("**Status:** ")
+	b.WriteString(string(result.Status))
+	b.WriteString("\n")
 	if result.Message != "" {
-		section.WriteString("**Message:** ")
-		section.WriteString(result.Message)
-		section.WriteString("\n")
+		b.WriteString("**Message:** ")
+		b.WriteString(result.Message)
+		b.WriteString("\n")
 	}
-
-	updated = ReplaceOrAppendSection(updated, "## Result", section.String())
-	return updated, nil
+	return b.String()
 }
