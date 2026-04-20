@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: 'Fixed fallbackContentGenerator.Generate to pass AgentResultInfo.Output verbatim when non-empty, eliminating double ## Result heading and duplicated **Message:** line; added regression specs; updated CHANGELOG with v0.45.2.'
 container: agent-061-fix-fallback-content-generator-double-prepend
 dark-factory-version: v0.131.0-1-gb3e2949
 created: "2026-04-20T19:34:32Z"
 queued: "2026-04-20T19:34:32Z"
 started: "2026-04-20T19:36:34Z"
+completed: "2026-04-20T19:41:46Z"
 ---
 
 <summary>
