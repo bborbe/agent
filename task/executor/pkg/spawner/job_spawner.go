@@ -120,6 +120,9 @@ func (s *jobSpawner) SpawnJob(
 	applyTaskIDLabel(task.TaskIdentifier, job)
 	applySecretEnvFrom(config, job)
 	applyEphemeralStorage(config, job)
+	if config.PriorityClassName != "" {
+		job.Spec.Template.Spec.PriorityClassName = config.PriorityClassName
+	}
 
 	_, err = s.kubeClient.BatchV1().
 		Jobs(s.namespace.String()).

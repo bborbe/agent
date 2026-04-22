@@ -1,8 +1,12 @@
 ---
-status: approved
+status: committing
 spec: [013-agent-concurrency-via-priority-class]
+summary: Wired PriorityClassName from AgentConfiguration onto spawned Job PodTemplates with guard, added two Ginkgo tests covering set and unset cases, created PriorityClass and ResourceQuota manifests for dev/prod, updated agent-claude Config CR with priorityClassName, and updated CHANGELOG.md
+container: agent-063-spec-013-executor-spawner-tests-manifests
+dark-factory-version: v0.132.0
 created: "2026-04-22T00:00:00Z"
 queued: "2026-04-22T05:25:31Z"
+started: "2026-04-22T05:31:56Z"
 branch: dark-factory/agent-concurrency-via-priority-class
 ---
 

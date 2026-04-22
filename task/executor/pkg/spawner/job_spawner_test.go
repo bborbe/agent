@@ -461,6 +461,49 @@ var _ = Describe("JobSpawner", func() {
 			Expect(container.Resources.Limits.Cpu().String()).To(Equal("50m"))
 		})
 
+		It("stamps priorityClassName on the spawned Job when config has it set", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-uuid-1234"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude-agent",
+				},
+			}
+			config := pkg.AgentConfiguration{
+				Assignee:          "claude-agent",
+				Image:             "example/image:latest",
+				PriorityClassName: "agent-claude",
+			}
+			jobName, err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+			Expect(jobName).NotTo(BeEmpty())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+			Expect(jobs.Items[0].Spec.Template.Spec.PriorityClassName).To(Equal("agent-claude"))
+		})
+
+		It("omits priorityClassName from the spawned Job when config has none", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-uuid-5678"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude-agent",
+				},
+			}
+			config := pkg.AgentConfiguration{
+				Assignee: "claude-agent",
+				Image:    "example/image:latest",
+			}
+			jobName, err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+			Expect(jobName).NotTo(BeEmpty())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+			Expect(jobs.Items[0].Spec.Template.Spec.PriorityClassName).To(BeEmpty())
+		})
+
 		It("returns error on unexpected K8s error", func() {
 			fakeClient.PrependReactor(
 				"create",
