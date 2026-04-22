@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [013-agent-concurrency-via-priority-class]
 summary: Added PriorityClassName field to ConfigSpec, AgentConfiguration, and CRD OpenAPIV3Schema; wired the field through the convert function; updated docs; added Ginkgo round-trip and Equal tests.
 container: agent-062-spec-013-crd-types-schema-docs
@@ -7,6 +7,7 @@ dark-factory-version: v0.132.0
 created: "2026-04-22T00:00:00Z"
 queued: "2026-04-22T05:25:31Z"
 started: "2026-04-22T05:25:32Z"
+completed: "2026-04-22T05:31:55Z"
 branch: dark-factory/agent-concurrency-via-priority-class
 ---
 
