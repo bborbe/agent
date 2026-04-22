@@ -65,13 +65,14 @@ func (r *configResolver) Resolve(
 
 func convert(obj agentv1.Config, branch string) AgentConfiguration {
 	return AgentConfiguration{
-		Assignee:        obj.Spec.Assignee,
-		Image:           obj.Spec.Image + ":" + branch,
-		Env:             copyEnv(obj.Spec.Env),
-		SecretName:      obj.Spec.SecretName,
-		VolumeClaim:     obj.Spec.VolumeClaim,
-		VolumeMountPath: obj.Spec.VolumeMountPath,
-		Resources:       obj.Spec.Resources.DeepCopy(),
+		Assignee:          obj.Spec.Assignee,
+		Image:             obj.Spec.Image + ":" + branch,
+		Env:               copyEnv(obj.Spec.Env),
+		SecretName:        obj.Spec.SecretName,
+		VolumeClaim:       obj.Spec.VolumeClaim,
+		VolumeMountPath:   obj.Spec.VolumeMountPath,
+		Resources:         obj.Spec.Resources.DeepCopy(),
+		PriorityClassName: obj.Spec.PriorityClassName,
 	}
 }
 

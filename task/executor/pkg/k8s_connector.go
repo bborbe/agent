@@ -115,7 +115,6 @@ func (c *k8sConnector) Listen(
 }
 
 func desiredCRDSpec() apiextensionsv1.CustomResourceDefinitionSpec {
-	minLen := int64(1)
 	return apiextensionsv1.CustomResourceDefinitionSpec{
 		Group: "agent.benjamin-borbe.de",
 		Names: apiextensionsv1.CustomResourceDefinitionNames{
@@ -135,61 +134,53 @@ func desiredCRDSpec() apiextensionsv1.CustomResourceDefinitionSpec {
 					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 						Type: "object",
 						Properties: map[string]apiextensionsv1.JSONSchemaProps{
-							"spec": {
-								Type:     "object",
-								Required: []string{"assignee", "image", "heartbeat"},
-								Properties: map[string]apiextensionsv1.JSONSchemaProps{
-									"assignee": {
-										Type:      "string",
-										MinLength: &minLen,
-									},
-									"image": {
-										Type:      "string",
-										MinLength: &minLen,
-									},
-									"heartbeat": {
-										Type:    "string",
-										Pattern: "^[0-9]+(s|m|h)$",
-									},
-									"resources": {
-										Type: "object",
-										Properties: map[string]apiextensionsv1.JSONSchemaProps{
-											"requests": {
-												Type: "object",
-												Properties: map[string]apiextensionsv1.JSONSchemaProps{
-													"cpu":               {Type: "string"},
-													"memory":            {Type: "string"},
-													"ephemeral-storage": {Type: "string"},
-												},
-											},
-											"limits": {
-												Type: "object",
-												Properties: map[string]apiextensionsv1.JSONSchemaProps{
-													"cpu":               {Type: "string"},
-													"memory":            {Type: "string"},
-													"ephemeral-storage": {Type: "string"},
-												},
-											},
-										},
-									},
-									"env": {
-										Type: "object",
-										AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
-											Schema: &apiextensionsv1.JSONSchemaProps{
-												Type: "string",
-											},
-										},
-									},
-									"secretName":      {Type: "string"},
-									"volumeClaim":     {Type: "string"},
-									"volumeMountPath": {Type: "string"},
-								},
-							},
+							"spec": configSpecSchema(),
 						},
 					},
 				},
 			},
 		},
 		PreserveUnknownFields: false,
+	}
+}
+
+func configSpecSchema() apiextensionsv1.JSONSchemaProps {
+	minLen := int64(1)
+	resourceList := apiextensionsv1.JSONSchemaProps{
+		Type: "object",
+		Properties: map[string]apiextensionsv1.JSONSchemaProps{
+			"cpu":               {Type: "string"},
+			"memory":            {Type: "string"},
+			"ephemeral-storage": {Type: "string"},
+		},
+	}
+	return apiextensionsv1.JSONSchemaProps{
+		Type:     "object",
+		Required: []string{"assignee", "image", "heartbeat"},
+		Properties: map[string]apiextensionsv1.JSONSchemaProps{
+			"assignee":  {Type: "string", MinLength: &minLen},
+			"image":     {Type: "string", MinLength: &minLen},
+			"heartbeat": {Type: "string", Pattern: "^[0-9]+(s|m|h)$"},
+			"resources": {
+				Type: "object",
+				Properties: map[string]apiextensionsv1.JSONSchemaProps{
+					"requests": resourceList,
+					"limits":   resourceList,
+				},
+			},
+			"env": {
+				Type: "object",
+				AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
+					Schema: &apiextensionsv1.JSONSchemaProps{Type: "string"},
+				},
+			},
+			"secretName":      {Type: "string"},
+			"volumeClaim":     {Type: "string"},
+			"volumeMountPath": {Type: "string"},
+			"priorityClassName": {
+				Type:    "string",
+				Pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+			},
+		},
 	}
 }

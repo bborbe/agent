@@ -42,6 +42,7 @@ spec:
 | `spec.secretName` | no | Name of an existing K8s Secret mounted on the container via `envFrom` |
 | `spec.volumeClaim` | no | Name of an existing PVC mounted into the container |
 | `spec.volumeMountPath` | conditional | Container path for `volumeClaim` mount — required when `volumeClaim` is set |
+| `spec.priorityClassName` | no | — | Kubernetes PriorityClass name to stamp onto spawned Job PodTemplates. When set, a matching `ResourceQuota` scoped to this class enforces the concurrent pod cap. Absent means no PriorityClass (unbounded concurrency, pre-spec-013 behavior). |
 
 ## Properties
 
@@ -86,9 +87,10 @@ spec:
 
 ## Future Extensions
 
+Concurrency is now enforced K8s-natively: set `spec.priorityClassName` on a Config CR and apply a `ResourceQuota` with a `scopeSelector` matching that PriorityClass. The quota caps how many pods of that class can run simultaneously in a namespace; Jobs beyond the cap create successfully but block on pod admission until a slot frees. See `agent/claude/k8s/` for the four-file bundle (PriorityClass + per-env ResourceQuota + updated Config CR).
+
 | Field | Purpose |
 |-------|---------|
-| `spec.maxConcurrentJobs` | Limit parallel jobs per agent type |
 | `spec.timeout` | Max runtime before job is killed |
 | `spec.retries` | Auto-retry count before human_review |
 | `spec.serviceAccount` | K8s service account for job pods |

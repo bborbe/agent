@@ -47,6 +47,8 @@ type ConfigSpec struct {
 	VolumeClaim string `json:"volumeClaim,omitempty"`
 	// VolumeMountPath is the container path where the PVC is mounted.
 	VolumeMountPath string `json:"volumeMountPath,omitempty"`
+	// PriorityClassName is the Kubernetes PriorityClass name to stamp onto spawned Job PodTemplates.
+	PriorityClassName string `json:"priorityClassName,omitempty"`
 }
 
 // AgentResources holds optional resource requests and limits for the agent container.
@@ -113,6 +115,7 @@ func (s ConfigSpec) Equal(o ConfigSpec) bool {
 		s.SecretName == o.SecretName &&
 		s.VolumeClaim == o.VolumeClaim &&
 		s.VolumeMountPath == o.VolumeMountPath &&
+		s.PriorityClassName == o.PriorityClassName &&
 		reflect.DeepEqual(s.Env, o.Env) &&
 		reflect.DeepEqual(s.Resources, o.Resources)
 }

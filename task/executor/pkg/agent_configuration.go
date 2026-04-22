@@ -30,6 +30,8 @@ type AgentConfiguration struct {
 	// Resources declares optional resource requests and limits for the agent container.
 	// Nil means "do not set, keep the k8s builder default".
 	Resources *agentv1.AgentResources
+	// PriorityClassName is the Kubernetes PriorityClass name to stamp onto spawned Job PodTemplates.
+	PriorityClassName string
 }
 
 // AgentConfigurations is a list of agent configurations.
@@ -52,13 +54,14 @@ func (a AgentConfigurations) TaggedConfigurations(branch string) AgentConfigurat
 	result := make(AgentConfigurations, len(a))
 	for i, c := range a {
 		result[i] = AgentConfiguration{
-			Assignee:        c.Assignee,
-			Image:           c.Image + ":" + branch,
-			Env:             c.Env,
-			VolumeClaim:     c.VolumeClaim,
-			VolumeMountPath: c.VolumeMountPath,
-			SecretName:      c.SecretName,
-			Resources:       c.Resources.DeepCopy(),
+			Assignee:          c.Assignee,
+			Image:             c.Image + ":" + branch,
+			Env:               c.Env,
+			VolumeClaim:       c.VolumeClaim,
+			VolumeMountPath:   c.VolumeMountPath,
+			SecretName:        c.SecretName,
+			Resources:         c.Resources.DeepCopy(),
+			PriorityClassName: c.PriorityClassName,
 		}
 	}
 	return result

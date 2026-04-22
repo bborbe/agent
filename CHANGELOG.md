@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.46.0
+
+- feat: add `priorityClassName` field to `ConfigSpec`, `AgentConfiguration`, and CRD OpenAPIV3Schema to enable K8s-native concurrency control via PriorityClass + ResourceQuota
+
 ## v0.45.2
 
 - fix: fallbackContentGenerator.Generate now trusts AgentResultInfo.Output verbatim when non-empty, eliminating the double `## Result` heading and duplicated `**Message:**` line observed in 2026-04-20b smoke writebacks

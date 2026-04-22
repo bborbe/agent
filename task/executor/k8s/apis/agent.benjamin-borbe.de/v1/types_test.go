@@ -6,6 +6,7 @@ package v1_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	libk8s "github.com/bborbe/k8s"
@@ -209,6 +210,66 @@ var _ = Describe("ConfigSpec", func() {
 			Expect(err).To(HaveOccurred())
 			// The error must wrap validation.Error
 			_ = validation.Error // ensure the import is used
+		})
+	})
+
+	Describe("JSON round-trip for priorityClassName", func() {
+		It("round-trips priorityClassName through JSON", func() {
+			spec := agentv1.ConfigSpec{
+				Assignee:          "claude-agent",
+				Image:             "example/image:latest",
+				Heartbeat:         "30m",
+				PriorityClassName: "agent-claude",
+			}
+			data, err := json.Marshal(spec)
+			Expect(err).To(BeNil())
+			var decoded agentv1.ConfigSpec
+			Expect(json.Unmarshal(data, &decoded)).To(Succeed())
+			Expect(decoded.PriorityClassName).To(Equal("agent-claude"))
+		})
+
+		It("omits priorityClassName from JSON when empty", func() {
+			spec := agentv1.ConfigSpec{
+				Assignee:  "claude-agent",
+				Image:     "example/image:latest",
+				Heartbeat: "30m",
+			}
+			data, err := json.Marshal(spec)
+			Expect(err).To(BeNil())
+			Expect(string(data)).NotTo(ContainSubstring("priorityClassName"))
+		})
+	})
+
+	Describe("Equal with priorityClassName", func() {
+		It("returns false when PriorityClassName differs", func() {
+			a := agentv1.ConfigSpec{
+				Assignee:          "claude",
+				Image:             "registry/agent-claude",
+				Heartbeat:         "30m",
+				PriorityClassName: "agent-claude",
+			}
+			b := agentv1.ConfigSpec{
+				Assignee:  "claude",
+				Image:     "registry/agent-claude",
+				Heartbeat: "30m",
+			}
+			Expect(a.Equal(b)).To(BeFalse())
+		})
+
+		It("returns true when PriorityClassName matches", func() {
+			a := agentv1.ConfigSpec{
+				Assignee:          "claude",
+				Image:             "registry/agent-claude",
+				Heartbeat:         "30m",
+				PriorityClassName: "agent-claude",
+			}
+			b := agentv1.ConfigSpec{
+				Assignee:          "claude",
+				Image:             "registry/agent-claude",
+				Heartbeat:         "30m",
+				PriorityClassName: "agent-claude",
+			}
+			Expect(a.Equal(b)).To(BeTrue())
 		})
 	})
 })
