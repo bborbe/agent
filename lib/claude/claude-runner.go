@@ -141,7 +141,15 @@ func scanOutput(ctx context.Context, reader interface{ Read([]byte) (int, error)
 	return resultText
 }
 
-// allowlistEnv returns a minimal set of environment variables safe to pass to subprocesses.
+// allowlistEnv returns a minimal set of environment variables safe to pass to
+// the Claude CLI subprocess. The parent process (task executor) typically runs
+// with secrets, Kafka creds, and other sensitive vars in its environment; we
+// do NOT want those flowing into Claude sessions by default. This allowlist
+// enforces that trust boundary — only well-known, non-sensitive vars pass
+// through automatically.
+//
+// To pass additional vars (e.g. GH_TOKEN for gh CLI auth), populate
+// ClaudeRunnerConfig.Env, which is merged in after this allowlist.
 func allowlistEnv() []string {
 	keys := []string{
 		"HOME", "PATH", "USER", "TZ", "ZONEINFO", "TMPDIR", "LANG", "LC_ALL",
