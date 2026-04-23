@@ -2,6 +2,8 @@
 
 Config (`agent.benjamin-borbe.de/v1`) is a Kubernetes Custom Resource Definition that declares an agent type. Both the controller and job creator read these to know which agents exist and how to handle them.
 
+The agent is **runtime-agnostic** — `spec.image` can point to any container: Claude Code CLI (agent-claude, agent-trade-analysis), Gemini API (agent-backtest), static rule validators, shell scripts, other AI providers, etc. The framework only defines the contract (receive `TASK_CONTENT`, print result JSON to stdout).
+
 ## CRD Definition
 
 ```yaml
