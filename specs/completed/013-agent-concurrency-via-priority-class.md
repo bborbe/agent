@@ -1,11 +1,12 @@
 ---
-status: prompted
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-04-21T22:18:35Z"
 generating: "2026-04-21T22:19:09Z"
 prompted: "2026-04-21T22:23:03Z"
+verifying: "2026-04-23T21:07:19Z"
 branch: dark-factory/agent-concurrency-via-priority-class
 ---
 
