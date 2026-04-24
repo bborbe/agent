@@ -1,6 +1,7 @@
 ---
-status: draft
+status: approved
 created: "2026-04-24T11:50:00Z"
+queued: "2026-04-24T11:44:56Z"
 ---
 
 <summary>
@@ -25,8 +26,8 @@ Read these guides before starting:
 - `go-testing-guide.md` in `~/.claude/plugins/marketplaces/coding/docs/` — Ginkgo v2, external test packages
 - `go-time-injection.md` in `~/.claude/plugins/marketplaces/coding/docs/` — `libtime.CurrentDateTimeGetter` injection; timestamps in the body section use the existing time injection
 
-Read these project docs for design context:
-- `~/Documents/Obsidian/Personal/50 Knowledge Base/Agent Phase Dispatch Guide.md` — §"Resolving the `PublishFailure` conflict". This prompt implements what that section prescribes (minus the retry_count semantics, which are handled separately by `trigger_count` / `max_triggers`).
+Design rationale (for the human reviewer, not the agent — the requirements below are self-contained):
+- Outside-container file: Agent Phase Dispatch Guide §"Resolving the `PublishFailure` conflict". This prompt implements that section (minus the retry_count semantics handled separately by `trigger_count` / `max_triggers`).
 
 **Key files to read in full before editing:**
 
@@ -62,12 +63,11 @@ Read these project docs for design context:
 
 - `task/controller/pkg/command/task_update_frontmatter_executor_test.go` — existing tests for the controller-side executor. Extend with cases covering the new `Body` field.
 
-Grep before editing:
+Grep before editing (all paths repo-relative, container-safe):
 ```bash
-cd ~/Documents/workspaces/agent
 grep -n "PublishFailure\|ai_review\|human_review" task/executor/pkg/result_publisher.go
 grep -n "UpdateFrontmatterCommand\b" lib/agent_task-commands.go
-grep -n "ReplaceOrAppendSection\|UpdateFrontmatterExecutor" task/controller/pkg/command/task_update_frontmatter_executor.go
+grep -n "ReplaceOrAppendSection\|UpdateFrontmatterExecutor\|buildUpdateModifyFn" task/controller/pkg/command/task_update_frontmatter_executor.go
 grep -rn "ReplaceOrAppendSection" lib/delivery/
 ```
 </context>
@@ -105,18 +105,91 @@ grep -rn "ReplaceOrAppendSection" lib/delivery/
 
 2. **Update `task/controller/pkg/command/task_update_frontmatter_executor.go`**
 
-   After the existing frontmatter-merge logic (find the function body — likely named `Handle` or `Execute`), add a branch that processes `cmd.Body` when non-nil:
+   The real seam is the private helper `buildUpdateModifyFn` at line 88, called from inside `NewUpdateFrontmatterExecutor` at line 70. Current shape:
 
    ```go
-   if cmd.Body != nil {
-       body = delivery.ReplaceOrAppendSection(body, cmd.Body.Heading, cmd.Body.Section)
+   func buildUpdateModifyFn(
+       ctx context.Context,
+       updates lib.TaskFrontmatter,
+   ) func([]byte) ([]byte, error) {
+       return func(current []byte) ([]byte, error) {
+           frontmatterStr, err := result.ExtractFrontmatter(ctx, current)
+           if err != nil {
+               return nil, errors.Wrapf(ctx, err, "extract frontmatter")
+           }
+           body, err := result.ExtractBody(ctx, current)
+           if err != nil {
+               return nil, errors.Wrapf(ctx, err, "extract body")
+           }
+           fm, err := parseTaskFrontmatter(frontmatterStr)
+           if err != nil {
+               return nil, errors.Wrapf(ctx, err, "parse frontmatter")
+           }
+           for k, v := range updates {
+               fm[k] = v
+           }
+           return marshalFileContent(ctx, fm, body)
+       }
    }
    ```
 
-   - Import path: `delivery "github.com/bborbe/agent/lib/delivery"`
-   - Read the current executor file end-to-end first — the exact variable names (`body`, `content`, `newContent`) may differ. Adapt the snippet to match existing naming.
-   - The merge-write sequence should be: apply frontmatter Updates → apply Body section (if set) → write file.
-   - Do NOT reorder any existing writes; insert the Body branch at the appropriate seam.
+   Extend it to accept and apply the optional body section:
+
+   ```go
+   func buildUpdateModifyFn(
+       ctx context.Context,
+       updates lib.TaskFrontmatter,
+       bodySection *lib.BodySection,
+   ) func([]byte) ([]byte, error) {
+       return func(current []byte) ([]byte, error) {
+           frontmatterStr, err := result.ExtractFrontmatter(ctx, current)
+           if err != nil {
+               return nil, errors.Wrapf(ctx, err, "extract frontmatter")
+           }
+           body, err := result.ExtractBody(ctx, current)
+           if err != nil {
+               return nil, errors.Wrapf(ctx, err, "extract body")
+           }
+           fm, err := parseTaskFrontmatter(frontmatterStr)
+           if err != nil {
+               return nil, errors.Wrapf(ctx, err, "parse frontmatter")
+           }
+           for k, v := range updates {
+               fm[k] = v
+           }
+           if bodySection != nil {
+               body = delivery.ReplaceOrAppendSection(body, bodySection.Heading, bodySection.Section)
+           }
+           return marshalFileContent(ctx, fm, body)
+       }
+   }
+   ```
+
+   Update the single caller at line 70 from:
+   ```go
+   buildUpdateModifyFn(ctx, cmd.Updates),
+   ```
+   to:
+   ```go
+   buildUpdateModifyFn(ctx, cmd.Updates, cmd.Body),
+   ```
+
+   **Also update the empty-Updates early return at line 47** — it currently short-circuits when `len(cmd.Updates) == 0`, which would silently drop a Body-only command. Replace:
+   ```go
+   if len(cmd.Updates) == 0 {
+       return nil, nil, nil
+   }
+   ```
+   with:
+   ```go
+   if len(cmd.Updates) == 0 && cmd.Body == nil {
+       return nil, nil, nil
+   }
+   ```
+
+   Add import: `delivery "github.com/bborbe/agent/lib/delivery"`.
+
+   Variable `body` in `buildUpdateModifyFn` is a `string` (returned by `result.ExtractBody`) and `ReplaceOrAppendSection(content, heading, newSection string) string` matches — no type conversion needed.
 
 3. **Rewrite `PublishFailure` in `task/executor/pkg/result_publisher.go`**
 
@@ -195,11 +268,11 @@ grep -rn "ReplaceOrAppendSection" lib/delivery/
 
 9. **Verification commands**
 
-   Must exit 0:
+   Must exit 0 (run from repo root):
    ```bash
-   cd ~/Documents/workspaces/agent/task/executor   && make precommit
-   cd ~/Documents/workspaces/agent/task/controller && make precommit
-   cd ~/Documents/workspaces/agent/lib              && make precommit
+   cd task/executor   && make precommit && cd ../..
+   cd task/controller && make precommit && cd ../..
+   cd lib             && make precommit && cd ..
    ```
 
    Spot checks:
@@ -256,35 +329,35 @@ grep -rn "ReplaceOrAppendSection" lib/delivery/
 Verify the frontmatter change:
 ```bash
 grep -n 'phase.*human_review\|phase.*ai_review' \
-  ~/Documents/workspaces/agent/task/executor/pkg/result_publisher.go
+  task/executor/pkg/result_publisher.go
 ```
 Must show exactly one `human_review` match; zero `ai_review` matches.
 
 Verify `BodySection` type exists:
 ```bash
 grep -nA3 'type BodySection' \
-  ~/Documents/workspaces/agent/lib/agent_task-commands.go
+  lib/agent_task-commands.go
 ```
 Must show the type definition with `Heading` and `Section` fields.
 
 Verify the `Body` field wires to the controller executor:
 ```bash
 grep -n 'cmd.Body\|ReplaceOrAppendSection' \
-  ~/Documents/workspaces/agent/task/controller/pkg/command/task_update_frontmatter_executor.go
+  task/controller/pkg/command/task_update_frontmatter_executor.go
 ```
 Must show both: the nil-check on `cmd.Body` and the call to `ReplaceOrAppendSection`.
 
 Verify test coverage:
 ```bash
 grep -n 'human_review\|## Failure\|OOMKilled' \
-  ~/Documents/workspaces/agent/task/executor/pkg/result_publisher_test.go \
-  ~/Documents/workspaces/agent/task/controller/pkg/command/task_update_frontmatter_executor_test.go
+  task/executor/pkg/result_publisher_test.go \
+  task/controller/pkg/command/task_update_frontmatter_executor_test.go
 ```
 Must show matches in both test files — at least one `human_review` and one `## Failure`.
 
 Run focused tests:
 ```bash
-cd ~/Documents/workspaces/agent && go test -v \
+go test -v \
   ./task/executor/pkg/... \
   ./task/controller/pkg/command/... \
   ./lib/...
@@ -293,15 +366,15 @@ Must exit 0. Output must include PASS lines for the new/amended tests.
 
 Run full precommit per module:
 ```bash
-cd ~/Documents/workspaces/agent/task/executor   && make precommit
-cd ~/Documents/workspaces/agent/task/controller && make precommit
-cd ~/Documents/workspaces/agent/lib              && make precommit
+cd task/executor   && make precommit
+cd task/controller && make precommit
+cd lib              && make precommit
 ```
 All three must exit 0.
 
 Verify CHANGELOG updated:
 ```bash
-grep -n 'human_review\|## Failure\|BodySection' ~/Documents/workspaces/agent/CHANGELOG.md
+grep -n 'human_review\|## Failure\|BodySection' CHANGELOG.md
 ```
 Must show the two Unreleased entries.
 

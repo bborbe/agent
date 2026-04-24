@@ -1,6 +1,10 @@
 ---
-status: draft
+status: executing
+container: agent-073-inject-phase-env-var
+dark-factory-version: v0.132.0
 created: "2026-04-24T11:50:00Z"
+queued: "2026-04-24T11:44:56Z"
+started: "2026-04-24T11:44:58Z"
 ---
 
 <summary>
@@ -45,7 +49,7 @@ Read these guides before starting:
   }
   envBuilder.Add("PHASE", phase)
   ```
-- `~/Documents/workspaces/vault-cli/pkg/domain/task_phase.go` — `TaskPhase` string type + constants (`TaskPhasePlanning`, `TaskPhaseInProgress`, `TaskPhaseAIReview`, `TaskPhaseHumanReview`, `TaskPhaseDone`, `TaskPhaseTodo`). No changes needed here — only for reference.
+- `github.com/bborbe/vault-cli/pkg/domain.TaskPhase` — `TaskPhase` string type (accessible via `go doc github.com/bborbe/vault-cli/pkg/domain.TaskPhase`) with constants `TaskPhasePlanning`, `TaskPhaseInProgress`, `TaskPhaseAIReview`, `TaskPhaseHumanReview`, `TaskPhaseDone`, `TaskPhaseTodo`. No changes needed — reference only.
 
 **Why empty string when phase is absent:**
 - The env-builder adds the variable unconditionally, even empty, so the agent container's env surface is stable (predictable for test assertions, debugging).
@@ -155,7 +159,7 @@ grep -n "envMap\[" task/executor/pkg/spawner/job_spawner_test.go | head -20
 
    Must exit 0:
    ```bash
-   cd ~/Documents/workspaces/agent/task/executor && make precommit
+   cd task/executor && make precommit
    ```
 
    Spot checks:
@@ -203,20 +207,20 @@ Must show at least two `envMap["PHASE"]` assertions: one `Equal("planning")` and
 
 Run the focused tests:
 ```bash
-cd ~/Documents/workspaces/agent/task/executor && go test -v ./pkg/spawner/...
+cd task/executor && go test -v ./pkg/spawner/...
 ```
 Must exit 0. Output must include PASS lines for both the amended "creates a job with correct name and env vars" test and the new "injects empty PHASE when task frontmatter has no phase" test.
 
 Run full precommit:
 ```bash
-cd ~/Documents/workspaces/agent/task/executor && make precommit
+cd task/executor && make precommit
 ```
 Must exit 0.
 
 Verify CHANGELOG updated:
 ```bash
 grep -n "PHASE env var\|phase.*dispatch" \
-  ~/Documents/workspaces/agent/CHANGELOG.md
+  CHANGELOG.md
 ```
 Must show the Unreleased entry.
 </verification>
