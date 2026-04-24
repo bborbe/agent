@@ -1,10 +1,11 @@
 ---
-status: generating
+status: prompted
 tags:
     - dark-factory
     - spec
 approved: "2026-04-24T07:35:27Z"
 generating: "2026-04-24T07:37:12Z"
+prompted: "2026-04-24T07:46:33Z"
 branch: dark-factory/atomic-frontmatter-increment-and-trigger-cap
 ---
 
