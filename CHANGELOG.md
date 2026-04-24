@@ -8,6 +8,15 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.51.0
+
+- feat: add AtomicReadModifyWriteAndCommitPush to GitClient interface and implementation for read-modify-write under a single mutex
+- feat: add IncrementFrontmatterExecutor command handler that atomically increments a named frontmatter field and escalates phase to human_review when trigger_count reaches max_triggers
+- feat: add UpdateFrontmatterExecutor command handler for atomic partial-key frontmatter updates without clobbering concurrent writes
+- feat: wire both new executors into CreateCommandConsumer factory with gitClient and taskDir parameters
+- feat: export FindTaskFilePath, ExtractFrontmatter, ExtractBody helpers from result package for cross-package reuse
+- feat: add FrontmatterCommandsTotal Prometheus counter for increment_frontmatter and update_frontmatter operations
+
 ## v0.50.0
 
 - feat: add TriggerCount/MaxTriggers frontmatter accessors and IncrementFrontmatterCommand/UpdateFrontmatterCommand Kafka command types to lib

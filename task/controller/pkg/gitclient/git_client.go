@@ -34,6 +34,16 @@ type GitClient interface {
 		content []byte,
 		message string,
 	) error
+	// AtomicReadModifyWriteAndCommitPush reads absPath, calls modify on its contents
+	// to produce new contents, writes the result, and commits+pushes — all under
+	// the gitclient mutex. modify must return the new file bytes or an error.
+	// If modify returns an error, the file is not written and no commit is made.
+	AtomicReadModifyWriteAndCommitPush(
+		ctx context.Context,
+		absPath string,
+		modify func(current []byte) ([]byte, error),
+		message string,
+	) error
 	// Path returns the local clone path.
 	Path() string
 }
@@ -339,6 +349,30 @@ func (g *gitClient) AtomicWriteAndCommitPush(
 	// #nosec G306 -- 0600 is intentional for task files (gosec requirement)
 	if err := os.WriteFile(absPath, content, 0600); err != nil {
 		return errors.Wrapf(ctx, err, "write file %s", absPath)
+	}
+	return g.commitAndPush(ctx, message)
+}
+
+func (g *gitClient) AtomicReadModifyWriteAndCommitPush(
+	ctx context.Context,
+	absPath string,
+	modify func(current []byte) ([]byte, error),
+	message string,
+) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	// #nosec G304 -- absPath is from trusted internal config (task file path)
+	current, err := os.ReadFile(absPath)
+	if err != nil {
+		return errors.Wrapf(ctx, err, "read file for atomic modify")
+	}
+	updated, err := modify(current)
+	if err != nil {
+		return errors.Wrapf(ctx, err, "modify func failed")
+	}
+	// #nosec G306 -- 0600 is intentional for task files (gosec requirement)
+	if err := os.WriteFile(absPath, updated, 0600); err != nil {
+		return errors.Wrapf(ctx, err, "write file for atomic modify")
 	}
 	return g.commitAndPush(ctx, message)
 }

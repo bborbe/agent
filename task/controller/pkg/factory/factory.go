@@ -55,8 +55,14 @@ func CreateCommandConsumer(
 	db libkv.DB,
 	branch base.Branch,
 	resultWriter result.ResultWriter,
+	gitClient gitclient.GitClient,
+	taskDir string,
 ) run.Func {
-	executor := command.NewTaskResultExecutor(resultWriter)
+	executors := cdb.CommandObjectExecutorTxs{
+		command.NewTaskResultExecutor(resultWriter),
+		command.NewIncrementFrontmatterExecutor(gitClient, taskDir),
+		command.NewUpdateFrontmatterExecutor(gitClient, taskDir),
+	}
 	return cdb.RunCommandConsumerTxDefault(
 		saramaClientProvider,
 		syncProducer,
@@ -64,6 +70,6 @@ func CreateCommandConsumer(
 		lib.TaskV1SchemaID,
 		branch,
 		true, // ignoreUnsupported: skip commands with unknown operations
-		cdb.CommandObjectExecutorTxs{executor},
+		executors,
 	)
 }

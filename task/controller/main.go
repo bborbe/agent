@@ -121,6 +121,8 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		db,
 		a.Branch,
 		resultWriter,
+		gitClient,
+		a.TaskDir,
 	)
 
 	return service.Run(

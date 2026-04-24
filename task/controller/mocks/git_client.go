@@ -9,6 +9,20 @@ import (
 )
 
 type FakeGitClient struct {
+	AtomicReadModifyWriteAndCommitPushStub        func(context.Context, string, func(current []byte) ([]byte, error), string) error
+	atomicReadModifyWriteAndCommitPushMutex       sync.RWMutex
+	atomicReadModifyWriteAndCommitPushArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+		arg3 func(current []byte) ([]byte, error)
+		arg4 string
+	}
+	atomicReadModifyWriteAndCommitPushReturns struct {
+		result1 error
+	}
+	atomicReadModifyWriteAndCommitPushReturnsOnCall map[int]struct {
+		result1 error
+	}
 	AtomicWriteAndCommitPushStub        func(context.Context, string, []byte, string) error
 	atomicWriteAndCommitPushMutex       sync.RWMutex
 	atomicWriteAndCommitPushArgsForCall []struct {
@@ -69,6 +83,70 @@ type FakeGitClient struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPush(arg1 context.Context, arg2 string, arg3 func(current []byte) ([]byte, error), arg4 string) error {
+	fake.atomicReadModifyWriteAndCommitPushMutex.Lock()
+	ret, specificReturn := fake.atomicReadModifyWriteAndCommitPushReturnsOnCall[len(fake.atomicReadModifyWriteAndCommitPushArgsForCall)]
+	fake.atomicReadModifyWriteAndCommitPushArgsForCall = append(fake.atomicReadModifyWriteAndCommitPushArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+		arg3 func(current []byte) ([]byte, error)
+		arg4 string
+	}{arg1, arg2, arg3, arg4})
+	stub := fake.AtomicReadModifyWriteAndCommitPushStub
+	fakeReturns := fake.atomicReadModifyWriteAndCommitPushReturns
+	fake.recordInvocation("AtomicReadModifyWriteAndCommitPush", []interface{}{arg1, arg2, arg3, arg4})
+	fake.atomicReadModifyWriteAndCommitPushMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3, arg4)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPushCallCount() int {
+	fake.atomicReadModifyWriteAndCommitPushMutex.RLock()
+	defer fake.atomicReadModifyWriteAndCommitPushMutex.RUnlock()
+	return len(fake.atomicReadModifyWriteAndCommitPushArgsForCall)
+}
+
+func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPushCalls(stub func(context.Context, string, func(current []byte) ([]byte, error), string) error) {
+	fake.atomicReadModifyWriteAndCommitPushMutex.Lock()
+	defer fake.atomicReadModifyWriteAndCommitPushMutex.Unlock()
+	fake.AtomicReadModifyWriteAndCommitPushStub = stub
+}
+
+func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPushArgsForCall(i int) (context.Context, string, func(current []byte) ([]byte, error), string) {
+	fake.atomicReadModifyWriteAndCommitPushMutex.RLock()
+	defer fake.atomicReadModifyWriteAndCommitPushMutex.RUnlock()
+	argsForCall := fake.atomicReadModifyWriteAndCommitPushArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+}
+
+func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPushReturns(result1 error) {
+	fake.atomicReadModifyWriteAndCommitPushMutex.Lock()
+	defer fake.atomicReadModifyWriteAndCommitPushMutex.Unlock()
+	fake.AtomicReadModifyWriteAndCommitPushStub = nil
+	fake.atomicReadModifyWriteAndCommitPushReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPushReturnsOnCall(i int, result1 error) {
+	fake.atomicReadModifyWriteAndCommitPushMutex.Lock()
+	defer fake.atomicReadModifyWriteAndCommitPushMutex.Unlock()
+	fake.AtomicReadModifyWriteAndCommitPushStub = nil
+	if fake.atomicReadModifyWriteAndCommitPushReturnsOnCall == nil {
+		fake.atomicReadModifyWriteAndCommitPushReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.atomicReadModifyWriteAndCommitPushReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeGitClient) AtomicWriteAndCommitPush(arg1 context.Context, arg2 string, arg3 []byte, arg4 string) error {

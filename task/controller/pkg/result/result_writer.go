@@ -50,12 +50,15 @@ type resultWriter struct {
 	currentDateTime libtime.CurrentDateTimeGetter
 }
 
-func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
-	glog.V(2).Infof("WriteResult: starting for task %s", req.TaskIdentifier)
-	taskDirPath := filepath.Join(r.gitClient.Path(), r.taskDir)
-	glog.V(3).Infof("WriteResult: scanning taskDir=%s", taskDirPath)
+// FindTaskFilePath walks taskDirPath and returns the absolute path of the .md file
+// whose frontmatter has task_identifier == id, plus the parsed existing frontmatter.
+// Returns ("", nil, nil) when no match is found (not an error).
+func FindTaskFilePath(
+	ctx context.Context,
+	taskDirPath string,
+	id lib.TaskIdentifier,
+) (string, lib.TaskFrontmatter, error) {
 	fsys := os.DirFS(taskDirPath)
-
 	var matchedAbsPath string
 	var existingFrontmatter lib.TaskFrontmatter
 	if err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
@@ -64,35 +67,51 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 		}
 		content, readErr := fs.ReadFile(fsys, path)
 		if readErr != nil {
-			glog.V(3).Infof("WriteResult: skip %s (read error: %v)", path, readErr)
+			glog.V(3).Infof("FindTaskFilePath: skip %s (read error: %v)", path, readErr)
 			return nil
 		}
-		frontmatter, fmErr := extractFrontmatter(ctx, content)
+		frontmatter, fmErr := ExtractFrontmatter(ctx, content)
 		if fmErr != nil {
-			glog.V(3).Infof("WriteResult: skip %s (frontmatter error: %v)", path, fmErr)
+			glog.V(3).Infof("FindTaskFilePath: skip %s (frontmatter error: %v)", path, fmErr)
 			return nil
 		}
 		var fm struct {
 			TaskIdentifier string `yaml:"task_identifier"`
 		}
 		if umErr := yaml.Unmarshal([]byte(frontmatter), &fm); umErr != nil {
-			glog.V(3).Infof("WriteResult: skip %s (unmarshal error: %v)", path, umErr)
+			glog.V(3).Infof("FindTaskFilePath: skip %s (unmarshal error: %v)", path, umErr)
 			return nil
 		}
-		glog.V(3).Infof("WriteResult: file %s has task_identifier=%s", path, fm.TaskIdentifier)
-		if lib.TaskIdentifier(fm.TaskIdentifier) == req.TaskIdentifier {
+		glog.V(3).Infof("FindTaskFilePath: file %s has task_identifier=%s", path, fm.TaskIdentifier)
+		if lib.TaskIdentifier(fm.TaskIdentifier) == id {
 			matchedAbsPath = filepath.Join(taskDirPath, path)
-			glog.V(2).Infof("WriteResult: matched file %s for task %s", matchedAbsPath, req.TaskIdentifier)
+			glog.V(2).Infof("FindTaskFilePath: matched file %s for task %s", matchedAbsPath, id)
 			var existingFm lib.TaskFrontmatter
 			if umErr := yaml.Unmarshal([]byte(frontmatter), &existingFm); umErr != nil {
-				glog.V(3).Infof("WriteResult: could not unmarshal existing frontmatter for %s: %v", path, umErr)
+				glog.V(3).Infof("FindTaskFilePath: could not unmarshal existing frontmatter for %s: %v", path, umErr)
 			} else {
 				existingFrontmatter = existingFm
 			}
 		}
 		return nil
 	}); err != nil {
-		return errors.Wrapf(ctx, err, "walk task dir failed")
+		return "", nil, errors.Wrapf(ctx, err, "walk task dir failed")
+	}
+	return matchedAbsPath, existingFrontmatter, nil
+}
+
+func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
+	glog.V(2).Infof("WriteResult: starting for task %s", req.TaskIdentifier)
+	taskDirPath := filepath.Join(r.gitClient.Path(), r.taskDir)
+	glog.V(3).Infof("WriteResult: scanning taskDir=%s", taskDirPath)
+
+	matchedAbsPath, existingFrontmatter, err := FindTaskFilePath(
+		ctx,
+		taskDirPath,
+		req.TaskIdentifier,
+	)
+	if err != nil {
+		return errors.Wrapf(ctx, err, "find task file path failed")
 	}
 
 	if matchedAbsPath == "" {
@@ -169,7 +188,9 @@ func mergeFrontmatter(existing, incoming lib.TaskFrontmatter) lib.TaskFrontmatte
 	return merged
 }
 
-func extractFrontmatter(ctx context.Context, content []byte) (string, error) {
+// ExtractFrontmatter returns the YAML frontmatter string between the opening and
+// closing "---" delimiters. Returns an error if delimiters are missing.
+func ExtractFrontmatter(ctx context.Context, content []byte) (string, error) {
 	s := string(content)
 	const delim = "---"
 	if !strings.HasPrefix(s, delim) {
@@ -186,4 +207,25 @@ func extractFrontmatter(ctx context.Context, content []byte) (string, error) {
 		return "", errors.Errorf(ctx, "frontmatter not closed")
 	}
 	return before, nil
+}
+
+// ExtractBody returns the file body — the bytes after the closing "---\n" delimiter.
+// Returns an empty string if the body is empty; error if delimiters are missing.
+func ExtractBody(ctx context.Context, content []byte) (string, error) {
+	s := string(content)
+	const delim = "---"
+	if !strings.HasPrefix(s, delim) {
+		return "", errors.Errorf(ctx, "no frontmatter delimiter found")
+	}
+	rest := strings.TrimPrefix(s, delim)
+	if strings.HasPrefix(rest, "\r\n") {
+		rest = rest[2:]
+	} else if strings.HasPrefix(rest, "\n") {
+		rest = rest[1:]
+	}
+	_, after, found := strings.Cut(rest, "\n---\n")
+	if !found {
+		return "", errors.Errorf(ctx, "frontmatter not closed")
+	}
+	return after, nil
 }

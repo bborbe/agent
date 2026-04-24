@@ -53,9 +53,60 @@ Agent provides: {status: completed, phase: done}
 Merged result:  {assignee: backtest-agent, tags: [agent-task], task_identifier: xyz, status: completed, phase: done}
 ```
 
+## Atomic Frontmatter Commands
+
+In addition to the `"update"` operation (full result write), the controller handles two atomic frontmatter operations on `agent-task-v1-request`:
+
+### `"increment_frontmatter"` (IncrementFrontmatterExecutor)
+
+Payload: `lib.IncrementFrontmatterCommand{TaskIdentifier, Field, Delta}`
+
+```
+On agent-task-v1-request (operation: "increment_frontmatter"):
+  │
+  ├── deserialize IncrementFrontmatterCommand
+  ├── find task file by task_identifier (WalkDir)
+  ├── if not found → log warning, return nil (no error)
+  ├── AtomicReadModifyWriteAndCommitPush:
+  │     ├── read current file bytes (under mutex)
+  │     ├── parse frontmatter, read Field value (default 0 if absent)
+  │     ├── newVal = currentVal + Delta
+  │     ├── set Field = newVal
+  │     ├── cap escalation: if Field == "trigger_count" AND newVal >= max_triggers
+  │     │     └── set phase = "human_review" in the same write
+  │     ├── write updated file (under mutex)
+  │     └── git commit + push (under mutex)
+  └── increment FrontmatterCommandsTotal{operation, outcome}
+```
+
+Delta may be negative (decrement). Cap escalation only fires for `trigger_count` reaching `max_triggers`.
+
+### `"update_frontmatter"` (UpdateFrontmatterExecutor)
+
+Payload: `lib.UpdateFrontmatterCommand{TaskIdentifier, Updates map[string]any}`
+
+```
+On agent-task-v1-request (operation: "update_frontmatter"):
+  │
+  ├── deserialize UpdateFrontmatterCommand
+  ├── if Updates is empty → return nil (no-op, no write)
+  ├── find task file by task_identifier (WalkDir)
+  ├── if not found → log warning, return nil
+  ├── AtomicReadModifyWriteAndCommitPush:
+  │     ├── read current file bytes (under mutex)
+  │     ├── parse existing frontmatter
+  │     ├── merge only the keys in Updates (all other keys unchanged)
+  │     ├── write updated file (under mutex)
+  │     └── git commit + push (under mutex)
+  └── increment FrontmatterCommandsTotal{operation, outcome}
+```
+
 ## Git Operation Serialization
 
-All git operations (pull, write, commit, push) are serialized via `sync.Mutex` in the GitClient. The `AtomicWriteAndCommitPush` method holds the lock for the entire write→commit→push sequence, preventing concurrent operations from interleaving.
+All git operations (pull, write, commit, push) are serialized via `sync.Mutex` in the GitClient. Two methods hold the lock for the entire sequence:
+
+- `AtomicWriteAndCommitPush(absPath, content, message)` — writes `content` directly then commits.
+- `AtomicReadModifyWriteAndCommitPush(absPath, modify, message)` — reads the current file, calls `modify(current []byte) ([]byte, error)`, writes the result, then commits. Unlike `AtomicWriteAndCommitPush`, the read is also inside the lock, ensuring no other git operation can interleave between read and write.
 
 ## Push Retry with Rebase
 

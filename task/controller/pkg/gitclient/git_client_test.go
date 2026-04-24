@@ -6,6 +6,7 @@ package gitclient_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -123,6 +124,89 @@ var _ = Describe("GitClient", func() {
 		It("succeeds on a valid repo", func() {
 			err := client.Pull(ctx)
 			Expect(err).To(BeNil())
+		})
+	})
+
+	Describe("AtomicReadModifyWriteAndCommitPush", func() {
+		BeforeEach(func() {
+			// allow pushing to the non-bare remote's current branch
+			// #nosec G204 -- test helper: command is hardcoded test setup git invocation
+			out, configErr := exec.Command("git", "-C", remoteDir, "config", "receive.denyCurrentBranch", "ignore").
+				CombinedOutput()
+			Expect(
+				configErr,
+			).To(BeNil(), "config receive.denyCurrentBranch failed: %s", string(out))
+
+			client = gitclient.NewGitClient(remoteDir, localPath, branch, nil)
+			err := client.EnsureCloned(ctx)
+			Expect(err).To(BeNil())
+			for _, args := range [][]string{
+				{"git", "-C", localPath, "config", "user.email", "test@test.com"},
+				{"git", "-C", localPath, "config", "user.name", "Test"},
+			} {
+				// #nosec G204 -- test helper: commands are hardcoded test setup git invocations
+				out, identErr := exec.Command(args[0], args[1:]...).CombinedOutput()
+				Expect(identErr).To(BeNil(), "cmd %v failed: %s", args, string(out))
+			}
+		})
+
+		It("reads, modifies, writes, and commits the file", func() {
+			taskFile := filepath.Join(localPath, "task.md")
+			Expect(os.WriteFile(taskFile, []byte("initial"), 0600)).To(Succeed())
+			// Stage and commit the initial file first so AtomicReadModifyWriteAndCommitPush can push
+			for _, args := range [][]string{
+				{"git", "-C", localPath, "add", "-A"},
+				{"git", "-C", localPath, "commit", "-m", "initial"},
+				{"git", "-C", localPath, "push"},
+			} {
+				// #nosec G204 -- test helper: commands are hardcoded test setup git invocations
+				out, cmdErr := exec.Command(args[0], args[1:]...).CombinedOutput()
+				Expect(cmdErr).To(BeNil(), "cmd %v failed: %s", args, string(out))
+			}
+
+			err := client.AtomicReadModifyWriteAndCommitPush(
+				ctx,
+				taskFile,
+				func(current []byte) ([]byte, error) {
+					return append(current, []byte(" modified")...), nil
+				},
+				"[test] modify task.md",
+			)
+			Expect(err).To(BeNil())
+
+			content, readErr := os.ReadFile(taskFile)
+			Expect(readErr).To(BeNil())
+			Expect(string(content)).To(Equal("initial modified"))
+		})
+
+		It("returns an error when modify func returns an error and does not write", func() {
+			taskFile := filepath.Join(localPath, "task.md")
+			Expect(os.WriteFile(taskFile, []byte("original"), 0600)).To(Succeed())
+			for _, args := range [][]string{
+				{"git", "-C", localPath, "add", "-A"},
+				{"git", "-C", localPath, "commit", "-m", "original"},
+				{"git", "-C", localPath, "push"},
+			} {
+				// #nosec G204 -- test helper: commands are hardcoded test setup git invocations
+				out, cmdErr := exec.Command(args[0], args[1:]...).CombinedOutput()
+				Expect(cmdErr).To(BeNil(), "cmd %v failed: %s", args, string(out))
+			}
+
+			modifyErr := errors.New("modify failed")
+			err := client.AtomicReadModifyWriteAndCommitPush(
+				ctx,
+				taskFile,
+				func(current []byte) ([]byte, error) {
+					return nil, modifyErr
+				},
+				"[test] should not commit",
+			)
+			Expect(err).NotTo(BeNil())
+			Expect(err.Error()).To(ContainSubstring("modify func failed"))
+
+			// File must remain unchanged
+			content, _ := os.ReadFile(taskFile)
+			Expect(string(content)).To(Equal("original"))
 		})
 	})
 

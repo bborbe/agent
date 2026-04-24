@@ -54,6 +54,17 @@ var ConflictResolutionsTotal = promauto.NewCounterVec(
 	[]string{"result"},
 )
 
+// FrontmatterCommandsTotal counts atomic frontmatter command executions
+// by operation ("increment_frontmatter" | "update_frontmatter") and
+// outcome ("success" | "error" | "not_found").
+var FrontmatterCommandsTotal = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "agent_task_controller_frontmatter_commands_total",
+		Help: "Total number of atomic frontmatter commands processed, by operation and outcome.",
+	},
+	[]string{"operation", "outcome"},
+)
+
 func init() {
 	ScanCyclesTotal.WithLabelValues("changes").Add(0)
 	ScanCyclesTotal.WithLabelValues("no_changes").Add(0)
@@ -73,4 +84,10 @@ func init() {
 
 	ConflictResolutionsTotal.WithLabelValues("success").Add(0)
 	ConflictResolutionsTotal.WithLabelValues("error").Add(0)
+
+	for _, op := range []string{"increment_frontmatter", "update_frontmatter"} {
+		for _, outcome := range []string{"success", "error", "not_found"} {
+			FrontmatterCommandsTotal.WithLabelValues(op, outcome).Add(0)
+		}
+	}
 }
