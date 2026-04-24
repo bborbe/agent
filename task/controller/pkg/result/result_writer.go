@@ -151,10 +151,31 @@ func (r *resultWriter) applyRetryCounter(merged lib.TaskFrontmatter, body string
 	if string(merged.Status()) == "completed" {
 		return body
 	}
+
+	// Trigger-count cap enforcement runs unconditionally before any early
+	// returns below: it is a derived invariant on the on-disk state that
+	// must hold after every WriteResult. Placing it here also prevents the
+	// spawn_notification short-circuit below from silently skipping
+	// escalation on agent result writes that inherited spawn_notification
+	// from a previous merge (observed live on dev 2026-04-24, task
+	// ba1bad61: spawn-notification update set spawn_notification=true,
+	// then the agent's result publish inherited it via mergeFrontmatter
+	// and skipped the cap check, reverting phase: human_review to
+	// ai_review). The triggerCount > 0 guard prevents degenerate
+	// escalation of brand-new tasks where trigger_count is absent.
+	triggerCount := merged.TriggerCount()
+	if triggerCount > 0 && triggerCount >= merged.MaxTriggers() {
+		merged["phase"] = "human_review"
+		if !containsEscalationSection(body, "## Trigger Cap Escalation") {
+			body += r.triggerEscalationSection(triggerCount, merged)
+		}
+	}
+
 	if merged.SpawnNotification() {
 		delete(merged, "spawn_notification")
 		return body
 	}
+
 	// retry_count is authoritative in the task file — the executor bumped it
 	// at spawn time (spec 011). The writer only applies escalation.
 	retryCount := merged.RetryCount()
@@ -162,20 +183,6 @@ func (r *resultWriter) applyRetryCounter(merged lib.TaskFrontmatter, body string
 		merged["phase"] = "human_review"
 		if !containsEscalationSection(body, "## Retry Escalation") {
 			body += r.escalationSection(retryCount, merged)
-		}
-	}
-	// trigger_count cap enforcement — derived invariant from spec 015.
-	// Any write that leaves the file with trigger_count >= max_triggers
-	// MUST land in phase: human_review. Protects against stale-payload
-	// writers (agent result publish, legacy integrations) revoking the
-	// increment handler's escalation. The `triggerCount > 0` guard prevents
-	// degenerate escalation of brand-new tasks where trigger_count is absent
-	// (parsed as 0) and max_triggers defaults to a small positive integer.
-	triggerCount := merged.TriggerCount()
-	if triggerCount > 0 && triggerCount >= merged.MaxTriggers() {
-		merged["phase"] = "human_review"
-		if !containsEscalationSection(body, "## Trigger Cap Escalation") {
-			body += r.triggerEscalationSection(triggerCount, merged)
 		}
 	}
 	return body

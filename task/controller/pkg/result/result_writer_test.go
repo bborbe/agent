@@ -823,6 +823,52 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 			)
 
 			It(
+				"keeps phase: human_review sticky and appends Trigger Cap Escalation even when merged frontmatter carries inherited spawn_notification=true",
+				func() {
+					// Encodes the live-dev failure from task ba1bad61-5ad4-48e7-ad05-e15ba8dfbfb9
+					// (controller v0.52.4, commit 1a1c570): executor's IncrementFrontmatterExecutor
+					// wrote phase: human_review at cap; spawn-notification update then wrote
+					// spawn_notification: true to the file; the agent's subsequent result publish
+					// called WriteResult with phase: ai_review — mergeFrontmatter preserved the
+					// spawn_notification: true from disk, the pre-reorder applyRetryCounter hit
+					// the SpawnNotification() early return before reaching the cap check, and the
+					// file landed with phase: ai_review (regression). Post-reorder, the cap check
+					// runs first, enforcing phase: human_review unconditionally.
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: human_review\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\nspawn_notification: true\n---\n## Result\nStatus: failed\nMessage: previous run\n",
+					)
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "ai_review", // stale — agent did not observe escalation
+						},
+						Content: lib.TaskContent(
+							"## Result\nStatus: failed\nMessage: gh auth failed\n",
+						),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					// cap enforcement must survive the inherited spawn_notification
+					Expect(s).To(ContainSubstring("phase: human_review"))
+					Expect(s).NotTo(ContainSubstring("phase: ai_review"))
+					// trigger counts preserved
+					Expect(s).To(ContainSubstring("trigger_count: 3"))
+					Expect(s).To(ContainSubstring("max_triggers: 3"))
+					// spawn_notification consumed (deleted) by the branch after cap enforcement
+					Expect(s).NotTo(ContainSubstring("spawn_notification"))
+					// escalation section present exactly once
+					Expect(strings.Count(s, "## Trigger Cap Escalation")).To(Equal(1))
+					// agent's fresh result content is present
+					Expect(s).To(ContainSubstring("Status: failed"))
+					Expect(s).To(ContainSubstring("gh auth failed"))
+				},
+			)
+
+			It(
 				"does not append duplicate Retry Escalation section on repeated writes at retry cap",
 				func() {
 					existingBody := "\n## Retry Escalation\n\n- **Timestamp:** 2026-04-18T11:00:00Z\n- **Attempts:** 3\n- **Assignee:** claude\n- **Last error:** see agent output above\n"
