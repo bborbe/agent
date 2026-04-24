@@ -68,6 +68,32 @@ func (f TaskFrontmatter) MaxRetries() int {
 	}
 }
 
+// TriggerCount returns the number of spawn-trigger events that have fired for this task.
+// Returns 0 if the field is absent.
+func (f TaskFrontmatter) TriggerCount() int {
+	switch v := f["trigger_count"].(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	default:
+		return 0
+	}
+}
+
+// MaxTriggers returns the maximum number of spawn-trigger events allowed for this task.
+// Returns 3 if the field is absent, matching the default for max_retries.
+func (f TaskFrontmatter) MaxTriggers() int {
+	switch v := f["max_triggers"].(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	default:
+		return 3
+	}
+}
+
 // SpawnNotification returns true when this result is a job-spawn tracking update
 // rather than an agent outcome. The controller skips the retry counter for these.
 func (f TaskFrontmatter) SpawnNotification() bool {

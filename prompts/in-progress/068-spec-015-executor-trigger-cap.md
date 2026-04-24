@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [015-atomic-frontmatter-increment-and-trigger-cap]
 created: "2026-04-24T07:42:14Z"
+queued: "2026-04-24T08:05:26Z"
 branch: dark-factory/atomic-frontmatter-increment-and-trigger-cap
 ---
 

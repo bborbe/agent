@@ -170,6 +170,36 @@ var _ = Describe("TaskFrontmatter", func() {
 		)
 	})
 
+	Describe("TriggerCount", func() {
+		It("returns 0 when field is absent", func() {
+			fm := lib.TaskFrontmatter{}
+			Expect(fm.TriggerCount()).To(Equal(0))
+		})
+		It("returns the value when set as int", func() {
+			fm := lib.TaskFrontmatter{"trigger_count": 2}
+			Expect(fm.TriggerCount()).To(Equal(2))
+		})
+		It("returns the value when set as float64 (JSON default)", func() {
+			fm := lib.TaskFrontmatter{"trigger_count": float64(5)}
+			Expect(fm.TriggerCount()).To(Equal(5))
+		})
+	})
+
+	Describe("MaxTriggers", func() {
+		It("returns 3 when field is absent", func() {
+			fm := lib.TaskFrontmatter{}
+			Expect(fm.MaxTriggers()).To(Equal(3))
+		})
+		It("returns the value when set as int", func() {
+			fm := lib.TaskFrontmatter{"max_triggers": 10}
+			Expect(fm.MaxTriggers()).To(Equal(10))
+		})
+		It("returns the value when set as float64", func() {
+			fm := lib.TaskFrontmatter{"max_triggers": float64(7)}
+			Expect(fm.MaxTriggers()).To(Equal(7))
+		})
+	})
+
 	Describe("SpawnNotification", func() {
 		It("returns false when key is absent", func() {
 			fm := lib.TaskFrontmatter{}

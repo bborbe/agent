@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-04-23T21:07:10Z"
 generating: "2026-04-23T21:07:19Z"
 prompted: "2026-04-23T21:13:17Z"
 verifying: "2026-04-24T07:34:41Z"
+completed: "2026-04-24T08:06:02Z"
 branch: dark-factory/configurable-task-triggers
 ---
 
