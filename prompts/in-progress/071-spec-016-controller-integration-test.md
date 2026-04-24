@@ -1,8 +1,12 @@
 ---
-status: approved
+status: committing
 spec: [016-partial-frontmatter-publishers]
+summary: Added task_frontmatter_sequence_test.go with 3 integration tests (Tests A, B, C) proving UpdateFrontmatterCommand partial-merge semantics preserve trigger_count across spawn-notification and failure update sequences
+container: agent-071-spec-016-controller-integration-test
+dark-factory-version: v0.132.0
 created: "2026-04-24T10:00:00Z"
 queued: "2026-04-24T10:06:18Z"
+started: "2026-04-24T10:13:48Z"
 branch: dark-factory/partial-frontmatter-publishers
 ---
 
