@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: 'Replaced all agent-initiated phase:ai_review writes with phase:human_review, added ## Failure body section for failed status in fallbackContentGenerator, added buildFailureSection helper, added NewKafkaResultDelivererWithSender constructor, and added KafkaResultDeliverer tests verifying human_review for failed/needs_input results.'
 container: agent-077-route-agent-failures-to-human-review
 dark-factory-version: v0.132.0
 created: "2026-04-24T13:00:00Z"
 queued: "2026-04-24T12:57:37Z"
 started: "2026-04-24T12:59:17Z"
+completed: "2026-04-24T13:08:28Z"
 ---
 
 <summary>
