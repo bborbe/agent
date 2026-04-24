@@ -7,10 +7,15 @@ package delivery_test
 import (
 	"context"
 	"os"
+	"time"
 
+	cqrsmocks "github.com/bborbe/cqrs/mocks"
+	libtime "github.com/bborbe/time"
+	timemocks "github.com/bborbe/time/mocks"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	agentlib "github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/lib/delivery"
 	libmocks "github.com/bborbe/agent/lib/mocks"
 )
@@ -86,5 +91,97 @@ var _ = Describe("FileResultDeliverer", func() {
 			delivery.AgentResultInfo{Status: delivery.AgentStatusDone},
 		)
 		Expect(err).To(HaveOccurred())
+	})
+})
+
+var _ = Describe("KafkaResultDeliverer", func() {
+	var (
+		ctx             context.Context
+		sender          *cqrsmocks.CDBCommandObjectSender
+		clock           *timemocks.CurrentDateTimeGetter
+		generator       *libmocks.AgentContentGenerator
+		deliverer       delivery.ResultDeliverer
+		taskID          agentlib.TaskIdentifier
+		originalContent string
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		sender = &cqrsmocks.CDBCommandObjectSender{}
+		sender.SendCommandObjectReturns(nil)
+		clock = &timemocks.CurrentDateTimeGetter{}
+		clock.NowReturns(libtime.DateTime(time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)))
+		generator = &libmocks.AgentContentGenerator{}
+		taskID = agentlib.TaskIdentifier("task-abc-123")
+		originalContent = "---\ntitle: My Task\nstatus: in_progress\n---\n\nBody.\n"
+	})
+
+	JustBeforeEach(func() {
+		deliverer = delivery.NewKafkaResultDelivererWithSender(
+			sender,
+			taskID,
+			originalContent,
+			generator,
+			clock,
+		)
+	})
+
+	It("publishes done result with phase=done", func() {
+		generator.GenerateReturns(
+			"---\nstatus: completed\nphase: done\n---\n\nBody.\n\n## Result\n\nok\n",
+			nil,
+		)
+		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
+			Status: delivery.AgentStatusDone,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
+		_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+		frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+		Expect(ok).To(BeTrue())
+		fm, ok := frontmatter.(map[string]interface{})
+		Expect(ok).To(BeTrue())
+		Expect(fm["phase"]).To(Equal("done"))
+		Expect(fm["status"]).To(Equal("completed"))
+	})
+
+	It("publishes failed result with phase=human_review", func() {
+		generator.GenerateReturns(
+			"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
+			nil,
+		)
+		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
+			Status:  delivery.AgentStatusFailed,
+			Message: "task runner failed: timeout",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
+		_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+		frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+		Expect(ok).To(BeTrue())
+		fm, ok := frontmatter.(map[string]interface{})
+		Expect(ok).To(BeTrue())
+		Expect(fm["phase"]).To(Equal("human_review"))
+		Expect(fm["status"]).To(Equal("in_progress"))
+	})
+
+	It("publishes needs_input result with phase=human_review", func() {
+		generator.GenerateReturns(
+			"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n\n## Result\n\nneeds more info\n",
+			nil,
+		)
+		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
+			Status:  delivery.AgentStatusNeedsInput,
+			Message: "no date range in task",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
+		_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+		frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+		Expect(ok).To(BeTrue())
+		fm, ok := frontmatter.(map[string]interface{})
+		Expect(ok).To(BeTrue())
+		Expect(fm["phase"]).To(Equal("human_review"))
+		Expect(fm["status"]).To(Equal("in_progress"))
 	})
 })

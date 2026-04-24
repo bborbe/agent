@@ -30,6 +30,10 @@ func (g *fallbackContentGenerator) Generate(
 	result AgentResultInfo,
 ) (string, error) {
 	updated := applyStatusFrontmatter(originalContent, result.Status)
+	if result.Status == AgentStatusFailed {
+		section := buildFailureSection(result)
+		return ReplaceOrAppendSection(updated, "## Failure", section), nil
+	}
 	section := result.Output
 	if section == "" {
 		section = buildMinimalResultSection(result)
@@ -48,11 +52,30 @@ func applyStatusFrontmatter(content string, status AgentStatus) string {
 		// Route straight to human_review — retrying a semantically-wrong task wastes compute.
 		content = SetFrontmatterField(content, "status", "in_progress")
 		content = SetFrontmatterField(content, "phase", "human_review")
-	default: // failed and any other status — infra failure, eligible for retry
+	default:
+		// Agent returned status: failed (or unknown). Route to human_review immediately —
+		// retry is the controller's job via trigger_count / max_triggers, not a phase loop.
+		// The ## Failure body section carries the reason for the human reviewer.
 		content = SetFrontmatterField(content, "status", "in_progress")
-		content = SetFrontmatterField(content, "phase", "ai_review")
+		content = SetFrontmatterField(content, "phase", "human_review")
 	}
 	return content
+}
+
+// buildFailureSection renders a `## Failure` block with a human-readable
+// reason extracted from the agent's result. Used when the agent returns
+// status: failed — symmetric with PublishFailure's K8s-crash failure path.
+func buildFailureSection(result AgentResultInfo) string {
+	var b strings.Builder
+	b.WriteString("## Failure\n\n")
+	if result.Message != "" {
+		b.WriteString("- **Reason:** ")
+		b.WriteString(result.Message)
+		b.WriteString("\n")
+	} else {
+		b.WriteString("- **Reason:** agent returned status: failed (no message provided)\n")
+	}
+	return b.String()
 }
 
 // buildMinimalResultSection renders a fallback ## Result block when AgentResultInfo.Output is empty.

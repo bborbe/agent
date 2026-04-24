@@ -80,16 +80,30 @@ func NewKafkaResultDeliverer(
 	generator ContentGenerator,
 	currentDateTime libtime.CurrentDateTimeGetter,
 ) ResultDeliverer {
+	return NewKafkaResultDelivererWithSender(
+		cdb.NewCommandObjectSender(syncProducer, branch, log.DefaultSamplerFactory),
+		taskID,
+		originalContent,
+		generator,
+		currentDateTime,
+	)
+}
+
+// NewKafkaResultDelivererWithSender creates a ResultDeliverer that publishes task updates via the given sender.
+// This constructor is primarily useful for testing.
+func NewKafkaResultDelivererWithSender(
+	commandObjectSender cdb.CommandObjectSender,
+	taskID agentlib.TaskIdentifier,
+	originalContent string,
+	generator ContentGenerator,
+	currentDateTime libtime.CurrentDateTimeGetter,
+) ResultDeliverer {
 	return &kafkaResultDeliverer{
-		commandObjectSender: cdb.NewCommandObjectSender(
-			syncProducer,
-			branch,
-			log.DefaultSamplerFactory,
-		),
-		taskID:          taskID,
-		originalContent: originalContent,
-		generator:       generator,
-		currentDateTime: currentDateTime,
+		commandObjectSender: commandObjectSender,
+		taskID:              taskID,
+		originalContent:     originalContent,
+		generator:           generator,
+		currentDateTime:     currentDateTime,
 	}
 }
 
@@ -114,18 +128,20 @@ func (d *kafkaResultDeliverer) DeliverResult(ctx context.Context, result AgentRe
 		frontmatter[k] = v
 	}
 
-	// Always set status/phase from result.Status directly.
-	// The content generator may not have frontmatter to update
-	// (TASK_CONTENT is body-only), so we set it explicitly here.
-	// Failed tasks keep phase=ai_review so the controller's retry
-	// counter can manage retries before escalating to human_review.
+	// Set status/phase from result.Status directly. The content generator may not
+	// have frontmatter to update (TASK_CONTENT is body-only), so we set it explicitly.
+	// Failed tasks route to human_review — retry is the controller's responsibility
+	// via trigger_count / max_triggers, not a phase loop.
 	switch result.Status {
 	case AgentStatusDone:
 		frontmatter["status"] = "completed"
 		frontmatter["phase"] = "done"
+	case AgentStatusNeedsInput:
+		frontmatter["status"] = "in_progress"
+		frontmatter["phase"] = "human_review"
 	default:
 		frontmatter["status"] = "in_progress"
-		frontmatter["phase"] = "ai_review"
+		frontmatter["phase"] = "human_review"
 	}
 
 	now := d.currentDateTime.Now()

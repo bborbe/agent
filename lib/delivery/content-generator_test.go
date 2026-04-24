@@ -39,18 +39,39 @@ var _ = Describe("FallbackContentGenerator", func() {
 			Expect(generated).To(ContainSubstring("Strategy: foo"))
 		})
 
-		It("sets status=in_progress and phase=ai_review for failed result", func() {
-			original := "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Task\n\nRun a backtest.\n"
-			result := delivery.AgentResultInfo{
-				Status:  delivery.AgentStatusFailed,
-				Message: "timeout expired",
-			}
-			generated, err := generator.Generate(ctx, original, result)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(generated).To(ContainSubstring("status: in_progress"))
-			Expect(generated).To(ContainSubstring("phase: ai_review"))
-			Expect(generated).To(ContainSubstring("timeout expired"))
-		})
+		It(
+			"sets status=in_progress and phase=human_review for failed result with ## Failure section",
+			func() {
+				original := "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Task\n\nRun a backtest.\n"
+				generated, err := generator.Generate(ctx, original, delivery.AgentResultInfo{
+					Status:  delivery.AgentStatusFailed,
+					Message: "claude CLI failed: exit status 1",
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(generated).To(ContainSubstring("status: in_progress"))
+				Expect(generated).To(ContainSubstring("phase: human_review"))
+				Expect(generated).NotTo(ContainSubstring("phase: ai_review"))
+				Expect(generated).To(ContainSubstring("## Failure"))
+				Expect(generated).To(ContainSubstring("claude CLI failed: exit status 1"))
+				Expect(generated).NotTo(ContainSubstring("## Result"))
+			},
+		)
+
+		It(
+			"keeps status=in_progress, phase=human_review, ## Result section for needs_input",
+			func() {
+				original := "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Task\n\nRun a backtest.\n"
+				generated, err := generator.Generate(ctx, original, delivery.AgentResultInfo{
+					Status:  delivery.AgentStatusNeedsInput,
+					Message: "no date range in task",
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(generated).To(ContainSubstring("status: in_progress"))
+				Expect(generated).To(ContainSubstring("phase: human_review"))
+				Expect(generated).To(ContainSubstring("## Result"))
+				Expect(generated).NotTo(ContainSubstring("## Failure"))
+			},
+		)
 
 		It("sets status=in_progress and phase=human_review for needs_input result", func() {
 			original := "---\ntitle: My Task\n---\n\n## Task\n\nRun a backtest.\n"
@@ -148,20 +169,23 @@ var _ = Describe("FallbackContentGenerator", func() {
 	})
 
 	Context("with empty Output (fallback minimal section)", func() {
-		It("synthesises a ## Result block from Status+Message when Output is empty", func() {
-			original := "---\ntitle: My Task\n---\n"
-			result := delivery.AgentResultInfo{
-				Status:  delivery.AgentStatusFailed,
-				Output:  "",
-				Message: "container OOMKilled",
-			}
-			generated, err := generator.Generate(ctx, original, result)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(generated).To(ContainSubstring("## Result"))
-			Expect(generated).To(ContainSubstring("**Status:** failed"))
-			Expect(generated).To(ContainSubstring("**Message:** container OOMKilled"))
-			Expect(strings.Count(generated, "## Result")).To(Equal(1))
-		})
+		It(
+			"synthesises a ## Failure block from Message when Output is empty for failed status",
+			func() {
+				original := "---\ntitle: My Task\n---\n"
+				result := delivery.AgentResultInfo{
+					Status:  delivery.AgentStatusFailed,
+					Output:  "",
+					Message: "container OOMKilled",
+				}
+				generated, err := generator.Generate(ctx, original, result)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(generated).To(ContainSubstring("## Failure"))
+				Expect(generated).To(ContainSubstring("container OOMKilled"))
+				Expect(generated).NotTo(ContainSubstring("## Result"))
+				Expect(strings.Count(generated, "## Failure")).To(Equal(1))
+			},
+		)
 
 		It("omits **Message:** when both Output and Message are empty", func() {
 			original := "---\ntitle: My Task\n---\n"

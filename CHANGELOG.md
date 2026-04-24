@@ -8,6 +8,11 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.53.1
+
+- fix(lib): agent-returned `status: failed` now routes to `phase: human_review` (was: `ai_review`) and writes a dedicated `## Failure` body section with the failure reason — symmetric with `PublishFailure` behavior for K8s Job crashes
+- fix(lib): `kafkaResultDeliverer.DeliverResult` no longer emits `phase: ai_review` on failure; `needs_input` and `failed` both route to `human_review` (retries are the controller's job via `trigger_count`)
+
 ## v0.53.0
 
 - feat: Inject BUILD_GIT_VERSION (from `git describe --tags --always --dirty`) into all service images and surface it in startup logs of task/controller and task/executor.
