@@ -160,7 +160,23 @@ func (r *resultWriter) applyRetryCounter(merged lib.TaskFrontmatter, body string
 	retryCount := merged.RetryCount()
 	if retryCount >= merged.MaxRetries() {
 		merged["phase"] = "human_review"
-		body += r.escalationSection(retryCount, merged)
+		if !containsEscalationSection(body, "## Retry Escalation") {
+			body += r.escalationSection(retryCount, merged)
+		}
+	}
+	// trigger_count cap enforcement — derived invariant from spec 015.
+	// Any write that leaves the file with trigger_count >= max_triggers
+	// MUST land in phase: human_review. Protects against stale-payload
+	// writers (agent result publish, legacy integrations) revoking the
+	// increment handler's escalation. The `triggerCount > 0` guard prevents
+	// degenerate escalation of brand-new tasks where trigger_count is absent
+	// (parsed as 0) and max_triggers defaults to a small positive integer.
+	triggerCount := merged.TriggerCount()
+	if triggerCount > 0 && triggerCount >= merged.MaxTriggers() {
+		merged["phase"] = "human_review"
+		if !containsEscalationSection(body, "## Trigger Cap Escalation") {
+			body += r.triggerEscalationSection(triggerCount, merged)
+		}
 	}
 	return body
 }
@@ -173,6 +189,29 @@ func (r *resultWriter) escalationSection(retryCount int, merged lib.TaskFrontmat
 		retryCount,
 		string(merged.Assignee()),
 	)
+}
+
+func (r *resultWriter) triggerEscalationSection(
+	triggerCount int,
+	merged lib.TaskFrontmatter,
+) string {
+	ts := r.currentDateTime.Now().UTC().Format(time.RFC3339)
+	return fmt.Sprintf(
+		"\n## Trigger Cap Escalation\n\n- **Timestamp:** %s\n- **Trigger count:** %d\n- **Max triggers:** %d\n- **Assignee:** %s\n- **Last agent output:** see `## Result` above\n",
+		ts,
+		triggerCount,
+		merged.MaxTriggers(),
+		string(merged.Assignee()),
+	)
+}
+
+// containsEscalationSection reports whether body already has the given
+// escalation header on its own line. Used to prevent duplicate escalation
+// sections when WriteResult runs multiple times on a task that is already
+// at cap (e.g. agent publishes another result while the task sits in
+// phase: human_review).
+func containsEscalationSection(body, header string) bool {
+	return strings.Contains(body, "\n"+header+"\n")
 }
 
 // mergeFrontmatter returns a new frontmatter map with all keys from existing,

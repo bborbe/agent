@@ -710,6 +710,146 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 			)
 		})
 
+		Context("trigger_count cap escalation", func() {
+			It("does not escalate when trigger_count is below max_triggers", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\ntrigger_count: 2\nmax_triggers: 3\nassignee: claude\n---\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "ai_review",
+						"trigger_count":   2,
+						"max_triggers":    3,
+					},
+					Content: lib.TaskContent("## Result\nStatus: failed\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("phase: ai_review"))
+				Expect(s).NotTo(ContainSubstring("## Trigger Cap Escalation"))
+			})
+
+			It(
+				"keeps phase: human_review sticky when incoming payload carries stale phase: ai_review at cap",
+				func() {
+					// Encodes the live dev bug: task ba1bad61 — IncrementFrontmatterExecutor
+					// escalated correctly, then agent's stale result-publish clobbered it.
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: human_review\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\n---\n",
+					)
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "ai_review", // stale payload from agent
+							"trigger_count":   3,
+							"max_triggers":    3,
+							"assignee":        "claude",
+						},
+						Content: lib.TaskContent(
+							"## Result\nStatus: failed\nMessage: gh auth failed\n",
+						),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					Expect(s).To(ContainSubstring("phase: human_review"))
+					Expect(s).NotTo(ContainSubstring("phase: ai_review"))
+					Expect(s).To(ContainSubstring("## Trigger Cap Escalation"))
+					Expect(strings.Count(s, "## Trigger Cap Escalation")).To(Equal(1))
+					Expect(s).To(ContainSubstring("Status: failed"))
+					Expect(s).To(ContainSubstring("gh auth failed"))
+				},
+			)
+
+			It(
+				"does not append duplicate Trigger Cap Escalation section on repeated writes at cap",
+				func() {
+					existingBody := "\n## Trigger Cap Escalation\n\n- **Timestamp:** 2026-04-18T11:00:00Z\n- **Trigger count:** 3\n- **Max triggers:** 3\n- **Assignee:** claude\n- **Last agent output:** see `## Result` above\n"
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: human_review\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\n---\n"+existingBody,
+					)
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "ai_review",
+							"trigger_count":   3,
+							"max_triggers":    3,
+							"assignee":        "claude",
+						},
+						Content: lib.TaskContent("## Result\nStatus: failed\n" + existingBody),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					Expect(strings.Count(s, "## Trigger Cap Escalation")).To(Equal(1))
+					Expect(s).To(ContainSubstring("phase: human_review"))
+				},
+			)
+
+			It(
+				"does not escalate when trigger_count is zero (defensive guard for new tasks)",
+				func() {
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\nmax_triggers: 3\nassignee: claude\n---\n",
+					)
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "ai_review",
+							"max_triggers":    3,
+						},
+						Content: lib.TaskContent("## Result\nStatus: failed\n"),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					Expect(s).To(ContainSubstring("phase: ai_review"))
+					Expect(s).NotTo(ContainSubstring("## Trigger Cap Escalation"))
+				},
+			)
+
+			It(
+				"does not append duplicate Retry Escalation section on repeated writes at retry cap",
+				func() {
+					existingBody := "\n## Retry Escalation\n\n- **Timestamp:** 2026-04-18T11:00:00Z\n- **Attempts:** 3\n- **Assignee:** claude\n- **Last error:** see agent output above\n"
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: human_review\nretry_count: 3\nassignee: claude\n---\n"+existingBody,
+					)
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "ai_review",
+							"retry_count":     3,
+							"assignee":        "claude",
+						},
+						Content: lib.TaskContent("## Result\nStatus: failed\n" + existingBody),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					Expect(strings.Count(s, "## Retry Escalation")).To(Equal(1))
+					Expect(s).To(ContainSubstring("phase: human_review"))
+				},
+			)
+		})
+
 		Context("atomic write and push error", func() {
 			It("returns error when AtomicWriteAndCommitPush fails", func() {
 				writeTaskFile(
