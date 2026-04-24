@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [016-partial-frontmatter-publishers]
 summary: Migrated PublishSpawnNotification and PublishFailure from full-frontmatter rewrites to UpdateFrontmatterCommand (partial keys only), removed PublishRetryCountBump from interface and implementation along with the private publish() helper, regenerated the counterfeiter mock, updated tests with capturing producer and exact key-set assertions, updated docs and CHANGELOG.
 container: agent-070-spec-016-executor-publisher-migration
@@ -7,6 +7,7 @@ dark-factory-version: v0.132.0
 created: "2026-04-24T10:00:00Z"
 queued: "2026-04-24T10:06:18Z"
 started: "2026-04-24T10:06:19Z"
+completed: "2026-04-24T10:13:47Z"
 branch: dark-factory/partial-frontmatter-publishers
 ---
 
