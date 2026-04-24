@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-04-24T07:35:27Z"
 generating: "2026-04-24T07:37:12Z"
 prompted: "2026-04-24T07:46:33Z"
 verifying: "2026-04-24T08:59:21Z"
+completed: "2026-04-24T11:15:10Z"
 branch: dark-factory/atomic-frontmatter-increment-and-trigger-cap
 ---
 
@@ -151,3 +152,19 @@ Not doing this is reasonable if pr-reviewer-style idempotent failures are believ
 - Obsidian task: `~/Documents/Obsidian/Personal/24 Tasks/Fix agent-task-executor indefinite retry loop and result_writer idempotent commit failure.md`
 - Evidence task: `~/Documents/Obsidian/OpenClaw/tasks/e2e-test-pr-reviewer-gh-auth-v12-20260423.md`
 - pr-reviewer incident task id: `edef6449-dea1-4df1-b0d2-96a4789ba32c` (dev)
+
+## Completion Notes (2026-04-24)
+
+Shipped together with spec 016 (`partial-frontmatter-publishers.md`) which was required to make the atomic increment actually stick on disk. Live dev evidence for task `ba1bad61-5ad4-48e7-ad05-e15ba8dfbfb9`:
+
+- Controller: `frontmatter_commands_total{operation="increment-frontmatter", outcome="success"} = 3`, `operation="update-frontmatter", outcome="success"} = 3`, zero errors
+- Executor: `task_events_total{result="spawned"} = 3`, `result="skipped_trigger_cap"} = 1`, zero errors
+- Task file: `trigger_count: 3`, `max_triggers: 3`, no spawns after the cap-skip
+
+**Known limitation — not resolved in 015, tracked separately:**
+
+Desired Behavior #7 requires the controller to atomically set `phase: human_review` on cap-reach. The controller DOES set it (verified by code inspection + the atomic write reaching git). However the agent's own result publish still goes through `TaskResultExecutor` with a full-frontmatter overwrite, which revives `phase: ai_review` from the agent's stale in-memory snapshot. Operator-visible escalation on disk therefore flaps until the agent pipeline migrates to partial-content commands.
+
+The cap-bounded spawn behaviour (the spec's actual goal) is unaffected: the executor's `trigger_count >= max_triggers` filter rejects further spawns regardless of what `phase` reads on disk.
+
+Follow-up: `specs/ideas/atomic-content-edit-commands.md` migrates the agent result path to `ReplaceSection`-style partial commands, which will make the `phase: human_review` escalation sticky on disk. Approve that spec to close the remaining visibility gap.
