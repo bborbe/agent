@@ -1,8 +1,11 @@
 ---
+status: generating
 tags:
-  - dark-factory
-  - spec
-status: draft
+    - dark-factory
+    - spec
+approved: "2026-04-24T07:35:27Z"
+generating: "2026-04-24T07:37:12Z"
+branch: dark-factory/atomic-frontmatter-increment-and-trigger-cap
 ---
 
 ## Summary
@@ -42,7 +45,7 @@ The system has a spawn cap that is robust against all three possible root causes
 - NOT fixing `gitclient.commitAndPush`'s "nothing to commit" error as the primary mechanism. Atomic increment makes the counter write never idempotent, so the symptom goes away at the counter-write site. Idempotent agent-result writes may still produce benign "nothing to commit" errors — a separate follow-up spec if operational noise justifies it.
 - NOT introducing BoltDB or any local counter state in the executor. State stays in the vault file, event-driven through Kafka → controller → vault.
 - NOT addressing the sync_loop republish amplification (≈3 Kafka events per cycle for one task). Orthogonal concern, tracked separately if it matters after this fix.
-- NOT removing `retry_count` in this spec (see open question 3 for migration approach).
+- NOT removing `retry_count` in this spec (see Design Decision 3 for the silent-deprecation migration).
 - NOT changing the Kafka topic schema in a breaking way. New command kinds piggyback on the existing `agent-task-v1-request` topic, matching the pattern established by spec 011.
 
 ## Desired Behavior
@@ -72,12 +75,12 @@ The system has a spawn cap that is robust against all three possible root causes
 | Trigger | Expected behavior | Recovery |
 |---|---|---|
 | Executor publishes IncrementFrontmatter, Kafka broker unreachable | Executor logs error, does NOT spawn Job. Next event cycle retries. | No stuck state; task stays in executor allowlist until publish succeeds. |
-| Publish OK, K8s create Job fails | Counter bumped by 1, no Job runs. Next cycle may bump again. | Counter reaches `max_triggers` → task leaves executor allowlist (per question 4). Correct signal. |
+| Publish OK, K8s create Job fails | Counter bumped by 1, no Job runs. Next cycle may bump again. | Counter reaches `max_triggers` → controller escalates `phase: human_review` → executor phase-allowlist filter rejects. Correct signal. |
 | Two executor events for same task arrive close together | Existing `IsJobActive` idempotency prevents duplicate spawn. Only one increment + spawn pair runs. | Same as today. |
 | Agent produces byte-identical failing output every cycle (reproducer of original bug) | Counter still increments (atomic, never idempotent). After `max_triggers` cycles, executor skips further spawns. | Bounded loop; no manual intervention needed. |
 | Controller crashes between applying increment and publishing ACK/event | On restart, controller re-scans vault, sees bumped `trigger_count`, re-emits event. Executor sees no active Job, re-enters spawn path, checks cap. | Max over-count = 1 per crash. Acceptable. |
 | Two concurrent IncrementFrontmatter commands for same task | Gitclient mutex serialises them. Both increments apply. | Monotonic counter; no lost increment. |
-| Legacy task with `retry_count` set but no `trigger_count` | Treated as `trigger_count = 0`. First spawn bumps to 1. | Migration behaviour per question 3. |
+| Legacy task with `retry_count` set but no `trigger_count` | Treated as `trigger_count = 0`. First spawn bumps to 1. | Legacy `retry_count` stays readable in frontmatter during silent-deprecation release (Design Decision 3); removed in the following release. |
 | Human edits task file to `trigger_count: 999` | Executor skips spawn (cap reached). Task stays where the human parked it. | Same escape hatch as today's manual edit. |
 
 ## Security / Abuse Cases
