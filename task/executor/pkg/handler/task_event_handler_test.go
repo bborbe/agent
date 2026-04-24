@@ -19,6 +19,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	lib "github.com/bborbe/agent/lib"
+	agentv1 "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de/v1"
 	"github.com/bborbe/agent/task/executor/mocks"
 	pkg "github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/handler"
@@ -482,6 +483,212 @@ var _ = Describe("TaskEventHandler", func() {
 			err := localHandler.ConsumeMessage(ctx, buildMsg(task))
 			Expect(err).To(BeNil())
 			Expect(localSpawner.SpawnJobCallCount()).To(Equal(0))
+		})
+
+		It("spawns job when Trigger == nil (default phases and statuses apply)", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
+			fakeResolver.ResolveReturns(
+				pkg.AgentConfiguration{Assignee: "claude", Image: "my-image:latest", Trigger: nil},
+				nil,
+			)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("tid-trigger-1"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseInProgress),
+					"assignee": "claude",
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+		})
+
+		It("spawns job when Config has Trigger.Phases=[todo] and event phase=todo", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
+			fakeResolver.ResolveReturns(
+				pkg.AgentConfiguration{
+					Assignee: "claude",
+					Image:    "my-image:latest",
+					Trigger:  &agentv1.Trigger{Phases: domain.TaskPhases{domain.TaskPhaseTodo}},
+				},
+				nil,
+			)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("tid-trigger-2"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseTodo),
+					"assignee": "claude",
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+		})
+
+		It(
+			"spawns job when Config has Trigger.Statuses=[completed] and event status=completed",
+			func() {
+				fakeSpawner.IsJobActiveReturns(false, nil)
+				fakeResolver.ResolveReturns(
+					pkg.AgentConfiguration{
+						Assignee: "claude",
+						Image:    "my-image:latest",
+						Trigger: &agentv1.Trigger{
+							Statuses: domain.TaskStatuses{domain.TaskStatusCompleted},
+						},
+					},
+					nil,
+				)
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("tid-trigger-3"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":   "completed",
+						"phase":    string(domain.TaskPhaseInProgress),
+						"assignee": "claude",
+					},
+				}
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+			},
+		)
+
+		It(
+			"spawns job when combined trigger matches event (Phases=[done], Statuses=[completed])",
+			func() {
+				fakeSpawner.IsJobActiveReturns(false, nil)
+				fakeResolver.ResolveReturns(
+					pkg.AgentConfiguration{
+						Assignee: "claude",
+						Image:    "my-image:latest",
+						Trigger: &agentv1.Trigger{
+							Phases:   domain.TaskPhases{domain.TaskPhaseDone},
+							Statuses: domain.TaskStatuses{domain.TaskStatusCompleted},
+						},
+					},
+					nil,
+				)
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("tid-trigger-4a"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":   "completed",
+						"phase":    string(domain.TaskPhaseDone),
+						"assignee": "claude",
+					},
+				}
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+			},
+		)
+
+		It(
+			"does not spawn when combined trigger does not match event (non-matching event)",
+			func() {
+				fakeResolver.ResolveReturns(
+					pkg.AgentConfiguration{
+						Assignee: "claude",
+						Image:    "my-image:latest",
+						Trigger: &agentv1.Trigger{
+							Phases:   domain.TaskPhases{domain.TaskPhaseDone},
+							Statuses: domain.TaskStatuses{domain.TaskStatusCompleted},
+						},
+					},
+					nil,
+				)
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("tid-trigger-4b"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":   "in_progress",
+						"phase":    string(domain.TaskPhasePlanning),
+						"assignee": "claude",
+					},
+				}
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+			},
+		)
+
+		It(
+			"increments skipped_status and does not spawn when phase matches but status does not",
+			func() {
+				fakeResolver.ResolveReturns(
+					pkg.AgentConfiguration{
+						Assignee: "claude",
+						Image:    "my-image:latest",
+						Trigger: &agentv1.Trigger{
+							Phases:   domain.TaskPhases{domain.TaskPhaseInProgress},
+							Statuses: domain.TaskStatuses{domain.TaskStatusCompleted},
+						},
+					},
+					nil,
+				)
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("tid-trigger-5"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":   "in_progress",
+						"phase":    string(domain.TaskPhaseInProgress),
+						"assignee": "claude",
+					},
+				}
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+			},
+		)
+
+		It(
+			"increments skipped_phase and does not spawn when status matches but phase does not",
+			func() {
+				fakeResolver.ResolveReturns(
+					pkg.AgentConfiguration{
+						Assignee: "claude",
+						Image:    "my-image:latest",
+						Trigger: &agentv1.Trigger{
+							Phases:   domain.TaskPhases{domain.TaskPhaseDone},
+							Statuses: domain.TaskStatuses{domain.TaskStatusInProgress},
+						},
+					},
+					nil,
+				)
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("tid-trigger-6"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":   "in_progress",
+						"phase":    string(domain.TaskPhaseInProgress),
+						"assignee": "claude",
+					},
+				}
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+			},
+		)
+
+		It("spawns job when Trigger has empty phase and status lists (defaults apply)", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
+			fakeResolver.ResolveReturns(
+				pkg.AgentConfiguration{
+					Assignee: "claude",
+					Image:    "my-image:latest",
+					Trigger:  &agentv1.Trigger{},
+				},
+				nil,
+			)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("tid-trigger-7"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":   "in_progress",
+					"phase":    string(domain.TaskPhaseInProgress),
+					"assignee": "claude",
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
 		})
 	})
 })
