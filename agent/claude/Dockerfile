@@ -1,5 +1,6 @@
 ARG DOCKER_REGISTRY=docker.quant.benjamin-borbe.de:443
 FROM ${DOCKER_REGISTRY}/golang:1.26.2 AS build
+ARG BUILD_GIT_VERSION=dev
 ARG BUILD_GIT_COMMIT=none
 ARG BUILD_DATE=unknown
 COPY . /workspace
@@ -15,14 +16,17 @@ RUN apk --no-cache add ca-certificates curl bash nodejs npm \
  && rm -rf /root/.npm /tmp/*
 
 FROM alpine
+ARG BUILD_GIT_VERSION=dev
 ARG BUILD_GIT_COMMIT=none
 ARG BUILD_DATE=unknown
+LABEL org.opencontainers.image.version="${BUILD_GIT_VERSION}"
 COPY --from=build /main /main
 COPY agent/ /agent/
 ENV HOME=/home/claude
 RUN mkdir -p /home/claude/.claude
 ENV ZONEINFO=/zoneinfo.zip
 COPY --from=build /usr/local/go/lib/time/zoneinfo.zip /
+ENV BUILD_GIT_VERSION=${BUILD_GIT_VERSION}
 ENV BUILD_GIT_COMMIT=${BUILD_GIT_COMMIT}
 ENV BUILD_DATE=${BUILD_DATE}
 ENTRYPOINT ["/main", "-v=2"]

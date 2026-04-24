@@ -19,6 +19,7 @@ require (
 	github.com/bborbe/k8s v1.13.5
 	github.com/bborbe/kafka v1.22.11
 	github.com/bborbe/log v1.6.11
+	github.com/bborbe/metrics v0.5.0
 	github.com/bborbe/run v1.9.17
 	github.com/bborbe/sentry v1.9.14
 	github.com/bborbe/service v1.9.7
@@ -40,7 +41,7 @@ require (
 	github.com/securego/gosec/v2 v2.25.0
 	github.com/segmentio/golines v0.13.0
 	github.com/shoenig/go-modtool v0.7.1
-	golang.org/x/vuln v1.2.0
+	golang.org/x/vuln v1.3.0
 	k8s.io/api v0.35.3
 	k8s.io/apiextensions-apiserver v0.35.3
 	k8s.io/apimachinery v0.35.3
@@ -472,7 +473,7 @@ require (
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/telemetry v0.0.0-20260409153401-be6f6cb8b1fa // indirect
+	golang.org/x/telemetry v0.0.0-20260421165255-392afab6f40e // indirect
 	golang.org/x/term v0.42.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 	golang.org/x/time v0.15.0 // indirect

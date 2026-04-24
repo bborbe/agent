@@ -15,6 +15,7 @@ import (
 	libk8s "github.com/bborbe/k8s"
 	libkafka "github.com/bborbe/kafka"
 	"github.com/bborbe/log"
+	libmetrics "github.com/bborbe/metrics"
 	"github.com/bborbe/run"
 	libsentry "github.com/bborbe/sentry"
 	"github.com/bborbe/service"
@@ -25,7 +26,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
-	agentlib "github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/factory"
 	"github.com/bborbe/agent/task/executor/pkg/handler"
@@ -37,19 +37,21 @@ func main() {
 }
 
 type application struct {
-	SentryDSN      string            `required:"true"  arg:"sentry-dsn"       env:"SENTRY_DSN"       usage:"SentryDSN"                                display:"length"`
-	SentryProxy    string            `required:"false" arg:"sentry-proxy"     env:"SENTRY_PROXY"     usage:"Sentry Proxy"`
-	Listen         string            `required:"true"  arg:"listen"           env:"LISTEN"           usage:"address to listen to"`
-	KafkaBrokers   string            `required:"true"  arg:"kafka-brokers"    env:"KAFKA_BROKERS"    usage:"comma-separated Kafka broker addresses"`
-	Branch         base.Branch       `required:"true"  arg:"branch"           env:"BRANCH"           usage:"Kafka topic prefix branch (develop/live)"`
-	Namespace      libk8s.Namespace  `required:"true"  arg:"namespace"        env:"NAMESPACE"        usage:"K8s namespace to spawn Jobs in"`
-	BuildGitCommit string            `required:"false" arg:"build-git-commit" env:"BUILD_GIT_COMMIT" usage:"Build Git commit hash"                                     default:"none"`
-	BuildDate      *libtime.DateTime `required:"false" arg:"build-date"       env:"BUILD_DATE"       usage:"Build timestamp (RFC3339)"`
+	SentryDSN       string            `required:"true"  arg:"sentry-dsn"        env:"SENTRY_DSN"        usage:"SentryDSN"                                                display:"length"`
+	SentryProxy     string            `required:"false" arg:"sentry-proxy"      env:"SENTRY_PROXY"      usage:"Sentry Proxy"`
+	Listen          string            `required:"true"  arg:"listen"            env:"LISTEN"            usage:"address to listen to"`
+	KafkaBrokers    string            `required:"true"  arg:"kafka-brokers"     env:"KAFKA_BROKERS"     usage:"comma-separated Kafka broker addresses"`
+	Branch          base.Branch       `required:"true"  arg:"branch"            env:"BRANCH"            usage:"Kafka topic prefix branch (develop/live)"`
+	Namespace       libk8s.Namespace  `required:"true"  arg:"namespace"         env:"NAMESPACE"         usage:"K8s namespace to spawn Jobs in"`
+	BuildGitVersion string            `required:"false" arg:"build-git-version" env:"BUILD_GIT_VERSION" usage:"Build Git version (git describe --tags --always --dirty)"                  default:"dev"`
+	BuildGitCommit  string            `required:"false" arg:"build-git-commit"  env:"BUILD_GIT_COMMIT"  usage:"Build Git commit hash"                                                     default:"none"`
+	BuildDate       *libtime.DateTime `required:"false" arg:"build-date"        env:"BUILD_DATE"        usage:"Build timestamp (RFC3339)"`
 }
 
 func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
-	agentlib.NewBuildInfoMetrics().SetBuildInfo(a.BuildDate)
-	glog.V(1).Infof("agent-task-executor started commit=%s", a.BuildGitCommit)
+	libmetrics.NewBuildInfoMetrics().SetBuildInfo(a.BuildGitVersion, a.BuildGitCommit, a.BuildDate)
+	glog.V(1).
+		Infof("agent-task-executor started version=%s commit=%s", a.BuildGitVersion, a.BuildGitCommit)
 
 	kubeConfig, err := rest.InClusterConfig()
 	if err != nil {

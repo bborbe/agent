@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.53.0
+
+- feat: Inject BUILD_GIT_VERSION (from `git describe --tags --always --dirty`) into all service images and surface it in startup logs of task/controller and task/executor.
+
 ## v0.52.7
 
 - fix: reorder `resultWriter.applyRetryCounter` to run `trigger_count` cap escalation BEFORE the `spawn_notification` early return; fixes a live-observed regression of the 072 hotfix where agent result writes that inherited `spawn_notification: true` via `mergeFrontmatter` skipped the cap check and reverted `phase: human_review` to `ai_review` (task `ba1bad61-5ad4-48e7-ad05-e15ba8dfbfb9` on dev, controller v0.52.4); adds a regression-guard unit test

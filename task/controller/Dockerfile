@@ -1,5 +1,6 @@
 ARG DOCKER_REGISTRY=docker.quant.benjamin-borbe.de:443
 FROM ${DOCKER_REGISTRY}/golang:1.26.2 AS build
+ARG BUILD_GIT_VERSION=dev
 ARG BUILD_GIT_COMMIT=none
 ARG BUILD_DATE=unknown
 COPY . /workspace
@@ -15,9 +16,12 @@ RUN apk --no-cache add \
 	openssh-client \
 	tzdata \
 	&& rm -rf /var/cache/apk/*
+ARG BUILD_GIT_VERSION=dev
 ARG BUILD_GIT_COMMIT=none
 ARG BUILD_DATE=unknown
+LABEL org.opencontainers.image.version="${BUILD_GIT_VERSION}"
 COPY --from=build /main /main
+ENV BUILD_GIT_VERSION=${BUILD_GIT_VERSION}
 ENV BUILD_GIT_COMMIT=${BUILD_GIT_COMMIT}
 ENV BUILD_DATE=${BUILD_DATE}
 ENTRYPOINT ["/main"]
