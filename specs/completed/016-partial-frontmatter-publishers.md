@@ -1,11 +1,12 @@
 ---
-status: prompted
+status: completed
 tags:
     - dark-factory
     - spec
 approved: "2026-04-24T09:56:21Z"
 generating: "2026-04-24T09:56:21Z"
 prompted: "2026-04-24T10:01:31Z"
+completed: "2026-04-24T11:20:58Z"
 branch: dark-factory/partial-frontmatter-publishers
 ---
 
