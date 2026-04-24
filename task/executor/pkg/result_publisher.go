@@ -14,7 +14,6 @@ import (
 	libkafka "github.com/bborbe/kafka"
 	"github.com/bborbe/log"
 	libtime "github.com/bborbe/time"
-	"github.com/google/uuid"
 
 	lib "github.com/bborbe/agent/lib"
 )
@@ -24,17 +23,12 @@ import (
 // ResultPublisher publishes agent-task-v1-request commands to Kafka so the
 // controller writes them to the vault task file.
 type ResultPublisher interface {
-	// PublishSpawnNotification publishes current_job and job_started_at without
-	// triggering the controller's retry counter (spawn_notification: true).
+	// PublishSpawnNotification publishes current_job, job_started_at, and
+	// spawn_notification without touching any other frontmatter keys.
 	PublishSpawnNotification(ctx context.Context, task lib.Task, jobName string) error
-	// PublishFailure publishes a synthetic failure result that increments the
-	// controller's retry counter. jobName and reason are appended to the task body.
+	// PublishFailure publishes a partial frontmatter update setting status, phase,
+	// and current_job. Body content is not mutated by this publisher.
 	PublishFailure(ctx context.Context, task lib.Task, jobName string, reason string) error
-	// PublishRetryCountBump increments retry_count by 1 in the task frontmatter and
-	// publishes the update to agent-task-v1-request BEFORE the K8s Job is created.
-	// If this publish fails the caller must NOT spawn the Job.
-	// Deprecated: no longer called by spawnIfNeeded; kept for one release cycle.
-	PublishRetryCountBump(ctx context.Context, task lib.Task) error
 	// PublishIncrementTriggerCount sends an IncrementFrontmatterCommand that atomically
 	// increments trigger_count by 1. Must complete before SpawnJob is called.
 	PublishIncrementTriggerCount(ctx context.Context, task lib.Task) error
@@ -66,15 +60,15 @@ func (p *resultPublisher) PublishSpawnNotification(
 	task lib.Task,
 	jobName string,
 ) error {
-	fm := lib.TaskFrontmatter{}
-	for k, v := range task.Frontmatter {
-		fm[k] = v
+	cmd := lib.UpdateFrontmatterCommand{
+		TaskIdentifier: task.TaskIdentifier,
+		Updates: lib.TaskFrontmatter{
+			"spawn_notification": true,
+			"current_job":        jobName,
+			"job_started_at":     p.currentDateTime.Now().UTC().Format("2006-01-02T15:04:05Z07:00"),
+		},
 	}
-	fm["spawn_notification"] = true
-	fm["current_job"] = jobName
-	fm["job_started_at"] = p.currentDateTime.Now().UTC().Format("2006-01-02T15:04:05Z07:00")
-
-	return p.publish(ctx, task.TaskIdentifier, fm, task.Content)
+	return p.publishRaw(ctx, lib.UpdateFrontmatterCommandOperation, cmd)
 }
 
 func (p *resultPublisher) PublishFailure(
@@ -83,27 +77,15 @@ func (p *resultPublisher) PublishFailure(
 	jobName string,
 	reason string,
 ) error {
-	fm := lib.TaskFrontmatter{}
-	for k, v := range task.Frontmatter {
-		fm[k] = v
+	cmd := lib.UpdateFrontmatterCommand{
+		TaskIdentifier: task.TaskIdentifier,
+		Updates: lib.TaskFrontmatter{
+			"status":      "in_progress",
+			"phase":       "ai_review",
+			"current_job": "",
+		},
 	}
-	fm["status"] = "in_progress"
-	fm["phase"] = "ai_review"
-	fm["current_job"] = ""
-
-	body := string(
-		task.Content,
-	) + "\n\n## Job Failure\n\nJob `" + jobName + "` failed: " + reason + "\n"
-	return p.publish(ctx, task.TaskIdentifier, fm, lib.TaskContent(body))
-}
-
-func (p *resultPublisher) PublishRetryCountBump(ctx context.Context, task lib.Task) error {
-	fm := lib.TaskFrontmatter{}
-	for k, v := range task.Frontmatter {
-		fm[k] = v
-	}
-	fm["retry_count"] = task.Frontmatter.RetryCount() + 1
-	return p.publish(ctx, task.TaskIdentifier, fm, task.Content)
+	return p.publishRaw(ctx, lib.UpdateFrontmatterCommandOperation, cmd)
 }
 
 func (p *resultPublisher) PublishIncrementTriggerCount(ctx context.Context, task lib.Task) error {
@@ -113,26 +95,6 @@ func (p *resultPublisher) PublishIncrementTriggerCount(ctx context.Context, task
 		Delta:          1,
 	}
 	return p.publishRaw(ctx, lib.IncrementFrontmatterCommandOperation, cmd)
-}
-
-func (p *resultPublisher) publish(
-	ctx context.Context,
-	taskID lib.TaskIdentifier,
-	fm lib.TaskFrontmatter,
-	content lib.TaskContent,
-) error {
-	now := p.currentDateTime.Now()
-	t := lib.Task{
-		Object: base.Object[base.Identifier]{
-			Identifier: base.Identifier(uuid.New().String()),
-			Created:    now,
-			Modified:   now,
-		},
-		TaskIdentifier: taskID,
-		Frontmatter:    fm,
-		Content:        content,
-	}
-	return p.publishRaw(ctx, base.UpdateOperation, t)
 }
 
 func (p *resultPublisher) publishRaw(

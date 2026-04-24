@@ -347,7 +347,6 @@ var _ = Describe("TaskEventHandler", func() {
 				Expect(fakeResultPublisher.PublishIncrementTriggerCountCallCount()).To(Equal(1))
 				_, calledTask := fakeResultPublisher.PublishIncrementTriggerCountArgsForCall(0)
 				Expect(string(calledTask.TaskIdentifier)).To(Equal("test-task-uuid-1234"))
-				Expect(fakeResultPublisher.PublishRetryCountBumpCallCount()).To(Equal(0))
 				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
 			},
 		)

@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.52.2
+
+- fix: migrate executor PublishSpawnNotification and PublishFailure from full-frontmatter rewrite to UpdateFrontmatterCommand (partial keys only), eliminating clobber of trigger_count; delete PublishRetryCountBump from ResultPublisher interface and implementation (spec 016, builds on spec 015 atomic primitives)
+
 ## v0.52.1
 
 - fix: rename CommandOperation strings `increment_frontmatter` → `increment-frontmatter` and `update_frontmatter` → `update-frontmatter` so they pass cqrs regex `^[a-z][a-z-]*$`; unblocks trigger_count increment publish; adds regression test enumerating all lib CommandOperation constants against base.CommandOperation.Validate

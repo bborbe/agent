@@ -11,6 +11,7 @@ Related specs:
 - `specs/in-progress/010-failure-vs-needs-input-semantics.md` — `failed` vs `needs_input` split
 - `specs/in-progress/011-retry-counter-spawn-time-semantics.md` — retry_count moved to spawn time
 - `specs/in-progress/015-executor-trigger-cap.md` — trigger_count / max_triggers cap (replaces retry_count bump)
+- `specs/in-progress/016-partial-frontmatter-publishers.md` — migrate executor publishers to UpdateFrontmatterCommand; delete PublishRetryCountBump
 
 ## Terminology
 
@@ -21,7 +22,7 @@ Related specs:
 | **Phase** | Task lifecycle step: `planning` → `in_progress` → (`ai_review` | `done` | `human_review`) |
 | **Trigger counter** | `trigger_count` frontmatter field, incremented atomically by the controller on every spawn-trigger event via `IncrementFrontmatterCommand`. Counts spawn-trigger attempts independent of job outcome. |
 | **Max triggers** | `max_triggers` frontmatter field (default 3). When `trigger_count >= max_triggers`, the executor skips further spawns and the controller escalates phase to `human_review` on the same increment. |
-| **Retry counter** | `retry_count` frontmatter field. Silently deprecated as of spec 015 — still readable in task files but no longer bumped by the executor. Will be removed in the next release. |
+| **Retry counter** | `retry_count` frontmatter field. Removed as of spec 016 — `PublishRetryCountBump` deleted from executor; `retry_count` still readable in existing task files but is no longer written. |
 | **Escalation** | Controller flips phase to `human_review` once `trigger_count >= max_triggers` (spec 015) or on terminal agent outcome (`needs_input`, `done`). |
 
 ## Status Taxonomy
@@ -154,6 +155,17 @@ Claude occasionally emits narrative prose around its final JSON. The result pars
 - **Transient error, retry might help** → `failed` (network timeout, rate limit, database deadlock, OOM before you caught it).
 - **Task content is wrong or impossible** → `needs_input` (required param missing, strategy unknown, zero trades where trades were expected, contradictory dates).
 - **Work completed, even if the answer is "no results"** → `done` *only if* "no results" is a valid answer given the task. If the task implicitly required results, prefer `needs_input` with a question for the human.
+
+## Executor Publisher Command Kinds
+
+Each `ResultPublisher` method publishes a specific command kind on `agent-task-v1-request`.
+Only the listed frontmatter keys are written; all other keys — including `trigger_count` — are never touched by executor-originated publishes.
+
+| Publisher method | Command kind | Frontmatter keys written |
+|---|---|---|
+| `PublishIncrementTriggerCount` | `increment-frontmatter` | `trigger_count` (delta +1) |
+| `PublishSpawnNotification` | `update-frontmatter` | `current_job`, `job_started_at`, `spawn_notification` |
+| `PublishFailure` | `update-frontmatter` | `status`, `phase`, `current_job` |
 
 ## References
 

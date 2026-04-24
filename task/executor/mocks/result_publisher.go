@@ -36,18 +36,6 @@ type FakeResultPublisher struct {
 	publishIncrementTriggerCountReturnsOnCall map[int]struct {
 		result1 error
 	}
-	PublishRetryCountBumpStub        func(context.Context, lib.Task) error
-	publishRetryCountBumpMutex       sync.RWMutex
-	publishRetryCountBumpArgsForCall []struct {
-		arg1 context.Context
-		arg2 lib.Task
-	}
-	publishRetryCountBumpReturns struct {
-		result1 error
-	}
-	publishRetryCountBumpReturnsOnCall map[int]struct {
-		result1 error
-	}
 	PublishSpawnNotificationStub        func(context.Context, lib.Task, string) error
 	publishSpawnNotificationMutex       sync.RWMutex
 	publishSpawnNotificationArgsForCall []struct {
@@ -187,68 +175,6 @@ func (fake *FakeResultPublisher) PublishIncrementTriggerCountReturnsOnCall(i int
 		})
 	}
 	fake.publishIncrementTriggerCountReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeResultPublisher) PublishRetryCountBump(arg1 context.Context, arg2 lib.Task) error {
-	fake.publishRetryCountBumpMutex.Lock()
-	ret, specificReturn := fake.publishRetryCountBumpReturnsOnCall[len(fake.publishRetryCountBumpArgsForCall)]
-	fake.publishRetryCountBumpArgsForCall = append(fake.publishRetryCountBumpArgsForCall, struct {
-		arg1 context.Context
-		arg2 lib.Task
-	}{arg1, arg2})
-	stub := fake.PublishRetryCountBumpStub
-	fakeReturns := fake.publishRetryCountBumpReturns
-	fake.recordInvocation("PublishRetryCountBump", []interface{}{arg1, arg2})
-	fake.publishRetryCountBumpMutex.Unlock()
-	if stub != nil {
-		return stub(arg1, arg2)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeResultPublisher) PublishRetryCountBumpCallCount() int {
-	fake.publishRetryCountBumpMutex.RLock()
-	defer fake.publishRetryCountBumpMutex.RUnlock()
-	return len(fake.publishRetryCountBumpArgsForCall)
-}
-
-func (fake *FakeResultPublisher) PublishRetryCountBumpCalls(stub func(context.Context, lib.Task) error) {
-	fake.publishRetryCountBumpMutex.Lock()
-	defer fake.publishRetryCountBumpMutex.Unlock()
-	fake.PublishRetryCountBumpStub = stub
-}
-
-func (fake *FakeResultPublisher) PublishRetryCountBumpArgsForCall(i int) (context.Context, lib.Task) {
-	fake.publishRetryCountBumpMutex.RLock()
-	defer fake.publishRetryCountBumpMutex.RUnlock()
-	argsForCall := fake.publishRetryCountBumpArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
-}
-
-func (fake *FakeResultPublisher) PublishRetryCountBumpReturns(result1 error) {
-	fake.publishRetryCountBumpMutex.Lock()
-	defer fake.publishRetryCountBumpMutex.Unlock()
-	fake.PublishRetryCountBumpStub = nil
-	fake.publishRetryCountBumpReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeResultPublisher) PublishRetryCountBumpReturnsOnCall(i int, result1 error) {
-	fake.publishRetryCountBumpMutex.Lock()
-	defer fake.publishRetryCountBumpMutex.Unlock()
-	fake.PublishRetryCountBumpStub = nil
-	if fake.publishRetryCountBumpReturnsOnCall == nil {
-		fake.publishRetryCountBumpReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.publishRetryCountBumpReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }
