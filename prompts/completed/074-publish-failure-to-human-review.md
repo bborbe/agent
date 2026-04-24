@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Replaced ai_review with human_review in PublishFailure, added BodySection type to UpdateFrontmatterCommand, wired ReplaceOrAppendSection into the controller executor, and extended tests in both modules — all three make precommit runs exited 0.
 container: agent-074-publish-failure-to-human-review
 dark-factory-version: v0.132.0
 created: "2026-04-24T11:50:00Z"
 queued: "2026-04-24T11:44:56Z"
 started: "2026-04-24T11:52:36Z"
+completed: "2026-04-24T12:00:52Z"
 ---
 
 <summary>
