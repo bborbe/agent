@@ -24,6 +24,18 @@ type FakeResultPublisher struct {
 	publishFailureReturnsOnCall map[int]struct {
 		result1 error
 	}
+	PublishIncrementTriggerCountStub        func(context.Context, lib.Task) error
+	publishIncrementTriggerCountMutex       sync.RWMutex
+	publishIncrementTriggerCountArgsForCall []struct {
+		arg1 context.Context
+		arg2 lib.Task
+	}
+	publishIncrementTriggerCountReturns struct {
+		result1 error
+	}
+	publishIncrementTriggerCountReturnsOnCall map[int]struct {
+		result1 error
+	}
 	PublishRetryCountBumpStub        func(context.Context, lib.Task) error
 	publishRetryCountBumpMutex       sync.RWMutex
 	publishRetryCountBumpArgsForCall []struct {
@@ -113,6 +125,68 @@ func (fake *FakeResultPublisher) PublishFailureReturnsOnCall(i int, result1 erro
 		})
 	}
 	fake.publishFailureReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeResultPublisher) PublishIncrementTriggerCount(arg1 context.Context, arg2 lib.Task) error {
+	fake.publishIncrementTriggerCountMutex.Lock()
+	ret, specificReturn := fake.publishIncrementTriggerCountReturnsOnCall[len(fake.publishIncrementTriggerCountArgsForCall)]
+	fake.publishIncrementTriggerCountArgsForCall = append(fake.publishIncrementTriggerCountArgsForCall, struct {
+		arg1 context.Context
+		arg2 lib.Task
+	}{arg1, arg2})
+	stub := fake.PublishIncrementTriggerCountStub
+	fakeReturns := fake.publishIncrementTriggerCountReturns
+	fake.recordInvocation("PublishIncrementTriggerCount", []interface{}{arg1, arg2})
+	fake.publishIncrementTriggerCountMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeResultPublisher) PublishIncrementTriggerCountCallCount() int {
+	fake.publishIncrementTriggerCountMutex.RLock()
+	defer fake.publishIncrementTriggerCountMutex.RUnlock()
+	return len(fake.publishIncrementTriggerCountArgsForCall)
+}
+
+func (fake *FakeResultPublisher) PublishIncrementTriggerCountCalls(stub func(context.Context, lib.Task) error) {
+	fake.publishIncrementTriggerCountMutex.Lock()
+	defer fake.publishIncrementTriggerCountMutex.Unlock()
+	fake.PublishIncrementTriggerCountStub = stub
+}
+
+func (fake *FakeResultPublisher) PublishIncrementTriggerCountArgsForCall(i int) (context.Context, lib.Task) {
+	fake.publishIncrementTriggerCountMutex.RLock()
+	defer fake.publishIncrementTriggerCountMutex.RUnlock()
+	argsForCall := fake.publishIncrementTriggerCountArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeResultPublisher) PublishIncrementTriggerCountReturns(result1 error) {
+	fake.publishIncrementTriggerCountMutex.Lock()
+	defer fake.publishIncrementTriggerCountMutex.Unlock()
+	fake.PublishIncrementTriggerCountStub = nil
+	fake.publishIncrementTriggerCountReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeResultPublisher) PublishIncrementTriggerCountReturnsOnCall(i int, result1 error) {
+	fake.publishIncrementTriggerCountMutex.Lock()
+	defer fake.publishIncrementTriggerCountMutex.Unlock()
+	fake.PublishIncrementTriggerCountStub = nil
+	if fake.publishIncrementTriggerCountReturnsOnCall == nil {
+		fake.publishIncrementTriggerCountReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.publishIncrementTriggerCountReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }

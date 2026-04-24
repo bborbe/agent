@@ -326,31 +326,37 @@ var _ = Describe("TaskEventHandler", func() {
 			Expect(ok).To(BeTrue())
 		})
 
-		It("publishes retry count bump before spawning job", func() {
-			fakeSpawner.IsJobActiveReturns(false, nil)
-			fakeSpawner.SpawnJobReturns("claude-20260418120000", nil)
-			task := lib.Task{
-				TaskIdentifier: lib.TaskIdentifier("test-task-uuid-1234"),
-				Frontmatter: lib.TaskFrontmatter{
-					"status":      "in_progress",
-					"phase":       string(domain.TaskPhaseAIReview),
-					"assignee":    "claude",
-					"stage":       "prod",
-					"retry_count": 2,
-				},
-			}
-			err := h.ConsumeMessage(ctx, buildMsg(task))
-			Expect(err).To(BeNil())
-			Expect(fakeResultPublisher.PublishRetryCountBumpCallCount()).To(Equal(1))
-			_, calledTask := fakeResultPublisher.PublishRetryCountBumpArgsForCall(0)
-			Expect(string(calledTask.TaskIdentifier)).To(Equal("test-task-uuid-1234"))
-			// Bump must have been called before SpawnJob
-			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
-		})
+		It(
+			"publishes increment trigger_count before spawning job (retry_count bump no longer called)",
+			func() {
+				fakeSpawner.IsJobActiveReturns(false, nil)
+				fakeSpawner.SpawnJobReturns("claude-20260418120000", nil)
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("test-task-uuid-1234"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":        "in_progress",
+						"phase":         string(domain.TaskPhaseAIReview),
+						"assignee":      "claude",
+						"stage":         "prod",
+						"trigger_count": 1,
+						"max_triggers":  3,
+					},
+				}
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+				Expect(fakeResultPublisher.PublishIncrementTriggerCountCallCount()).To(Equal(1))
+				_, calledTask := fakeResultPublisher.PublishIncrementTriggerCountArgsForCall(0)
+				Expect(string(calledTask.TaskIdentifier)).To(Equal("test-task-uuid-1234"))
+				Expect(fakeResultPublisher.PublishRetryCountBumpCallCount()).To(Equal(0))
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+			},
+		)
 
-		It("does not spawn job when retry count bump publish fails", func() {
+		It("does not spawn job when PublishIncrementTriggerCount fails", func() {
 			fakeSpawner.IsJobActiveReturns(false, nil)
-			fakeResultPublisher.PublishRetryCountBumpReturns(errors.New(ctx, "kafka unavailable"))
+			fakeResultPublisher.PublishIncrementTriggerCountReturns(
+				errors.New(ctx, "kafka unavailable"),
+			)
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("test-task-uuid-1234"),
 				Frontmatter: lib.TaskFrontmatter{
@@ -363,6 +369,108 @@ var _ = Describe("TaskEventHandler", func() {
 			err := h.ConsumeMessage(ctx, buildMsg(task))
 			Expect(err).To(HaveOccurred())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+		})
+
+		It("skips spawn when trigger_count >= max_triggers (cap reached)", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-cap-1"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":        "in_progress",
+					"phase":         string(domain.TaskPhaseAIReview),
+					"assignee":      "claude",
+					"stage":         "prod",
+					"trigger_count": 3,
+					"max_triggers":  3,
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakeResultPublisher.PublishIncrementTriggerCountCallCount()).To(Equal(0))
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+		})
+
+		It("publishes increment and spawns when below cap (happy path)", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
+			fakeSpawner.SpawnJobReturns("claude-job-1", nil)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-cap-2"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":        "in_progress",
+					"phase":         string(domain.TaskPhaseAIReview),
+					"assignee":      "claude",
+					"stage":         "prod",
+					"trigger_count": 1,
+					"max_triggers":  3,
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakeResultPublisher.PublishIncrementTriggerCountCallCount()).To(Equal(1))
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+		})
+
+		It(
+			"blocks spawn when PublishIncrementTriggerCount fails (publish-failure scenario)",
+			func() {
+				fakeSpawner.IsJobActiveReturns(false, nil)
+				fakeResultPublisher.PublishIncrementTriggerCountReturns(
+					errors.New(ctx, "kafka down"),
+				)
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("test-task-cap-3"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":        "in_progress",
+						"phase":         string(domain.TaskPhaseAIReview),
+						"assignee":      "claude",
+						"stage":         "prod",
+						"trigger_count": 0,
+						"max_triggers":  3,
+					},
+				}
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(HaveOccurred())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+			},
+		)
+
+		It("skips spawn when max_triggers=0 (zero-cap edge case)", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-cap-4"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":        "in_progress",
+					"phase":         string(domain.TaskPhaseAIReview),
+					"assignee":      "claude",
+					"stage":         "prod",
+					"trigger_count": 0,
+					"max_triggers":  0,
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakeResultPublisher.PublishIncrementTriggerCountCallCount()).To(Equal(0))
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+		})
+
+		It("publishes increment once even when SpawnJob fails (over-count documented)", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
+			fakeSpawner.SpawnJobReturns("", errors.New(ctx, "k8s create failed"))
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-cap-5"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":        "in_progress",
+					"phase":         string(domain.TaskPhaseAIReview),
+					"assignee":      "claude",
+					"stage":         "prod",
+					"trigger_count": 1,
+					"max_triggers":  3,
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(HaveOccurred())
+			Expect(fakeResultPublisher.PublishIncrementTriggerCountCallCount()).To(Equal(1))
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
 		})
 
 		It("skips spawn when current_job in frontmatter and K8s job is active", func() {

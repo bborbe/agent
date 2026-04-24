@@ -10,6 +10,7 @@ Related specs:
 - `specs/completed/009-executor-job-failure-detection.md` — synthetic failure on K8s Job terminal states
 - `specs/in-progress/010-failure-vs-needs-input-semantics.md` — `failed` vs `needs_input` split
 - `specs/in-progress/011-retry-counter-spawn-time-semantics.md` — retry_count moved to spawn time
+- `specs/in-progress/015-executor-trigger-cap.md` — trigger_count / max_triggers cap (replaces retry_count bump)
 
 ## Terminology
 
@@ -18,8 +19,10 @@ Related specs:
 | **Task** | A markdown file in the Obsidian vault with frontmatter (`status`, `phase`, `assignee`, `task_identifier`, …) |
 | **AgentStatus** | What the agent reports: `done`, `failed`, or `needs_input` |
 | **Phase** | Task lifecycle step: `planning` → `in_progress` → (`ai_review` | `done` | `human_review`) |
-| **Retry counter** | `retry_count` frontmatter field, incremented by the executor at job spawn time (spec 011). The controller reads it but never modifies it. |
-| **Escalation** | Controller flips phase to `human_review` once `retry_count >= max_retries` |
+| **Trigger counter** | `trigger_count` frontmatter field, incremented atomically by the controller on every spawn-trigger event via `IncrementFrontmatterCommand`. Counts spawn-trigger attempts independent of job outcome. |
+| **Max triggers** | `max_triggers` frontmatter field (default 3). When `trigger_count >= max_triggers`, the executor skips further spawns and the controller escalates phase to `human_review` on the same increment. |
+| **Retry counter** | `retry_count` frontmatter field. Silently deprecated as of spec 015 — still readable in task files but no longer bumped by the executor. Will be removed in the next release. |
+| **Escalation** | Controller flips phase to `human_review` once `trigger_count >= max_triggers` (spec 015) or on terminal agent outcome (`needs_input`, `done`). |
 
 ## Status Taxonomy
 
@@ -124,7 +127,18 @@ default (failed):
 1. Agent process is SIGKILL'd (OOM, evict, backoffLimit) — never publishes.
 2. Executor's Job informer sees `Failed` terminal state.
 3. Executor synthesises a `failed` result and publishes to Kafka.
-4. Flows through the normal `failed` path (ai_review). `retry_count` was already bumped when the Job was spawned; the synthesised failure does not bump it again.
+4. Flows through the normal `failed` path (ai_review). `trigger_count` was already incremented when the Job was spawned; the synthesised failure does not bump it again.
+
+### Trigger cap reached (spec 015)
+
+1. Task has been spawned `max_triggers` times (default 3); `trigger_count >= max_triggers`.
+2. Executor receives a matching task event (status=in_progress, phase in allowlist).
+3. Executor skips the spawn entirely — no `IncrementFrontmatterCommand` published, no K8s Job created.
+4. Human investigates or raises `max_triggers` in the task frontmatter to allow more attempts.
+
+**Over-count tolerance**: if `PublishIncrementTriggerCount` succeeds but the subsequent `SpawnJob` call fails, `trigger_count` has been incremented by 1 while no Job ran. This is expected and bounded — `max_triggers` absorbs at most one over-count per attempt. No rollback or compensation is attempted.
+
+**Byte-identical output protection**: because `trigger_count` is incremented via an atomic `IncrementFrontmatterCommand` (never idempotent at the controller level), even identical task files produce a distinct write, preventing the executor from looping indefinitely on byte-identical agent output.
 
 ### Spawn collision (idempotency)
 

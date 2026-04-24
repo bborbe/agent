@@ -33,7 +33,11 @@ type ResultPublisher interface {
 	// PublishRetryCountBump increments retry_count by 1 in the task frontmatter and
 	// publishes the update to agent-task-v1-request BEFORE the K8s Job is created.
 	// If this publish fails the caller must NOT spawn the Job.
+	// Deprecated: no longer called by spawnIfNeeded; kept for one release cycle.
 	PublishRetryCountBump(ctx context.Context, task lib.Task) error
+	// PublishIncrementTriggerCount sends an IncrementFrontmatterCommand that atomically
+	// increments trigger_count by 1. Must complete before SpawnJob is called.
+	PublishIncrementTriggerCount(ctx context.Context, task lib.Task) error
 }
 
 // NewResultPublisher creates a ResultPublisher.
@@ -102,6 +106,15 @@ func (p *resultPublisher) PublishRetryCountBump(ctx context.Context, task lib.Ta
 	return p.publish(ctx, task.TaskIdentifier, fm, task.Content)
 }
 
+func (p *resultPublisher) PublishIncrementTriggerCount(ctx context.Context, task lib.Task) error {
+	cmd := lib.IncrementFrontmatterCommand{
+		TaskIdentifier: task.TaskIdentifier,
+		Field:          "trigger_count",
+		Delta:          1,
+	}
+	return p.publishRaw(ctx, lib.IncrementFrontmatterCommandOperation, cmd)
+}
+
 func (p *resultPublisher) publish(
 	ctx context.Context,
 	taskID lib.TaskIdentifier,
@@ -119,10 +132,17 @@ func (p *resultPublisher) publish(
 		Frontmatter:    fm,
 		Content:        content,
 	}
+	return p.publishRaw(ctx, base.UpdateOperation, t)
+}
 
-	event, err := base.ParseEvent(ctx, t)
+func (p *resultPublisher) publishRaw(
+	ctx context.Context,
+	operation base.CommandOperation,
+	payload interface{},
+) error {
+	event, err := base.ParseEvent(ctx, payload)
 	if err != nil {
-		return errors.Wrapf(ctx, err, "parse event for task %s", taskID)
+		return errors.Wrapf(ctx, err, "parse event for operation %s", operation)
 	}
 
 	requestIDCh := make(chan base.RequestID, 1)
@@ -130,7 +150,7 @@ func (p *resultPublisher) publish(
 	commandCreator := base.NewCommandCreator(requestIDCh)
 	commandObject := cdb.CommandObject{
 		Command: commandCreator.NewCommand(
-			base.UpdateOperation,
+			operation,
 			cqrsiam.Initiator("executor"),
 			"",
 			event,
@@ -138,7 +158,7 @@ func (p *resultPublisher) publish(
 		SchemaID: lib.TaskV1SchemaID,
 	}
 	if err := p.commandObjectSender.SendCommandObject(ctx, commandObject); err != nil {
-		return errors.Wrapf(ctx, err, "send command for task %s", taskID)
+		return errors.Wrapf(ctx, err, "send command for operation %s", operation)
 	}
 	return nil
 }

@@ -230,9 +230,24 @@ func (h *taskEventHandler) spawnIfNeeded(
 		return nil
 	}
 
-	if err := h.resultPublisher.PublishRetryCountBump(ctx, task); err != nil {
+	if task.Frontmatter.TriggerCount() >= task.Frontmatter.MaxTriggers() {
+		glog.V(2).Infof("skip task %s: trigger_count %d >= max_triggers %d",
+			task.TaskIdentifier,
+			task.Frontmatter.TriggerCount(),
+			task.Frontmatter.MaxTriggers(),
+		)
+		metrics.TaskEventsTotal.WithLabelValues("skipped_trigger_cap").Inc()
+		return nil
+	}
+
+	if err := h.resultPublisher.PublishIncrementTriggerCount(ctx, task); err != nil {
 		metrics.TaskEventsTotal.WithLabelValues("error").Inc()
-		return errors.Wrapf(ctx, err, "publish retry count bump for task %s", task.TaskIdentifier)
+		return errors.Wrapf(
+			ctx,
+			err,
+			"publish increment trigger_count for task %s",
+			task.TaskIdentifier,
+		)
 	}
 
 	jobName, err := h.jobSpawner.SpawnJob(ctx, task, *config)

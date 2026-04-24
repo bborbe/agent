@@ -1,8 +1,12 @@
 ---
-status: approved
+status: committing
 spec: [015-atomic-frontmatter-increment-and-trigger-cap]
+summary: Replaced PublishRetryCountBump call in spawnIfNeeded with trigger_count cap check and PublishIncrementTriggerCount, added publishRaw helper to result_publisher, updated mock, pre-initialized skipped_trigger_cap metric, added 5 new test scenarios, updated docs and CHANGELOG
+container: agent-068-spec-015-executor-trigger-cap
+dark-factory-version: v0.132.0
 created: "2026-04-24T07:42:14Z"
 queued: "2026-04-24T08:05:26Z"
+started: "2026-04-24T08:19:49Z"
 branch: dark-factory/atomic-frontmatter-increment-and-trigger-cap
 ---
 

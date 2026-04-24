@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.52.0
+
+- feat: trigger_count / max_triggers frontmatter fields bound executor spawn loops; atomic IncrementFrontmatterCommand makes counter non-idempotent; retry_count silently deprecated (executor no longer bumps it)
+
 ## v0.51.0
 
 - feat: add AtomicReadModifyWriteAndCommitPush to GitClient interface and implementation for read-modify-write under a single mutex
