@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [014-configurable-task-triggers]
 summary: Added Trigger struct to Config CRD types with Equal/Validate updates, wired through AgentConfiguration and config_resolver, regenerated deepcopy, added comprehensive Ginkgo tests, and updated docs/CHANGELOG.
 container: agent-064-spec-014-crd-trigger-type
@@ -7,6 +7,7 @@ dark-factory-version: v0.132.0
 created: "2026-04-23T21:15:00Z"
 queued: "2026-04-24T07:11:03Z"
 started: "2026-04-24T07:16:47Z"
+completed: "2026-04-24T07:27:56Z"
 ---
 
 <summary>
