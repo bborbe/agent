@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Injected BUILD_GIT_VERSION from git describe into all three Dockerfiles, Makefile.docker, task/controller and task/executor argument structs and startup logs, migrated from local lib/build-info-metrics to github.com/bborbe/metrics@v0.5.0, added internal struct tag tests, and added hack/check-build-git-version.sh smoke script.
 container: agent-076-add-build-git-version-buildarg
 dark-factory-version: v0.132.0
 created: "2026-04-24T09:30:00Z"
 queued: "2026-04-24T12:43:51Z"
 started: "2026-04-24T12:44:00Z"
+completed: "2026-04-24T12:59:15Z"
 ---
 
 <summary>
