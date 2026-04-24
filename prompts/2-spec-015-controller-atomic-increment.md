@@ -1,5 +1,5 @@
 ---
-status: created
+status: draft
 spec: [015-atomic-frontmatter-increment-and-trigger-cap]
 created: "2026-04-24T07:42:14Z"
 branch: dark-factory/atomic-frontmatter-increment-and-trigger-cap
@@ -107,17 +107,28 @@ grep -n "SchemaID\|TaskV1SchemaID" lib/agent_cdb-schema.go task/controller/pkg/c
 
    Adjust variable names and file-write mode to match the existing code style (read the file to confirm — use `0600` unless the existing code uses a different mode for task files). The key invariant: `os.ReadFile`, the `modify` call, `os.WriteFile`, and `commitAndPush` all run under a single mutex acquisition.
 
-3. **Extract `findTaskFilePath` helper in `task/controller/pkg/result/result_writer.go`**
+3. **Extract helpers in `task/controller/pkg/result/result_writer.go` and export for cross-package use**
 
-   The WalkDir logic (lines 60–96) for finding a task file by TaskIdentifier is needed by both the result writer and the new command handlers. Extract it as a package-level (unexported) function:
+   Decision (fixed — do not deviate): extract and **export** three helpers from `result_writer.go` so the new command handlers in `task/controller/pkg/command/` can reuse them without duplicating logic:
 
    ```go
-   // findTaskFilePath walks taskDirPath and returns the absolute path of the .md file
-   // whose frontmatter has task_identifier == id. Returns ("", nil) if not found.
-   func findTaskFilePath(ctx context.Context, taskDirPath string, id lib.TaskIdentifier) (string, lib.TaskFrontmatter, error)
+   // FindTaskFilePath walks taskDirPath and returns the absolute path of the .md file
+   // whose frontmatter has task_identifier == id, plus the parsed existing frontmatter.
+   // Returns ("", nil, nil) when no match is found (not an error).
+   func FindTaskFilePath(ctx context.Context, taskDirPath string, id lib.TaskIdentifier) (string, lib.TaskFrontmatter, error)
+
+   // ExtractFrontmatter returns the YAML frontmatter string between the opening and
+   // closing "---" delimiters. Returns an error if delimiters are missing.
+   func ExtractFrontmatter(ctx context.Context, content []byte) (string, error)
+
+   // ExtractBody returns the file body — the bytes after the closing "---\n" delimiter.
+   // Returns an empty string if the body is empty; error if delimiters are missing.
+   func ExtractBody(ctx context.Context, content []byte) (string, error)
    ```
 
-   The function returns the matched path AND the parsed existing frontmatter (both are needed by callers). Refactor `WriteResult` to call `findTaskFilePath` instead of having the walk inline. Tests must still pass after the refactor.
+   Rename the existing unexported `extractFrontmatter` to `ExtractFrontmatter` and update its internal callers. Add a sibling `ExtractBody` that parses the same content and returns everything after the closing `---\n` delimiter. Refactor `WriteResult` to use `FindTaskFilePath` (remove the inline WalkDir). All existing `result` package tests must pass after the refactor.
+
+   **Placement decision (fixed)**: the new executors live in `task/controller/pkg/command/` (same package as `task_result_executor.go`), importing these exported helpers from `task/controller/pkg/result`. Do NOT move the new executors into the `result` package — keep the command/executor separation consistent with `task_result_executor.go`.
 
 4. **Create `task/controller/pkg/command/task_increment_frontmatter_executor.go`**
 
@@ -128,22 +139,21 @@ grep -n "SchemaID\|TaskV1SchemaID" lib/agent_cdb-schema.go task/controller/pkg/c
    - Operation: `IncrementFrontmatterCommandOperation`
    - Handler logic:
      1. Deserialize `commandObject.Command.Data` into `lib.IncrementFrontmatterCommand`
-     2. Call `result.FindTaskFilePath(ctx, taskDirPath, cmd.TaskIdentifier)` — note: if you made `findTaskFilePath` unexported, either export it as `FindTaskFilePath` for cross-package use OR put the increment executor in the `result` package (simpler — both live in the same concerns domain). Read the import graph and decide.
-     3. If file not found: log warning, increment `metrics.ResultsWrittenTotal.WithLabelValues("not_found")`, return nil (no error — same as result_writer's not_found handling)
+     2. Call `result.FindTaskFilePath(ctx, taskDirPath, cmd.TaskIdentifier)` to locate the file
+     3. If file not found: log warning, increment `metrics.FrontmatterCommandsTotal.WithLabelValues("increment_frontmatter", "not_found")`, return nil (no error — same pattern as result_writer's not_found handling)
      4. Call `gitClient.AtomicReadModifyWriteAndCommitPush(ctx, absPath, modifyFn, message)` where `modifyFn`:
-        a. Calls `extractFrontmatter(ctx, current)` to get existing frontmatter YAML string
-        b. Unmarshals frontmatter into `lib.TaskFrontmatter`
-        c. Reads current value of `cmd.Field` using the same int/float64 switch as `TriggerCount()`, defaulting to 0
-        d. Adds `cmd.Delta`: `newVal := currentVal + cmd.Delta`
-        e. Sets `frontmatter[cmd.Field] = newVal`
-        f. **Cap escalation**: if `cmd.Field == "trigger_count" && newVal >= frontmatter.MaxTriggers()` → set `frontmatter["phase"] = string(domain.TaskPhaseHumanReview)` in the same write (find the correct phase constant by reading `github.com/bborbe/vault-cli/pkg/domain` — check what `TaskPhaseHumanReview` is)
-        g. Marshals updated frontmatter back to YAML
-        h. Reconstructs full file content: `"---\n" + marshaledFrontmatter + "---\n" + body` (body = content after closing `---`)
-        i. Returns new file bytes
-     5. After the atomic write succeeds, emit the event (follow the same return pattern as `task_result_executor.go`)
-   - Increment `metrics.ResultsWrittenTotal.WithLabelValues("success")` on success, `"error"` on error
-
-   **Important**: The `extractFrontmatter` and body-splitting logic is already in `result_writer.go`. Either move/export it, or duplicate the minimal helpers needed. Prefer moving/exporting to avoid duplication.
+        a. Calls `result.ExtractFrontmatter(ctx, current)` to get existing frontmatter YAML string
+        b. Calls `result.ExtractBody(ctx, current)` to get the body (bytes after the closing `---\n`)
+        c. Unmarshals frontmatter YAML into `lib.TaskFrontmatter`
+        d. Reads current value of `cmd.Field` using the same int/float64 switch as `TriggerCount()`, defaulting to 0
+        e. Computes `newVal := currentVal + cmd.Delta`
+        f. Sets `frontmatter[cmd.Field] = newVal`
+        g. **Cap escalation**: if `cmd.Field == "trigger_count" && newVal >= frontmatter.MaxTriggers()` → set `frontmatter["phase"] = string(domain.TaskPhaseHumanReview)` in the same write. Import path: `github.com/bborbe/vault-cli/pkg/domain`. Verify the constant name with `grep -n "TaskPhaseHumanReview" vendor/github.com/bborbe/vault-cli/pkg/domain/*.go` if `go mod` vendor is present, otherwise from the already-vendored package in another file of this repo.
+        h. Marshals updated frontmatter back to YAML using the **exact pattern from `result_writer.go:107`**: `yaml.Marshal(map[string]any(merged))` (the `map[string]any(...)` cast is load-bearing; `yaml.Marshal(merged)` directly produces different output because `TaskFrontmatter` has YAML tags).
+        i. Reconstructs file content: `"---\n" + string(marshaledFrontmatter) + "---\n" + body`
+        j. Returns new file bytes
+     5. After the atomic write succeeds, follow the same return pattern as `task_result_executor.go` (return nil on success; dark-factory's CQRS layer handles the ACK/event emission).
+   - Metrics: increment `metrics.FrontmatterCommandsTotal.WithLabelValues("increment_frontmatter", "success")` on success, `"error"` on error. Do NOT reuse `ResultsWrittenTotal` — that metric is semantically for agent result writes, and reusing it would muddy dashboards.
 
 5. **Create `task/controller/pkg/command/task_update_frontmatter_executor.go`**
 
@@ -152,29 +162,46 @@ grep -n "SchemaID\|TaskV1SchemaID" lib/agent_cdb-schema.go task/controller/pkg/c
    - `NewUpdateFrontmatterExecutor(gitClient gitclient.GitClient, taskDir string) cdb.CommandObjectExecutorTx`
    - Handler logic:
      1. Deserialize `commandObject.Command.Data` into `lib.UpdateFrontmatterCommand`
-     2. Find the task file path (same `findTaskFilePath` / `FindTaskFilePath` helper)
-     3. If not found: log + not_found metric + return nil
-     4. Call `gitClient.AtomicReadModifyWriteAndCommitPush(ctx, absPath, modifyFn, message)` where `modifyFn`:
-        a. Extracts and parses existing frontmatter from file bytes
-        b. For each key in `cmd.Updates`, sets `frontmatter[key] = value`
-        c. **Leaves all other frontmatter keys unchanged**
-        d. Marshals back; reconstructs file content
-        e. Returns new bytes
-     5. Metrics: `"success"` / `"error"` labels same as increment handler
+     2. Call `result.FindTaskFilePath(...)` to locate the file
+     3. If not found: log warning, increment `metrics.FrontmatterCommandsTotal.WithLabelValues("update_frontmatter", "not_found")`, return nil
+     4. If `cmd.Updates == nil || len(cmd.Updates) == 0`: return nil without calling `AtomicReadModifyWriteAndCommitPush` (no-op write, no metric increment). Document this explicitly as "empty updates is a valid no-op".
+     5. Call `gitClient.AtomicReadModifyWriteAndCommitPush(ctx, absPath, modifyFn, message)` where `modifyFn`:
+        a. Extract frontmatter + body via `result.ExtractFrontmatter` / `result.ExtractBody`
+        b. Unmarshal frontmatter YAML into `lib.TaskFrontmatter`
+        c. For each key in `cmd.Updates`, set `frontmatter[key] = value` (merge semantics)
+        d. **Leaves all other frontmatter keys unchanged**
+        e. Marshal frontmatter back via `yaml.Marshal(map[string]any(merged))` (same pattern as increment handler — see step 4 point h)
+        f. Reconstruct file content: `"---\n" + string(marshaledFrontmatter) + "---\n" + body`
+        g. Returns new bytes
+     6. Metrics: `metrics.FrontmatterCommandsTotal.WithLabelValues("update_frontmatter", "success")` on success, `"error"` on error
 
-6. **Wire both new executors in `task/controller/pkg/factory/factory.go`**
+6. **Wire both new executors in `task/controller/pkg/factory/factory.go` — signature change required**
 
-   Read `factory.go` to find exactly where `cdb.CommandObjectExecutorTxs{...}` is built (around line 67). Add both new executors to the slice alongside the existing `TaskResultExecutor`:
+   Read `factory.go` and `main.go` / app wiring to understand the full call chain. The new executors take `gitClient` and `taskDir` as constructor parameters, but the current `CreateCommandConsumer(...)` factory function does NOT receive these — `gitClient` and `taskDir` are captured privately inside `resultWriter`. You MUST extend `CreateCommandConsumer` and update its caller(s).
 
-   ```go
-   executors := cdb.CommandObjectExecutorTxs{
-       command.NewTaskResultExecutor(resultWriter),
-       command.NewIncrementFrontmatterExecutor(gitClient, taskDir),
-       command.NewUpdateFrontmatterExecutor(gitClient, taskDir),
-   }
-   ```
+   Steps:
 
-   Adjust variable names to match what `factory.go` actually uses. Pass the same `gitClient` and `taskDir` that the result writer receives (they should already be in scope). If `taskDir` is not a separate parameter but embedded in the result writer, read the factory to understand how to thread it through — you may need to add it as an explicit parameter to the factory function or read it from a config struct.
+   a. Grep for callers first:
+      ```bash
+      grep -rn "CreateCommandConsumer(" --include="*.go" .
+      ```
+      Expect one or two call sites in `cmd/` or `main.go`.
+
+   b. Change `CreateCommandConsumer` signature — add `gitClient gitclient.GitClient` and `taskDir string` parameters. Document the old → new signature at the top of the function comment.
+
+   c. Update every caller to pass `gitClient` and `taskDir`. These are already being constructed earlier in the wiring (they must exist, since `resultWriter` takes them) — just forward them.
+
+   d. Inside `CreateCommandConsumer`, build the executors slice:
+      ```go
+      executors := cdb.CommandObjectExecutorTxs{
+          command.NewTaskResultExecutor(resultWriter),
+          command.NewIncrementFrontmatterExecutor(gitClient, taskDir),
+          command.NewUpdateFrontmatterExecutor(gitClient, taskDir),
+      }
+      ```
+      Adjust variable names to match the actual local names in `factory.go`.
+
+   e. Do NOT capture `gitClient` / `taskDir` via the existing `resultWriter` — they are private fields of an unexported struct. Thread them explicitly.
 
 7. **Add unit tests**
 
@@ -206,14 +233,43 @@ grep -n "SchemaID\|TaskV1SchemaID" lib/agent_cdb-schema.go task/controller/pkg/c
    - Asserts the file now contains " modified"
    - (Skip the commit assertion if the test uses a fake git or stub — match the existing test infrastructure)
 
-9. **Update `docs/controller-design.md`**
+9. **Add new `FrontmatterCommandsTotal` metric**
+
+   In `task/controller/pkg/metrics/metrics.go`, add a new Prometheus counter vector:
+
+   ```go
+   // FrontmatterCommandsTotal counts atomic frontmatter command executions
+   // by operation ("increment_frontmatter" | "update_frontmatter") and
+   // outcome ("success" | "error" | "not_found").
+   var FrontmatterCommandsTotal = promauto.NewCounterVec(
+       prometheus.CounterOpts{
+           Name: "agent_task_controller_frontmatter_commands_total",
+           Help: "Total number of atomic frontmatter commands processed, by operation and outcome.",
+       },
+       []string{"operation", "outcome"},
+   )
+   ```
+
+   Pre-initialise every label combination in the `init()` block (same pattern as existing metrics — line ~65 of `metrics.go`):
+
+   ```go
+   for _, op := range []string{"increment_frontmatter", "update_frontmatter"} {
+       for _, outcome := range []string{"success", "error", "not_found"} {
+           FrontmatterCommandsTotal.WithLabelValues(op, outcome).Add(0)
+       }
+   }
+   ```
+
+   Use the `.Add(0)` pattern — that is the existing convention in this file, not bare `.WithLabelValues(...)`.
+
+10. **Update `docs/controller-design.md`**
 
    Add a section or update the relevant section to document:
    - `AtomicReadModifyWriteAndCommitPush` and how it differs from `AtomicWriteAndCommitPush` (read provides a consistent baseline under lock)
    - `IncrementFrontmatterExecutor`: operation `"increment_frontmatter"`, payload shape, cap escalation behaviour
    - `UpdateFrontmatterExecutor`: operation `"update_frontmatter"`, payload shape, partial-key semantics
 
-10. **Run tests iteratively**
+11. **Run tests iteratively**
 
     After steps 2–3:
     ```bash
@@ -234,6 +290,7 @@ grep -n "SchemaID\|TaskV1SchemaID" lib/agent_cdb-schema.go task/controller/pkg/c
 - The file-finding WalkDir logic from `result_writer.go` must be extracted into a shared helper (do not duplicate). Export it as `FindTaskFilePath` if cross-package access is needed.
 - `applyRetryCounter` in `result_writer.go` is NOT modified in this prompt — the retry_count path stays untouched until prompt 3.
 - Cap escalation logic: only trigger when `cmd.Field == "trigger_count"` AND `newVal >= frontmatter.MaxTriggers()`. Do NOT escalate for arbitrary field increments.
+- `Delta` sign: `cmd.Delta` may be any int. Negative deltas are allowed (they decrement). Do NOT reject them. Cap escalation only fires on `newVal >= MaxTriggers()`, so decrements cannot trigger escalation. The spec only uses `+1` today; decrement support is for forward compatibility and has zero extra cost.
 - `phase: human_review` is set IN THE SAME ATOMIC WRITE as the trigger_count increment (same `modifyFn` call, same file write) — not as a separate command.
 - Do NOT touch `task/executor/`, `prompt/`, `lib/`, or `agent/claude/` in this prompt.
 - Use `github.com/bborbe/errors` for all error wrapping — never `fmt.Errorf`.

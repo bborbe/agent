@@ -1,5 +1,5 @@
 ---
-status: created
+status: draft
 spec: [015-atomic-frontmatter-increment-and-trigger-cap]
 created: "2026-04-24T07:42:14Z"
 branch: dark-factory/atomic-frontmatter-increment-and-trigger-cap
@@ -106,7 +106,7 @@ grep -n "TaskEventsTotal\|skipped_" task/executor/pkg/metrics/metrics.go
    ```bash
    cd task/executor && make generate
    ```
-   Or if the mock is checked-in, update it manually to add `PublishIncrementTriggerCount` — read the existing mock file (`task/executor/mocks/fake_result_publisher.go` or similar) to understand the counterfeiter pattern, then add the new method.
+   Or if the mock is checked-in, update it manually to add `PublishIncrementTriggerCount` — the existing mock file is `task/executor/mocks/result_publisher.go` (mock type name: `FakeResultPublisher`). Read it to understand the counterfeiter pattern, then add the new method.
 
    After generating: run `cd task/executor && make test` to confirm the mock compiles.
 
@@ -116,10 +116,10 @@ grep -n "TaskEventsTotal\|skipped_" task/executor/pkg/metrics/metrics.go
 
    ```go
    // Pre-initialize to ensure the label appears at zero even before any event:
-   TaskEventsTotal.WithLabelValues("skipped_trigger_cap")
+   TaskEventsTotal.WithLabelValues("skipped_trigger_cap").Add(0)
    ```
 
-   Find the existing pre-initialization pattern in metrics.go (other `skipped_*` labels are likely pre-initialized the same way) and follow it exactly.
+   The existing file already uses the `.Add(0)` suffix (see `metrics.go:30-37` for the other `skipped_*` labels). Use that exact pattern — NOT bare `.WithLabelValues(...)`.
 
 5. **Modify `spawnIfNeeded` in `task/executor/pkg/handler/task_event_handler.go`**
 
@@ -143,11 +143,16 @@ grep -n "TaskEventsTotal\|skipped_" task/executor/pkg/metrics/metrics.go
 
    // Publish the increment BEFORE spawning — if this fails, no Job is created.
    if err := h.resultPublisher.PublishIncrementTriggerCount(ctx, task); err != nil {
+       metrics.TaskEventsTotal.WithLabelValues("error").Inc()
        return errors.Wrapf(ctx, err, "publish increment trigger_count for task %s", task.TaskIdentifier)
    }
    ```
 
+   **Important**: the `metrics.TaskEventsTotal.WithLabelValues("error").Inc()` call on publish failure matches the existing error-metric pattern used elsewhere in `spawnIfNeeded` (e.g. lines near `"check active job for task"`, `"spawn job for task"`). Do NOT drop this `.Inc()` — every error-return path in `spawnIfNeeded` increments the `"error"` label before returning.
+
    The `SpawnJob` call immediately follows the increment publish (unchanged).
+
+   **Over-count tolerance**: if `PublishIncrementTriggerCount` succeeds but the subsequent `SpawnJob` fails, `trigger_count` has been bumped by 1 while no Job ran. This is the spec's documented over-count path (spec 015 Constraints, "over-count bounded by 1 per spawn attempt — `max_triggers` absorbs it"). Do NOT attempt to decrement, rollback, or compensate the counter on `SpawnJob` failure. The existing `SpawnJob` error path already returns the wrapped error; leave it as-is.
 
    **Verify the ordering**: after your edit, confirm that in all code paths:
    - Cap check runs first
@@ -192,6 +197,17 @@ grep -n "TaskEventsTotal\|skipped_" task/executor/pkg/metrics/metrics.go
    → spawnIfNeeded returns nil
    → no publish, no spawn
    → "skipped_trigger_cap" incremented
+   ```
+
+   **Scenario E — publish OK, spawn fails, counter over-count documented:**
+   ```
+   task.Frontmatter has trigger_count=1, max_triggers=3
+   fakeSpawner.SpawnJobReturns("", errors.New("k8s create failed"))
+   → PublishIncrementTriggerCount called once (no error)
+   → SpawnJob called once (returns error)
+   → spawnIfNeeded returns a non-nil error (wrapped)
+   → TaskEventsTotal "error" incremented
+   → No rollback/decrement attempt on counter — not asserted directly but confirmed by absence of any extra publish calls (PublishIncrementTriggerCountCallCount stays at 1, no decrement publish)
    ```
 
    For each scenario, use the counterfeiter mock for `ResultPublisher`. Assert call counts via `<mock>.PublishIncrementTriggerCountCallCount()` etc. Follow the exact mock pattern already in the test file.

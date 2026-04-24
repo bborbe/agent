@@ -1,5 +1,5 @@
 ---
-status: created
+status: draft
 spec: [015-atomic-frontmatter-increment-and-trigger-cap]
 created: "2026-04-24T07:42:14Z"
 branch: dark-factory/atomic-frontmatter-increment-and-trigger-cap
@@ -99,14 +99,18 @@ ls lib/
 
    package lib
 
+   import (
+       "github.com/bborbe/cqrs/base"
+   )
+
    // IncrementFrontmatterCommandOperation is the Kafka command operation
    // for atomically incrementing a single frontmatter field by a delta.
    // Published by the executor on agent-task-v1-request; handled by the controller.
-   const IncrementFrontmatterCommandOperation = "increment_frontmatter"
+   const IncrementFrontmatterCommandOperation base.CommandOperation = "increment_frontmatter"
 
    // UpdateFrontmatterCommandOperation is the Kafka command operation
    // for atomically setting specific frontmatter keys without touching other keys.
-   const UpdateFrontmatterCommandOperation = "update_frontmatter"
+   const UpdateFrontmatterCommandOperation base.CommandOperation = "update_frontmatter"
 
    // IncrementFrontmatterCommand is the payload for IncrementFrontmatterCommandOperation.
    // The controller reads the current value of Field from disk, adds Delta, and writes
@@ -121,16 +125,18 @@ ls lib/
    // The controller applies only the listed key-value pairs; all other frontmatter
    // keys in the task file are left unchanged.
    type UpdateFrontmatterCommand struct {
-       TaskIdentifier TaskIdentifier `json:"taskIdentifier"`
+       TaskIdentifier TaskIdentifier  `json:"taskIdentifier"`
        Updates        TaskFrontmatter `json:"updates"`
    }
    ```
+
+   **Type discipline**: both operation constants MUST be typed `base.CommandOperation` (not untyped string), to match the existing `TaskResultCommandOperation` declaration in `task/controller/pkg/command/task_result_executor.go:21`. Prompt 2 consumes these via `cdb.CommandObjectExecutorTxFunc(op, ...)`, which expects `base.CommandOperation`. Untyped strings would force prompt 2 to add casts or fail to compile.
 
    Note: these types do NOT need a new `cdb.SchemaID`. The Kafka routing uses the command operation string inside the envelope. Read `lib/agent_cdb-schema.go` and the existing `task_result_executor.go` in `task/controller/pkg/command/` to understand how the existing schema and operation are declared and used — follow the same pattern for registering these new operation kinds in the controller (that wiring is prompt 2's job; this prompt only defines the payload types and operation constants).
 
 4. **Add unit tests**
 
-   Find or create the test file for `lib/agent_task-frontmatter.go` (it may be `lib/agent_task-frontmatter_test.go`). Add a Ginkgo `Describe` block for `TriggerCount` and `MaxTriggers`:
+   Tests for `TaskFrontmatter` already live in `lib/agent_task_test.go` under a single `Describe("TaskFrontmatter", ...)` block that contains the existing `Describe("RetryCount", ...)` and `Describe("MaxRetries", ...)` Describe blocks. Add the two new Describe blocks **inside that same outer Describe**, placed immediately after the existing `MaxRetries` block (grep `Describe("MaxRetries"` to find the anchor):
 
    ```go
    Describe("TriggerCount", func() {
@@ -164,7 +170,9 @@ ls lib/
    })
    ```
 
-   If no test file exists for frontmatter, create `lib/agent_task-frontmatter_test.go` with a proper Ginkgo suite (check for existing suite files in `lib/` first — if `lib/suite_test.go` exists, follow its pattern; otherwise create one).
+   Do NOT create a new `lib/agent_task-frontmatter_test.go` file — it does not exist today and would fragment the TaskFrontmatter test suite. The existing Ginkgo suite entry point is `lib/lib_suite_test.go`; do not modify it.
+
+   For the new file `lib/agent_task-commands.go`, add minimal tests to either `lib/agent_task_test.go` or a new `lib/agent_task-commands_test.go`. Cover: (a) JSON round-trip for `IncrementFrontmatterCommand` with `Delta: 1`, (b) JSON round-trip for `UpdateFrontmatterCommand` with a two-key `Updates` map, (c) the operation constants have the expected string values. Target ≥80% coverage on the new file.
 
 5. **Run tests**
 
