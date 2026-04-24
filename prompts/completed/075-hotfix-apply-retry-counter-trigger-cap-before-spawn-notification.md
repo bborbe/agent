@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: 'Reordered applyRetryCounter to run trigger_count cap enforcement before the spawn_notification early return, fixing the live-observed regression where inherited spawn_notification=true caused phase: human_review to revert to ai_review; added regression-guard unit test; updated CHANGELOG.md.'
 container: agent-075-hotfix-apply-retry-counter-trigger-cap-before-spawn-notification
 dark-factory-version: v0.132.0
 created: "2026-04-24T12:00:00Z"
 queued: "2026-04-24T12:05:59Z"
 started: "2026-04-24T12:06:01Z"
+completed: "2026-04-24T12:09:50Z"
 ---
 
 <summary>
