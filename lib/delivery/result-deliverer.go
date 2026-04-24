@@ -135,8 +135,17 @@ func (d *kafkaResultDeliverer) DeliverResult(ctx context.Context, result AgentRe
 	// via trigger_count / max_triggers, not a phase loop.
 	switch result.Status {
 	case AgentStatusDone:
-		frontmatter["status"] = "completed"
-		frontmatter["phase"] = resolveNextPhase(ctx, d.taskID, result.NextPhase)
+		resolvedPhase := resolveNextPhase(ctx, d.taskID, result.NextPhase)
+		frontmatter["phase"] = resolvedPhase
+		// Only mark the task completed when the resolved phase is terminal (done).
+		// Requested transitions to planning/in_progress/ai_review/human_review keep
+		// the task at status: in_progress so the controller re-triggers on the
+		// new phase. Without this, multi-phase agents stall after their first phase.
+		if resolvedPhase == "done" {
+			frontmatter["status"] = "completed"
+		} else {
+			frontmatter["status"] = "in_progress"
+		}
 	case AgentStatusNeedsInput:
 		frontmatter["status"] = "in_progress"
 		frontmatter["phase"] = "human_review"

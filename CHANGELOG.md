@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.53.3
+
+- fix(lib): `kafkaResultDeliverer` now keeps `status: in_progress` when an agent returns `status: done` with a `NextPhase` that requests a non-terminal phase (planning/in_progress/ai_review/human_review); only `NextPhase: done` or empty sets `status: completed` — unblocks multi-phase agents from the post-phase-1 stall (live dev bug observed on hypothesis agent task `cde7365b` 2026-04-24)
+
 ## v0.53.2
 
 - feat(lib): Agents can request a phase transition via new `NextPhase` field on `AgentResultInfo` and `AgentResultLike` — `kafkaResultDeliverer` writes the requested phase on `status: done`; failure/needs_input paths continue to escalate to `human_review` (074/077 rules win).
