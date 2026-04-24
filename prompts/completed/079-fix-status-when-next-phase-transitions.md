@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Updated kafkaResultDeliverer.DeliverResult to keep status:in_progress when NextPhase resolves to a non-terminal phase; updated 3 existing test assertions and added 2 new test cases (ai_review and live dev bug cde7365b); added CHANGELOG entry.
 container: agent-079-fix-status-when-next-phase-transitions
 dark-factory-version: v0.132.0
 created: "2026-04-24T16:01:46Z"
 queued: "2026-04-24T16:07:41Z"
 started: "2026-04-24T16:09:13Z"
+completed: "2026-04-24T16:12:20Z"
 ---
 
 <summary>
