@@ -135,6 +135,22 @@ var _ = Describe("resultDelivererAdapter", func() {
 		Expect(info.Output).To(Equal(expected))
 	})
 
+	It("passes NextPhase to inner deliverer", func() {
+		_, info := inner.DeliverResultArgsForCall(0)
+		Expect(info.NextPhase).To(Equal(""))
+	})
+
+	Context("with NextPhase set", func() {
+		BeforeEach(func() {
+			agentResult.NextPhase = "in_progress"
+		})
+
+		It("propagates NextPhase to inner deliverer", func() {
+			_, info := inner.DeliverResultArgsForCall(0)
+			Expect(info.NextPhase).To(Equal("in_progress"))
+		})
+	})
+
 	It("returns nil on success", func() {
 		Expect(deliverErr).To(BeNil())
 	})

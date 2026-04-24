@@ -22,9 +22,10 @@ const (
 
 // AgentResult is the structured output written to stdout for the task/executor to read.
 type AgentResult struct {
-	Status  AgentStatus `json:"status"`
-	Message string      `json:"message,omitempty"`
-	Files   []string    `json:"files,omitempty"`
+	Status    AgentStatus `json:"status"`
+	Message   string      `json:"message,omitempty"`
+	Files     []string    `json:"files,omitempty"`
+	NextPhase string      `json:"next_phase,omitempty"`
 }
 
 func (r AgentResult) GetStatus() AgentStatus { return r.Status }
@@ -33,6 +34,9 @@ func (r AgentResult) GetMessage() string { return r.Message }
 
 func (r AgentResult) GetFiles() []string { return r.Files }
 
+// GetNextPhase returns the requested next task phase, or empty string for default behavior.
+func (r AgentResult) GetNextPhase() string { return r.NextPhase }
+
 func (r AgentResult) RenderResultSection() string { return BuildResultSection(r) }
 
 // AgentResultLike is the constraint for types that can be delivered as task results.
@@ -40,5 +44,6 @@ type AgentResultLike interface {
 	GetStatus() AgentStatus
 	GetMessage() string
 	GetFiles() []string
+	GetNextPhase() string
 	RenderResultSection() string
 }

@@ -184,4 +184,186 @@ var _ = Describe("KafkaResultDeliverer", func() {
 		Expect(fm["phase"]).To(Equal("human_review"))
 		Expect(fm["status"]).To(Equal("in_progress"))
 	})
+
+	It("sets phase=done when done result has empty NextPhase", func() {
+		generator.GenerateReturns(
+			"---\nstatus: completed\nphase: done\n---\n\nBody.\n",
+			nil,
+		)
+		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
+			Status:    delivery.AgentStatusDone,
+			NextPhase: "",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+		frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+		Expect(ok).To(BeTrue())
+		fm, ok := frontmatter.(map[string]interface{})
+		Expect(ok).To(BeTrue())
+		Expect(fm["phase"]).To(Equal("done"))
+		Expect(fm["status"]).To(Equal("completed"))
+	})
+
+	It("sets phase=in_progress when done result requests NextPhase=in_progress", func() {
+		generator.GenerateReturns(
+			"---\nstatus: completed\nphase: in_progress\n---\n\nBody.\n",
+			nil,
+		)
+		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
+			Status:    delivery.AgentStatusDone,
+			NextPhase: "in_progress",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+		frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+		Expect(ok).To(BeTrue())
+		fm, ok := frontmatter.(map[string]interface{})
+		Expect(ok).To(BeTrue())
+		Expect(fm["phase"]).To(Equal("in_progress"))
+		Expect(fm["status"]).To(Equal("completed"))
+	})
+
+	It("sets phase=planning when done result requests NextPhase=planning", func() {
+		generator.GenerateReturns(
+			"---\nstatus: completed\nphase: planning\n---\n\nBody.\n",
+			nil,
+		)
+		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
+			Status:    delivery.AgentStatusDone,
+			NextPhase: "planning",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+		frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+		Expect(ok).To(BeTrue())
+		fm, ok := frontmatter.(map[string]interface{})
+		Expect(ok).To(BeTrue())
+		Expect(fm["phase"]).To(Equal("planning"))
+		Expect(fm["status"]).To(Equal("completed"))
+	})
+
+	It("sets phase=done when done result requests NextPhase=done explicitly", func() {
+		generator.GenerateReturns(
+			"---\nstatus: completed\nphase: done\n---\n\nBody.\n",
+			nil,
+		)
+		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
+			Status:    delivery.AgentStatusDone,
+			NextPhase: "done",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+		frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+		Expect(ok).To(BeTrue())
+		fm, ok := frontmatter.(map[string]interface{})
+		Expect(ok).To(BeTrue())
+		Expect(fm["phase"]).To(Equal("done"))
+		Expect(fm["status"]).To(Equal("completed"))
+	})
+
+	It("sets phase=human_review when done result requests NextPhase=human_review", func() {
+		generator.GenerateReturns(
+			"---\nstatus: completed\nphase: human_review\n---\n\nBody.\n",
+			nil,
+		)
+		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
+			Status:    delivery.AgentStatusDone,
+			NextPhase: "human_review",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+		frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+		Expect(ok).To(BeTrue())
+		fm, ok := frontmatter.(map[string]interface{})
+		Expect(ok).To(BeTrue())
+		Expect(fm["phase"]).To(Equal("human_review"))
+		Expect(fm["status"]).To(Equal("completed"))
+	})
+
+	It("falls back to phase=done when NextPhase is invalid", func() {
+		generator.GenerateReturns(
+			"---\nstatus: completed\nphase: done\n---\n\nBody.\n",
+			nil,
+		)
+		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
+			Status:    delivery.AgentStatusDone,
+			NextPhase: "bogus_phase",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+		frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+		Expect(ok).To(BeTrue())
+		fm, ok := frontmatter.(map[string]interface{})
+		Expect(ok).To(BeTrue())
+		Expect(fm["phase"]).To(Equal("done"))
+		Expect(fm["status"]).To(Equal("completed"))
+	})
+
+	It(
+		"sets phase=human_review when failed result requests NextPhase=in_progress (NextPhase ignored)",
+		func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n\n## Failure\n\n- **Reason:** infra error\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
+				Status:    delivery.AgentStatusFailed,
+				Message:   "infra error",
+				NextPhase: "in_progress",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+			Expect(ok).To(BeTrue())
+			fm, ok := frontmatter.(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["phase"]).To(Equal("human_review"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+		},
+	)
+
+	It(
+		"emits ## Failure body section when failed result has NextPhase set (body shape from 077 unchanged)",
+		func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n\n## Failure\n\n- **Reason:** crash\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
+				Status:    delivery.AgentStatusFailed,
+				Message:   "crash",
+				NextPhase: "done",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+			Expect(ok).To(BeTrue())
+			fm, ok := frontmatter.(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["phase"]).To(Equal("human_review"))
+		},
+	)
+
+	It(
+		"sets phase=human_review when needs_input result requests NextPhase=done (NextPhase ignored)",
+		func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
+				Status:    delivery.AgentStatusNeedsInput,
+				Message:   "missing date range",
+				NextPhase: "done",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+			Expect(ok).To(BeTrue())
+			fm, ok := frontmatter.(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["phase"]).To(Equal("human_review"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+		},
+	)
 })

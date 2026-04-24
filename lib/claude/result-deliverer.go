@@ -31,9 +31,10 @@ type resultDelivererAdapter[T AgentResultLike] struct {
 
 func (a *resultDelivererAdapter[T]) DeliverResult(ctx context.Context, result T) error {
 	return a.inner.DeliverResult(ctx, delivery.AgentResultInfo{
-		Status:  result.GetStatus(),
-		Output:  result.RenderResultSection(),
-		Message: result.GetMessage(),
+		Status:    result.GetStatus(),
+		Output:    result.RenderResultSection(),
+		Message:   result.GetMessage(),
+		NextPhase: result.GetNextPhase(),
 	})
 }
 

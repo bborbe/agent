@@ -21,4 +21,10 @@ type AgentResultInfo struct {
 	Status  AgentStatus
 	Output  string // human-readable summary or result body
 	Message string // error or status message
+	// NextPhase is the task phase the agent requests the controller to write
+	// when Status == AgentStatusDone. Ignored on Failed/NeedsInput (failure
+	// paths always escalate to human_review). Empty means "use default"
+	// (phase: done on Status: done). Valid values are vault-cli TaskPhase
+	// enum strings: planning, in_progress, ai_review, human_review, done.
+	NextPhase string
 }

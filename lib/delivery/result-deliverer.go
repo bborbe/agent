@@ -15,6 +15,7 @@ import (
 	libkafka "github.com/bborbe/kafka"
 	"github.com/bborbe/log"
 	libtime "github.com/bborbe/time"
+	domain "github.com/bborbe/vault-cli/pkg/domain"
 	"github.com/golang/glog"
 	"github.com/google/uuid"
 
@@ -135,7 +136,7 @@ func (d *kafkaResultDeliverer) DeliverResult(ctx context.Context, result AgentRe
 	switch result.Status {
 	case AgentStatusDone:
 		frontmatter["status"] = "completed"
-		frontmatter["phase"] = "done"
+		frontmatter["phase"] = resolveNextPhase(ctx, d.taskID, result.NextPhase)
 	case AgentStatusNeedsInput:
 		frontmatter["status"] = "in_progress"
 		frontmatter["phase"] = "human_review"
@@ -179,4 +180,24 @@ func (d *kafkaResultDeliverer) DeliverResult(ctx context.Context, result AgentRe
 		return errors.Wrap(ctx, err, "publish task update failed")
 	}
 	return nil
+}
+
+// resolveNextPhase returns the validated phase string for a done agent result.
+// An empty NextPhase defaults to "done" (existing behavior). An invalid value
+// is logged with task-id context and also falls back to "done" — we never refuse
+// to write a result just because the agent requested a bogus phase.
+func resolveNextPhase(
+	ctx context.Context,
+	taskID agentlib.TaskIdentifier,
+	requested string,
+) string {
+	if requested == "" {
+		return "done"
+	}
+	phase := domain.TaskPhase(requested)
+	if err := phase.Validate(ctx); err != nil {
+		glog.Warningf("task %s: ignoring invalid NextPhase %q: %v", taskID, requested, err)
+		return "done"
+	}
+	return requested
 }

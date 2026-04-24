@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.53.2
+
+- feat(lib): Agents can request a phase transition via new `NextPhase` field on `AgentResultInfo` and `AgentResultLike` — `kafkaResultDeliverer` writes the requested phase on `status: done`; failure/needs_input paths continue to escalate to `human_review` (074/077 rules win).
+- BREAKING: `AgentResultLike` interface gains a `GetNextPhase() string` method — downstream consumers of `lib/claude` (pr-reviewer, backtest-agent, trade-analysis, hypothesis) must add this method to their concrete `AgentResult` types when bumping to this lib version.
+
 All notable changes to this project will be documented in this file.
 
 Please choose versions by [Semantic Versioning](http://semver.org/).
