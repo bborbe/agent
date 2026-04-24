@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Added NextPhase field to AgentResultInfo and AgentResultLike interface, wired resolveNextPhase helper in kafkaResultDeliverer, extended tests for all Status×NextPhase combinations.
 container: agent-078-add-next-phase-to-agent-result
 dark-factory-version: v0.132.0
 created: "2026-04-24T14:00:00Z"
 queued: "2026-04-24T14:02:48Z"
 started: "2026-04-24T14:02:50Z"
+completed: "2026-04-24T14:08:32Z"
 ---
 
 <summary>
