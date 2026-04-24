@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [015-atomic-frontmatter-increment-and-trigger-cap]
 summary: Added TriggerCount/MaxTriggers frontmatter accessors and IncrementFrontmatterCommand/UpdateFrontmatterCommand Kafka command types to lib/
 container: agent-066-spec-015-lib-types
@@ -7,6 +7,7 @@ dark-factory-version: v0.132.0
 created: "2026-04-24T07:42:14Z"
 queued: "2026-04-24T08:05:26Z"
 started: "2026-04-24T08:05:28Z"
+completed: "2026-04-24T08:08:54Z"
 branch: dark-factory/atomic-frontmatter-increment-and-trigger-cap
 ---
 
