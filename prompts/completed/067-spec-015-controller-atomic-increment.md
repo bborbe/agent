@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [015-atomic-frontmatter-increment-and-trigger-cap]
 summary: Implemented AtomicReadModifyWriteAndCommitPush on GitClient, IncrementFrontmatterExecutor and UpdateFrontmatterExecutor command handlers with phase escalation, exported FindTaskFilePath/ExtractFrontmatter/ExtractBody helpers, added FrontmatterCommandsTotal metric, wired both executors in factory, and added comprehensive unit tests.
 container: agent-067-spec-015-controller-atomic-increment
@@ -7,6 +7,7 @@ dark-factory-version: v0.132.0
 created: "2026-04-24T07:42:14Z"
 queued: "2026-04-24T08:05:26Z"
 started: "2026-04-24T08:08:55Z"
+completed: "2026-04-24T08:19:47Z"
 branch: dark-factory/atomic-frontmatter-increment-and-trigger-cap
 ---
 
