@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [014-configurable-task-triggers]
 summary: 'Replaced hardcoded allowedPhases with per-Config trigger consulting: moved Config resolution before status/phase checks in parseAndFilter, added effectiveTriggerPhases/effectiveTriggerStatuses helpers with default fallback, added 7 new Ginkgo test scenarios covering all trigger combinations, updated CHANGELOG.md.'
 container: agent-065-spec-014-handler-per-config-trigger
@@ -7,6 +7,7 @@ dark-factory-version: v0.132.0
 created: "2026-04-23T21:15:00Z"
 queued: "2026-04-24T07:11:07Z"
 started: "2026-04-24T07:27:58Z"
+completed: "2026-04-24T07:34:41Z"
 ---
 
 <summary>
