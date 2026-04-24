@@ -45,6 +45,11 @@ spec:
 | `spec.volumeClaim` | no | Name of an existing PVC mounted into the container |
 | `spec.volumeMountPath` | conditional | Container path for `volumeClaim` mount — required when `volumeClaim` is set |
 | `spec.priorityClassName` | no | — | Kubernetes PriorityClass name to stamp onto spawned Job PodTemplates. When set, a matching `ResourceQuota` scoped to this class enforces the concurrent pod cap. Absent means no PriorityClass (unbounded concurrency, pre-spec-013 behavior). |
+| `spec.trigger` | no | Per-agent trigger conditions (optional nested object with `phases` and `statuses` lists). When absent or empty, defaults apply: phases `[planning, in_progress, ai_review]` and statuses `[in_progress]`. |
+| `spec.trigger.phases` | no | Task phases that allow spawning. Valid values: `todo`, `planning`, `in_progress`, `ai_review`, `human_review`, `done`. Empty or absent means default phases apply. |
+| `spec.trigger.statuses` | no | Task statuses that allow spawning. Valid values: `todo`, `in_progress`, `backlog`, `completed`, `hold`, `aborted`. Empty or absent means default statuses apply. |
+
+If `spec.trigger` is omitted, or if `trigger.phases` / `trigger.statuses` are absent or empty, the executor applies its built-in defaults (phases: `planning`, `in_progress`, `ai_review`; statuses: `in_progress`). There is no way to configure a Config that triggers on nothing — an empty list is equivalent to the field being absent.
 
 ## Properties
 

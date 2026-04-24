@@ -32,6 +32,8 @@ type AgentConfiguration struct {
 	Resources *agentv1.AgentResources
 	// PriorityClassName is the Kubernetes PriorityClass name to stamp onto spawned Job PodTemplates.
 	PriorityClassName string
+	// Trigger declares the per-agent phase and status conditions under which the executor spawns a Job.
+	Trigger *agentv1.Trigger
 }
 
 // AgentConfigurations is a list of agent configurations.
@@ -62,6 +64,7 @@ func (a AgentConfigurations) TaggedConfigurations(branch string) AgentConfigurat
 			SecretName:        c.SecretName,
 			Resources:         c.Resources.DeepCopy(),
 			PriorityClassName: c.PriorityClassName,
+			Trigger:           c.Trigger,
 		}
 	}
 	return result

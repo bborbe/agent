@@ -26,6 +26,10 @@ type ConfigSpecApplyConfiguration struct {
 	VolumeClaim *string `json:"volumeClaim,omitempty"`
 	// VolumeMountPath is the container path where the PVC is mounted.
 	VolumeMountPath *string `json:"volumeMountPath,omitempty"`
+	// PriorityClassName is the Kubernetes PriorityClass name to stamp onto spawned Job PodTemplates.
+	PriorityClassName *string `json:"priorityClassName,omitempty"`
+	// Trigger declares the per-agent phase and status conditions under which the executor spawns a Job.
+	Trigger *TriggerApplyConfiguration `json:"trigger,omitempty"`
 }
 
 // ConfigSpecApplyConfiguration constructs a declarative configuration of the ConfigSpec type for use with
@@ -101,5 +105,21 @@ func (b *ConfigSpecApplyConfiguration) WithVolumeClaim(value string) *ConfigSpec
 // If called multiple times, the VolumeMountPath field is set to the value of the last call.
 func (b *ConfigSpecApplyConfiguration) WithVolumeMountPath(value string) *ConfigSpecApplyConfiguration {
 	b.VolumeMountPath = &value
+	return b
+}
+
+// WithPriorityClassName sets the PriorityClassName field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PriorityClassName field is set to the value of the last call.
+func (b *ConfigSpecApplyConfiguration) WithPriorityClassName(value string) *ConfigSpecApplyConfiguration {
+	b.PriorityClassName = &value
+	return b
+}
+
+// WithTrigger sets the Trigger field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Trigger field is set to the value of the last call.
+func (b *ConfigSpecApplyConfiguration) WithTrigger(value *TriggerApplyConfiguration) *ConfigSpecApplyConfiguration {
+	b.Trigger = value
 	return b
 }

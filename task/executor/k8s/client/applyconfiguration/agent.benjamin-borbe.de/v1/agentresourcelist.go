@@ -19,7 +19,7 @@ type AgentResourceListApplyConfiguration struct {
 	EphemeralStorage *string `json:"ephemeral-storage,omitempty"`
 }
 
-// AgentResourceList constructs a declarative configuration of the AgentResourceList type for use with
+// AgentResourceListApplyConfiguration constructs a declarative configuration of the AgentResourceList type for use with
 // apply.
 func AgentResourceList() *AgentResourceListApplyConfiguration {
 	return &AgentResourceListApplyConfiguration{}

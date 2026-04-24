@@ -16,7 +16,7 @@ type AgentResourcesApplyConfiguration struct {
 	Limits *AgentResourceListApplyConfiguration `json:"limits,omitempty"`
 }
 
-// AgentResources constructs a declarative configuration of the AgentResources type for use with
+// AgentResourcesApplyConfiguration constructs a declarative configuration of the AgentResources type for use with
 // apply.
 func AgentResources() *AgentResourcesApplyConfiguration {
 	return &AgentResourcesApplyConfiguration{}

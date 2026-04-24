@@ -1,10 +1,11 @@
 ---
-status: generating
+status: prompted
 tags:
     - dark-factory
     - spec
 approved: "2026-04-23T21:07:10Z"
 generating: "2026-04-23T21:07:19Z"
+prompted: "2026-04-23T21:13:17Z"
 branch: dark-factory/configurable-task-triggers
 ---
 

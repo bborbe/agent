@@ -11,6 +11,7 @@ import (
 	"github.com/bborbe/errors"
 	libk8s "github.com/bborbe/k8s"
 	"github.com/bborbe/validation"
+	"github.com/bborbe/vault-cli/pkg/domain"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -27,6 +28,13 @@ type Config struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// Spec holds the configuration for this agent type.
 	Spec ConfigSpec `json:"spec"`
+}
+
+// Trigger declares the per-agent phase and status conditions under which the executor spawns a Job.
+// Absent or empty lists fall back to the default allow-list (phases: planning/in_progress/ai_review; statuses: in_progress).
+type Trigger struct {
+	Phases   domain.TaskPhases   `json:"phases,omitempty"`
+	Statuses domain.TaskStatuses `json:"statuses,omitempty"`
 }
 
 // ConfigSpec defines the desired state of a Config.
@@ -49,6 +57,8 @@ type ConfigSpec struct {
 	VolumeMountPath string `json:"volumeMountPath,omitempty"`
 	// PriorityClassName is the Kubernetes PriorityClass name to stamp onto spawned Job PodTemplates.
 	PriorityClassName string `json:"priorityClassName,omitempty"`
+	// Trigger declares the per-agent phase and status conditions under which the executor spawns a Job.
+	Trigger *Trigger `json:"trigger,omitempty"`
 }
 
 // AgentResources holds optional resource requests and limits for the agent container.
@@ -117,7 +127,8 @@ func (s ConfigSpec) Equal(o ConfigSpec) bool {
 		s.VolumeMountPath == o.VolumeMountPath &&
 		s.PriorityClassName == o.PriorityClassName &&
 		reflect.DeepEqual(s.Env, o.Env) &&
-		reflect.DeepEqual(s.Resources, o.Resources)
+		reflect.DeepEqual(s.Resources, o.Resources) &&
+		reflect.DeepEqual(s.Trigger, o.Trigger)
 }
 
 // Validate validates the ConfigSpec fields.
@@ -133,6 +144,18 @@ func (s ConfigSpec) Validate(ctx context.Context) error {
 	}
 	if s.VolumeClaim != "" && s.VolumeMountPath == "" {
 		return errors.Wrapf(ctx, validation.Error, "VolumeMountPath required when VolumeClaim set")
+	}
+	if s.Trigger != nil {
+		for _, phase := range s.Trigger.Phases {
+			if err := phase.Validate(ctx); err != nil {
+				return errors.Wrapf(ctx, err, "invalid trigger phase %q", phase)
+			}
+		}
+		for _, status := range s.Trigger.Statuses {
+			if err := status.Validate(ctx); err != nil {
+				return errors.Wrapf(ctx, err, "invalid trigger status %q", status)
+			}
+		}
 	}
 	return nil
 }

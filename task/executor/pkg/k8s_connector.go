@@ -181,6 +181,23 @@ func configSpecSchema() apiextensionsv1.JSONSchemaProps {
 				Type:    "string",
 				Pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
 			},
+			"trigger": {
+				Type: "object",
+				Properties: map[string]apiextensionsv1.JSONSchemaProps{
+					"phases": {
+						Type: "array",
+						Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+							Schema: &apiextensionsv1.JSONSchemaProps{Type: "string"},
+						},
+					},
+					"statuses": {
+						Type: "array",
+						Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+							Schema: &apiextensionsv1.JSONSchemaProps{Type: "string"},
+						},
+					},
+				},
+			},
 		},
 	}
 }

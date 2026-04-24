@@ -27,6 +27,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &agentbenjaminborbedev1.ConfigApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("ConfigSpec"):
 		return &agentbenjaminborbedev1.ConfigSpecApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("Trigger"):
+		return &agentbenjaminborbedev1.TriggerApplyConfiguration{}
 
 	}
 	return nil

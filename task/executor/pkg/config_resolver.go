@@ -73,6 +73,7 @@ func convert(obj agentv1.Config, branch string) AgentConfiguration {
 		VolumeMountPath:   obj.Spec.VolumeMountPath,
 		Resources:         obj.Spec.Resources.DeepCopy(),
 		PriorityClassName: obj.Spec.PriorityClassName,
+		Trigger:           obj.Spec.Trigger,
 	}
 }
 

@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.48.0
+
+- feat: Config CRD gains optional spec.trigger with phases/statuses lists; ConfigSpec.Equal and Validate updated; AgentConfiguration.Trigger wired from config resolver; deepcopy regenerated
+
 ## v0.47.0
 
 - feat: priorityClassName field on Config CRD enables K8s-native concurrency cap via ResourceQuota; executor stamps value onto spawned Job PodTemplates; agent-claude bundle includes PriorityClass and per-env ResourceQuota manifests
