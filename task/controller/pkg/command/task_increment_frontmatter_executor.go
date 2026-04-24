@@ -48,16 +48,16 @@ func NewIncrementFrontmatterExecutor(
 			taskDirPath := filepath.Join(gitClient.Path(), taskDir)
 			absPath, _, err := result.FindTaskFilePath(ctx, taskDirPath, cmd.TaskIdentifier)
 			if err != nil {
-				metrics.FrontmatterCommandsTotal.WithLabelValues("increment_frontmatter", "error").
+				metrics.FrontmatterCommandsTotal.WithLabelValues("increment-frontmatter", "error").
 					Inc()
 				return nil, nil, errors.Wrapf(ctx, err, "find task file for increment")
 			}
 			if absPath == "" {
 				glog.Warningf(
-					"increment_frontmatter: task file not found for %s, skipping",
+					"increment-frontmatter: task file not found for %s, skipping",
 					cmd.TaskIdentifier,
 				)
-				metrics.FrontmatterCommandsTotal.WithLabelValues("increment_frontmatter", "not_found").
+				metrics.FrontmatterCommandsTotal.WithLabelValues("increment-frontmatter", "not_found").
 					Inc()
 				return nil, nil, nil
 			}
@@ -67,7 +67,7 @@ func NewIncrementFrontmatterExecutor(
 				buildIncrementModifyFn(ctx, cmd),
 				fmt.Sprintf("[agent-task-controller] increment %s for task %s", cmd.Field, cmd.TaskIdentifier),
 			); err != nil {
-				metrics.FrontmatterCommandsTotal.WithLabelValues("increment_frontmatter", "error").
+				metrics.FrontmatterCommandsTotal.WithLabelValues("increment-frontmatter", "error").
 					Inc()
 				return nil, nil, errors.Wrapf(
 					ctx,
@@ -76,7 +76,7 @@ func NewIncrementFrontmatterExecutor(
 					cmd.TaskIdentifier,
 				)
 			}
-			metrics.FrontmatterCommandsTotal.WithLabelValues("increment_frontmatter", "success").
+			metrics.FrontmatterCommandsTotal.WithLabelValues("increment-frontmatter", "success").
 				Inc()
 			return nil, nil, nil
 		},

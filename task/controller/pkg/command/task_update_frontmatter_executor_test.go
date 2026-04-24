@@ -101,10 +101,10 @@ var _ = Describe("NewUpdateFrontmatterExecutor", func() {
 	}
 
 	Describe("CommandOperation", func() {
-		It("returns update_frontmatter", func() {
+		It("returns update-frontmatter", func() {
 			Expect(
 				executor.CommandOperation(),
-			).To(Equal(base.CommandOperation("update_frontmatter")))
+			).To(Equal(base.CommandOperation("update-frontmatter")))
 		})
 	})
 

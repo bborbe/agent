@@ -55,7 +55,7 @@ var ConflictResolutionsTotal = promauto.NewCounterVec(
 )
 
 // FrontmatterCommandsTotal counts atomic frontmatter command executions
-// by operation ("increment_frontmatter" | "update_frontmatter") and
+// by operation ("increment-frontmatter" | "update-frontmatter") and
 // outcome ("success" | "error" | "not_found").
 var FrontmatterCommandsTotal = promauto.NewCounterVec(
 	prometheus.CounterOpts{
@@ -85,7 +85,7 @@ func init() {
 	ConflictResolutionsTotal.WithLabelValues("success").Add(0)
 	ConflictResolutionsTotal.WithLabelValues("error").Add(0)
 
-	for _, op := range []string{"increment_frontmatter", "update_frontmatter"} {
+	for _, op := range []string{"increment-frontmatter", "update-frontmatter"} {
 		for _, outcome := range []string{"success", "error", "not_found"} {
 			FrontmatterCommandsTotal.WithLabelValues(op, outcome).Add(0)
 		}

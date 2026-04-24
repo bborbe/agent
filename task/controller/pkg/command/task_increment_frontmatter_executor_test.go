@@ -102,10 +102,10 @@ var _ = Describe("NewIncrementFrontmatterExecutor", func() {
 	}
 
 	Describe("CommandOperation", func() {
-		It("returns increment_frontmatter", func() {
+		It("returns increment-frontmatter", func() {
 			Expect(
 				executor.CommandOperation(),
-			).To(Equal(base.CommandOperation("increment_frontmatter")))
+			).To(Equal(base.CommandOperation("increment-frontmatter")))
 		})
 	})
 

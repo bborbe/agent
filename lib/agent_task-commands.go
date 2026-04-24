@@ -8,14 +8,20 @@ import (
 	"github.com/bborbe/cqrs/base"
 )
 
+// IMPORTANT: operation strings must match base.CommandOperation.Validate regex
+// `^[a-z][a-z-]*$` (lowercase letters and hyphens only, starting with a letter).
+// Underscores, digits, and uppercase are REJECTED at runtime by cqrs.
+// Every constant below MUST also be added to the Validate-all test table in
+// agent_task-commands_test.go. CI catches misses there.
+
 // IncrementFrontmatterCommandOperation is the Kafka command operation
 // for atomically incrementing a single frontmatter field by a delta.
 // Published by the executor on agent-task-v1-request; handled by the controller.
-const IncrementFrontmatterCommandOperation base.CommandOperation = "increment_frontmatter"
+const IncrementFrontmatterCommandOperation base.CommandOperation = "increment-frontmatter"
 
 // UpdateFrontmatterCommandOperation is the Kafka command operation
 // for atomically setting specific frontmatter keys without touching other keys.
-const UpdateFrontmatterCommandOperation base.CommandOperation = "update_frontmatter"
+const UpdateFrontmatterCommandOperation base.CommandOperation = "update-frontmatter"
 
 // IncrementFrontmatterCommand is the payload for IncrementFrontmatterCommandOperation.
 // The controller reads the current value of Field from disk, adds Delta, and writes

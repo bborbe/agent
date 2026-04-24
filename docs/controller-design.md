@@ -57,12 +57,12 @@ Merged result:  {assignee: backtest-agent, tags: [agent-task], task_identifier: 
 
 In addition to the `"update"` operation (full result write), the controller handles two atomic frontmatter operations on `agent-task-v1-request`:
 
-### `"increment_frontmatter"` (IncrementFrontmatterExecutor)
+### `"increment-frontmatter"` (IncrementFrontmatterExecutor)
 
 Payload: `lib.IncrementFrontmatterCommand{TaskIdentifier, Field, Delta}`
 
 ```
-On agent-task-v1-request (operation: "increment_frontmatter"):
+On agent-task-v1-request (operation: "increment-frontmatter"):
   │
   ├── deserialize IncrementFrontmatterCommand
   ├── find task file by task_identifier (WalkDir)
@@ -81,12 +81,12 @@ On agent-task-v1-request (operation: "increment_frontmatter"):
 
 Delta may be negative (decrement). Cap escalation only fires for `trigger_count` reaching `max_triggers`.
 
-### `"update_frontmatter"` (UpdateFrontmatterExecutor)
+### `"update-frontmatter"` (UpdateFrontmatterExecutor)
 
 Payload: `lib.UpdateFrontmatterCommand{TaskIdentifier, Updates map[string]any}`
 
 ```
-On agent-task-v1-request (operation: "update_frontmatter"):
+On agent-task-v1-request (operation: "update-frontmatter"):
   │
   ├── deserialize UpdateFrontmatterCommand
   ├── if Updates is empty → return nil (no-op, no write)

@@ -1,7 +1,11 @@
 ---
-status: approved
+status: committing
+summary: Renamed CommandOperation strings from underscore to kebab-case in lib, metrics, executors, tests, and docs; added DescribeTable regression test in lib and controller; all three make precommit runs exited 0.
+container: agent-069-hotfix-kebab-case-command-operations
+dark-factory-version: v0.132.0
 created: "2026-04-24T09:00:00Z"
 queued: "2026-04-24T08:58:13Z"
+started: "2026-04-24T08:59:22Z"
 ---
 
 <summary>
