@@ -1,5 +1,6 @@
 ---
-status: executing
+status: committing
+summary: Injected PHASE env var into spawned agent Jobs sourced from task frontmatter phase field, with empty string when absent; extracted taskPhaseString helper to stay within funlen limit; extended existing test and added new empty-phase test case.
 container: agent-073-inject-phase-env-var
 dark-factory-version: v0.132.0
 created: "2026-04-24T11:50:00Z"

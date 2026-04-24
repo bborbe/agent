@@ -63,6 +63,7 @@ var _ = Describe("JobSpawner", func() {
 				TaskIdentifier: lib.TaskIdentifier("abc12345-rest-ignored"),
 				Frontmatter: lib.TaskFrontmatter{
 					"assignee": "claude",
+					"phase":    "planning",
 				},
 				Content: lib.TaskContent("do the work"),
 			}
@@ -105,6 +106,35 @@ var _ = Describe("JobSpawner", func() {
 			Expect(envMap["KAFKA_BROKERS"]).To(Equal("kafka:9092"))
 			Expect(envMap["BRANCH"]).To(Equal("develop"))
 			Expect(envMap["GEMINI_API_KEY"]).To(Equal("test-gemini-key"))
+			Expect(envMap["PHASE"]).To(Equal("planning"))
+		})
+
+		It("injects empty PHASE when task frontmatter has no phase", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("no-phase-task"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude",
+				},
+				Content: lib.TaskContent("do the work"),
+			}
+			config := pkg.AgentConfiguration{
+				Assignee: "claude",
+				Image:    "my-image:latest",
+				Env:      map[string]string{},
+			}
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+
+			envMap := make(map[string]string)
+			for _, e := range jobs.Items[0].Spec.Template.Spec.Containers[0].Env {
+				envMap[e.Name] = e.Value
+			}
+			Expect(envMap).To(HaveKey("PHASE"))
+			Expect(envMap["PHASE"]).To(Equal(""))
 		})
 
 		It("sets agent.benjamin-borbe.de/task-id label on spawned job", func() {

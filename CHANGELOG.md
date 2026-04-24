@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.52.5
+
+- feat(executor): inject `PHASE` env var into spawned agent Jobs, sourced from task frontmatter `phase` field (empty string when absent); enables per-phase dispatch in phase-aware agents without parsing `TASK_CONTENT` frontmatter
+
 ## v0.52.4
 
 - fix: enforce `trigger_count >= max_triggers` escalation server-side in `resultWriter.applyRetryCounter` so `phase: human_review` stays sticky across stale-payload result writes; adds `## Trigger Cap Escalation` section with dedup; adds dedup to the existing `## Retry Escalation` path; unit-tested for the live dev clobber scenario

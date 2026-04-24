@@ -78,6 +78,7 @@ func (s *jobSpawner) SpawnJob(
 	envBuilder.Add("TASK_ID", string(task.TaskIdentifier))
 	envBuilder.Add("KAFKA_BROKERS", s.kafkaBrokers)
 	envBuilder.Add("BRANCH", s.branch)
+	envBuilder.Add("PHASE", taskPhaseString(task.Frontmatter))
 	for key, value := range config.Env {
 		envBuilder.Add(key, value)
 	}
@@ -273,6 +274,14 @@ func applyTaskIDLabel(taskID lib.TaskIdentifier, job *batchv1.Job) {
 		job.Spec.Template.Labels = map[string]string{}
 	}
 	job.Spec.Template.Labels[taskIDLabelKey] = string(taskID)
+}
+
+// taskPhaseString returns the string value of the task's phase, or "" when absent.
+func taskPhaseString(f lib.TaskFrontmatter) string {
+	if p := f.Phase(); p != nil {
+		return string(*p)
+	}
+	return ""
 }
 
 // jobNameFromTask returns the K8s Job name for a task: "{assignee}-{taskID8}-{YYYYMMDDHHMMSS}".
