@@ -13,6 +13,13 @@ spec:
   volumeMountPath: /home/claude/.claude
   env:
     ALLOWED_TOOLS: WebSearch,WebFetch,Read,Grep
+  trigger:
+    phases:
+      - planning
+      - in_progress
+      - ai_review
+    statuses:
+      - in_progress
   resources:
     requests:
       cpu: 500m
