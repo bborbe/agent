@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Added trigger_count >= max_triggers escalation enforcement to resultWriter.applyRetryCounter with dedup for both Retry and Trigger Cap escalation sections, plus 5 new unit tests covering the live dev clobber scenario
 container: agent-072-hotfix-trigger-cap-sticky-human-review
 dark-factory-version: v0.132.0
 created: "2026-04-24T10:00:00Z"
 queued: "2026-04-24T11:38:27Z"
 started: "2026-04-24T11:38:37Z"
+completed: "2026-04-24T11:43:48Z"
 ---
 
 <summary>
