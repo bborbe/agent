@@ -16,6 +16,7 @@ import (
 	"github.com/golang/glog"
 
 	lib "github.com/bborbe/agent/lib"
+	delivery "github.com/bborbe/agent/lib/delivery"
 	"github.com/bborbe/agent/task/controller/pkg/gitclient"
 	"github.com/bborbe/agent/task/controller/pkg/metrics"
 	"github.com/bborbe/agent/task/controller/pkg/result"
@@ -44,8 +45,8 @@ func NewUpdateFrontmatterExecutor(
 					err,
 				)
 			}
-			// Empty updates is a valid no-op — nothing to write.
-			if len(cmd.Updates) == 0 {
+			// Empty updates with no body section is a no-op — nothing to write.
+			if len(cmd.Updates) == 0 && cmd.Body == nil {
 				return nil, nil, nil
 			}
 			taskDirPath := filepath.Join(gitClient.Path(), taskDir)
@@ -67,7 +68,7 @@ func NewUpdateFrontmatterExecutor(
 			if err := gitClient.AtomicReadModifyWriteAndCommitPush(
 				ctx,
 				absPath,
-				buildUpdateModifyFn(ctx, cmd.Updates),
+				buildUpdateModifyFn(ctx, cmd.Updates, cmd.Body),
 				fmt.Sprintf("[agent-task-controller] update frontmatter for task %s", cmd.TaskIdentifier),
 			); err != nil {
 				metrics.FrontmatterCommandsTotal.WithLabelValues("update-frontmatter", "error").
@@ -88,6 +89,7 @@ func NewUpdateFrontmatterExecutor(
 func buildUpdateModifyFn(
 	ctx context.Context,
 	updates lib.TaskFrontmatter,
+	bodySection *lib.BodySection,
 ) func([]byte) ([]byte, error) {
 	return func(current []byte) ([]byte, error) {
 		frontmatterStr, err := result.ExtractFrontmatter(ctx, current)
@@ -104,6 +106,9 @@ func buildUpdateModifyFn(
 		}
 		for k, v := range updates {
 			fm[k] = v
+		}
+		if bodySection != nil {
+			body = delivery.ReplaceOrAppendSection(body, bodySection.Heading, bodySection.Section)
 		}
 		return marshalFileContent(ctx, fm, body)
 	}

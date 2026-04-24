@@ -8,6 +8,11 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.52.6
+
+- fix(executor): `PublishFailure` now escalates K8s Job failures to `phase: human_review` (was: `ai_review`) and records the failure reason in a `## Failure` body section with timestamp and job name
+- feat(lib): `UpdateFrontmatterCommand` gains an optional `Body` field (`*BodySection`); controller's executor applies `ReplaceOrAppendSection` when set — backward-compatible, nil Body preserves current frontmatter-only behavior
+
 ## v0.52.5
 
 - feat(executor): inject `PHASE` env var into spawned agent Jobs, sourced from task frontmatter `phase` field (empty string when absent); enables per-phase dispatch in phase-aware agents without parsing `TASK_CONTENT` frontmatter

@@ -120,36 +120,50 @@ var _ = Describe("ResultPublisher", func() {
 	})
 
 	Describe("PublishFailure", func() {
-		It("sends exactly three keys via UpdateFrontmatterCommand without mutating body", func() {
-			task := lib.Task{
-				TaskIdentifier: lib.TaskIdentifier("test-task-2"),
-				Frontmatter: lib.TaskFrontmatter{
-					"status":        "in_progress",
-					"phase":         "ai_review",
-					"assignee":      "claude",
-					"trigger_count": 2,
-				},
-				Content: lib.TaskContent("do the work"),
-			}
-			err := publisher.PublishFailure(ctx, task, "claude-20260418120000", "pod OOM killed")
-			Expect(err).NotTo(HaveOccurred())
+		It(
+			"publishes a failure command with phase human_review and a ## Failure body section",
+			func() {
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("test-task-2"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":        "in_progress",
+						"phase":         "ai_review",
+						"assignee":      "claude",
+						"trigger_count": 2,
+					},
+					Content: lib.TaskContent("do the work"),
+				}
+				err := publisher.PublishFailure(
+					ctx,
+					task,
+					"claude-20260418120000",
+					"pod OOM killed",
+				)
+				Expect(err).NotTo(HaveOccurred())
 
-			Expect(producer.messages).To(HaveLen(1))
-			operation, cmd := decodeUpdateFrontmatterCommand(producer.messages[0])
+				Expect(producer.messages).To(HaveLen(1))
+				operation, cmd := decodeUpdateFrontmatterCommand(producer.messages[0])
 
-			Expect(string(operation)).To(Equal(string(lib.UpdateFrontmatterCommandOperation)))
-			Expect(cmd.Updates).To(HaveLen(3))
+				Expect(string(operation)).To(Equal(string(lib.UpdateFrontmatterCommandOperation)))
+				Expect(cmd.Updates).To(HaveLen(3))
 
-			Expect(cmd.Updates["status"]).To(Equal("in_progress"))
-			Expect(cmd.Updates["phase"]).To(Equal("ai_review"))
-			Expect(cmd.Updates["current_job"]).To(Equal(""))
+				Expect(cmd.Updates["status"]).To(Equal("in_progress"))
+				Expect(cmd.Updates["phase"]).To(Equal("human_review"))
+				Expect(cmd.Updates["current_job"]).To(Equal(""))
 
-			_, hasTriggerCount := cmd.Updates["trigger_count"]
-			Expect(hasTriggerCount).To(BeFalse(), "trigger_count must not be in failure update")
-			_, hasSpawnNotification := cmd.Updates["spawn_notification"]
-			Expect(
-				hasSpawnNotification,
-			).To(BeFalse(), "spawn_notification must not be in failure update")
-		})
+				_, hasTriggerCount := cmd.Updates["trigger_count"]
+				Expect(hasTriggerCount).To(BeFalse(), "trigger_count must not be in failure update")
+				_, hasSpawnNotification := cmd.Updates["spawn_notification"]
+				Expect(
+					hasSpawnNotification,
+				).To(BeFalse(), "spawn_notification must not be in failure update")
+
+				Expect(cmd.Body).NotTo(BeNil())
+				Expect(cmd.Body.Heading).To(Equal("## Failure"))
+				Expect(cmd.Body.Section).To(ContainSubstring("2026-04-18T12:00:00Z"))
+				Expect(cmd.Body.Section).To(ContainSubstring("claude-20260418120000"))
+				Expect(cmd.Body.Section).To(ContainSubstring("pod OOM killed"))
+			},
+		)
 	})
 })

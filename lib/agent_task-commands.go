@@ -33,9 +33,20 @@ type IncrementFrontmatterCommand struct {
 }
 
 // UpdateFrontmatterCommand is the payload for UpdateFrontmatterCommandOperation.
-// The controller applies only the listed key-value pairs; all other frontmatter
-// keys in the task file are left unchanged.
+// Merges Updates into the existing frontmatter (partial merge — absent keys preserved).
+// When Body is set, its section is appended to (or replaced in) the task body via
+// lib/delivery.ReplaceOrAppendSection. Unset Body means frontmatter-only update.
 type UpdateFrontmatterCommand struct {
 	TaskIdentifier TaskIdentifier  `json:"taskIdentifier"`
 	Updates        TaskFrontmatter `json:"updates"`
+	Body           *BodySection    `json:"body,omitempty"`
+}
+
+// BodySection describes an idempotent body-section write: the controller's
+// UpdateFrontmatterExecutor calls ReplaceOrAppendSection(content, Heading, Section).
+// Heading MUST include the markdown prefix (e.g. "## Failure"). Section MUST
+// include the heading as its first line and a trailing newline.
+type BodySection struct {
+	Heading string `json:"heading"`
+	Section string `json:"section"`
 }

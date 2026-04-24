@@ -6,6 +6,8 @@ package pkg
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/bborbe/cqrs/base"
 	cdb "github.com/bborbe/cqrs/cdb"
@@ -77,12 +79,23 @@ func (p *resultPublisher) PublishFailure(
 	jobName string,
 	reason string,
 ) error {
+	now := p.currentDateTime.Now().UTC().Format(time.RFC3339)
+	section := fmt.Sprintf(
+		"## Failure\n\n- **Timestamp:** %s\n- **Job:** %s\n- **Reason:** %s\n",
+		now,
+		jobName,
+		reason,
+	)
 	cmd := lib.UpdateFrontmatterCommand{
 		TaskIdentifier: task.TaskIdentifier,
 		Updates: lib.TaskFrontmatter{
 			"status":      "in_progress",
-			"phase":       "ai_review",
+			"phase":       "human_review",
 			"current_job": "",
+		},
+		Body: &lib.BodySection{
+			Heading: "## Failure",
+			Section: section,
 		},
 	}
 	return p.publishRaw(ctx, lib.UpdateFrontmatterCommandOperation, cmd)

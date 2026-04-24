@@ -197,5 +197,70 @@ var _ = Describe("NewUpdateFrontmatterExecutor", func() {
 				Expect(fm["custom"]).To(Equal("preserve"))
 			})
 		})
+
+		Context("Body field appends a new section", func() {
+			It(
+				"updates frontmatter and appends the ## Failure section while preserving ## Result",
+				func() {
+					taskFile := writeTaskFile(
+						"task.md",
+						"---\ntask_identifier: body-append-uuid\nstatus: in_progress\nphase: ai_review\n---\n## Result\n\nok\n",
+					)
+					failureSection := "## Failure\n\n- **Timestamp:** 2026-04-24T12:00:00Z\n- **Job:** job-abc\n- **Reason:** OOMKilled\n"
+					cmd := buildCmdObj(lib.UpdateFrontmatterCommand{
+						TaskIdentifier: lib.TaskIdentifier("body-append-uuid"),
+						Updates: lib.TaskFrontmatter{
+							"status":      "in_progress",
+							"phase":       "human_review",
+							"current_job": "",
+						},
+						Body: &lib.BodySection{
+							Heading: "## Failure",
+							Section: failureSection,
+						},
+					})
+					_, _, err := executor.HandleCommand(ctx, nil, cmd)
+					Expect(err).NotTo(HaveOccurred())
+
+					fm := parseFrontmatter(taskFile)
+					Expect(fm["phase"]).To(Equal("human_review"))
+
+					content, err := os.ReadFile(taskFile) // #nosec G304 -- test helper
+					Expect(err).NotTo(HaveOccurred())
+					body := string(content)
+					Expect(body).To(ContainSubstring("## Result"))
+					Expect(body).To(ContainSubstring("## Failure"))
+					Expect(body).To(ContainSubstring("OOMKilled"))
+				},
+			)
+		})
+
+		Context("Body nil leaves body untouched", func() {
+			It("updates frontmatter without modifying the existing body", func() {
+				originalBody := "## Result\n\nok\n"
+				taskFile := writeTaskFile(
+					"task.md",
+					"---\ntask_identifier: body-nil-uuid\nstatus: in_progress\nphase: ai_review\n---\n"+originalBody,
+				)
+				cmd := buildCmdObj(lib.UpdateFrontmatterCommand{
+					TaskIdentifier: lib.TaskIdentifier("body-nil-uuid"),
+					Updates: lib.TaskFrontmatter{
+						"phase": "human_review",
+					},
+					Body: nil,
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmd)
+				Expect(err).NotTo(HaveOccurred())
+
+				fm := parseFrontmatter(taskFile)
+				Expect(fm["phase"]).To(Equal("human_review"))
+
+				content, err := os.ReadFile(taskFile) // #nosec G304 -- test helper
+				Expect(err).NotTo(HaveOccurred())
+				// Body should be unchanged
+				Expect(string(content)).To(ContainSubstring(originalBody))
+				Expect(string(content)).NotTo(ContainSubstring("## Failure"))
+			})
+		})
 	})
 })
