@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	agentlib "github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/lib/delivery"
 )
 
@@ -28,8 +29,8 @@ var _ = Describe("FallbackContentGenerator", func() {
 	Context("with frontmatter and body", func() {
 		It("sets status=completed and phase=done for done result", func() {
 			original := "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Task\n\nRun a backtest.\n"
-			result := delivery.AgentResultInfo{
-				Status: delivery.AgentStatusDone,
+			result := agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusDone,
 				Output: "## Result\n\n- Strategy: foo\n",
 			}
 			generated, err := generator.Generate(ctx, original, result)
@@ -43,8 +44,8 @@ var _ = Describe("FallbackContentGenerator", func() {
 			"sets status=in_progress and phase=human_review for failed result with ## Failure section",
 			func() {
 				original := "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Task\n\nRun a backtest.\n"
-				generated, err := generator.Generate(ctx, original, delivery.AgentResultInfo{
-					Status:  delivery.AgentStatusFailed,
+				generated, err := generator.Generate(ctx, original, agentlib.AgentResultInfo{
+					Status:  agentlib.AgentStatusFailed,
 					Message: "claude CLI failed: exit status 1",
 				})
 				Expect(err).NotTo(HaveOccurred())
@@ -61,8 +62,8 @@ var _ = Describe("FallbackContentGenerator", func() {
 			"keeps status=in_progress, phase=human_review, ## Result section for needs_input",
 			func() {
 				original := "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Task\n\nRun a backtest.\n"
-				generated, err := generator.Generate(ctx, original, delivery.AgentResultInfo{
-					Status:  delivery.AgentStatusNeedsInput,
+				generated, err := generator.Generate(ctx, original, agentlib.AgentResultInfo{
+					Status:  agentlib.AgentStatusNeedsInput,
 					Message: "no date range in task",
 				})
 				Expect(err).NotTo(HaveOccurred())
@@ -75,8 +76,8 @@ var _ = Describe("FallbackContentGenerator", func() {
 
 		It("sets status=in_progress and phase=human_review for needs_input result", func() {
 			original := "---\ntitle: My Task\n---\n\n## Task\n\nRun a backtest.\n"
-			result := delivery.AgentResultInfo{
-				Status:  delivery.AgentStatusNeedsInput,
+			result := agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusNeedsInput,
 				Message: "missing strategy",
 			}
 			generated, err := generator.Generate(ctx, original, result)
@@ -88,8 +89,8 @@ var _ = Describe("FallbackContentGenerator", func() {
 
 	Context("with empty original content", func() {
 		It("returns a ## Result section without frontmatter", func() {
-			result := delivery.AgentResultInfo{
-				Status: delivery.AgentStatusDone,
+			result := agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusDone,
 				Output: "## Result\n\nbacktest complete\n",
 			}
 			generated, err := generator.Generate(ctx, "", result)
@@ -102,8 +103,8 @@ var _ = Describe("FallbackContentGenerator", func() {
 	Context("with existing ## Result section", func() {
 		It("replaces the existing section", func() {
 			original := "---\ntitle: My Task\n---\n\n## Task\n\nRun a backtest.\n\n## Result\n\nOld result.\n"
-			result := delivery.AgentResultInfo{
-				Status: delivery.AgentStatusDone,
+			result := agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusDone,
 				Output: "## Result\n\nnew result content\n",
 			}
 			generated, err := generator.Generate(ctx, original, result)
@@ -118,8 +119,8 @@ var _ = Describe("FallbackContentGenerator", func() {
 		generated, err := generator.Generate(
 			ctx,
 			original,
-			delivery.AgentResultInfo{
-				Status: delivery.AgentStatusDone,
+			agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusDone,
 				Output: "## Result\n\nresult\n",
 			},
 		)
@@ -131,8 +132,8 @@ var _ = Describe("FallbackContentGenerator", func() {
 	Context("2026-04-20b regression", func() {
 		It("does NOT double the ## Result heading when Output contains it", func() {
 			original := "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Details\n\nd\n"
-			result := delivery.AgentResultInfo{
-				Status:  delivery.AgentStatusDone,
+			result := agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusDone,
 				Output:  "## Result\n\n**Status:** done\n**Message:** hello from dev\n",
 				Message: "hello from dev",
 			}
@@ -143,8 +144,8 @@ var _ = Describe("FallbackContentGenerator", func() {
 
 		It("does NOT duplicate the **Message:** line when Output already contains it", func() {
 			original := "---\ntitle: My Task\n---\n"
-			result := delivery.AgentResultInfo{
-				Status:  delivery.AgentStatusDone,
+			result := agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusDone,
 				Output:  "## Result\n\n**Status:** done\n**Message:** hello from dev\n",
 				Message: "hello from dev",
 			}
@@ -155,8 +156,8 @@ var _ = Describe("FallbackContentGenerator", func() {
 
 		It("replaces an existing ## Result section without duplication on re-run", func() {
 			original := "---\ntitle: My Task\n---\n\n## Result\n\n**Status:** done\n**Message:** old\n"
-			result := delivery.AgentResultInfo{
-				Status:  delivery.AgentStatusDone,
+			result := agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusDone,
 				Output:  "## Result\n\n**Status:** done\n**Message:** new\n",
 				Message: "new",
 			}
@@ -171,8 +172,8 @@ var _ = Describe("FallbackContentGenerator", func() {
 	Context("with AgentStatusInProgress", func() {
 		It("sets status=in_progress and preserves phase from incoming task", func() {
 			original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\n---\n\n## Task\n\nRun a backtest.\n"
-			result := delivery.AgentResultInfo{
-				Status: delivery.AgentStatusInProgress,
+			result := agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusInProgress,
 				Output: "## Plan\n\n- Step 1\n",
 			}
 			generated, err := generator.Generate(ctx, original, result)
@@ -189,8 +190,8 @@ var _ = Describe("FallbackContentGenerator", func() {
 			"synthesises a ## Failure block from Message when Output is empty for failed status",
 			func() {
 				original := "---\ntitle: My Task\n---\n"
-				result := delivery.AgentResultInfo{
-					Status:  delivery.AgentStatusFailed,
+				result := agentlib.AgentResultInfo{
+					Status:  agentlib.AgentStatusFailed,
 					Output:  "",
 					Message: "container OOMKilled",
 				}
@@ -205,8 +206,8 @@ var _ = Describe("FallbackContentGenerator", func() {
 
 		It("omits **Message:** when both Output and Message are empty", func() {
 			original := "---\ntitle: My Task\n---\n"
-			result := delivery.AgentResultInfo{
-				Status: delivery.AgentStatusDone,
+			result := agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusDone,
 			}
 			generated, err := generator.Generate(ctx, original, result)
 			Expect(err).NotTo(HaveOccurred())
@@ -229,8 +230,8 @@ var _ = Describe("NewSectionContentGenerator", func() {
 		It("writes output under the configured heading for done status", func() {
 			generator := delivery.NewSectionContentGenerator("## Plan")
 			original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\n---\n\n## Task\n\nDo planning.\n"
-			result := delivery.AgentResultInfo{
-				Status: delivery.AgentStatusDone,
+			result := agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusDone,
 				Output: "## Plan\n\n- Step 1\n- Step 2\n",
 			}
 			generated, err := generator.Generate(ctx, original, result)
@@ -245,8 +246,8 @@ var _ = Describe("NewSectionContentGenerator", func() {
 		It("writes ## Failure section regardless of configured heading", func() {
 			generator := delivery.NewSectionContentGenerator("## Plan")
 			original := "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Task\n\nDo planning.\n"
-			result := delivery.AgentResultInfo{
-				Status:  delivery.AgentStatusFailed,
+			result := agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusFailed,
 				Message: "boom",
 			}
 			generated, err := generator.Generate(ctx, original, result)
@@ -261,8 +262,8 @@ var _ = Describe("NewSectionContentGenerator", func() {
 		It("uses buildMinimalResultSection when Output is empty for done status", func() {
 			generator := delivery.NewSectionContentGenerator("## Plan")
 			original := "---\ntitle: My Task\n---\n"
-			result := delivery.AgentResultInfo{
-				Status: delivery.AgentStatusDone,
+			result := agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusDone,
 			}
 			generated, err := generator.Generate(ctx, original, result)
 			Expect(err).NotTo(HaveOccurred())
@@ -274,8 +275,8 @@ var _ = Describe("NewSectionContentGenerator", func() {
 		It("preserves phase: planning when status is in_progress", func() {
 			generator := delivery.NewSectionContentGenerator("## Plan")
 			original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\n---\n\n## Task\n\nDo planning.\n"
-			result := delivery.AgentResultInfo{
-				Status: delivery.AgentStatusInProgress,
+			result := agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusInProgress,
 				Output: "## Plan\n\n- Draft step\n",
 			}
 			generated, err := generator.Generate(ctx, original, result)
@@ -291,8 +292,8 @@ var _ = Describe("NewSectionContentGenerator", func() {
 		It("replaces existing ## Plan section without duplication", func() {
 			generator := delivery.NewSectionContentGenerator("## Plan")
 			original := "---\ntitle: My Task\n---\n\n## Task\n\nDo planning.\n\n## Plan\n\nOld plan content.\n"
-			result := delivery.AgentResultInfo{
-				Status: delivery.AgentStatusDone,
+			result := agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusDone,
 				Output: "## Plan\n\nNew plan content.\n",
 			}
 			generated, err := generator.Generate(ctx, original, result)
@@ -307,8 +308,8 @@ var _ = Describe("NewSectionContentGenerator", func() {
 		It("appends ## Plan when not present in input", func() {
 			generator := delivery.NewSectionContentGenerator("## Plan")
 			original := "---\ntitle: My Task\n---\n\n## Task\n\nDo planning.\n"
-			result := delivery.AgentResultInfo{
-				Status: delivery.AgentStatusDone,
+			result := agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusDone,
 				Output: "## Plan\n\nAppended plan.\n",
 			}
 			generated, err := generator.Generate(ctx, original, result)
@@ -322,8 +323,8 @@ var _ = Describe("NewSectionContentGenerator", func() {
 		It("writes output under ## Review when configured with that heading", func() {
 			generator := delivery.NewSectionContentGenerator("## Review")
 			original := "---\ntitle: My Task\n---\n\n## Task\n\nDo review.\n"
-			result := delivery.AgentResultInfo{
-				Status: delivery.AgentStatusDone,
+			result := agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusDone,
 				Output: "## Review\n\nLooks good.\n",
 			}
 			generated, err := generator.Generate(ctx, original, result)

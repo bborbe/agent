@@ -5,16 +5,17 @@ import (
 	"context"
 	"sync"
 
+	"github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/lib/delivery"
 )
 
 type AgentContentGenerator struct {
-	GenerateStub        func(context.Context, string, delivery.AgentResultInfo) (string, error)
+	GenerateStub        func(context.Context, string, lib.AgentResultInfo) (string, error)
 	generateMutex       sync.RWMutex
 	generateArgsForCall []struct {
 		arg1 context.Context
 		arg2 string
-		arg3 delivery.AgentResultInfo
+		arg3 lib.AgentResultInfo
 	}
 	generateReturns struct {
 		result1 string
@@ -28,13 +29,13 @@ type AgentContentGenerator struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *AgentContentGenerator) Generate(arg1 context.Context, arg2 string, arg3 delivery.AgentResultInfo) (string, error) {
+func (fake *AgentContentGenerator) Generate(arg1 context.Context, arg2 string, arg3 lib.AgentResultInfo) (string, error) {
 	fake.generateMutex.Lock()
 	ret, specificReturn := fake.generateReturnsOnCall[len(fake.generateArgsForCall)]
 	fake.generateArgsForCall = append(fake.generateArgsForCall, struct {
 		arg1 context.Context
 		arg2 string
-		arg3 delivery.AgentResultInfo
+		arg3 lib.AgentResultInfo
 	}{arg1, arg2, arg3})
 	stub := fake.GenerateStub
 	fakeReturns := fake.generateReturns
@@ -55,13 +56,13 @@ func (fake *AgentContentGenerator) GenerateCallCount() int {
 	return len(fake.generateArgsForCall)
 }
 
-func (fake *AgentContentGenerator) GenerateCalls(stub func(context.Context, string, delivery.AgentResultInfo) (string, error)) {
+func (fake *AgentContentGenerator) GenerateCalls(stub func(context.Context, string, lib.AgentResultInfo) (string, error)) {
 	fake.generateMutex.Lock()
 	defer fake.generateMutex.Unlock()
 	fake.GenerateStub = stub
 }
 
-func (fake *AgentContentGenerator) GenerateArgsForCall(i int) (context.Context, string, delivery.AgentResultInfo) {
+func (fake *AgentContentGenerator) GenerateArgsForCall(i int) (context.Context, string, lib.AgentResultInfo) {
 	fake.generateMutex.RLock()
 	defer fake.generateMutex.RUnlock()
 	argsForCall := fake.generateArgsForCall[i]

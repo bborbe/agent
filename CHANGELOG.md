@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- refactor(lib): move `AgentStatus`, `AgentResultInfo`, `ResultDeliverer` from `lib/delivery` to `lib` root — removes potential import cycle for new framework primitives; `lib/delivery` still hosts impls (Noop / File / Kafka deliverers, ContentGenerator)
+
 ## v0.53.5
 
 - feat(lib): add NewSectionContentGenerator(heading) to lib/delivery for phase-aware agents writing custom section headings (## Plan, ## Review, etc.) — same status-frontmatter + failure-section semantics as FallbackContentGenerator

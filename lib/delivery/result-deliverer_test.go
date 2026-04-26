@@ -31,7 +31,7 @@ var _ = Describe("NoopResultDeliverer", func() {
 		deliverer := delivery.NewNoopResultDeliverer()
 		err := deliverer.DeliverResult(
 			ctx,
-			delivery.AgentResultInfo{Status: delivery.AgentStatusDone},
+			agentlib.AgentResultInfo{Status: agentlib.AgentStatusDone},
 		)
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -40,7 +40,7 @@ var _ = Describe("NoopResultDeliverer", func() {
 		deliverer := delivery.NewNoopResultDeliverer()
 		err := deliverer.DeliverResult(
 			ctx,
-			delivery.AgentResultInfo{Status: delivery.AgentStatusFailed},
+			agentlib.AgentResultInfo{Status: agentlib.AgentStatusFailed},
 		)
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -51,7 +51,7 @@ var _ = Describe("FileResultDeliverer", func() {
 		ctx       context.Context
 		generator *libmocks.AgentContentGenerator
 		tmpFile   *os.File
-		deliverer delivery.ResultDeliverer
+		deliverer agentlib.ResultDeliverer
 	)
 
 	BeforeEach(func() {
@@ -75,7 +75,7 @@ var _ = Describe("FileResultDeliverer", func() {
 		generator.GenerateReturns(generated, nil)
 		err := deliverer.DeliverResult(
 			ctx,
-			delivery.AgentResultInfo{Status: delivery.AgentStatusDone, Output: "bt-123"},
+			agentlib.AgentResultInfo{Status: agentlib.AgentStatusDone, Output: "bt-123"},
 		)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(generator.GenerateCallCount()).To(Equal(1))
@@ -88,7 +88,7 @@ var _ = Describe("FileResultDeliverer", func() {
 		deliverer = delivery.NewFileResultDeliverer(generator, "/nonexistent/path/task.md")
 		err := deliverer.DeliverResult(
 			ctx,
-			delivery.AgentResultInfo{Status: delivery.AgentStatusDone},
+			agentlib.AgentResultInfo{Status: agentlib.AgentStatusDone},
 		)
 		Expect(err).To(HaveOccurred())
 	})
@@ -100,7 +100,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 		sender          *cqrsmocks.CDBCommandObjectSender
 		clock           *timemocks.CurrentDateTimeGetter
 		generator       *libmocks.AgentContentGenerator
-		deliverer       delivery.ResultDeliverer
+		deliverer       agentlib.ResultDeliverer
 		taskID          agentlib.TaskIdentifier
 		originalContent string
 	)
@@ -131,8 +131,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			"---\nstatus: completed\nphase: done\n---\n\nBody.\n\n## Result\n\nok\n",
 			nil,
 		)
-		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-			Status: delivery.AgentStatusDone,
+		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			Status: agentlib.AgentStatusDone,
 		})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
@@ -150,8 +150,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
 			nil,
 		)
-		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-			Status:  delivery.AgentStatusFailed,
+		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			Status:  agentlib.AgentStatusFailed,
 			Message: "task runner failed: timeout",
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -170,8 +170,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n\n## Result\n\nneeds more info\n",
 			nil,
 		)
-		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-			Status:  delivery.AgentStatusNeedsInput,
+		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			Status:  agentlib.AgentStatusNeedsInput,
 			Message: "no date range in task",
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -190,8 +190,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			"---\nstatus: completed\nphase: done\n---\n\nBody.\n",
 			nil,
 		)
-		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-			Status:    delivery.AgentStatusDone,
+		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			Status:    agentlib.AgentStatusDone,
 			NextPhase: "",
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -209,8 +209,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			"---\nstatus: in_progress\nphase: in_progress\n---\n\nBody.\n",
 			nil,
 		)
-		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-			Status:    delivery.AgentStatusDone,
+		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			Status:    agentlib.AgentStatusDone,
 			NextPhase: "in_progress",
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -228,8 +228,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			"---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n",
 			nil,
 		)
-		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-			Status:    delivery.AgentStatusDone,
+		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			Status:    agentlib.AgentStatusDone,
 			NextPhase: "planning",
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -247,8 +247,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			"---\nstatus: completed\nphase: done\n---\n\nBody.\n",
 			nil,
 		)
-		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-			Status:    delivery.AgentStatusDone,
+		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			Status:    agentlib.AgentStatusDone,
 			NextPhase: "done",
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -266,8 +266,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n",
 			nil,
 		)
-		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-			Status:    delivery.AgentStatusDone,
+		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			Status:    agentlib.AgentStatusDone,
 			NextPhase: "human_review",
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -285,8 +285,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			"---\nstatus: completed\nphase: done\n---\n\nBody.\n",
 			nil,
 		)
-		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-			Status:    delivery.AgentStatusDone,
+		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			Status:    agentlib.AgentStatusDone,
 			NextPhase: "bogus_phase",
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -306,8 +306,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 				"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n\n## Failure\n\n- **Reason:** infra error\n",
 				nil,
 			)
-			err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-				Status:    delivery.AgentStatusFailed,
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusFailed,
 				Message:   "infra error",
 				NextPhase: "in_progress",
 			})
@@ -329,8 +329,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 				"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n\n## Failure\n\n- **Reason:** crash\n",
 				nil,
 			)
-			err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-				Status:    delivery.AgentStatusFailed,
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusFailed,
 				Message:   "crash",
 				NextPhase: "done",
 			})
@@ -349,8 +349,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			"---\nstatus: in_progress\nphase: ai_review\n---\n\nBody.\n",
 			nil,
 		)
-		err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-			Status:    delivery.AgentStatusDone,
+		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			Status:    agentlib.AgentStatusDone,
 			NextPhase: "ai_review",
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -370,8 +370,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 				"---\nstatus: in_progress\nphase: in_progress\n---\n\nBody.\n\n## Plan\n\n[plan content]\n",
 				nil,
 			)
-			err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-				Status:    delivery.AgentStatusDone,
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
 				Message:   "plan extracted",
 				NextPhase: "in_progress",
 			})
@@ -396,8 +396,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 				"---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n\n## Plan\n\n- Step 1\n",
 				nil,
 			)
-			err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-				Status: delivery.AgentStatusInProgress,
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusInProgress,
 				Output: "## Plan\n\n- Step 1\n",
 			})
 			Expect(err).NotTo(HaveOccurred())
@@ -418,8 +418,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 					"---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n\n## Plan\n\n- Step 1\n",
 					nil,
 				)
-				err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-					Status:    delivery.AgentStatusInProgress,
+				err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+					Status:    agentlib.AgentStatusInProgress,
 					Output:    "## Plan\n\n- Step 1\n",
 					NextPhase: "ai_review",
 				})
@@ -445,8 +445,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 				"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n",
 				nil,
 			)
-			err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
-				Status:    delivery.AgentStatusNeedsInput,
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusNeedsInput,
 				Message:   "missing date range",
 				NextPhase: "done",
 			})

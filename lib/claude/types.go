@@ -5,19 +5,19 @@
 package claude
 
 import (
-	delivery "github.com/bborbe/agent/lib/delivery"
+	agentlib "github.com/bborbe/agent/lib"
 )
 
 // AgentStatus is the shared agent status type.
-type AgentStatus = delivery.AgentStatus
+type AgentStatus = agentlib.AgentStatus
 
 const (
 	// AgentStatusDone indicates the task completed successfully.
-	AgentStatusDone = delivery.AgentStatusDone
+	AgentStatusDone = agentlib.AgentStatusDone
 	// AgentStatusFailed indicates the task failed.
-	AgentStatusFailed = delivery.AgentStatusFailed
+	AgentStatusFailed = agentlib.AgentStatusFailed
 	// AgentStatusNeedsInput indicates the task requires additional user input.
-	AgentStatusNeedsInput = delivery.AgentStatusNeedsInput
+	AgentStatusNeedsInput = agentlib.AgentStatusNeedsInput
 )
 
 // AgentResult is the structured output written to stdout for the task/executor to read.

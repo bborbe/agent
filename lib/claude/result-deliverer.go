@@ -8,6 +8,7 @@ import (
 	"context"
 	"strings"
 
+	agentlib "github.com/bborbe/agent/lib"
 	delivery "github.com/bborbe/agent/lib/delivery"
 )
 
@@ -18,19 +19,19 @@ type ResultDeliverer[T AgentResultLike] interface {
 	DeliverResult(ctx context.Context, result T) error
 }
 
-// NewResultDelivererAdapter wraps a delivery.ResultDeliverer to accept any AgentResultLike.
+// NewResultDelivererAdapter wraps a agentlib.ResultDeliverer to accept any AgentResultLike.
 func NewResultDelivererAdapter[T AgentResultLike](
-	inner delivery.ResultDeliverer,
+	inner agentlib.ResultDeliverer,
 ) ResultDeliverer[T] {
 	return &resultDelivererAdapter[T]{inner: inner}
 }
 
 type resultDelivererAdapter[T AgentResultLike] struct {
-	inner delivery.ResultDeliverer
+	inner agentlib.ResultDeliverer
 }
 
 func (a *resultDelivererAdapter[T]) DeliverResult(ctx context.Context, result T) error {
-	return a.inner.DeliverResult(ctx, delivery.AgentResultInfo{
+	return a.inner.DeliverResult(ctx, agentlib.AgentResultInfo{
 		Status:    result.GetStatus(),
 		Output:    result.RenderResultSection(),
 		Message:   result.GetMessage(),

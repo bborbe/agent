@@ -12,20 +12,21 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	agentlib "github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/lib/delivery"
 )
 
 var _ = Describe("PrintResult", func() {
 	var (
 		ctx    context.Context
-		result delivery.AgentResultInfo
+		result agentlib.AgentResultInfo
 		err    error
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		result = delivery.AgentResultInfo{
-			Status: delivery.AgentStatusDone,
+		result = agentlib.AgentResultInfo{
+			Status: agentlib.AgentStatusDone,
 			Output: "task complete",
 		}
 	})
