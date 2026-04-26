@@ -19,7 +19,6 @@ import (
 	"github.com/bborbe/vault-cli/pkg/domain"
 
 	"github.com/bborbe/agent/agent/code/pkg/factory"
-	"github.com/bborbe/agent/agent/code/pkg/steps"
 	agentlib "github.com/bborbe/agent/lib"
 )
 
@@ -49,13 +48,7 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 
 	deliverer := factory.CreateFileResultDeliverer(a.TaskFilePath)
 
-	agent := agentlib.NewAgent(
-		agentlib.NewPhase("planning", steps.NewPlanStep()),
-		agentlib.NewPhase("in_progress", steps.NewExecuteStep()),
-		agentlib.NewPhase("ai_review", steps.NewVerifyStep()),
-	)
-
-	result, err := agent.Run(ctx, a.Phase, string(taskContent), deliverer)
+	result, err := factory.CreateAgent().Run(ctx, a.Phase, string(taskContent), deliverer)
 	if err != nil {
 		return errors.Wrap(ctx, err, "agent run failed")
 	}

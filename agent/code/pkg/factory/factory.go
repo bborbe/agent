@@ -14,7 +14,9 @@ import (
 	"github.com/bborbe/errors"
 	libkafka "github.com/bborbe/kafka"
 	libtime "github.com/bborbe/time"
+	"github.com/golang/glog"
 
+	"github.com/bborbe/agent/agent/code/pkg/steps"
 	agentlib "github.com/bborbe/agent/lib"
 	delivery "github.com/bborbe/agent/lib/delivery"
 )
@@ -62,4 +64,52 @@ func CreateFileResultDeliverer(filePath string) agentlib.ResultDeliverer {
 		delivery.NewPassthroughContentGenerator(),
 		filePath,
 	)
+}
+
+// CreateAgent assembles the 3-phase pure-code agent — no LLM deps.
+// PlanStep reads frontmatter, ExecuteStep computes, VerifyStep checks.
+func CreateAgent() *agentlib.Agent {
+	return agentlib.NewAgent(
+		agentlib.NewPhase("planning", steps.NewPlanStep()),
+		agentlib.NewPhase("in_progress", steps.NewExecuteStep()),
+		agentlib.NewPhase("ai_review", steps.NewVerifyStep()),
+	)
+}
+
+// CreateDeliverer builds the Kafka-or-Noop deliverer used by the Kafka
+// entry point. Empty taskID means "no Kafka" — returns a noop deliverer
+// and an empty cleanup. Non-empty taskID requires non-empty brokers; the
+// returned cleanup closes the underlying SyncProducer (logged-and-ignored
+// on error).
+func CreateDeliverer(
+	ctx context.Context,
+	taskID agentlib.TaskIdentifier,
+	brokers libkafka.Brokers,
+	branch base.Branch,
+	originalContent string,
+) (agentlib.ResultDeliverer, func(), error) {
+	if taskID == "" {
+		glog.V(2).Infof("TASK_ID not set, skipping task result publishing")
+		return delivery.NewNoopResultDeliverer(), func() {}, nil
+	}
+	if len(brokers) == 0 {
+		return nil, nil, errors.Errorf(ctx, "KAFKA_BROKERS must be set when TASK_ID is set")
+	}
+	syncProducer, err := CreateSyncProducer(ctx, brokers)
+	if err != nil {
+		return nil, nil, errors.Wrap(ctx, err, "create sync producer failed")
+	}
+	deliverer := CreateKafkaResultDeliverer(
+		syncProducer,
+		branch,
+		taskID,
+		originalContent,
+		libtime.NewCurrentDateTime(),
+	)
+	cleanup := func() {
+		if err := syncProducer.Close(); err != nil {
+			glog.Warningf("close sync producer failed: %v", err)
+		}
+	}
+	return deliverer, cleanup, nil
 }

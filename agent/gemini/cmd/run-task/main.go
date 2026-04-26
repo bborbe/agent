@@ -19,7 +19,6 @@ import (
 	"github.com/bborbe/vault-cli/pkg/domain"
 
 	"github.com/bborbe/agent/agent/gemini/pkg/factory"
-	"github.com/bborbe/agent/agent/gemini/pkg/steps"
 	agentlib "github.com/bborbe/agent/lib"
 )
 
@@ -51,23 +50,15 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		return errors.Wrapf(ctx, err, "read task file: %s", a.TaskFilePath)
 	}
 
-	parser, err := factory.CreateGeminiParser(ctx, a.GeminiAPIKey, a.GeminiModel)
+	geminiParser, err := factory.CreateGeminiParser(ctx, a.GeminiAPIKey, a.GeminiModel)
 	if err != nil {
 		return errors.Wrap(ctx, err, "create gemini parser")
 	}
 
 	deliverer := factory.CreateFileResultDeliverer(a.TaskFilePath)
 
-	agent := agentlib.NewAgent(
-		agentlib.NewPhase(
-			"planning",
-			agentlib.NewParseStep[steps.Plan]("parse-plan", parser, "## Plan", "in_progress"),
-		),
-		agentlib.NewPhase("in_progress", steps.NewExecuteStep()),
-		agentlib.NewPhase("ai_review", steps.NewVerifyStep()),
-	)
-
-	result, err := agent.Run(ctx, a.Phase, string(taskContent), deliverer)
+	result, err := factory.CreateAgent(geminiParser).
+		Run(ctx, a.Phase, string(taskContent), deliverer)
 	if err != nil {
 		return errors.Wrap(ctx, err, "agent run failed")
 	}

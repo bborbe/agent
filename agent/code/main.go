@@ -27,14 +27,11 @@ import (
 	libkafka "github.com/bborbe/kafka"
 	libsentry "github.com/bborbe/sentry"
 	"github.com/bborbe/service"
-	libtime "github.com/bborbe/time"
 	"github.com/bborbe/vault-cli/pkg/domain"
 	"github.com/golang/glog"
 
 	"github.com/bborbe/agent/agent/code/pkg/factory"
-	"github.com/bborbe/agent/agent/code/pkg/steps"
 	agentlib "github.com/bborbe/agent/lib"
-	delivery "github.com/bborbe/agent/lib/delivery"
 )
 
 func main() {
@@ -63,49 +60,17 @@ type application struct {
 func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 	glog.V(2).Infof("agent-code started phase=%s", a.Phase)
 
-	deliverer, cleanup, err := a.createDeliverer(ctx)
+	deliverer, cleanup, err := factory.CreateDeliverer(
+		ctx, a.TaskID, a.KafkaBrokers, a.Branch, a.TaskContent,
+	)
 	if err != nil {
 		return errors.Wrap(ctx, err, "create deliverer")
 	}
 	defer cleanup()
 
-	agent := agentlib.NewAgent(
-		agentlib.NewPhase("planning", steps.NewPlanStep()),
-		agentlib.NewPhase("in_progress", steps.NewExecuteStep()),
-		agentlib.NewPhase("ai_review", steps.NewVerifyStep()),
-	)
-
-	result, err := agent.Run(ctx, a.Phase, a.TaskContent, deliverer)
+	result, err := factory.CreateAgent().Run(ctx, a.Phase, a.TaskContent, deliverer)
 	if err != nil {
 		return errors.Wrap(ctx, err, "agent run failed")
 	}
 	return agentlib.PrintResult(result)
-}
-
-func (a *application) createDeliverer(
-	ctx context.Context,
-) (agentlib.ResultDeliverer, func(), error) {
-	if a.TaskID != "" {
-		if len(a.KafkaBrokers) == 0 {
-			return nil, nil, errors.Errorf(ctx, "KAFKA_BROKERS must be set when TASK_ID is set")
-		}
-		syncProducer, err := factory.CreateSyncProducer(ctx, a.KafkaBrokers)
-		if err != nil {
-			return nil, nil, errors.Wrap(ctx, err, "create sync producer failed")
-		}
-		deliverer := factory.CreateKafkaResultDeliverer(
-			syncProducer,
-			a.Branch,
-			a.TaskID,
-			a.TaskContent,
-			libtime.NewCurrentDateTime(),
-		)
-		return deliverer, func() {
-			if err := syncProducer.Close(); err != nil {
-				glog.Warningf("close sync producer failed: %v", err)
-			}
-		}, nil
-	}
-	glog.V(2).Infof("TASK_ID not set, skipping task result publishing")
-	return delivery.NewNoopResultDeliverer(), func() {}, nil
 }
