@@ -52,6 +52,12 @@ func applyStatusFrontmatter(content string, status AgentStatus) string {
 		// Route straight to human_review — retrying a semantically-wrong task wastes compute.
 		content = SetFrontmatterField(content, "status", "in_progress")
 		content = SetFrontmatterField(content, "phase", "human_review")
+	case AgentStatusInProgress:
+		// Step-level progress save: keep status: in_progress, preserve phase from incoming task.
+		// Multi-step phase handlers use this to commit ## Plan / ## Result / etc. mid-phase
+		// without triggering a phase transition.
+		content = SetFrontmatterField(content, "status", "in_progress")
+		// phase intentionally not modified — preserves the agent's current phase for in-place save
 	default:
 		// Agent returned status: failed (or unknown). Route to human_review immediately —
 		// retry is the controller's job via trigger_count / max_triggers, not a phase loop.

@@ -14,6 +14,11 @@ const (
 	AgentStatusFailed AgentStatus = "failed"
 	// AgentStatusNeedsInput indicates the task requires additional user input.
 	AgentStatusNeedsInput AgentStatus = "needs_input"
+	// AgentStatusInProgress indicates the agent has completed a step within the current phase
+	// and saved partial state, but the phase is not yet complete. The controller writes the update
+	// without advancing the phase. Used by multi-step phase handlers for in-place progress saves.
+	// NextPhase is ignored on this status.
+	AgentStatusInProgress AgentStatus = "in_progress"
 )
 
 // AgentResultInfo holds the minimum fields a ContentGenerator needs from any agent result.

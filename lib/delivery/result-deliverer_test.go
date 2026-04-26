@@ -386,6 +386,58 @@ var _ = Describe("KafkaResultDeliverer", func() {
 		},
 	)
 
+	Context("with AgentStatusInProgress and incoming phase: planning", func() {
+		BeforeEach(func() {
+			originalContent = "---\ntitle: My Task\nstatus: in_progress\nphase: planning\n---\n\nBody.\n"
+		})
+
+		It("publishes in_progress result preserving phase from incoming task", func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n\n## Plan\n\n- Step 1\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
+				Status: delivery.AgentStatusInProgress,
+				Output: "## Plan\n\n- Step 1\n",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+			Expect(ok).To(BeTrue())
+			fm, ok := frontmatter.(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["phase"]).To(Equal("planning"))
+		})
+
+		It(
+			"publishes in_progress result ignoring NextPhase (phase preserved from incoming task)",
+			func() {
+				generator.GenerateReturns(
+					"---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n\n## Plan\n\n- Step 1\n",
+					nil,
+				)
+				err := deliverer.DeliverResult(ctx, delivery.AgentResultInfo{
+					Status:    delivery.AgentStatusInProgress,
+					Output:    "## Plan\n\n- Step 1\n",
+					NextPhase: "ai_review",
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
+				_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+				frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+				Expect(ok).To(BeTrue())
+				fm, ok := frontmatter.(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(fm["status"]).To(Equal("in_progress"))
+				// NextPhase=ai_review must be ignored — phase stays as planning from incoming task
+				Expect(fm["phase"]).To(Equal("planning"))
+				Expect(fm["phase"]).NotTo(Equal("ai_review"))
+			},
+		)
+	})
+
 	It(
 		"sets phase=human_review when needs_input result requests NextPhase=done (NextPhase ignored)",
 		func() {

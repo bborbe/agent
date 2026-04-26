@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.53.4
+
+- feat(lib): add AgentStatusInProgress for step-level in-place saves; preserves phase frontmatter, ignores NextPhase. Enables multi-step phase handlers to commit intermediate state without triggering phase advance.
+
 ## v0.53.3
 
 - fix(lib): `kafkaResultDeliverer` now keeps `status: in_progress` when an agent returns `status: done` with a `NextPhase` that requests a non-terminal phase (planning/in_progress/ai_review/human_review); only `NextPhase: done` or empty sets `status: completed` — unblocks multi-phase agents from the post-phase-1 stall (live dev bug observed on hypothesis agent task `cde7365b` 2026-04-24)

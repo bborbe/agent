@@ -149,6 +149,16 @@ func (d *kafkaResultDeliverer) DeliverResult(ctx context.Context, result AgentRe
 	case AgentStatusNeedsInput:
 		frontmatter["status"] = "in_progress"
 		frontmatter["phase"] = "human_review"
+	case AgentStatusInProgress:
+		// Step-level progress save: keep status: in_progress, preserve phase from incoming
+		// task frontmatter (already copied from fmMap above). NextPhase ignored on this status —
+		// log a warning if the agent set both.
+		if result.NextPhase != "" {
+			glog.Warningf("task %s: ignoring NextPhase %q on Status: in_progress (in-place save)",
+				d.taskID, result.NextPhase)
+		}
+		frontmatter["status"] = "in_progress"
+		// phase intentionally not modified — preserves incoming phase
 	default:
 		frontmatter["status"] = "in_progress"
 		frontmatter["phase"] = "human_review"

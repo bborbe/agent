@@ -168,6 +168,22 @@ var _ = Describe("FallbackContentGenerator", func() {
 		})
 	})
 
+	Context("with AgentStatusInProgress", func() {
+		It("sets status=in_progress and preserves phase from incoming task", func() {
+			original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\n---\n\n## Task\n\nRun a backtest.\n"
+			result := delivery.AgentResultInfo{
+				Status: delivery.AgentStatusInProgress,
+				Output: "## Plan\n\n- Step 1\n",
+			}
+			generated, err := generator.Generate(ctx, original, result)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(generated).To(ContainSubstring("status: in_progress"))
+			Expect(generated).To(ContainSubstring("phase: planning"))
+			Expect(generated).NotTo(ContainSubstring("phase: human_review"))
+			Expect(generated).NotTo(ContainSubstring("phase: done"))
+		})
+	})
+
 	Context("with empty Output (fallback minimal section)", func() {
 		It(
 			"synthesises a ## Failure block from Message when Output is empty for failed status",
