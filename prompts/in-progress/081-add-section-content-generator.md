@@ -1,7 +1,11 @@
 ---
-status: approved
+status: committing
+summary: Added NewSectionContentGenerator(heading string) to lib/delivery/content-generator.go with full test coverage for all status × heading combinations, reusing existing helpers without duplication.
+container: agent-081-add-section-content-generator
+dark-factory-version: v0.135.19-1-gc08c946
 created: "2026-04-26T18:00:47Z"
 queued: "2026-04-26T18:00:47Z"
+started: "2026-04-26T18:07:44Z"
 ---
 
 <summary>

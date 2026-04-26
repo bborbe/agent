@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.53.5
+
+- feat(lib): add NewSectionContentGenerator(heading) to lib/delivery for phase-aware agents writing custom section headings (## Plan, ## Review, etc.) — same status-frontmatter + failure-section semantics as FallbackContentGenerator
+
 ## v0.53.4
 
 - feat(lib): add AgentStatusInProgress for step-level in-place saves; preserves phase frontmatter, ignores NextPhase. Enables multi-step phase handlers to commit intermediate state without triggering phase advance.

@@ -99,3 +99,35 @@ func buildMinimalResultSection(result AgentResultInfo) string {
 	}
 	return b.String()
 }
+
+// NewSectionContentGenerator creates a ContentGenerator that writes its output under a
+// parameterized markdown heading (e.g. "## Plan", "## Review"). On AgentStatusFailed
+// it writes a "## Failure" section instead, regardless of the configured heading —
+// the failure-section convention is repo-wide, not phase-specific.
+//
+// Use this for phase-aware agents whose phases write distinct sections (planning → ## Plan,
+// execution → ## Result, review → ## Review).
+func NewSectionContentGenerator(heading string) ContentGenerator {
+	return &sectionContentGenerator{heading: heading}
+}
+
+type sectionContentGenerator struct {
+	heading string
+}
+
+func (g *sectionContentGenerator) Generate(
+	_ context.Context,
+	originalContent string,
+	result AgentResultInfo,
+) (string, error) {
+	updated := applyStatusFrontmatter(originalContent, result.Status)
+	if result.Status == AgentStatusFailed {
+		section := buildFailureSection(result)
+		return ReplaceOrAppendSection(updated, "## Failure", section), nil
+	}
+	section := result.Output
+	if section == "" {
+		section = buildMinimalResultSection(result)
+	}
+	return ReplaceOrAppendSection(updated, g.heading, section), nil
+}

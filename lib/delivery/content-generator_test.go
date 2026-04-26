@@ -215,3 +215,121 @@ var _ = Describe("FallbackContentGenerator", func() {
 		})
 	})
 })
+
+var _ = Describe("NewSectionContentGenerator", func() {
+	var (
+		ctx context.Context
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	Context("heading parameterization", func() {
+		It("writes output under the configured heading for done status", func() {
+			generator := delivery.NewSectionContentGenerator("## Plan")
+			original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\n---\n\n## Task\n\nDo planning.\n"
+			result := delivery.AgentResultInfo{
+				Status: delivery.AgentStatusDone,
+				Output: "## Plan\n\n- Step 1\n- Step 2\n",
+			}
+			generated, err := generator.Generate(ctx, original, result)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(generated).To(ContainSubstring("## Plan"))
+			Expect(generated).To(ContainSubstring("Step 1"))
+			Expect(generated).To(ContainSubstring("Step 2"))
+		})
+	})
+
+	Context("failure ignores heading", func() {
+		It("writes ## Failure section regardless of configured heading", func() {
+			generator := delivery.NewSectionContentGenerator("## Plan")
+			original := "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Task\n\nDo planning.\n"
+			result := delivery.AgentResultInfo{
+				Status:  delivery.AgentStatusFailed,
+				Message: "boom",
+			}
+			generated, err := generator.Generate(ctx, original, result)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(generated).To(ContainSubstring("## Failure"))
+			Expect(generated).To(ContainSubstring("boom"))
+			Expect(generated).NotTo(ContainSubstring("## Plan"))
+		})
+	})
+
+	Context("empty Output uses minimal section", func() {
+		It("uses buildMinimalResultSection when Output is empty for done status", func() {
+			generator := delivery.NewSectionContentGenerator("## Plan")
+			original := "---\ntitle: My Task\n---\n"
+			result := delivery.AgentResultInfo{
+				Status: delivery.AgentStatusDone,
+			}
+			generated, err := generator.Generate(ctx, original, result)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(generated).To(ContainSubstring("**Status:** done"))
+		})
+	})
+
+	Context("in-place save preservation with AgentStatusInProgress", func() {
+		It("preserves phase: planning when status is in_progress", func() {
+			generator := delivery.NewSectionContentGenerator("## Plan")
+			original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\n---\n\n## Task\n\nDo planning.\n"
+			result := delivery.AgentResultInfo{
+				Status: delivery.AgentStatusInProgress,
+				Output: "## Plan\n\n- Draft step\n",
+			}
+			generated, err := generator.Generate(ctx, original, result)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(generated).To(ContainSubstring("status: in_progress"))
+			Expect(generated).To(ContainSubstring("phase: planning"))
+			Expect(generated).NotTo(ContainSubstring("phase: human_review"))
+			Expect(generated).NotTo(ContainSubstring("phase: done"))
+		})
+	})
+
+	Context("section replacement", func() {
+		It("replaces existing ## Plan section without duplication", func() {
+			generator := delivery.NewSectionContentGenerator("## Plan")
+			original := "---\ntitle: My Task\n---\n\n## Task\n\nDo planning.\n\n## Plan\n\nOld plan content.\n"
+			result := delivery.AgentResultInfo{
+				Status: delivery.AgentStatusDone,
+				Output: "## Plan\n\nNew plan content.\n",
+			}
+			generated, err := generator.Generate(ctx, original, result)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(generated).NotTo(ContainSubstring("Old plan content."))
+			Expect(generated).To(ContainSubstring("New plan content."))
+			Expect(strings.Count(generated, "## Plan")).To(Equal(1))
+		})
+	})
+
+	Context("section append", func() {
+		It("appends ## Plan when not present in input", func() {
+			generator := delivery.NewSectionContentGenerator("## Plan")
+			original := "---\ntitle: My Task\n---\n\n## Task\n\nDo planning.\n"
+			result := delivery.AgentResultInfo{
+				Status: delivery.AgentStatusDone,
+				Output: "## Plan\n\nAppended plan.\n",
+			}
+			generated, err := generator.Generate(ctx, original, result)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(generated).To(ContainSubstring("## Plan"))
+			Expect(generated).To(ContainSubstring("Appended plan."))
+		})
+	})
+
+	Context("custom heading", func() {
+		It("writes output under ## Review when configured with that heading", func() {
+			generator := delivery.NewSectionContentGenerator("## Review")
+			original := "---\ntitle: My Task\n---\n\n## Task\n\nDo review.\n"
+			result := delivery.AgentResultInfo{
+				Status: delivery.AgentStatusDone,
+				Output: "## Review\n\nLooks good.\n",
+			}
+			generated, err := generator.Generate(ctx, original, result)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(generated).To(ContainSubstring("## Review"))
+			Expect(generated).To(ContainSubstring("Looks good."))
+		})
+	})
+})
