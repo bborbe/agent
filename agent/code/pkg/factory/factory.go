@@ -2,10 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package factory wires concrete dependencies for the agent-claude binary.
+// Package factory wires concrete dependencies for the agent-code binary.
 //
-// All factory functions follow the Create* prefix convention and contain
-// zero business logic — they compose constructors with config.
+// Pure-code agent — no Claude/Gemini/LLM dependencies, just deliverers.
 package factory
 
 import (
@@ -17,31 +16,12 @@ import (
 	libtime "github.com/bborbe/time"
 	"github.com/golang/glog"
 
-	"github.com/bborbe/agent/agent/claude/pkg/prompts"
+	"github.com/bborbe/agent/agent/code/pkg/steps"
 	agentlib "github.com/bborbe/agent/lib"
-	claudelib "github.com/bborbe/agent/lib/claude"
 	delivery "github.com/bborbe/agent/lib/delivery"
 )
 
-const serviceName = "agent-claude"
-
-// CreateClaudeRunner constructs a ClaudeRunner pre-configured with tools,
-// model, working directory, and CLI environment.
-func CreateClaudeRunner(
-	claudeConfigDir claudelib.ClaudeConfigDir,
-	agentDir claudelib.AgentDir,
-	allowedTools claudelib.AllowedTools,
-	model claudelib.ClaudeModel,
-	env map[string]string,
-) claudelib.ClaudeRunner {
-	return claudelib.NewClaudeRunner(claudelib.ClaudeRunnerConfig{
-		ClaudeConfigDir:  claudeConfigDir,
-		AllowedTools:     allowedTools,
-		Model:            model,
-		WorkingDirectory: agentDir,
-		Env:              env,
-	})
-}
+const serviceName = "agent-code"
 
 // CreateSyncProducer creates a Kafka sync producer.
 func CreateSyncProducer(
@@ -78,8 +58,7 @@ func CreateKafkaResultDeliverer(
 }
 
 // CreateFileResultDeliverer creates a ResultDeliverer that writes the agent's
-// output back to a markdown file (local CLI mode). Uses the passthrough
-// content generator (same rationale as Kafka).
+// output back to a markdown file (local CLI mode).
 func CreateFileResultDeliverer(filePath string) agentlib.ResultDeliverer {
 	return delivery.NewFileResultDeliverer(
 		delivery.NewPassthroughContentGenerator(),
@@ -87,31 +66,13 @@ func CreateFileResultDeliverer(filePath string) agentlib.ResultDeliverer {
 	)
 }
 
-// CreateAgent assembles the full 3-phase claude agent. Single Claude step
-// shared across planning / in_progress / ai_review preserves the existing
-// CRD trigger.phases behavior — every phase runs Claude once and emits
-// done.
-func CreateAgent(
-	claudeConfigDir claudelib.ClaudeConfigDir,
-	agentDir claudelib.AgentDir,
-	allowedTools claudelib.AllowedTools,
-	model claudelib.ClaudeModel,
-	claudeEnv map[string]string,
-	envContext map[string]string,
-) *agentlib.Agent {
-	runner := CreateClaudeRunner(claudeConfigDir, agentDir, allowedTools, model, claudeEnv)
-	step := claudelib.NewAgentStep(claudelib.AgentStepConfig{
-		Name:          "claude-task",
-		Runner:        runner,
-		Instructions:  prompts.BuildInstructions(),
-		EnvContext:    envContext,
-		OutputSection: "## Result",
-		NextPhase:     "done",
-	})
+// CreateAgent assembles the 3-phase pure-code agent — no LLM deps.
+// PlanStep reads frontmatter, ExecuteStep computes, VerifyStep checks.
+func CreateAgent() *agentlib.Agent {
 	return agentlib.NewAgent(
-		agentlib.NewPhase("planning", step),
-		agentlib.NewPhase("in_progress", step),
-		agentlib.NewPhase("ai_review", step),
+		agentlib.NewPhase("planning", steps.NewPlanStep()),
+		agentlib.NewPhase("in_progress", steps.NewExecuteStep()),
+		agentlib.NewPhase("ai_review", steps.NewVerifyStep()),
 	)
 }
 

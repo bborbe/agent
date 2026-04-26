@@ -2,22 +2,29 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// Command run-task is the local-CLI entry point for agent-claude.
+//
+// Reads a markdown task file from disk, runs the agent against it, and
+// writes the updated content back to the same file. Mirrors the Kafka
+// entry point (../../main.go) but uses file I/O instead of Kafka/CQRS.
+//
+// Used for local development and integration testing without spinning up
+// a K8s Job + Kafka cluster.
 package main
 
 import (
 	"context"
 	"os"
-	"strings"
 
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
 	libsentry "github.com/bborbe/sentry"
 	"github.com/bborbe/service"
+	"github.com/bborbe/vault-cli/pkg/domain"
 
 	"github.com/bborbe/agent/agent/claude/pkg/factory"
-	"github.com/bborbe/agent/agent/claude/pkg/prompts"
+	agentlib "github.com/bborbe/agent/lib"
 	claudelib "github.com/bborbe/agent/lib/claude"
-	libagent "github.com/bborbe/agent/lib/delivery"
 )
 
 func main() {
@@ -50,11 +57,14 @@ type application struct {
 	// Environment
 	Branch base.Branch `required:"true" arg:"branch" env:"BRANCH" usage:"branch" default:"dev"`
 
+	// Phase to run (defaults to in_progress; framework requires explicit phase)
+	Phase domain.TaskPhase `required:"false" arg:"phase" env:"PHASE" usage:"Agent phase: planning | in_progress | ai_review" default:"in_progress"`
+
 	// Task file for local development
 	TaskFilePath string `required:"true" arg:"task-file" env:"TASK_FILE" usage:"Path to the markdown task file"`
 }
 
-func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
+func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 	taskContent, err := os.ReadFile(
 		a.TaskFilePath,
 	) // #nosec G304 -- filePath from trusted CLI input
@@ -62,39 +72,20 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		return errors.Wrapf(ctx, err, "read task file: %s", a.TaskFilePath)
 	}
 
-	deliverer := claudelib.NewResultDelivererAdapter[claudelib.AgentResult](
-		libagent.NewFileResultDeliverer(libagent.NewFallbackContentGenerator(), a.TaskFilePath),
-	)
+	deliverer := factory.CreateFileResultDeliverer(a.TaskFilePath)
 
-	taskRunner := factory.CreateTaskRunner(
+	agent := factory.CreateAgent(
 		a.ClaudeConfigDir,
 		a.AgentDir,
 		claudelib.ParseAllowedTools(a.AllowedToolsRaw),
 		a.Model,
-		parseKeyValuePairs(a.ClaudeEnvRaw),
-		parseKeyValuePairs(a.EnvContextRaw),
-		prompts.BuildInstructions(),
-		deliverer,
+		claudelib.ParseKeyValuePairs(a.ClaudeEnvRaw),
+		claudelib.ParseKeyValuePairs(a.EnvContextRaw),
 	)
 
-	result, err := taskRunner.Run(ctx, string(taskContent))
+	result, err := agent.Run(ctx, a.Phase, string(taskContent), deliverer)
 	if err != nil {
-		return errors.Wrap(ctx, err, "run task")
+		return errors.Wrap(ctx, err, "agent run failed")
 	}
-	return libagent.PrintResult(ctx, *result)
-}
-
-// parseKeyValuePairs parses "KEY1=VALUE1,KEY2=VALUE2" into a map.
-func parseKeyValuePairs(raw string) map[string]string {
-	if raw == "" {
-		return nil
-	}
-	result := make(map[string]string)
-	for _, pair := range strings.Split(raw, ",") {
-		parts := strings.SplitN(pair, "=", 2)
-		if len(parts) == 2 {
-			result[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-		}
-	}
-	return result
+	return agentlib.PrintResult(result)
 }

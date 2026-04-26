@@ -22,27 +22,20 @@ import (
 	agentlib "github.com/bborbe/agent/lib"
 )
 
-//counterfeiter:generate -o ../mocks/delivery-result-deliverer.go --fake-name AgentResultDeliverer . ResultDeliverer
-
-// ResultDeliverer publishes an agent result back to the task controller.
-type ResultDeliverer interface {
-	DeliverResult(ctx context.Context, result AgentResultInfo) error
-}
-
-// NewNoopResultDeliverer creates a ResultDeliverer that does nothing.
-func NewNoopResultDeliverer() ResultDeliverer {
+// NewNoopResultDeliverer creates a agentlib.ResultDeliverer that does nothing.
+func NewNoopResultDeliverer() agentlib.ResultDeliverer {
 	return &noopResultDeliverer{}
 }
 
 type noopResultDeliverer struct{}
 
-func (n *noopResultDeliverer) DeliverResult(_ context.Context, _ AgentResultInfo) error {
+func (n *noopResultDeliverer) DeliverResult(_ context.Context, _ agentlib.AgentResultInfo) error {
 	return nil
 }
 
-// NewFileResultDeliverer creates a ResultDeliverer that writes results to a task file.
+// NewFileResultDeliverer creates a agentlib.ResultDeliverer that writes results to a task file.
 // The generator produces the complete updated markdown; the deliverer writes it to disk.
-func NewFileResultDeliverer(generator ContentGenerator, filePath string) ResultDeliverer {
+func NewFileResultDeliverer(generator ContentGenerator, filePath string) agentlib.ResultDeliverer {
 	return &fileResultDeliverer{generator: generator, filePath: filePath}
 }
 
@@ -51,7 +44,10 @@ type fileResultDeliverer struct {
 	filePath  string
 }
 
-func (d *fileResultDeliverer) DeliverResult(ctx context.Context, result AgentResultInfo) error {
+func (d *fileResultDeliverer) DeliverResult(
+	ctx context.Context,
+	result agentlib.AgentResultInfo,
+) error {
 	original, err := os.ReadFile(
 		d.filePath,
 	) // #nosec G304 -- filePath validated by caller
@@ -70,7 +66,7 @@ func (d *fileResultDeliverer) DeliverResult(ctx context.Context, result AgentRes
 	return nil
 }
 
-// NewKafkaResultDeliverer creates a ResultDeliverer that publishes task updates to Kafka.
+// NewKafkaResultDeliverer creates a agentlib.ResultDeliverer that publishes task updates to Kafka.
 // taskID must be non-empty; if empty, use NewNoopResultDeliverer instead.
 // originalContent is the original task markdown; the generator produces the complete updated content.
 func NewKafkaResultDeliverer(
@@ -80,7 +76,7 @@ func NewKafkaResultDeliverer(
 	originalContent string,
 	generator ContentGenerator,
 	currentDateTime libtime.CurrentDateTimeGetter,
-) ResultDeliverer {
+) agentlib.ResultDeliverer {
 	return NewKafkaResultDelivererWithSender(
 		cdb.NewCommandObjectSender(syncProducer, branch, log.DefaultSamplerFactory),
 		taskID,
@@ -90,7 +86,7 @@ func NewKafkaResultDeliverer(
 	)
 }
 
-// NewKafkaResultDelivererWithSender creates a ResultDeliverer that publishes task updates via the given sender.
+// NewKafkaResultDelivererWithSender creates a agentlib.ResultDeliverer that publishes task updates via the given sender.
 // This constructor is primarily useful for testing.
 func NewKafkaResultDelivererWithSender(
 	commandObjectSender cdb.CommandObjectSender,
@@ -98,7 +94,7 @@ func NewKafkaResultDelivererWithSender(
 	originalContent string,
 	generator ContentGenerator,
 	currentDateTime libtime.CurrentDateTimeGetter,
-) ResultDeliverer {
+) agentlib.ResultDeliverer {
 	return &kafkaResultDeliverer{
 		commandObjectSender: commandObjectSender,
 		taskID:              taskID,
@@ -116,7 +112,10 @@ type kafkaResultDeliverer struct {
 	currentDateTime     libtime.CurrentDateTimeGetter
 }
 
-func (d *kafkaResultDeliverer) DeliverResult(ctx context.Context, result AgentResultInfo) error {
+func (d *kafkaResultDeliverer) DeliverResult(
+	ctx context.Context,
+	result agentlib.AgentResultInfo,
+) error {
 	generated, err := d.generator.Generate(ctx, d.originalContent, result)
 	if err != nil {
 		return errors.Wrap(ctx, err, "content generation failed")
@@ -134,7 +133,7 @@ func (d *kafkaResultDeliverer) DeliverResult(ctx context.Context, result AgentRe
 	// Failed tasks route to human_review — retry is the controller's responsibility
 	// via trigger_count / max_triggers, not a phase loop.
 	switch result.Status {
-	case AgentStatusDone:
+	case agentlib.AgentStatusDone:
 		resolvedPhase := resolveNextPhase(ctx, d.taskID, result.NextPhase)
 		frontmatter["phase"] = resolvedPhase
 		// Only mark the task completed when the resolved phase is terminal (done).
@@ -146,10 +145,10 @@ func (d *kafkaResultDeliverer) DeliverResult(ctx context.Context, result AgentRe
 		} else {
 			frontmatter["status"] = "in_progress"
 		}
-	case AgentStatusNeedsInput:
+	case agentlib.AgentStatusNeedsInput:
 		frontmatter["status"] = "in_progress"
 		frontmatter["phase"] = "human_review"
-	case AgentStatusInProgress:
+	case agentlib.AgentStatusInProgress:
 		// Step-level progress save: keep status: in_progress, preserve phase from incoming
 		// task frontmatter (already copied from fmMap above). NextPhase ignored on this status —
 		// log a warning if the agent set both.

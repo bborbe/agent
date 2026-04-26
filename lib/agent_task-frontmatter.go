@@ -107,3 +107,33 @@ func (f TaskFrontmatter) CurrentJob() string {
 	v, _ := f["current_job"].(string)
 	return v
 }
+
+// String reads a string field by key. ok is false when the key is absent
+// or holds a non-string value. Generic accessor for ad-hoc fields without
+// dedicated typed methods.
+func (f TaskFrontmatter) String(key string) (string, bool) {
+	v, ok := f[key]
+	if !ok {
+		return "", false
+	}
+	s, ok := v.(string)
+	return s, ok
+}
+
+// Int reads an integer field by key, accepting both int (JSON-decoded) and
+// float64 (YAML-decoded) underlying types. ok is false when the key is
+// absent or holds a non-numeric value. Generic accessor for ad-hoc fields
+// without dedicated typed methods.
+func (f TaskFrontmatter) Int(key string) (int, bool) {
+	v, ok := f[key]
+	if !ok {
+		return 0, false
+	}
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case float64:
+		return int(n), true
+	}
+	return 0, false
+}

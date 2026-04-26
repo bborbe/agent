@@ -11,9 +11,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	agentlib "github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/lib/claude"
-	"github.com/bborbe/agent/lib/delivery"
-	libmocks "github.com/bborbe/agent/lib/mocks"
+	agentlibmocks "github.com/bborbe/agent/lib/mocks"
 )
 
 var errDelivery = errors.New("delivery failed")
@@ -94,7 +94,7 @@ var _ = Describe("BuildResultSection", func() {
 var _ = Describe("resultDelivererAdapter", func() {
 	var (
 		ctx         context.Context
-		inner       *libmocks.AgentResultDeliverer
+		inner       *agentlibmocks.AgentResultDeliverer
 		adapter     claude.ResultDeliverer[claude.AgentResult]
 		agentResult claude.AgentResult
 		deliverErr  error
@@ -102,7 +102,7 @@ var _ = Describe("resultDelivererAdapter", func() {
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		inner = &libmocks.AgentResultDeliverer{}
+		inner = &agentlibmocks.AgentResultDeliverer{}
 		adapter = claude.NewResultDelivererAdapter[claude.AgentResult](inner)
 		agentResult = claude.AgentResult{
 			Status:  claude.AgentStatusDone,
@@ -121,7 +121,7 @@ var _ = Describe("resultDelivererAdapter", func() {
 
 	It("passes Status to inner deliverer", func() {
 		_, info := inner.DeliverResultArgsForCall(0)
-		Expect(info.Status).To(Equal(delivery.AgentStatusDone))
+		Expect(info.Status).To(Equal(agentlib.AgentStatusDone))
 	})
 
 	It("passes Message to inner deliverer", func() {

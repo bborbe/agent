@@ -5,15 +5,15 @@ import (
 	"context"
 	"sync"
 
-	"github.com/bborbe/agent/lib/delivery"
+	"github.com/bborbe/agent/lib"
 )
 
 type AgentResultDeliverer struct {
-	DeliverResultStub        func(context.Context, delivery.AgentResultInfo) error
+	DeliverResultStub        func(context.Context, lib.AgentResultInfo) error
 	deliverResultMutex       sync.RWMutex
 	deliverResultArgsForCall []struct {
 		arg1 context.Context
-		arg2 delivery.AgentResultInfo
+		arg2 lib.AgentResultInfo
 	}
 	deliverResultReturns struct {
 		result1 error
@@ -25,12 +25,12 @@ type AgentResultDeliverer struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *AgentResultDeliverer) DeliverResult(arg1 context.Context, arg2 delivery.AgentResultInfo) error {
+func (fake *AgentResultDeliverer) DeliverResult(arg1 context.Context, arg2 lib.AgentResultInfo) error {
 	fake.deliverResultMutex.Lock()
 	ret, specificReturn := fake.deliverResultReturnsOnCall[len(fake.deliverResultArgsForCall)]
 	fake.deliverResultArgsForCall = append(fake.deliverResultArgsForCall, struct {
 		arg1 context.Context
-		arg2 delivery.AgentResultInfo
+		arg2 lib.AgentResultInfo
 	}{arg1, arg2})
 	stub := fake.DeliverResultStub
 	fakeReturns := fake.deliverResultReturns
@@ -51,13 +51,13 @@ func (fake *AgentResultDeliverer) DeliverResultCallCount() int {
 	return len(fake.deliverResultArgsForCall)
 }
 
-func (fake *AgentResultDeliverer) DeliverResultCalls(stub func(context.Context, delivery.AgentResultInfo) error) {
+func (fake *AgentResultDeliverer) DeliverResultCalls(stub func(context.Context, lib.AgentResultInfo) error) {
 	fake.deliverResultMutex.Lock()
 	defer fake.deliverResultMutex.Unlock()
 	fake.DeliverResultStub = stub
 }
 
-func (fake *AgentResultDeliverer) DeliverResultArgsForCall(i int) (context.Context, delivery.AgentResultInfo) {
+func (fake *AgentResultDeliverer) DeliverResultArgsForCall(i int) (context.Context, lib.AgentResultInfo) {
 	fake.deliverResultMutex.RLock()
 	defer fake.deliverResultMutex.RUnlock()
 	argsForCall := fake.deliverResultArgsForCall[i]
@@ -109,4 +109,4 @@ func (fake *AgentResultDeliverer) recordInvocation(key string, args []interface{
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ delivery.ResultDeliverer = new(AgentResultDeliverer)
+var _ lib.ResultDeliverer = new(AgentResultDeliverer)

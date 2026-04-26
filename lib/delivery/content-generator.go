@@ -7,6 +7,8 @@ package delivery
 import (
 	"context"
 	"strings"
+
+	agentlib "github.com/bborbe/agent/lib"
 )
 
 //counterfeiter:generate -o ../mocks/delivery-content-generator.go --fake-name AgentContentGenerator . ContentGenerator
@@ -14,7 +16,11 @@ import (
 // ContentGenerator produces a complete updated task markdown document from the original content and agent result.
 // The returned string must be valid markdown with YAML frontmatter.
 type ContentGenerator interface {
-	Generate(ctx context.Context, originalContent string, result AgentResultInfo) (string, error)
+	Generate(
+		ctx context.Context,
+		originalContent string,
+		result agentlib.AgentResultInfo,
+	) (string, error)
 }
 
 // NewFallbackContentGenerator creates a ContentGenerator that uses deterministic string concatenation.
@@ -27,10 +33,10 @@ type fallbackContentGenerator struct{}
 func (g *fallbackContentGenerator) Generate(
 	_ context.Context,
 	originalContent string,
-	result AgentResultInfo,
+	result agentlib.AgentResultInfo,
 ) (string, error) {
 	updated := applyStatusFrontmatter(originalContent, result.Status)
-	if result.Status == AgentStatusFailed {
+	if result.Status == agentlib.AgentStatusFailed {
 		section := buildFailureSection(result)
 		return ReplaceOrAppendSection(updated, "## Failure", section), nil
 	}
@@ -42,17 +48,17 @@ func (g *fallbackContentGenerator) Generate(
 }
 
 // applyStatusFrontmatter updates status+phase frontmatter fields based on agent result status.
-func applyStatusFrontmatter(content string, status AgentStatus) string {
+func applyStatusFrontmatter(content string, status agentlib.AgentStatus) string {
 	switch status {
-	case AgentStatusDone:
+	case agentlib.AgentStatusDone:
 		content = SetFrontmatterField(content, "status", "completed")
 		content = SetFrontmatterField(content, "phase", "done")
-	case AgentStatusNeedsInput:
+	case agentlib.AgentStatusNeedsInput:
 		// task-level failure: agent ran cleanly but task is impossible/underspecified.
 		// Route straight to human_review — retrying a semantically-wrong task wastes compute.
 		content = SetFrontmatterField(content, "status", "in_progress")
 		content = SetFrontmatterField(content, "phase", "human_review")
-	case AgentStatusInProgress:
+	case agentlib.AgentStatusInProgress:
 		// Step-level progress save: keep status: in_progress, preserve phase from incoming task.
 		// Multi-step phase handlers use this to commit ## Plan / ## Result / etc. mid-phase
 		// without triggering a phase transition.
@@ -71,7 +77,7 @@ func applyStatusFrontmatter(content string, status AgentStatus) string {
 // buildFailureSection renders a `## Failure` block with a human-readable
 // reason extracted from the agent's result. Used when the agent returns
 // status: failed — symmetric with PublishFailure's K8s-crash failure path.
-func buildFailureSection(result AgentResultInfo) string {
+func buildFailureSection(result agentlib.AgentResultInfo) string {
 	var b strings.Builder
 	b.WriteString("## Failure\n\n")
 	if result.Message != "" {
@@ -84,9 +90,9 @@ func buildFailureSection(result AgentResultInfo) string {
 	return b.String()
 }
 
-// buildMinimalResultSection renders a fallback ## Result block when AgentResultInfo.Output is empty.
+// buildMinimalResultSection renders a fallback ## Result block when agentlib.AgentResultInfo.Output is empty.
 // Callers that supply a non-empty Output are trusted to provide the full section verbatim.
-func buildMinimalResultSection(result AgentResultInfo) string {
+func buildMinimalResultSection(result agentlib.AgentResultInfo) string {
 	var b strings.Builder
 	b.WriteString("## Result\n\n")
 	b.WriteString("**Status:** ")
@@ -100,8 +106,35 @@ func buildMinimalResultSection(result AgentResultInfo) string {
 	return b.String()
 }
 
+// NewPassthroughContentGenerator creates a ContentGenerator that returns
+// result.Output verbatim (with status/phase frontmatter applied on top).
+//
+// Used by the new agent framework (lib.NewAgent / lib.StepRunner): the
+// step mutates a parsed Markdown via task.AddSection / ReplaceSection and
+// the runner re-serializes the full task into result.Output. The deliverer
+// must NOT splice the output into a "## Result" section — it must publish
+// the agent-produced content directly.
+//
+// Status/phase frontmatter is still applied here so file delivery sets
+// status: completed / phase: done on success without each agent having to
+// mutate the frontmatter map manually. The Kafka deliverer overrides
+// status/phase again after this generator runs (same end state).
+func NewPassthroughContentGenerator() ContentGenerator {
+	return &passthroughContentGenerator{}
+}
+
+type passthroughContentGenerator struct{}
+
+func (g *passthroughContentGenerator) Generate(
+	_ context.Context,
+	_ string,
+	result agentlib.AgentResultInfo,
+) (string, error) {
+	return applyStatusFrontmatter(result.Output, result.Status), nil
+}
+
 // NewSectionContentGenerator creates a ContentGenerator that writes its output under a
-// parameterized markdown heading (e.g. "## Plan", "## Review"). On AgentStatusFailed
+// parameterized markdown heading (e.g. "## Plan", "## Review"). On agentlib.AgentStatusFailed
 // it writes a "## Failure" section instead, regardless of the configured heading —
 // the failure-section convention is repo-wide, not phase-specific.
 //
@@ -118,10 +151,10 @@ type sectionContentGenerator struct {
 func (g *sectionContentGenerator) Generate(
 	_ context.Context,
 	originalContent string,
-	result AgentResultInfo,
+	result agentlib.AgentResultInfo,
 ) (string, error) {
 	updated := applyStatusFrontmatter(originalContent, result.Status)
-	if result.Status == AgentStatusFailed {
+	if result.Status == agentlib.AgentStatusFailed {
 		section := buildFailureSection(result)
 		return ReplaceOrAppendSection(updated, "## Failure", section), nil
 	}
