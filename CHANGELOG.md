@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.54.0
 
 - refactor(lib): move `AgentStatus`, `AgentResultInfo`, `ResultDeliverer` from `lib/delivery` to `lib` root — removes potential import cycle for new framework primitives; `lib/delivery` still hosts impls (Noop / File / Kafka deliverers, ContentGenerator)
 - feat(lib): add agent framework primitives — `Markdown`/`Section` types with `ParseMarkdown`/`Marshal`/`AddSection`/`ReplaceSection`/`InsertSection` mutations; `Step` interface + `Result`; `StepRunner`; `Phase` + `NewPhase`; `Agent` + `NewAgent` dispatcher with unsupported-phase fail-loud sentinel; generic `ExtractSection[T]` / `MarshalSectionTyped` helpers for typed JSON in body sections. Step is the single architectural primitive — code-heavy and AI-heavy agents share the same interface; AI-heavy steps wrap LLM calls, code-heavy steps are pure Go. Multi-step phases enable mid-phase crash resume via guard-based skip-or-run on saved task state.
