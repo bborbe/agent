@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Added AgentStatusInProgress enum value to lib/delivery/status.go, added handling cases in applyStatusFrontmatter and kafkaResultDeliverer.DeliverResult preserving phase from incoming task, added tests for both delivery paths, and updated CHANGELOG.md.
 container: agent-080-add-agent-status-in-progress
 dark-factory-version: v0.135.19-1-gc08c946
 created: "2026-04-26T18:00:47Z"
 queued: "2026-04-26T18:00:47Z"
 started: "2026-04-26T18:01:01Z"
+completed: "2026-04-26T18:07:43Z"
 ---
 
 <summary>
