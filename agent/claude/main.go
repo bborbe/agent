@@ -2,10 +2,22 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// Command agent-claude is the canonical AI-heavy agent: one Claude
+// invocation per phase, all logic in the prompt + allowed tools.
+//
+// This binary is the Kafka entry point — spawned as a K8s Job by
+// task/executor with TASK_CONTENT + TASK_ID + PHASE + KAFKA_BROKERS env.
+// For local CLI mode (file-based), see cmd/run-task/main.go.
+//
+// Reference implementation for AI-heavy agents using the agent framework
+// (lib.NewAgent + claude.NewAgentStep). Other agents (trade-analysis,
+// pr-reviewer) follow the same shape — copy this main.go and swap
+// prompts/tools.
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -22,6 +34,7 @@ import (
 	"github.com/bborbe/agent/agent/claude/pkg/prompts"
 	agentlib "github.com/bborbe/agent/lib"
 	claudelib "github.com/bborbe/agent/lib/claude"
+	delivery "github.com/bborbe/agent/lib/delivery"
 )
 
 func main() {
@@ -62,8 +75,12 @@ type application struct {
 	TaskID       string           `required:"false" arg:"task-id"       env:"TASK_ID"       usage:"Agent task identifier for publishing results back to task controller"`
 }
 
-func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
-	glog.V(2).Infof("agent-claude started")
+func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
+	phase := os.Getenv("PHASE")
+	if phase == "" {
+		phase = "in_progress"
+	}
+	glog.V(2).Infof("agent-claude started phase=%s", phase)
 
 	deliverer, cleanup, err := a.createDeliverer(ctx)
 	if err != nil {
@@ -71,31 +88,42 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	}
 	defer cleanup()
 
-	taskRunner := factory.CreateTaskRunner(
+	runner := factory.CreateClaudeRunner(
 		a.ClaudeConfigDir,
 		a.AgentDir,
 		claudelib.ParseAllowedTools(a.AllowedToolsRaw),
 		a.Model,
 		parseKeyValuePairs(a.ClaudeEnvRaw),
-		parseKeyValuePairs(a.EnvContextRaw),
-		prompts.BuildInstructions(),
-		deliverer,
 	)
 
-	result, err := taskRunner.Run(ctx, a.TaskContent)
-	if err != nil {
-		return claudelib.PrintResult(ctx, claudelib.AgentResult{
-			Status:  claudelib.AgentStatusFailed,
-			Message: fmt.Sprintf("task runner failed: %v", err),
-		})
-	}
+	step := claudelib.NewAgentStep(claudelib.AgentStepConfig{
+		Name:          "claude-task",
+		Runner:        runner,
+		Instructions:  prompts.BuildInstructions(),
+		EnvContext:    parseKeyValuePairs(a.EnvContextRaw),
+		OutputSection: "## Result",
+		NextPhase:     "done",
+	})
 
-	return claudelib.PrintResult(ctx, *result)
+	// Three phases share the same Claude step — preserves the existing
+	// behavior where this agent runs Claude on any phase trigger and
+	// emits done. The CRD trigger.phases is [planning, in_progress, ai_review].
+	agent := agentlib.NewAgent(
+		agentlib.NewPhase("planning", step),
+		agentlib.NewPhase("in_progress", step),
+		agentlib.NewPhase("ai_review", step),
+	)
+
+	result, err := agent.Run(ctx, phase, a.TaskContent, deliverer)
+	if err != nil {
+		return errors.Wrap(ctx, err, "agent run failed")
+	}
+	return printResult(result)
 }
 
 func (a *application) createDeliverer(
 	ctx context.Context,
-) (claudelib.ResultDeliverer[claudelib.AgentResult], func(), error) {
+) (agentlib.ResultDeliverer, func(), error) {
 	if a.TaskID != "" {
 		if len(a.KafkaBrokers) == 0 {
 			return nil, nil, errors.Errorf(ctx, "KAFKA_BROKERS must be set when TASK_ID is set")
@@ -119,7 +147,7 @@ func (a *application) createDeliverer(
 		}, nil
 	}
 	glog.V(2).Infof("TASK_ID not set, skipping task result publishing")
-	return claudelib.NewNoopResultDeliverer(), func() {}, nil
+	return delivery.NewNoopResultDeliverer(), func() {}, nil
 }
 
 // parseKeyValuePairs parses "KEY1=VALUE1,KEY2=VALUE2" into a map.
@@ -135,4 +163,18 @@ func parseKeyValuePairs(raw string) map[string]string {
 		}
 	}
 	return result
+}
+
+// printResult marshals the framework Result to JSON and prints to stdout.
+// Single-shot replacement for the legacy claudelib.PrintResult.
+func printResult(result *agentlib.Result) error {
+	if result == nil {
+		return nil
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("marshal result: %w", err)
+	}
+	fmt.Println(string(data))
+	return nil
 }

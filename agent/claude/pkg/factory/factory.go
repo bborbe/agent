@@ -2,6 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// Package factory wires concrete dependencies for the agent-claude binary.
+//
+// All factory functions follow the Create* prefix convention and contain
+// zero business logic — they compose constructors with config.
 package factory
 
 import (
@@ -19,30 +23,22 @@ import (
 
 const serviceName = "agent-claude"
 
-// CreateTaskRunner wires a complete TaskRunner with ClaudeRunner,
-// prompt assembly, and result delivery.
-func CreateTaskRunner(
+// CreateClaudeRunner constructs a ClaudeRunner pre-configured with tools,
+// model, working directory, and CLI environment.
+func CreateClaudeRunner(
 	claudeConfigDir claudelib.ClaudeConfigDir,
 	agentDir claudelib.AgentDir,
 	allowedTools claudelib.AllowedTools,
 	model claudelib.ClaudeModel,
 	env map[string]string,
-	envContext map[string]string,
-	instructions claudelib.Instructions,
-	deliverer claudelib.ResultDeliverer[claudelib.AgentResult],
-) claudelib.TaskRunner[claudelib.AgentResult] {
-	return claudelib.NewTaskRunner[claudelib.AgentResult](
-		claudelib.NewClaudeRunner(claudelib.ClaudeRunnerConfig{
-			ClaudeConfigDir:  claudeConfigDir,
-			AllowedTools:     allowedTools,
-			Model:            model,
-			WorkingDirectory: agentDir,
-			Env:              env,
-		}),
-		instructions,
-		envContext,
-		deliverer,
-	)
+) claudelib.ClaudeRunner {
+	return claudelib.NewClaudeRunner(claudelib.ClaudeRunnerConfig{
+		ClaudeConfigDir:  claudeConfigDir,
+		AllowedTools:     allowedTools,
+		Model:            model,
+		WorkingDirectory: agentDir,
+		Env:              env,
+	})
 }
 
 // CreateSyncProducer creates a Kafka sync producer.
@@ -57,22 +53,34 @@ func CreateSyncProducer(
 	return producer, nil
 }
 
-// CreateKafkaResultDeliverer creates a ResultDeliverer that publishes task updates to Kafka.
+// CreateKafkaResultDeliverer creates a ResultDeliverer that publishes task
+// updates to Kafka via CQRS commands. Uses the passthrough content generator
+// — the agent framework's StepRunner already produces the full marshaled
+// task in result.Output; the deliverer publishes it as-is and overrides
+// status/phase frontmatter based on the result Status.
 func CreateKafkaResultDeliverer(
 	syncProducer libkafka.SyncProducer,
 	branch base.Branch,
 	taskID agentlib.TaskIdentifier,
-	taskContent string,
+	originalContent string,
 	currentDateTime libtime.CurrentDateTimeGetter,
-) claudelib.ResultDeliverer[claudelib.AgentResult] {
-	return claudelib.NewResultDelivererAdapter[claudelib.AgentResult](
-		delivery.NewKafkaResultDeliverer(
-			syncProducer,
-			branch,
-			taskID,
-			taskContent,
-			delivery.NewFallbackContentGenerator(),
-			currentDateTime,
-		),
+) agentlib.ResultDeliverer {
+	return delivery.NewKafkaResultDeliverer(
+		syncProducer,
+		branch,
+		taskID,
+		originalContent,
+		delivery.NewPassthroughContentGenerator(),
+		currentDateTime,
+	)
+}
+
+// CreateFileResultDeliverer creates a ResultDeliverer that writes the agent's
+// output back to a markdown file (local CLI mode). Uses the passthrough
+// content generator (same rationale as Kafka).
+func CreateFileResultDeliverer(filePath string) agentlib.ResultDeliverer {
+	return delivery.NewFileResultDeliverer(
+		delivery.NewPassthroughContentGenerator(),
+		filePath,
 	)
 }

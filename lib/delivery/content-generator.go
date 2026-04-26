@@ -106,6 +106,33 @@ func buildMinimalResultSection(result agentlib.AgentResultInfo) string {
 	return b.String()
 }
 
+// NewPassthroughContentGenerator creates a ContentGenerator that returns
+// result.Output verbatim (with status/phase frontmatter applied on top).
+//
+// Used by the new agent framework (lib.NewAgent / lib.StepRunner): the
+// step mutates a parsed Markdown via task.AddSection / ReplaceSection and
+// the runner re-serializes the full task into result.Output. The deliverer
+// must NOT splice the output into a "## Result" section — it must publish
+// the agent-produced content directly.
+//
+// Status/phase frontmatter is still applied here so file delivery sets
+// status: completed / phase: done on success without each agent having to
+// mutate the frontmatter map manually. The Kafka deliverer overrides
+// status/phase again after this generator runs (same end state).
+func NewPassthroughContentGenerator() ContentGenerator {
+	return &passthroughContentGenerator{}
+}
+
+type passthroughContentGenerator struct{}
+
+func (g *passthroughContentGenerator) Generate(
+	_ context.Context,
+	_ string,
+	result agentlib.AgentResultInfo,
+) (string, error) {
+	return applyStatusFrontmatter(result.Output, result.Status), nil
+}
+
 // NewSectionContentGenerator creates a ContentGenerator that writes its output under a
 // parameterized markdown heading (e.g. "## Plan", "## Review"). On agentlib.AgentStatusFailed
 // it writes a "## Failure" section instead, regardless of the configured heading —
