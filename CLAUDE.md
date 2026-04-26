@@ -95,6 +95,13 @@ This project follows the [coding-guidelines](https://github.com/bborbe/coding-gu
 - Only `dev` or `prod` are valid branches. Never `develop` / `master` / feature branches.
 - Example: `/make-buca agent/claude dev`
 
+### Full rebuild (`scripts/buca-all.sh`)
+
+- Run from `agent-dev` or `agent-prod` worktree to rebuild all services in that environment.
+- Detects branch (`dev`/`prod`/`master`), starts `make buca` in detached screen `agent-${ENV}-buca`, logs to `/tmp/agent-${ENV}-buca.log`.
+- Modes: `--dry-run` (preview), `--yes` (skip confirmation), interactive (default).
+- Monitor: `tail -f /tmp/agent-${ENV}-buca.log` or `screen -r agent-${ENV}-buca`.
+
 ### Versioning and tags
 
 - Single global `CHANGELOG.md` at repo root. No per-module CHANGELOG.
