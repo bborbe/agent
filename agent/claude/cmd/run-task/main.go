@@ -14,18 +14,15 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"os"
-	"strings"
 
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
 	libsentry "github.com/bborbe/sentry"
 	"github.com/bborbe/service"
+	"github.com/bborbe/vault-cli/pkg/domain"
 
 	"github.com/bborbe/agent/agent/claude/pkg/factory"
-	"github.com/bborbe/agent/agent/claude/pkg/prompts"
 	agentlib "github.com/bborbe/agent/lib"
 	claudelib "github.com/bborbe/agent/lib/claude"
 )
@@ -61,7 +58,7 @@ type application struct {
 	Branch base.Branch `required:"true" arg:"branch" env:"BRANCH" usage:"branch" default:"dev"`
 
 	// Phase to run (defaults to in_progress; framework requires explicit phase)
-	Phase string `required:"false" arg:"phase" env:"PHASE" usage:"Agent phase: planning | in_progress | ai_review" default:"in_progress"`
+	Phase domain.TaskPhase `required:"false" arg:"phase" env:"PHASE" usage:"Agent phase: planning | in_progress | ai_review" default:"in_progress"`
 
 	// Task file for local development
 	TaskFilePath string `required:"true" arg:"task-file" env:"TASK_FILE" usage:"Path to the markdown task file"`
@@ -77,60 +74,18 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 
 	deliverer := factory.CreateFileResultDeliverer(a.TaskFilePath)
 
-	runner := factory.CreateClaudeRunner(
+	agent := factory.CreateAgent(
 		a.ClaudeConfigDir,
 		a.AgentDir,
 		claudelib.ParseAllowedTools(a.AllowedToolsRaw),
 		a.Model,
-		parseKeyValuePairs(a.ClaudeEnvRaw),
-	)
-
-	step := claudelib.NewAgentStep(claudelib.AgentStepConfig{
-		Name:          "claude-task",
-		Runner:        runner,
-		Instructions:  prompts.BuildInstructions(),
-		EnvContext:    parseKeyValuePairs(a.EnvContextRaw),
-		OutputSection: "## Result",
-		NextPhase:     "done",
-	})
-
-	agent := agentlib.NewAgent(
-		agentlib.NewPhase("planning", step),
-		agentlib.NewPhase("in_progress", step),
-		agentlib.NewPhase("ai_review", step),
+		claudelib.ParseKeyValuePairs(a.ClaudeEnvRaw),
+		claudelib.ParseKeyValuePairs(a.EnvContextRaw),
 	)
 
 	result, err := agent.Run(ctx, a.Phase, string(taskContent), deliverer)
 	if err != nil {
 		return errors.Wrap(ctx, err, "agent run failed")
 	}
-	return printResult(result)
-}
-
-// parseKeyValuePairs parses "KEY1=VALUE1,KEY2=VALUE2" into a map.
-func parseKeyValuePairs(raw string) map[string]string {
-	if raw == "" {
-		return nil
-	}
-	result := make(map[string]string)
-	for _, pair := range strings.Split(raw, ",") {
-		parts := strings.SplitN(pair, "=", 2)
-		if len(parts) == 2 {
-			result[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-		}
-	}
-	return result
-}
-
-// printResult marshals the framework Result to JSON and prints to stdout.
-func printResult(result *agentlib.Result) error {
-	if result == nil {
-		return nil
-	}
-	data, err := json.Marshal(result)
-	if err != nil {
-		return fmt.Errorf("marshal result: %w", err)
-	}
-	fmt.Println(string(data))
-	return nil
+	return agentlib.PrintResult(result)
 }

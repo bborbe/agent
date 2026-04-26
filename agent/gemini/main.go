@@ -21,8 +21,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"os"
 
 	"github.com/bborbe/cqrs/base"
@@ -31,6 +29,7 @@ import (
 	libsentry "github.com/bborbe/sentry"
 	"github.com/bborbe/service"
 	libtime "github.com/bborbe/time"
+	"github.com/bborbe/vault-cli/pkg/domain"
 	"github.com/golang/glog"
 
 	"github.com/bborbe/agent/agent/gemini/pkg/factory"
@@ -54,9 +53,12 @@ type application struct {
 	// Branch for Kafka result delivery
 	Branch base.Branch `required:"true" arg:"branch" env:"BRANCH" usage:"branch"`
 
+	// Phase to run (framework requires explicit phase)
+	Phase domain.TaskPhase `required:"false" arg:"phase" env:"PHASE" usage:"Agent phase: planning | in_progress | ai_review" default:"planning"`
+
 	// Kafka delivery (optional — only active when TASK_ID is set)
-	KafkaBrokers libkafka.Brokers `required:"false" arg:"kafka-brokers" env:"KAFKA_BROKERS" usage:"Comma separated list of Kafka brokers"`
-	TaskID       string           `required:"false" arg:"task-id"       env:"TASK_ID"       usage:"Agent task identifier for publishing results back to task controller"`
+	KafkaBrokers libkafka.Brokers        `required:"false" arg:"kafka-brokers" env:"KAFKA_BROKERS" usage:"Comma separated list of Kafka brokers"`
+	TaskID       agentlib.TaskIdentifier `required:"false" arg:"task-id"       env:"TASK_ID"       usage:"Agent task identifier for publishing results back to task controller"`
 
 	// Gemini API
 	GeminiAPIKey string `required:"true"  arg:"gemini-api-key" env:"GEMINI_API_KEY" usage:"Gemini API key"          display:"length"`
@@ -64,11 +66,7 @@ type application struct {
 }
 
 func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
-	phase := os.Getenv("PHASE")
-	if phase == "" {
-		phase = "planning"
-	}
-	glog.V(2).Infof("agent-gemini started phase=%s", phase)
+	glog.V(2).Infof("agent-gemini started phase=%s", a.Phase)
 
 	parser, err := factory.CreateGeminiParser(ctx, a.GeminiAPIKey, a.GeminiModel)
 	if err != nil {
@@ -90,11 +88,11 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		agentlib.NewPhase("ai_review", steps.NewVerifyStep()),
 	)
 
-	result, err := agent.Run(ctx, phase, a.TaskContent, deliverer)
+	result, err := agent.Run(ctx, a.Phase, a.TaskContent, deliverer)
 	if err != nil {
 		return errors.Wrap(ctx, err, "agent run failed")
 	}
-	return printResult(result)
+	return agentlib.PrintResult(result)
 }
 
 func (a *application) createDeliverer(
@@ -108,11 +106,10 @@ func (a *application) createDeliverer(
 		if err != nil {
 			return nil, nil, errors.Wrap(ctx, err, "create sync producer failed")
 		}
-		taskID := agentlib.TaskIdentifier(a.TaskID)
 		deliverer := factory.CreateKafkaResultDeliverer(
 			syncProducer,
 			a.Branch,
-			taskID,
+			a.TaskID,
 			a.TaskContent,
 			libtime.NewCurrentDateTime(),
 		)
@@ -124,17 +121,4 @@ func (a *application) createDeliverer(
 	}
 	glog.V(2).Infof("TASK_ID not set, skipping task result publishing")
 	return delivery.NewNoopResultDeliverer(), func() {}, nil
-}
-
-// printResult marshals the framework Result to JSON and prints to stdout.
-func printResult(result *agentlib.Result) error {
-	if result == nil {
-		return nil
-	}
-	data, err := json.Marshal(result)
-	if err != nil {
-		return fmt.Errorf("marshal result: %w", err)
-	}
-	fmt.Println(string(data))
-	return nil
 }

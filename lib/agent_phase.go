@@ -4,6 +4,8 @@
 
 package lib
 
+import "github.com/bborbe/vault-cli/pkg/domain"
+
 // Phase ties a phase name to an ordered list of steps.
 //
 // Compose with NewAgent:
@@ -14,11 +16,11 @@ package lib
 //	    NewPhase("ai_review",  NewVerifyStep(checker)),
 //	)
 type Phase struct {
-	Name  string
+	Name  domain.TaskPhase
 	Steps []Step
 }
 
 // NewPhase constructs a Phase. Variadic steps for ergonomics.
-func NewPhase(name string, steps ...Step) Phase {
+func NewPhase(name domain.TaskPhase, steps ...Step) Phase {
 	return Phase{Name: name, Steps: steps}
 }

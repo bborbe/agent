@@ -11,13 +11,12 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"os"
 
 	"github.com/bborbe/errors"
 	libsentry "github.com/bborbe/sentry"
 	"github.com/bborbe/service"
+	"github.com/bborbe/vault-cli/pkg/domain"
 
 	"github.com/bborbe/agent/agent/gemini/pkg/factory"
 	"github.com/bborbe/agent/agent/gemini/pkg/steps"
@@ -34,7 +33,7 @@ type application struct {
 	SentryProxy string `required:"false" arg:"sentry-proxy" env:"SENTRY_PROXY" usage:"Sentry Proxy"`
 
 	// Phase to run (defaults to planning; framework requires explicit phase)
-	Phase string `required:"false" arg:"phase" env:"PHASE" usage:"Agent phase: planning | in_progress | ai_review" default:"planning"`
+	Phase domain.TaskPhase `required:"false" arg:"phase" env:"PHASE" usage:"Agent phase: planning | in_progress | ai_review" default:"planning"`
 
 	// Task file for local development
 	TaskFilePath string `required:"true" arg:"task-file" env:"TASK_FILE" usage:"Path to the markdown task file"`
@@ -72,18 +71,5 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 	if err != nil {
 		return errors.Wrap(ctx, err, "agent run failed")
 	}
-	return printResult(result)
-}
-
-// printResult marshals the framework Result to JSON and prints to stdout.
-func printResult(result *agentlib.Result) error {
-	if result == nil {
-		return nil
-	}
-	data, err := json.Marshal(result)
-	if err != nil {
-		return fmt.Errorf("marshal result: %w", err)
-	}
-	fmt.Println(string(data))
-	return nil
+	return agentlib.PrintResult(result)
 }

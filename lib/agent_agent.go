@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/bborbe/errors"
+	"github.com/bborbe/vault-cli/pkg/domain"
 )
 
 // Agent is a composed list of phases. Build via NewAgent.
@@ -25,15 +26,15 @@ func NewAgent(phases ...Phase) *Agent {
 
 // Run dispatches by phase and walks the matching step list.
 //
-// phaseName is the value of os.Getenv("PHASE") in production. Unknown or
-// empty phaseName produces a Failed result via the deliverer (fail-loud
-// sentinel — never a silent escalation).
+// phaseName is the requested phase from the K8s Job env (PHASE) or the
+// CLI flag. Unknown or empty phaseName produces a Failed result via the
+// deliverer (fail-loud sentinel — never a silent escalation).
 //
 // taskContent is parsed once into *Markdown; the parsed Markdown is
 // mutated by successive steps and re-serialized for each save.
 func (a *Agent) Run(
 	ctx context.Context,
-	phaseName string,
+	phaseName domain.TaskPhase,
 	taskContent string,
 	deliverer ResultDeliverer,
 ) (*Result, error) {
@@ -57,7 +58,7 @@ func (a *Agent) Run(
 
 // validate checks for duplicate phase names.
 func (a *Agent) validate(ctx context.Context) error {
-	seen := map[string]bool{}
+	seen := map[domain.TaskPhase]bool{}
 	for _, p := range a.phases {
 		if seen[p.Name] {
 			return errors.Errorf(ctx, "agent: duplicate phase %q", p.Name)
@@ -67,7 +68,7 @@ func (a *Agent) validate(ctx context.Context) error {
 	return nil
 }
 
-func (a *Agent) findPhase(name string) (Phase, bool) {
+func (a *Agent) findPhase(name domain.TaskPhase) (Phase, bool) {
 	for _, p := range a.phases {
 		if p.Name == name {
 			return p, true
@@ -79,10 +80,10 @@ func (a *Agent) findPhase(name string) (Phase, bool) {
 // unsupportedPhase publishes a Failed result with a clear message.
 func (a *Agent) unsupportedPhase(
 	ctx context.Context,
-	phaseName string,
+	phaseName domain.TaskPhase,
 	deliverer ResultDeliverer,
 ) (*Result, error) {
-	display := phaseName
+	display := string(phaseName)
 	if display == "" {
 		display = "(empty)"
 	}

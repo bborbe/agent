@@ -59,12 +59,12 @@ func (s *PlanStep) ShouldRun(_ context.Context, md *agentlib.Markdown) (bool, er
 
 // Run reads operation + a + b from frontmatter, writes typed Plan.
 func (s *PlanStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.Result, error) {
-	op, ok := md.Frontmatter["operation"].(string)
+	op, ok := md.Frontmatter.String("operation")
 	if !ok || op == "" {
 		return needsInput("frontmatter missing 'operation' field")
 	}
-	a, aOK := readInt(md.Frontmatter, "a")
-	b, bOK := readInt(md.Frontmatter, "b")
+	a, aOK := md.Frontmatter.Int("a")
+	b, bOK := md.Frontmatter.Int("b")
 	if !aOK || !bOK {
 		return needsInput("frontmatter missing or invalid 'a' / 'b' (must be integers)")
 	}
@@ -190,21 +190,6 @@ func compute(ctx context.Context, op string, a, b int) (int, error) {
 	default:
 		return 0, errors.Errorf(ctx, "unknown operation %q (expected add | sub | mul)", op)
 	}
-}
-
-// readInt reads an integer field from a YAML-parsed frontmatter map.
-func readInt(fm agentlib.TaskFrontmatter, key string) (int, bool) {
-	v, ok := fm[key]
-	if !ok {
-		return 0, false
-	}
-	switch n := v.(type) {
-	case int:
-		return n, true
-	case float64:
-		return int(n), true
-	}
-	return 0, false
 }
 
 // needsInput is a small helper for needs_input results.
