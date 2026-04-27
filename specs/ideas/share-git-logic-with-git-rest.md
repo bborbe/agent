@@ -1,5 +1,5 @@
 ---
-status: draft
+status: idea
 ---
 
 # Share git logic with git-rest
