@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: ["017"]
 summary: 'Added CreateTaskCommandOperation constant and CreateTaskCommand struct to lib/agent_task-commands.go, extended the validation regression table in agent_task-commands_test.go, added JSON round-trip tests for CreateTaskCommand, and updated CHANGELOG.md under ## Unreleased.'
 container: agent-082-spec-017-lib-create-task-command
@@ -7,6 +7,7 @@ dark-factory-version: v0.135.19-1-gc08c946
 created: "2026-04-27T20:30:00Z"
 queued: "2026-04-27T20:25:25Z"
 started: "2026-04-27T20:25:27Z"
+completed: "2026-04-27T20:28:22Z"
 branch: dark-factory/create-task-command
 ---
 
