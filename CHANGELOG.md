@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.54.2
+
+- feat(task/controller): add `CreateTaskCommand` executor — controller now materializes vault task files on Kafka command; idempotent (no-op if file already exists), validates required frontmatter fields (assignee, status)
+
 ## v0.54.1
 
 - feat(lib): add `CreateTaskCommand` and `CreateTaskCommandOperation = "create-task"` so producers can request vault task creation via Kafka without embedding vault git logic

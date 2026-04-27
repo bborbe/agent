@@ -62,6 +62,7 @@ func CreateCommandConsumer(
 		command.NewTaskResultExecutor(resultWriter),
 		command.NewIncrementFrontmatterExecutor(gitClient, taskDir),
 		command.NewUpdateFrontmatterExecutor(gitClient, taskDir),
+		command.NewCreateTaskExecutor(gitClient, taskDir),
 	}
 	return cdb.RunCommandConsumerTxDefault(
 		saramaClientProvider,

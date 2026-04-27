@@ -1,0 +1,218 @@
+// Copyright (c) 2026 Benjamin Borbe All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package command_test
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/bborbe/cqrs/base"
+	"github.com/bborbe/cqrs/cdb"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	lib "github.com/bborbe/agent/lib"
+	"github.com/bborbe/agent/task/controller/mocks"
+	"github.com/bborbe/agent/task/controller/pkg/command"
+)
+
+var _ = Describe("NewCreateTaskExecutor", func() {
+	var (
+		ctx      context.Context
+		tmpDir   string
+		taskDir  string
+		fakeGit  *mocks.FakeGitClient
+		executor cdb.CommandObjectExecutorTx
+		schemaID cdb.SchemaID
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		var err error
+		tmpDir, err = os.MkdirTemp("", "create-task-test-*")
+		Expect(err).NotTo(HaveOccurred())
+
+		taskDir = "tasks"
+		Expect(os.MkdirAll(filepath.Join(tmpDir, taskDir), 0750)).To(Succeed())
+
+		fakeGit = &mocks.FakeGitClient{}
+		fakeGit.PathReturns(tmpDir)
+		fakeGit.AtomicWriteAndCommitPushStub = func(
+			ctx context.Context,
+			absPath string,
+			content []byte,
+			message string,
+		) error {
+			return os.WriteFile(absPath, content, 0600) // #nosec G306 -- test helper
+		}
+
+		executor = command.NewCreateTaskExecutor(fakeGit, taskDir)
+		schemaID = cdb.SchemaID{Group: "agent", Kind: "task", Version: "v1"}
+	})
+
+	AfterEach(func() {
+		Expect(os.RemoveAll(tmpDir)).To(Succeed())
+	})
+
+	buildCmdObj := func(cmd lib.CreateTaskCommand) cdb.CommandObject {
+		event, err := base.ParseEvent(ctx, cmd)
+		Expect(err).NotTo(HaveOccurred())
+		return cdb.CommandObject{
+			Command: base.Command{
+				RequestID: base.NewRequestID(),
+				Operation: lib.CreateTaskCommandOperation,
+				Initiator: "test",
+				Data:      event,
+			},
+			SchemaID: schemaID,
+		}
+	}
+
+	Describe("CommandOperation", func() {
+		It("returns create-task", func() {
+			Expect(executor.CommandOperation()).To(Equal(base.CommandOperation("create-task")))
+		})
+	})
+
+	Describe("HandleCommand", func() {
+		Context("malformed command payload", func() {
+			It("returns ErrCommandObjectSkipped without writing", func() {
+				// A channel is not JSON-marshalable, so MarshalInto will fail.
+				cmdObj := cdb.CommandObject{
+					Command: base.Command{
+						RequestID: base.NewRequestID(),
+						Operation: lib.CreateTaskCommandOperation,
+						Initiator: "test",
+						Data:      base.Event{"taskIdentifier": make(chan int)},
+					},
+					SchemaID: schemaID,
+				}
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).To(HaveOccurred())
+				Expect(errors.Is(err, cdb.ErrCommandObjectSkipped)).To(BeTrue())
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(0))
+			})
+		})
+
+		Context("empty TaskIdentifier", func() {
+			It("returns a validation error without writing", func() {
+				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+					TaskIdentifier: lib.TaskIdentifier(""),
+					Frontmatter: lib.TaskFrontmatter{
+						"assignee": "claude",
+						"status":   "todo",
+					},
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).To(HaveOccurred())
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(0))
+			})
+		})
+
+		Context("missing assignee in frontmatter", func() {
+			It("returns a validation error without writing", func() {
+				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+					TaskIdentifier: lib.TaskIdentifier("my-task-id"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status": "todo",
+					},
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("assignee"))
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(0))
+			})
+		})
+
+		Context("missing status in frontmatter", func() {
+			It("returns a validation error without writing", func() {
+				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+					TaskIdentifier: lib.TaskIdentifier("my-task-id"),
+					Frontmatter: lib.TaskFrontmatter{
+						"assignee": "claude",
+					},
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("status"))
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(0))
+			})
+		})
+
+		Context("file already exists (idempotency)", func() {
+			It("returns nil without calling AtomicWriteAndCommitPush", func() {
+				absPath := filepath.Join(tmpDir, taskDir, "existing-task.md")
+				Expect(
+					os.WriteFile(
+						absPath,
+						[]byte("---\ntask_identifier: existing-task\n---\n"),
+						0600,
+					),
+				).To(Succeed())
+
+				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+					TaskIdentifier: lib.TaskIdentifier("existing-task"),
+					Frontmatter: lib.TaskFrontmatter{
+						"assignee": "claude",
+						"status":   "todo",
+					},
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(0))
+			})
+		})
+
+		Context("success: new file created", func() {
+			It("calls AtomicWriteAndCommitPush with correct content and commit message", func() {
+				taskID := lib.TaskIdentifier("new-task-abc")
+				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+					TaskIdentifier: taskID,
+					Frontmatter: lib.TaskFrontmatter{
+						"assignee": "claude",
+						"status":   "todo",
+					},
+					Body: "This is the task body.\n",
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+
+				_, absPath, content, message := fakeGit.AtomicWriteAndCommitPushArgsForCall(0)
+				Expect(absPath).To(HaveSuffix(string(taskID) + ".md"))
+				Expect(message).To(ContainSubstring(string(taskID)))
+
+				contentStr := string(content)
+				Expect(contentStr).To(HavePrefix("---\n"))
+				Expect(strings.Count(contentStr, "---")).To(BeNumerically(">=", 2))
+				Expect(contentStr).To(ContainSubstring("task_identifier:"))
+				Expect(contentStr).To(ContainSubstring("assignee:"))
+				Expect(contentStr).To(ContainSubstring("status:"))
+				Expect(contentStr).To(ContainSubstring("This is the task body."))
+			})
+		})
+
+		Context("git write error", func() {
+			It("returns a wrapped error when AtomicWriteAndCommitPush fails", func() {
+				fakeGit.AtomicWriteAndCommitPushStub = nil
+				fakeGit.AtomicWriteAndCommitPushReturns(errors.New("git push failed"))
+
+				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+					TaskIdentifier: lib.TaskIdentifier("error-task"),
+					Frontmatter: lib.TaskFrontmatter{
+						"assignee": "claude",
+						"status":   "todo",
+					},
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("git push failed"))
+			})
+		})
+	})
+})
