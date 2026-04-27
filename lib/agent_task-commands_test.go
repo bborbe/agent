@@ -27,6 +27,12 @@ var _ = Describe("Command operations", func() {
 			lib.UpdateFrontmatterCommandOperation,
 		).To(Equal(base.CommandOperation("update-frontmatter")))
 	})
+
+	It("CreateTaskCommandOperation has expected string value", func() {
+		Expect(
+			lib.CreateTaskCommandOperation,
+		).To(Equal(base.CommandOperation("create-task")))
+	})
 })
 
 var _ = Describe("CommandOperation validation", func() {
@@ -46,6 +52,7 @@ var _ = Describe("CommandOperation validation", func() {
 		},
 		Entry("IncrementFrontmatterCommandOperation", lib.IncrementFrontmatterCommandOperation),
 		Entry("UpdateFrontmatterCommandOperation", lib.UpdateFrontmatterCommandOperation),
+		Entry("CreateTaskCommandOperation", lib.CreateTaskCommandOperation),
 	)
 })
 
@@ -112,5 +119,42 @@ var _ = Describe("UpdateFrontmatterCommand", func() {
 		var got lib.UpdateFrontmatterCommand
 		Expect(json.Unmarshal(data, &got)).To(Succeed())
 		Expect(got.Updates).To(BeNil())
+	})
+})
+
+var _ = Describe("CreateTaskCommand", func() {
+	It("round-trips through JSON with frontmatter and body", func() {
+		cmd := lib.CreateTaskCommand{
+			TaskIdentifier: lib.TaskIdentifier("task-new"),
+			Frontmatter: lib.TaskFrontmatter{
+				"assignee": "alice",
+				"status":   "todo",
+			},
+			Body: "## Description\nsome content\n",
+		}
+		data, err := json.Marshal(cmd)
+		Expect(err).To(BeNil())
+
+		var got lib.CreateTaskCommand
+		Expect(json.Unmarshal(data, &got)).To(Succeed())
+		Expect(got.TaskIdentifier).To(Equal(cmd.TaskIdentifier))
+		Expect(got.Frontmatter).To(HaveLen(2))
+		Expect(got.Frontmatter["assignee"]).To(Equal("alice"))
+		Expect(got.Frontmatter["status"]).To(Equal("todo"))
+		Expect(got.Body).To(Equal(cmd.Body))
+	})
+
+	It("omits body field when empty", func() {
+		cmd := lib.CreateTaskCommand{
+			TaskIdentifier: lib.TaskIdentifier("task-nobody"),
+			Frontmatter:    lib.TaskFrontmatter{"status": "todo"},
+		}
+		data, err := json.Marshal(cmd)
+		Expect(err).To(BeNil())
+		Expect(string(data)).NotTo(ContainSubstring(`"body"`))
+
+		var got lib.CreateTaskCommand
+		Expect(json.Unmarshal(data, &got)).To(Succeed())
+		Expect(got.Body).To(BeEmpty())
 	})
 })

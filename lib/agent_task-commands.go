@@ -23,6 +23,11 @@ const IncrementFrontmatterCommandOperation base.CommandOperation = "increment-fr
 // for atomically setting specific frontmatter keys without touching other keys.
 const UpdateFrontmatterCommandOperation base.CommandOperation = "update-frontmatter"
 
+// CreateTaskCommandOperation is the Kafka command operation for creating a new vault task.
+// The controller materializes a task file at the standard vault location for the given
+// task_identifier. If a file already exists for that identifier, the command is a no-op.
+const CreateTaskCommandOperation base.CommandOperation = "create-task"
+
 // IncrementFrontmatterCommand is the payload for IncrementFrontmatterCommandOperation.
 // The controller reads the current value of Field from disk, adds Delta, and writes
 // the result atomically — so the write is never idempotent.
@@ -40,6 +45,18 @@ type UpdateFrontmatterCommand struct {
 	TaskIdentifier TaskIdentifier  `json:"taskIdentifier"`
 	Updates        TaskFrontmatter `json:"updates"`
 	Body           *BodySection    `json:"body,omitempty"`
+}
+
+// CreateTaskCommand is the payload for CreateTaskCommandOperation.
+// The controller creates a new vault task file at the standard path for TaskIdentifier,
+// writing the supplied Frontmatter and optional Body. If a file for TaskIdentifier already
+// exists the command is a strict no-op (idempotent). Frontmatter MUST include at minimum
+// "assignee" and "status" keys; the executor rejects the command with a validation error
+// if either is absent.
+type CreateTaskCommand struct {
+	TaskIdentifier TaskIdentifier  `json:"taskIdentifier"`
+	Frontmatter    TaskFrontmatter `json:"frontmatter"`
+	Body           string          `json:"body,omitempty"`
 }
 
 // BodySection describes an idempotent body-section write: the controller's

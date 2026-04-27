@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.54.1
+
+- feat(lib): add `CreateTaskCommand` and `CreateTaskCommandOperation = "create-task"` so producers can request vault task creation via Kafka without embedding vault git logic
+
 ## v0.54.0
 
 - refactor(lib): move `AgentStatus`, `AgentResultInfo`, `ResultDeliverer` from `lib/delivery` to `lib` root — removes potential import cycle for new framework primitives; `lib/delivery` still hosts impls (Noop / File / Kafka deliverers, ContentGenerator)
