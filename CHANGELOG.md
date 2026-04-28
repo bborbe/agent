@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.54.3
+
+- feat(lib/claude): add `PluginInstaller` + `PluginCommander` + `PluginSpec` — reusable Claude plugin install/update helper, ported from `code-reviewer/agent/pr-reviewer/pkg/plugins` (Phase 2 promotion). Install path runs `marketplace add` + `plugin install`; update path runs `marketplace update` + `plugin update` as soft failures (warn, don't fail). Same fast-path semantics as the local impl. Available to any agent wrapping `claude` CLI.
+
 ## v0.54.2
 
 - feat(task/controller): add `CreateTaskCommand` executor — controller now materializes vault task files on Kafka command; idempotent (no-op if file already exists), validates required frontmatter fields (assignee, status)
