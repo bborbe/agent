@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: 'Migrated lib/ to tools.env + Makefile @version pattern: deleted tools.go, created tools.env with 11 version vars, rewrote Makefile with @version invocations, updated 3 counterfeiter directives to @v6.12.2, bumped bborbe deps to migrated versions, and reset go.mod from 502 to 99 lines via go mod tidy — make precommit passed end-to-end.'
 container: agent-084-migrate-lib-tools-go
 dark-factory-version: dev
 created: "2026-04-30T22:31:38Z"
 queued: "2026-04-30T22:31:38Z"
 started: "2026-04-30T22:31:39Z"
+completed: "2026-04-30T22:38:51Z"
 ---
 
 # Migrate agent/lib from tools.go to tools.env + Makefile @version pattern
