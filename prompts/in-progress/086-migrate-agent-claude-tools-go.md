@@ -1,6 +1,7 @@
 ---
-status: draft
+status: approved
 created: "2026-04-30T22:38:39Z"
+queued: "2026-04-30T22:39:17Z"
 ---
 
 # Migrate agent/claude from tools.go to tools.env + Makefile @version pattern
