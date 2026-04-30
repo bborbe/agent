@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: 'Migrated agent/claude from tools.go to tools.env + Makefile @version pattern: deleted tools.go, created tools.env with canonical versions, rewrote Makefile with @$(VERSION) invocations following the agent/gemini pattern, stripped go.mod from 508 lines to 106 lines (removed 4 obsolete replace directives, all lint-tool transitive deps), bumped bborbe deps to migrated versions, and confirmed make precommit passes with exit code 0.'
 container: agent-086-migrate-agent-claude-tools-go
 dark-factory-version: dev
 created: "2026-04-30T22:38:39Z"
 queued: "2026-04-30T22:39:17Z"
 started: "2026-04-30T22:45:51Z"
+completed: "2026-04-30T22:51:26Z"
 ---
 
 # Migrate agent/claude from tools.go to tools.env + Makefile @version pattern
