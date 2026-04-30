@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.54.6
+
+- chore(agent/code): migrate from tools.go to tools.env + Makefile @version pattern; drop obsolete replace directives (cellbuf, go-header, go-diskfs, ginkgolinter); bump bborbe deps (errors v1.5.11, cqrs v0.5.1, kafka v1.22.12, sentry v1.9.16, service v1.9.10, time v1.25.10, vault-cli v0.58.1)
+
 ## v0.54.5
 
 - chore(agent/claude): migrate from tools.go to tools.env + Makefile @version pattern; drop obsolete replace directives; bump bborbe deps (errors v1.5.11, cqrs v0.5.1, kafka v1.22.12, sentry v1.9.16, service v1.9.10, time v1.25.10, vault-cli v0.58.1)

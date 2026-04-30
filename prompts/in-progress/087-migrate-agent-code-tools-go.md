@@ -1,7 +1,10 @@
 ---
-status: approved
+status: committing
+container: agent-087-migrate-agent-code-tools-go
+dark-factory-version: dev
 created: "2026-04-30T22:38:39Z"
 queued: "2026-04-30T22:39:17Z"
+started: "2026-04-30T22:51:28Z"
 ---
 
 # Migrate agent/code from tools.go to tools.env + Makefile @version pattern
