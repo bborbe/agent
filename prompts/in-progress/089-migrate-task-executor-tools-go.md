@@ -1,7 +1,11 @@
 ---
-status: approved
+status: committing
+summary: 'Migrated task/executor from tools.go to tools.env + Makefile @version pattern: deleted tools.go, created tools.env, rewrote Makefile with inline precommit targets using @VERSION vars, updated all //go:generate counterfeiter directives to @v6.12.2, removed obsolete replace directives, bumped bborbe/metrics to v0.5.2, ran go mod tidy.'
+container: agent-089-migrate-task-executor-tools-go
+dark-factory-version: dev
 created: "2026-04-30T22:38:39Z"
 queued: "2026-04-30T22:39:17Z"
+started: "2026-04-30T23:12:24Z"
 ---
 
 # Migrate task/executor from tools.go to tools.env + Makefile @version pattern

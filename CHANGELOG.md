@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.54.8
+
+- chore(task/executor): migrate from tools.go to tools.env + Makefile @version pattern; drop obsolete replace directives; bump bborbe/metrics to v0.5.2
+
 ## v0.54.7
 
 - chore(task/controller): migrate from tools.go to tools.env + Makefile @version pattern; bump bborbe deps (errors v1.5.11, boltkv v1.12.5, cqrs v0.5.1, http v1.26.11, kafka v1.22.12, kv v1.19.6, log v1.6.12); add GODEBUG=gotypesalias=1 to errcheck for Go 1.24+ generic type alias compatibility

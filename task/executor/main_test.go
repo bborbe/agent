@@ -21,7 +21,7 @@ var _ = Describe("Main", func() {
 	})
 })
 
-//go:generate go run -mod=mod github.com/maxbrunsfeld/counterfeiter/v6 -generate
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6@v6.12.2 -generate
 func TestSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	suiteConfig, reporterConfig := GinkgoConfiguration()
