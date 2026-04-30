@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Migrated agent/gemini from tools.go to tools.env + Makefile @version pattern, dropped 4 obsolete replace directives, bumped bborbe deps, shrunk go.mod from 509 to ~120 lines
 container: agent-085-migrate-agent-gemini-tools-go
 dark-factory-version: dev
 created: "2026-04-30T22:38:39Z"
 queued: "2026-04-30T22:39:16Z"
 started: "2026-04-30T22:39:18Z"
+completed: "2026-04-30T22:45:49Z"
 ---
 
 # Migrate agent/gemini from tools.go to tools.env + Makefile @version pattern
