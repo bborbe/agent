@@ -1,8 +1,9 @@
 ---
-status: prompted
+status: verifying
 approved: "2026-04-27T20:10:03Z"
 generating: "2026-04-27T20:10:20Z"
 prompted: "2026-04-27T20:14:21Z"
+verifying: "2026-04-27T20:35:11Z"
 branch: dark-factory/create-task-command
 ---
 

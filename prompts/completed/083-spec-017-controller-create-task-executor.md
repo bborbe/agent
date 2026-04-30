@@ -1,6 +1,6 @@
 ---
 status: completed
-spec: ["017"]
+spec: [017-create-task-command]
 summary: Implemented CreateTaskCommand executor in task/controller/pkg/command/, wired it into the factory, added full Ginkgo test coverage (7 cases), and updated CHANGELOG.md
 container: agent-083-spec-017-controller-create-task-executor
 dark-factory-version: v0.135.19-1-gc08c946
