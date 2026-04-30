@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.54.7
+
+- chore(task/controller): migrate from tools.go to tools.env + Makefile @version pattern; bump bborbe deps (errors v1.5.11, boltkv v1.12.5, cqrs v0.5.1, http v1.26.11, kafka v1.22.12, kv v1.19.6, log v1.6.12); add GODEBUG=gotypesalias=1 to errcheck for Go 1.24+ generic type alias compatibility
+
 ## v0.54.6
 
 - chore(agent/code): migrate from tools.go to tools.env + Makefile @version pattern; drop obsolete replace directives (cellbuf, go-header, go-diskfs, ginkgolinter); bump bborbe deps (errors v1.5.11, cqrs v0.5.1, kafka v1.22.12, sentry v1.9.16, service v1.9.10, time v1.25.10, vault-cli v0.58.1)
