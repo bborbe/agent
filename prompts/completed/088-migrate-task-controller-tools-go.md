@@ -1,10 +1,11 @@
 ---
-status: committing
+status: completed
 container: agent-088-migrate-task-controller-tools-go
 dark-factory-version: dev
 created: "2026-04-30T22:38:39Z"
 queued: "2026-04-30T22:39:17Z"
 started: "2026-04-30T22:55:58Z"
+completed: "2026-04-30T23:12:22Z"
 ---
 
 # Migrate task/controller from tools.go to tools.env + Makefile @version pattern
