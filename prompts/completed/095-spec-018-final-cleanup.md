@@ -1,14 +1,13 @@
 ---
-status: committing
+status: completed
 spec: [018-use-git-rest-for-vault-writes]
 container: agent-095-spec-018-final-cleanup
 dark-factory-version: dev
 created: "2026-05-02T19:50:00Z"
 queued: "2026-05-02T19:43:41Z"
 started: "2026-05-02T20:16:22Z"
-completed: "2026-05-02T20:15:03Z"
+completed: "2026-05-02T20:23:34Z"
 branch: dark-factory/use-git-rest-for-vault-writes
-lastFailReason: 'execute prompt: docker run failed: wait command: exit status 143'
 ---
 
 <summary>
