@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [018-use-git-rest-for-vault-writes]
 summary: Created pkg/gitrestclient package with GitRestClient interface, production implementation with retry backoff, Counterfeiter mock, 13+ tests at 84.8% coverage, and two new Prometheus metrics
 container: agent-091-spec-018-gitrestclient-package
@@ -7,6 +7,7 @@ dark-factory-version: dev
 created: "2026-05-02T19:50:00Z"
 queued: "2026-05-02T19:43:29Z"
 started: "2026-05-02T19:43:31Z"
+completed: "2026-05-02T19:51:48Z"
 branch: dark-factory/use-git-rest-for-vault-writes
 ---
 
