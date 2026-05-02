@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: 'Wired shared-secret auth into task/controller gitrestclient: added gatewaySecret/gatewayInitiator fields, setAuthHeaders helper (called in Get/Post/Delete/List, not IsReady), updated NewGitRestClient and NewGitRestClientForTest signatures, added 8 new test cases (q-x), added GatewaySecret field to main.go, added gateway-secret to K8s Secret manifest sourced via teamvaultPassword, added GATEWAY_SECRET secretKeyRef to StatefulSet, and updated CHANGELOG.'
 container: agent-096-gitrestclient-gateway-secret-auth
 dark-factory-version: dev
 created: "2026-05-02T22:20:00Z"
 queued: "2026-05-02T20:24:37Z"
 started: "2026-05-02T20:24:38Z"
+completed: "2026-05-02T20:31:38Z"
 ---
 
 <summary>
