@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.54.10
+
+- feat(task/controller): add `pkg/gitrestclient` — HTTP client for git-rest API with Get/Post/Delete/List/IsReady, retry with exponential backoff, and Counterfeiter mock
+- feat(task/controller): add `controller_gitrest_calls_total` and `controller_kafka_consume_paused_total` Prometheus metrics
+
 ## v0.54.9
 
 - feat(lib/claude): add `Resolve()` method to `ClaudeConfigDir` and `AgentDir` that expands a leading `~/` to the user's home directory. `claude-runner.go` now calls `Resolve()` at the env-var emission and working-directory boundaries, so consumers can declare `default:"~/.claude"` (or pass `~/.claude` via env) and have the path correctly expand. Backwards-compatible — existing `.String()` callers see no change.

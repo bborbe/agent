@@ -65,6 +65,22 @@ var FrontmatterCommandsTotal = promauto.NewCounterVec(
 	[]string{"operation", "outcome"},
 )
 
+// GitRestCallsTotal counts git-rest HTTP API calls by operation and outcome.
+var GitRestCallsTotal = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "controller_gitrest_calls_total",
+		Help: "Total number of git-rest HTTP API calls by operation and outcome.",
+	},
+	[]string{"op", "status"},
+)
+
+// KafkaConsumePausedTotal counts times a Kafka command executor blocked
+// waiting for git-rest to become available (i.e. retry attempts after the first).
+var KafkaConsumePausedTotal = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "controller_kafka_consume_paused_total",
+	Help: "Total number of times Kafka consumption was paused waiting for git-rest.",
+})
+
 func init() {
 	ScanCyclesTotal.WithLabelValues("changes").Add(0)
 	ScanCyclesTotal.WithLabelValues("no_changes").Add(0)
@@ -88,6 +104,12 @@ func init() {
 	for _, op := range []string{"increment-frontmatter", "update-frontmatter"} {
 		for _, outcome := range []string{"success", "error", "not_found"} {
 			FrontmatterCommandsTotal.WithLabelValues(op, outcome).Add(0)
+		}
+	}
+
+	for _, op := range []string{"get", "post", "delete", "list", "readiness"} {
+		for _, status := range []string{"success", "error"} {
+			GitRestCallsTotal.WithLabelValues(op, status).Add(0)
 		}
 	}
 }
