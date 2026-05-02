@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.54.11
+
+- feat(task/controller): extend `gitclient.GitClient` interface with `ListFiles`, `ReadFile`, `WriteFile` for filesystem-agnostic vault access
+- feat(task/controller): add `gitRestGitClientAdapter` in `pkg/gitrestclient` — drop-in `GitClient` implementation backed by git-rest HTTP API
+
 ## v0.54.10
 
 - feat(task/controller): add `pkg/gitrestclient` — HTTP client for git-rest API with Get/Post/Delete/List/IsReady, retry with exponential backoff, and Counterfeiter mock

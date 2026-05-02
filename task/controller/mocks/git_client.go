@@ -60,6 +60,20 @@ type FakeGitClient struct {
 	ensureClonedReturnsOnCall map[int]struct {
 		result1 error
 	}
+	ListFilesStub        func(context.Context, string) ([]string, error)
+	listFilesMutex       sync.RWMutex
+	listFilesArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+	}
+	listFilesReturns struct {
+		result1 []string
+		result2 error
+	}
+	listFilesReturnsOnCall map[int]struct {
+		result1 []string
+		result2 error
+	}
 	PathStub        func() string
 	pathMutex       sync.RWMutex
 	pathArgsForCall []struct {
@@ -79,6 +93,33 @@ type FakeGitClient struct {
 		result1 error
 	}
 	pullReturnsOnCall map[int]struct {
+		result1 error
+	}
+	ReadFileStub        func(context.Context, string) ([]byte, error)
+	readFileMutex       sync.RWMutex
+	readFileArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+	}
+	readFileReturns struct {
+		result1 []byte
+		result2 error
+	}
+	readFileReturnsOnCall map[int]struct {
+		result1 []byte
+		result2 error
+	}
+	WriteFileStub        func(context.Context, string, []byte) error
+	writeFileMutex       sync.RWMutex
+	writeFileArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+		arg3 []byte
+	}
+	writeFileReturns struct {
+		result1 error
+	}
+	writeFileReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
@@ -341,6 +382,71 @@ func (fake *FakeGitClient) EnsureClonedReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
+func (fake *FakeGitClient) ListFiles(arg1 context.Context, arg2 string) ([]string, error) {
+	fake.listFilesMutex.Lock()
+	ret, specificReturn := fake.listFilesReturnsOnCall[len(fake.listFilesArgsForCall)]
+	fake.listFilesArgsForCall = append(fake.listFilesArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.ListFilesStub
+	fakeReturns := fake.listFilesReturns
+	fake.recordInvocation("ListFiles", []interface{}{arg1, arg2})
+	fake.listFilesMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeGitClient) ListFilesCallCount() int {
+	fake.listFilesMutex.RLock()
+	defer fake.listFilesMutex.RUnlock()
+	return len(fake.listFilesArgsForCall)
+}
+
+func (fake *FakeGitClient) ListFilesCalls(stub func(context.Context, string) ([]string, error)) {
+	fake.listFilesMutex.Lock()
+	defer fake.listFilesMutex.Unlock()
+	fake.ListFilesStub = stub
+}
+
+func (fake *FakeGitClient) ListFilesArgsForCall(i int) (context.Context, string) {
+	fake.listFilesMutex.RLock()
+	defer fake.listFilesMutex.RUnlock()
+	argsForCall := fake.listFilesArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeGitClient) ListFilesReturns(result1 []string, result2 error) {
+	fake.listFilesMutex.Lock()
+	defer fake.listFilesMutex.Unlock()
+	fake.ListFilesStub = nil
+	fake.listFilesReturns = struct {
+		result1 []string
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeGitClient) ListFilesReturnsOnCall(i int, result1 []string, result2 error) {
+	fake.listFilesMutex.Lock()
+	defer fake.listFilesMutex.Unlock()
+	fake.ListFilesStub = nil
+	if fake.listFilesReturnsOnCall == nil {
+		fake.listFilesReturnsOnCall = make(map[int]struct {
+			result1 []string
+			result2 error
+		})
+	}
+	fake.listFilesReturnsOnCall[i] = struct {
+		result1 []string
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeGitClient) Path() string {
 	fake.pathMutex.Lock()
 	ret, specificReturn := fake.pathReturnsOnCall[len(fake.pathArgsForCall)]
@@ -451,6 +557,139 @@ func (fake *FakeGitClient) PullReturnsOnCall(i int, result1 error) {
 		})
 	}
 	fake.pullReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeGitClient) ReadFile(arg1 context.Context, arg2 string) ([]byte, error) {
+	fake.readFileMutex.Lock()
+	ret, specificReturn := fake.readFileReturnsOnCall[len(fake.readFileArgsForCall)]
+	fake.readFileArgsForCall = append(fake.readFileArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.ReadFileStub
+	fakeReturns := fake.readFileReturns
+	fake.recordInvocation("ReadFile", []interface{}{arg1, arg2})
+	fake.readFileMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeGitClient) ReadFileCallCount() int {
+	fake.readFileMutex.RLock()
+	defer fake.readFileMutex.RUnlock()
+	return len(fake.readFileArgsForCall)
+}
+
+func (fake *FakeGitClient) ReadFileCalls(stub func(context.Context, string) ([]byte, error)) {
+	fake.readFileMutex.Lock()
+	defer fake.readFileMutex.Unlock()
+	fake.ReadFileStub = stub
+}
+
+func (fake *FakeGitClient) ReadFileArgsForCall(i int) (context.Context, string) {
+	fake.readFileMutex.RLock()
+	defer fake.readFileMutex.RUnlock()
+	argsForCall := fake.readFileArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeGitClient) ReadFileReturns(result1 []byte, result2 error) {
+	fake.readFileMutex.Lock()
+	defer fake.readFileMutex.Unlock()
+	fake.ReadFileStub = nil
+	fake.readFileReturns = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeGitClient) ReadFileReturnsOnCall(i int, result1 []byte, result2 error) {
+	fake.readFileMutex.Lock()
+	defer fake.readFileMutex.Unlock()
+	fake.ReadFileStub = nil
+	if fake.readFileReturnsOnCall == nil {
+		fake.readFileReturnsOnCall = make(map[int]struct {
+			result1 []byte
+			result2 error
+		})
+	}
+	fake.readFileReturnsOnCall[i] = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeGitClient) WriteFile(arg1 context.Context, arg2 string, arg3 []byte) error {
+	var arg3Copy []byte
+	if arg3 != nil {
+		arg3Copy = make([]byte, len(arg3))
+		copy(arg3Copy, arg3)
+	}
+	fake.writeFileMutex.Lock()
+	ret, specificReturn := fake.writeFileReturnsOnCall[len(fake.writeFileArgsForCall)]
+	fake.writeFileArgsForCall = append(fake.writeFileArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+		arg3 []byte
+	}{arg1, arg2, arg3Copy})
+	stub := fake.WriteFileStub
+	fakeReturns := fake.writeFileReturns
+	fake.recordInvocation("WriteFile", []interface{}{arg1, arg2, arg3Copy})
+	fake.writeFileMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeGitClient) WriteFileCallCount() int {
+	fake.writeFileMutex.RLock()
+	defer fake.writeFileMutex.RUnlock()
+	return len(fake.writeFileArgsForCall)
+}
+
+func (fake *FakeGitClient) WriteFileCalls(stub func(context.Context, string, []byte) error) {
+	fake.writeFileMutex.Lock()
+	defer fake.writeFileMutex.Unlock()
+	fake.WriteFileStub = stub
+}
+
+func (fake *FakeGitClient) WriteFileArgsForCall(i int) (context.Context, string, []byte) {
+	fake.writeFileMutex.RLock()
+	defer fake.writeFileMutex.RUnlock()
+	argsForCall := fake.writeFileArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeGitClient) WriteFileReturns(result1 error) {
+	fake.writeFileMutex.Lock()
+	defer fake.writeFileMutex.Unlock()
+	fake.WriteFileStub = nil
+	fake.writeFileReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeGitClient) WriteFileReturnsOnCall(i int, result1 error) {
+	fake.writeFileMutex.Lock()
+	defer fake.writeFileMutex.Unlock()
+	fake.WriteFileStub = nil
+	if fake.writeFileReturnsOnCall == nil {
+		fake.writeFileReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.writeFileReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }

@@ -53,6 +53,12 @@ func (t *testGitClient) AtomicReadModifyWriteAndCommitPush(
 	return t.commitPushErr
 }
 
+func (t *testGitClient) ListFiles(_ context.Context, _ string) ([]string, error) { return nil, nil }
+
+func (t *testGitClient) ReadFile(_ context.Context, _ string) ([]byte, error) { return nil, nil }
+
+func (t *testGitClient) WriteFile(_ context.Context, _ string, _ []byte) error { return nil }
+
 func mustInitGitRepo(dir string) {
 	cmds := [][]string{
 		{"git", "-C", dir, "init"},

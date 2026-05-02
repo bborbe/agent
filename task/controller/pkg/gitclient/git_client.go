@@ -27,7 +27,9 @@ type GitClient interface {
 	// CommitAndPush stages all changes, creates a commit with the given message, and pushes to the remote.
 	CommitAndPush(ctx context.Context, message string) error
 	// AtomicWriteAndCommitPush writes content to absPath and commits+pushes under a single lock.
-	// No other git operation can interleave between the file write and the commit.
+	// Atomicity (no interleaving with other writes) is guaranteed by the implementation:
+	// - gitClient (local-disk): sync.Mutex around the whole sequence.
+	// - gitRestGitClientAdapter: relies on per-task serialization (Kafka partitioning by task_id).
 	AtomicWriteAndCommitPush(
 		ctx context.Context,
 		absPath string,
@@ -35,8 +37,11 @@ type GitClient interface {
 		message string,
 	) error
 	// AtomicReadModifyWriteAndCommitPush reads absPath, calls modify on its contents
-	// to produce new contents, writes the result, and commits+pushes — all under
-	// the gitclient mutex. modify must return the new file bytes or an error.
+	// to produce new contents, writes the result, and commits+pushes.
+	// Atomicity (no interleaving with other writes) is guaranteed by the implementation:
+	// - gitClient (local-disk): sync.Mutex around the whole sequence.
+	// - gitRestGitClientAdapter: relies on per-task serialization (Kafka partitioning by task_id).
+	// modify must return the new file bytes or an error.
 	// If modify returns an error, the file is not written and no commit is made.
 	AtomicReadModifyWriteAndCommitPush(
 		ctx context.Context,
@@ -46,6 +51,15 @@ type GitClient interface {
 	) error
 	// Path returns the local clone path.
 	Path() string
+	// ListFiles returns relative file paths under the repo root matching the single-level
+	// glob pattern (e.g. "tasks/*.md"). Paths are relative to the repo root.
+	ListFiles(ctx context.Context, glob string) ([]string, error)
+	// ReadFile reads the file at relPath (relative to repo root, e.g. "tasks/foo.md")
+	// and returns its content.
+	ReadFile(ctx context.Context, relPath string) ([]byte, error)
+	// WriteFile writes content to relPath (relative to repo root) on local disk.
+	// It does NOT commit or push — use AtomicWriteAndCommitPush for that.
+	WriteFile(ctx context.Context, relPath string, content []byte) error
 }
 
 // ConflictResolver resolves merge conflict markers in a single file's content.
@@ -379,4 +393,40 @@ func (g *gitClient) AtomicReadModifyWriteAndCommitPush(
 
 func (g *gitClient) Path() string {
 	return g.localPath
+}
+
+func (g *gitClient) ListFiles(ctx context.Context, glob string) ([]string, error) {
+	pattern := filepath.Join(g.localPath, glob)
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, errors.Wrapf(ctx, err, "glob %s", glob)
+	}
+	rel := make([]string, 0, len(matches))
+	for _, m := range matches {
+		r, err := filepath.Rel(g.localPath, m)
+		if err != nil {
+			return nil, errors.Wrapf(ctx, err, "rel path for %s", m)
+		}
+		rel = append(rel, r)
+	}
+	return rel, nil
+}
+
+func (g *gitClient) ReadFile(ctx context.Context, relPath string) ([]byte, error) {
+	absPath := filepath.Join(g.localPath, relPath)
+	// #nosec G304 -- absPath is constructed from trusted localPath + relative path from internal callers
+	content, err := os.ReadFile(absPath)
+	if err != nil {
+		return nil, errors.Wrapf(ctx, err, "read file %s", relPath)
+	}
+	return content, nil
+}
+
+func (g *gitClient) WriteFile(ctx context.Context, relPath string, content []byte) error {
+	absPath := filepath.Join(g.localPath, relPath)
+	// #nosec G306 -- 0600 is intentional for task files
+	if err := os.WriteFile(absPath, content, 0600); err != nil {
+		return errors.Wrapf(ctx, err, "write file %s", relPath)
+	}
+	return nil
 }
