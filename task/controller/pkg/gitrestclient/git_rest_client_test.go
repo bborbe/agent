@@ -54,7 +54,7 @@ var _ = Describe("GitRestClient", func() {
 						_, _ = w.Write([]byte("---\nfoo: bar\n---\nbody"))
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 			})
 
 			It("returns the file bytes and nil error", func() {
@@ -71,7 +71,7 @@ var _ = Describe("GitRestClient", func() {
 						w.WriteHeader(http.StatusNotFound)
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 			})
 
 			It("returns a non-nil error", func() {
@@ -86,7 +86,7 @@ var _ = Describe("GitRestClient", func() {
 				server = httptest.NewServer(
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 				server.Close()
 				server = nil
 			})
@@ -106,7 +106,7 @@ var _ = Describe("GitRestClient", func() {
 					w.WriteHeader(http.StatusOK)
 				}),
 			)
-			c := gitrestclient.NewGitRestClient(server.URL)
+			c := gitrestclient.NewGitRestClient(server.URL, "", "")
 			Expect(c).NotTo(BeNil())
 			ready, err := c.IsReady(ctx)
 			Expect(err).To(BeNil())
@@ -125,7 +125,7 @@ var _ = Describe("GitRestClient", func() {
 						_, _ = w.Write([]byte(`{"ok":true}`))
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 			})
 
 			It("returns nil", func() {
@@ -149,7 +149,7 @@ var _ = Describe("GitRestClient", func() {
 						w.WriteHeader(http.StatusOK)
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 			})
 
 			It("returns nil and makes 2 requests", func() {
@@ -170,7 +170,7 @@ var _ = Describe("GitRestClient", func() {
 						w.WriteHeader(http.StatusServiceUnavailable)
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 			})
 
 			It("returns a non-nil error after 5 requests", func() {
@@ -188,7 +188,7 @@ var _ = Describe("GitRestClient", func() {
 					}),
 				)
 				// shortBackoff so the context.Done() branch is exercised in the select
-				client = gitrestclient.NewGitRestClientForTest(server.URL, shortBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", shortBackoff)
 			})
 
 			It("returns a non-nil error when context is pre-cancelled", func() {
@@ -210,7 +210,7 @@ var _ = Describe("GitRestClient", func() {
 						w.WriteHeader(http.StatusOK)
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 			})
 
 			It("returns nil", func() {
@@ -230,7 +230,7 @@ var _ = Describe("GitRestClient", func() {
 						w.WriteHeader(http.StatusServiceUnavailable)
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 			})
 
 			It("returns a non-nil error after 5 requests", func() {
@@ -247,7 +247,7 @@ var _ = Describe("GitRestClient", func() {
 						w.WriteHeader(http.StatusServiceUnavailable)
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, shortBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", shortBackoff)
 			})
 
 			It("returns a non-nil error when context is pre-cancelled", func() {
@@ -273,7 +273,7 @@ var _ = Describe("GitRestClient", func() {
 						_, _ = w.Write([]byte(`["tasks/foo.md","tasks/bar.md"]`))
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 			})
 
 			It("returns the paths and propagates the glob query param", func() {
@@ -293,7 +293,7 @@ var _ = Describe("GitRestClient", func() {
 						_, _ = w.Write([]byte(`[]`))
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 			})
 
 			It("returns a non-nil empty slice and nil error", func() {
@@ -312,7 +312,7 @@ var _ = Describe("GitRestClient", func() {
 						_, _ = w.Write([]byte(`not-json`))
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 			})
 
 			It("returns nil and a non-nil error", func() {
@@ -330,7 +330,7 @@ var _ = Describe("GitRestClient", func() {
 						_, _ = w.Write([]byte("internal error"))
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 			})
 
 			It("returns nil and a non-nil error", func() {
@@ -345,7 +345,7 @@ var _ = Describe("GitRestClient", func() {
 				server = httptest.NewServer(
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 				server.Close()
 				server = nil
 			})
@@ -367,7 +367,7 @@ var _ = Describe("GitRestClient", func() {
 						w.WriteHeader(http.StatusOK)
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 			})
 
 			It("returns true, nil", func() {
@@ -384,7 +384,7 @@ var _ = Describe("GitRestClient", func() {
 						w.WriteHeader(http.StatusServiceUnavailable)
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 			})
 
 			It("returns false, nil (not an error)", func() {
@@ -399,7 +399,7 @@ var _ = Describe("GitRestClient", func() {
 				server = httptest.NewServer(
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 				server.Close()
 				server = nil
 			})
@@ -418,13 +418,237 @@ var _ = Describe("GitRestClient", func() {
 						w.WriteHeader(http.StatusBadRequest)
 					}),
 				)
-				client = gitrestclient.NewGitRestClientForTest(server.URL, zeroBackoff)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
 			})
 
 			It("returns false, error", func() {
 				ready, err := client.IsReady(ctx)
 				Expect(err).NotTo(BeNil())
 				Expect(ready).To(BeFalse())
+			})
+		})
+	})
+
+	Describe("Gateway auth header propagation", func() {
+		Context("Get sends X-Gateway-Secret and X-Gateway-Initator when configured", func() {
+			var capturedSecret, capturedInitiator string
+
+			BeforeEach(func() {
+				server = httptest.NewServer(
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						capturedSecret = r.Header.Get("X-Gateway-Secret")
+						capturedInitiator = r.Header.Get("X-Gateway-Initator")
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write([]byte("body"))
+					}),
+				)
+				client = gitrestclient.NewGitRestClient(server.URL, "test-secret", "test-caller")
+			})
+
+			It("sends both auth headers", func() {
+				_, err := client.Get(ctx, "tasks/foo.md")
+				Expect(err).To(BeNil())
+				Expect(capturedSecret).To(Equal("test-secret"))
+				Expect(capturedInitiator).To(Equal("test-caller"))
+			})
+		})
+
+		Context("Post sends both headers on each retry", func() {
+			var callCount int
+			var capturedSecrets, capturedInitiators []string
+
+			BeforeEach(func() {
+				callCount = 0
+				capturedSecrets = nil
+				capturedInitiators = nil
+				server = httptest.NewServer(
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						callCount++
+						capturedSecrets = append(capturedSecrets, r.Header.Get("X-Gateway-Secret"))
+						capturedInitiators = append(
+							capturedInitiators,
+							r.Header.Get("X-Gateway-Initator"),
+						)
+						if callCount < 3 {
+							w.WriteHeader(http.StatusServiceUnavailable)
+							return
+						}
+						w.WriteHeader(http.StatusOK)
+					}),
+				)
+				client = gitrestclient.NewGitRestClientForTest(
+					server.URL,
+					"test-secret",
+					"test-caller",
+					zeroBackoff,
+				)
+			})
+
+			It("sends both auth headers on all 3 attempts", func() {
+				err := client.Post(ctx, "tasks/new.md", []byte("content"))
+				Expect(err).To(BeNil())
+				Expect(callCount).To(Equal(3))
+				for i := 0; i < 3; i++ {
+					Expect(capturedSecrets[i]).To(Equal("test-secret"))
+					Expect(capturedInitiators[i]).To(Equal("test-caller"))
+				}
+			})
+		})
+
+		Context("Delete sends both auth headers", func() {
+			var capturedSecret, capturedInitiator string
+
+			BeforeEach(func() {
+				server = httptest.NewServer(
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						capturedSecret = r.Header.Get("X-Gateway-Secret")
+						capturedInitiator = r.Header.Get("X-Gateway-Initator")
+						w.WriteHeader(http.StatusOK)
+					}),
+				)
+				client = gitrestclient.NewGitRestClientForTest(
+					server.URL,
+					"test-secret",
+					"test-caller",
+					zeroBackoff,
+				)
+			})
+
+			It("sends both auth headers", func() {
+				err := client.Delete(ctx, "tasks/old.md")
+				Expect(err).To(BeNil())
+				Expect(capturedSecret).To(Equal("test-secret"))
+				Expect(capturedInitiator).To(Equal("test-caller"))
+			})
+		})
+
+		Context("List sends both auth headers", func() {
+			var capturedSecret, capturedInitiator string
+
+			BeforeEach(func() {
+				server = httptest.NewServer(
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						capturedSecret = r.Header.Get("X-Gateway-Secret")
+						capturedInitiator = r.Header.Get("X-Gateway-Initator")
+						w.Header().Set("Content-Type", "application/json")
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write([]byte(`[]`))
+					}),
+				)
+				client = gitrestclient.NewGitRestClientForTest(
+					server.URL,
+					"test-secret",
+					"test-caller",
+					zeroBackoff,
+				)
+			})
+
+			It("sends both auth headers", func() {
+				_, err := client.List(ctx, "tasks/*.md")
+				Expect(err).To(BeNil())
+				Expect(capturedSecret).To(Equal("test-secret"))
+				Expect(capturedInitiator).To(Equal("test-caller"))
+			})
+		})
+
+		Context("IsReady does NOT send auth headers", func() {
+			var capturedSecret, capturedInitiator string
+
+			BeforeEach(func() {
+				server = httptest.NewServer(
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						capturedSecret = r.Header.Get("X-Gateway-Secret")
+						capturedInitiator = r.Header.Get("X-Gateway-Initator")
+						w.WriteHeader(http.StatusOK)
+					}),
+				)
+				client = gitrestclient.NewGitRestClientForTest(
+					server.URL,
+					"test-secret",
+					"test-caller",
+					zeroBackoff,
+				)
+			})
+
+			It("sends no auth headers to /readiness", func() {
+				ready, err := client.IsReady(ctx)
+				Expect(err).To(BeNil())
+				Expect(ready).To(BeTrue())
+				Expect(capturedSecret).To(BeEmpty())
+				Expect(capturedInitiator).To(BeEmpty())
+			})
+		})
+
+		Context("empty secret sends no auth headers (backward compat)", func() {
+			var capturedSecret, capturedInitiator string
+
+			BeforeEach(func() {
+				server = httptest.NewServer(
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						capturedSecret = r.Header.Get("X-Gateway-Secret")
+						capturedInitiator = r.Header.Get("X-Gateway-Initator")
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write([]byte("body"))
+					}),
+				)
+				client = gitrestclient.NewGitRestClient(server.URL, "", "")
+			})
+
+			It("sends no auth headers when secret is empty", func() {
+				_, err := client.Get(ctx, "tasks/foo.md")
+				Expect(err).To(BeNil())
+				Expect(capturedSecret).To(BeEmpty())
+				Expect(capturedInitiator).To(BeEmpty())
+			})
+		})
+
+		Context("server returns 401 (invalid secret)", func() {
+			BeforeEach(func() {
+				server = httptest.NewServer(
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.WriteHeader(http.StatusUnauthorized)
+						_, _ = w.Write(
+							[]byte(
+								"secret in header 'X-Gateway-Secret' is invalid => access denied",
+							),
+						)
+					}),
+				)
+				client = gitrestclient.NewGitRestClientForTest(
+					server.URL,
+					"wrong-secret",
+					"test-caller",
+					zeroBackoff,
+				)
+			})
+
+			It("returns a non-nil error", func() {
+				content, err := client.Get(ctx, "tasks/foo.md")
+				Expect(err).NotTo(BeNil())
+				Expect(content).To(BeNil())
+			})
+		})
+
+		Context("server returns 500 (missing initiator header)", func() {
+			BeforeEach(func() {
+				server = httptest.NewServer(
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.WriteHeader(http.StatusInternalServerError)
+						_, _ = w.Write([]byte("header 'X-Gateway-Initator' missing"))
+					}),
+				)
+				client = gitrestclient.NewGitRestClientForTest(
+					server.URL,
+					"test-secret",
+					"",
+					zeroBackoff,
+				)
+			})
+
+			It("returns a non-nil error", func() {
+				content, err := client.Get(ctx, "tasks/foo.md")
+				Expect(err).NotTo(BeNil())
+				Expect(content).To(BeNil())
 			})
 		})
 	})

@@ -39,19 +39,24 @@ type GitRestClient interface {
 }
 
 // NewGitRestClient creates a GitRestClient targeting the git-rest instance at baseURL.
-// baseURL example: "http://vault-obsidian-openclaw:9090"
-func NewGitRestClient(baseURL string) GitRestClient {
-	return newGitRestClientWithBackoff(baseURL, exponentialBackoff)
+// gatewaySecret is the shared secret enforced by git-rest's gateway-secret auth (git-rest spec 004).
+// When gatewaySecret is empty, no auth headers are sent (backward-compat with auth-disabled git-rest).
+// gatewayInitiator is the caller identity logged by git-rest on auth failure;
+// pass a stable, human-readable value (e.g. "agent-task-controller").
+func NewGitRestClient(baseURL, gatewaySecret, gatewayInitiator string) GitRestClient {
+	return newGitRestClientWithBackoff(baseURL, gatewaySecret, gatewayInitiator, exponentialBackoff)
 }
 
 func newGitRestClientWithBackoff(
-	baseURL string,
+	baseURL, gatewaySecret, gatewayInitiator string,
 	backoff func(attempt int) time.Duration,
 ) GitRestClient {
 	return &gitRestClient{
-		baseURL:    strings.TrimRight(baseURL, "/"),
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		backoff:    backoff,
+		baseURL:          strings.TrimRight(baseURL, "/"),
+		httpClient:       &http.Client{Timeout: 30 * time.Second},
+		backoff:          backoff,
+		gatewaySecret:    gatewaySecret,
+		gatewayInitiator: gatewayInitiator,
 	}
 }
 
@@ -62,9 +67,26 @@ func exponentialBackoff(attempt int) time.Duration {
 }
 
 type gitRestClient struct {
-	baseURL    string
-	httpClient *http.Client
-	backoff    func(attempt int) time.Duration
+	baseURL          string
+	httpClient       *http.Client
+	backoff          func(attempt int) time.Duration
+	gatewaySecret    string
+	gatewayInitiator string
+}
+
+// setAuthHeaders sets the gateway-secret auth headers on req when the secret is configured.
+// No-op when gatewaySecret is empty — keeps backward compatibility with auth-disabled git-rest.
+//
+// Header names are part of the git-rest public contract (spec 004) — do NOT alter:
+//
+//	X-Gateway-Secret   — the shared secret
+//	X-Gateway-Initator — caller identity (deliberate misspelling, do NOT change to "Initiator")
+func (g *gitRestClient) setAuthHeaders(req *http.Request) {
+	if g.gatewaySecret == "" {
+		return
+	}
+	req.Header.Set("X-Gateway-Secret", g.gatewaySecret)
+	req.Header.Set("X-Gateway-Initator", g.gatewayInitiator)
 }
 
 // Get retrieves file content from git-rest. Does not retry — reads fail-fast.
@@ -75,6 +97,7 @@ func (g *gitRestClient) Get(ctx context.Context, relPath string) ([]byte, error)
 		metrics.GitRestCallsTotal.WithLabelValues("get", "error").Inc()
 		return nil, errors.Wrapf(ctx, err, "create GET request for %s", relPath)
 	}
+	g.setAuthHeaders(req)
 	resp, err := g.httpClient.Do(req)
 	if err != nil {
 		metrics.GitRestCallsTotal.WithLabelValues("get", "error").Inc()
@@ -124,6 +147,7 @@ func (g *gitRestClient) Post(ctx context.Context, relPath string, content []byte
 			continue
 		}
 		req.Header.Set("Content-Type", "application/octet-stream")
+		g.setAuthHeaders(req)
 		resp, err := g.httpClient.Do(req)
 		if err != nil {
 			metrics.GitRestCallsTotal.WithLabelValues("post", "error").Inc()
@@ -168,6 +192,7 @@ func (g *gitRestClient) Delete(ctx context.Context, relPath string) error {
 			lastErr = errors.Wrapf(ctx, err, "create DELETE request for %s", relPath)
 			continue
 		}
+		g.setAuthHeaders(req)
 		resp, err := g.httpClient.Do(req)
 		if err != nil {
 			metrics.GitRestCallsTotal.WithLabelValues("delete", "error").Inc()
@@ -203,6 +228,7 @@ func (g *gitRestClient) List(ctx context.Context, glob string) ([]string, error)
 	q := url.Values{}
 	q.Set("glob", glob)
 	req.URL.RawQuery = q.Encode()
+	g.setAuthHeaders(req)
 	resp, err := g.httpClient.Do(req)
 	if err != nil {
 		metrics.GitRestCallsTotal.WithLabelValues("list", "error").Inc()

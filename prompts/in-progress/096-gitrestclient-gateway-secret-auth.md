@@ -1,6 +1,11 @@
 ---
-status: draft
+status: committing
+summary: 'Wired shared-secret auth into task/controller gitrestclient: added gatewaySecret/gatewayInitiator fields, setAuthHeaders helper (called in Get/Post/Delete/List, not IsReady), updated NewGitRestClient and NewGitRestClientForTest signatures, added 8 new test cases (q-x), added GatewaySecret field to main.go, added gateway-secret to K8s Secret manifest sourced via teamvaultPassword, added GATEWAY_SECRET secretKeyRef to StatefulSet, and updated CHANGELOG.'
+container: agent-096-gitrestclient-gateway-secret-auth
+dark-factory-version: dev
 created: "2026-05-02T22:20:00Z"
+queued: "2026-05-02T20:24:37Z"
+started: "2026-05-02T20:24:38Z"
 ---
 
 <summary>
@@ -42,8 +47,9 @@ Read these guides before starting:
 
 - `task/controller/pkg/gitrestclient/git_rest_client.go` — current `gitRestClient` struct and the 5 methods. Fields to add: `gatewaySecret string`, `gatewayInitiator string`. Headers go on `Get`, `Post`, `Delete`, `List`. `IsReady` must NOT receive them.
 - `task/controller/pkg/gitrestclient/git_rest_client_test.go` — existing test cases (a–p). Add header assertions to the relevant cases; add new cases for header propagation + 401 / 500 server response handling.
-- `task/controller/main.go` — `application` struct (look for `GitRestURL`, `UseGitRest` fields) and the `Run` method's gitClient construction (search for `gitrestclient.NewGitRestClient`). Add a `GatewaySecret` field and pass it through.
-- `task/controller/k8s/agent-task-controller-secret.yaml` — currently has `sentry-dsn` and `gemini-api-key` data keys. Add a `gateway-secret` data key sourced via `'{{ "OBSIDIAN_OPENCLAW_GATEWAY_SECRET" | env | teamvaultPassword | base64 }}'`.
+- `task/controller/main.go` — `application` struct (look for the `GitRestURL` field) and the `Run` method's gitClient construction (search for `gitrestclient.NewGitRestClient`). Add a `GatewaySecret` field and pass it through.
+- `task/controller/pkg/gitrestclient/export_test.go` — `NewGitRestClientForTest(baseURL, backoff)`. Almost every existing test in `git_rest_client_test.go` constructs the client through this helper, not the public `NewGitRestClient`. Its signature MUST be extended in step 2.
+- `task/controller/k8s/agent-task-controller-secret.yaml` — currently has only `sentry-dsn` (data key sourced via `teamvaultUrl`). Add a `gateway-secret` data key sourced via `'{{ "OBSIDIAN_OPENCLAW_GATEWAY_SECRET" | env | teamvaultPassword | base64 }}'`. Use `teamvaultPassword` (NOT `teamvaultUrl`) — the value lives in teamvault's password field, matching how `vault-obsidian-openclaw-secret.yaml` (the git-rest server side) reads the same env var. Both ends MUST resolve to the same string for auth to work.
 - `task/controller/k8s/agent-task-controller-sts.yaml` — env list. Add `GATEWAY_SECRET` via `secretKeyRef` against the new data key.
 
 Run before editing:
@@ -118,9 +124,21 @@ grep -n "secretKeyRef\|sentry-dsn\|gemini-api-key" task/controller/k8s/agent-tas
 
    Do NOT call `setAuthHeaders` from `IsReady` — `/readiness` is an unauthenticated probe.
 
-2. **Update tests in `task/controller/pkg/gitrestclient/git_rest_client_test.go`**
+2. **Update tests in `task/controller/pkg/gitrestclient/`**
 
-   The existing tests construct the client via something like `NewGitRestClient(server.URL)` — update each call site to the new signature, e.g. `NewGitRestClient(server.URL, "", "")` for tests where auth is irrelevant (most of the existing cases).
+   First update the test helper at `export_test.go`. `NewGitRestClientForTest` must accept the two new strings and forward them to `newGitRestClientWithBackoff`:
+   ```go
+   // NewGitRestClientForTest creates a GitRestClient with a custom backoff for use in tests.
+   // Pass a function returning 0 or 1ms to make retry tests run fast.
+   func NewGitRestClientForTest(
+       baseURL, gatewaySecret, gatewayInitiator string,
+       backoff func(attempt int) time.Duration,
+   ) GitRestClient {
+       return newGitRestClientWithBackoff(baseURL, gatewaySecret, gatewayInitiator, backoff)
+   }
+   ```
+
+   Then update every call site in `git_rest_client_test.go`. Existing tests that don't care about auth become `NewGitRestClientForTest(server.URL, "", "", zeroBackoff)` (or the equivalent backoff helper used in that test). The single test that uses the public `NewGitRestClient(server.URL)` directly becomes `NewGitRestClient(server.URL, "", "")`.
 
    Add a new `Describe` / `Context` block exercising auth header propagation. Required cases:
 
@@ -163,11 +181,11 @@ grep -n "secretKeyRef\|sentry-dsn\|gemini-api-key" task/controller/k8s/agent-tas
    ```yaml
    gateway-secret: '{{ "OBSIDIAN_OPENCLAW_GATEWAY_SECRET" | env | teamvaultPassword | base64 }}'
    ```
-   The env var `OBSIDIAN_OPENCLAW_GATEWAY_SECRET` is already exported in `dev.env` and `prod.env` (teamvault keys `YLbzyL` and `3OlKKw` respectively).
+   The env var `OBSIDIAN_OPENCLAW_GATEWAY_SECRET` is already exported in `./dev.env` and `./prod.env` at the repo root (teamvault keys `YLbzyL` and `3OlKKw` respectively). Do NOT modify these files.
 
 5. **Inject `GATEWAY_SECRET` env into `task/controller/k8s/agent-task-controller-sts.yaml`**
 
-   Add a new env entry to the controller's `env:` list (place it next to `SENTRY_DSN` to keep secret-sourced env vars grouped):
+   Add a new env entry to the controller's `env:` list, placed BETWEEN the existing `SENTRY_DSN` block (sourced from secretKeyRef) and `SENTRY_PROXY` (plain value). This keeps the two `secretKeyRef`-sourced entries adjacent:
    ```yaml
    - name: GATEWAY_SECRET
      valueFrom:
@@ -201,6 +219,7 @@ grep -n "secretKeyRef\|sentry-dsn\|gemini-api-key" task/controller/k8s/agent-tas
 - `display:"length"` on `GatewaySecret` keeps the value out of `effective config` log lines.
 - `make precommit` MUST exit 0 in `task/controller/`.
 - Counterfeiter mocks for `GitRestClient` regenerate cleanly via `make generate` (no annotation changes — the interface signature is unchanged).
+- Scope: controller-only. `task/executor/` does not call git-rest today; do not touch any executor manifest, code, or test in this prompt.
 - Error wrapping via `github.com/bborbe/errors` — never `fmt.Errorf`.
 - Ginkgo v2 + Gomega; use `httptest.NewServer` for the new tests.
 - External test package (`gitrestclient_test`) — matches existing convention.

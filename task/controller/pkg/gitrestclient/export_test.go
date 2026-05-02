@@ -9,8 +9,8 @@ import "time"
 // NewGitRestClientForTest creates a GitRestClient with a custom backoff for use in tests.
 // Pass a function returning 0 or 1ms to make retry tests run fast.
 func NewGitRestClientForTest(
-	baseURL string,
+	baseURL, gatewaySecret, gatewayInitiator string,
 	backoff func(attempt int) time.Duration,
 ) GitRestClient {
-	return newGitRestClientWithBackoff(baseURL, backoff)
+	return newGitRestClientWithBackoff(baseURL, gatewaySecret, gatewayInitiator, backoff)
 }

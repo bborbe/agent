@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.54.15
+
+- feat(task/controller): gitrestclient sends `X-Gateway-Secret` + `X-Gateway-Initator` headers on `/api/v1/*` calls when `GATEWAY_SECRET` is set; matches git-rest spec 004 auth contract
+- feat(task/controller): add `GATEWAY_SECRET` env / `--gateway-secret` flag (sourced from `OBSIDIAN_OPENCLAW_GATEWAY_SECRET` teamvault key in dev/prod manifests)
+
 ## v0.54.14
 
 - feat(task/controller): delete `pkg/gitclient/` and `pkg/conflict/` — all vault I/O now flows through git-rest HTTP API

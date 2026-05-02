@@ -1,8 +1,9 @@
 ---
-status: prompted
+status: verifying
 approved: "2026-05-02T19:04:42Z"
 generating: "2026-05-02T19:04:42Z"
 prompted: "2026-05-02T19:27:11Z"
+verifying: "2026-05-02T20:23:34Z"
 branch: dark-factory/use-git-rest-for-vault-writes
 ---
 

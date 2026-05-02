@@ -47,6 +47,11 @@ spec:
                 secretKeyRef:
                   key: sentry-dsn
                   name: agent-task-controller
+            - name: GATEWAY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: gateway-secret
+                  name: agent-task-controller
             - name: SENTRY_PROXY
               value: '{{"SENTRY_PROXY_URL" | env}}'
             - name: BRANCH
