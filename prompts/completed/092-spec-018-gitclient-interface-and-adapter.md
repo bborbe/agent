@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [018-use-git-rest-for-vault-writes]
 summary: Extended GitClient interface with ListFiles/ReadFile/WriteFile, implemented on gitClient struct, created gitRestGitClientAdapter with full interface implementation and 36 passing tests, regenerated mocks, updated CHANGELOG.md.
 container: agent-092-spec-018-gitclient-interface-and-adapter
@@ -7,6 +7,7 @@ dark-factory-version: dev
 created: "2026-05-02T19:50:00Z"
 queued: "2026-05-02T19:43:32Z"
 started: "2026-05-02T19:51:50Z"
+completed: "2026-05-02T19:57:40Z"
 branch: dark-factory/use-git-rest-for-vault-writes
 ---
 
