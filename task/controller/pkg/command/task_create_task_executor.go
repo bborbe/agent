@@ -17,7 +17,7 @@ import (
 	"github.com/golang/glog"
 
 	lib "github.com/bborbe/agent/lib"
-	"github.com/bborbe/agent/task/controller/pkg/gitclient"
+	gitclient "github.com/bborbe/agent/task/controller/pkg/gitrestclient"
 )
 
 // NewCreateTaskExecutor creates a cdb.CommandObjectExecutorTx that materializes

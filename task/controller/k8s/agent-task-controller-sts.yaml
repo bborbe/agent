@@ -53,27 +53,16 @@ spec:
               value: '{{ "BRANCH" | env }}'
             - name: KAFKA_BROKERS
               value: '{{ "KAFKA_BROKERS" | env }}'
-            - name: GIT_BRANCH
-              value: '{{ "GIT_BRANCH" | env }}'
-            - name: GIT_URL
-              value: '{{ "GIT_URL" | env }}'
             - name: GIT_REST_URL
               value: 'http://vault-obsidian-openclaw:9090'
             - name: POLL_INTERVAL
               value: '60s'
             - name: TASK_DIR
               value: 'tasks'
-            - name: USE_GIT_REST
-              value: "true"
             - name: DATA_DIR
               value: /data/bolt
             - name: NO_SYNC
               value: "false"
-            - name: GEMINI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  key: gemini-api-key
-                  name: agent-task-controller
           image: '{{"DOCKER_REGISTRY" | env}}/agent-task-controller:{{"BRANCH" | env}}'
           imagePullPolicy: Always
           livenessProbe:

@@ -18,7 +18,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/bborbe/agent/lib"
-	"github.com/bborbe/agent/task/controller/pkg/gitclient"
+	gitclient "github.com/bborbe/agent/task/controller/pkg/gitrestclient"
 )
 
 // ScanResult holds the outcome of a single vault scan cycle.

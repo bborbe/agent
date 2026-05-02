@@ -237,6 +237,52 @@ func (g *gitRestClient) List(ctx context.Context, glob string) ([]string, error)
 	return paths, nil
 }
 
+//counterfeiter:generate -o ../../mocks/git_client.go --fake-name FakeGitClient . GitClient
+
+// GitClient is the interface for vault file operations used throughout the controller.
+type GitClient interface {
+	// EnsureCloned clones the repo if not present, validates if already cloned.
+	EnsureCloned(ctx context.Context) error
+	// Pull runs git pull on the local clone.
+	Pull(ctx context.Context) error
+	// CommitAndPush stages all changes, creates a commit with the given message, and pushes to the remote.
+	CommitAndPush(ctx context.Context, message string) error
+	// AtomicWriteAndCommitPush writes content to absPath and commits+pushes under a single lock.
+	// Atomicity (no interleaving with other writes) is guaranteed by the implementation:
+	// - gitClient (local-disk): sync.Mutex around the whole sequence.
+	// - gitRestGitClientAdapter: relies on per-task serialization (Kafka partitioning by task_id).
+	AtomicWriteAndCommitPush(
+		ctx context.Context,
+		absPath string,
+		content []byte,
+		message string,
+	) error
+	// AtomicReadModifyWriteAndCommitPush reads absPath, calls modify on its contents
+	// to produce new contents, writes the result, and commits+pushes.
+	// Atomicity (no interleaving with other writes) is guaranteed by the implementation:
+	// - gitClient (local-disk): sync.Mutex around the whole sequence.
+	// - gitRestGitClientAdapter: relies on per-task serialization (Kafka partitioning by task_id).
+	// modify must return the new file bytes or an error.
+	// If modify returns an error, the file is not written and no commit is made.
+	AtomicReadModifyWriteAndCommitPush(
+		ctx context.Context,
+		absPath string,
+		modify func(current []byte) ([]byte, error),
+		message string,
+	) error
+	// Path returns the local clone path.
+	Path() string
+	// ListFiles returns relative file paths under the repo root matching the single-level
+	// glob pattern (e.g. "tasks/*.md"). Paths are relative to the repo root.
+	ListFiles(ctx context.Context, glob string) ([]string, error)
+	// ReadFile reads the file at relPath (relative to repo root, e.g. "tasks/foo.md")
+	// and returns its content.
+	ReadFile(ctx context.Context, relPath string) ([]byte, error)
+	// WriteFile writes content to relPath (relative to repo root) on local disk.
+	// It does NOT commit or push — use AtomicWriteAndCommitPush for that.
+	WriteFile(ctx context.Context, relPath string, content []byte) error
+}
+
 // IsReady checks git-rest's /readiness endpoint.
 func (g *gitRestClient) IsReady(ctx context.Context) (bool, error) {
 	reqURL := g.baseURL + "/readiness"

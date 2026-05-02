@@ -5,7 +5,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/bborbe/agent/task/controller/pkg/gitclient"
+	"github.com/bborbe/agent/task/controller/pkg/gitrestclient"
 )
 
 type FakeGitClient struct {
@@ -716,4 +716,4 @@ func (fake *FakeGitClient) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ gitclient.GitClient = new(FakeGitClient)
+var _ gitrestclient.GitClient = new(FakeGitClient)

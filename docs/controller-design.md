@@ -17,8 +17,9 @@ The controller is the single writer to the vault git repo. It has two responsibi
 ```
 Poll loop:
   │
-  ├── git pull
-  ├── walk task directory, sha256-hash each file
+  ├── Pull() — no-op (git-rest handles pulls internally)
+  ├── gitClient.ListFiles(taskDir/*.md) → enumerate task files via HTTP
+  ├── sha256-hash each file's content
   ├── compare with previous hashes
   │
   ├── changed file → parse frontmatter + body → publish agent-task-v1-event
@@ -101,30 +102,25 @@ On agent-task-v1-request (operation: "update-frontmatter"):
   └── increment FrontmatterCommandsTotal{operation, outcome}
 ```
 
-## Git Operation Serialization
+## Vault Writes via git-rest
 
-All git operations (pull, write, commit, push) are serialized via `sync.Mutex` in the GitClient. Two methods hold the lock for the entire sequence:
+The controller holds no local git clone. All vault file operations flow through the
+`vault-obsidian-openclaw` git-rest StatefulSet via HTTP:
 
-- `AtomicWriteAndCommitPush(absPath, content, message)` — writes `content` directly then commits.
-- `AtomicReadModifyWriteAndCommitPush(absPath, modify, message)` — reads the current file, calls `modify(current []byte) ([]byte, error)`, writes the result, then commits. Unlike `AtomicWriteAndCommitPush`, the read is also inside the lock, ensuring no other git operation can interleave between read and write.
+| Operation | HTTP call | Who commits |
+|-----------|-----------|-------------|
+| Read file | `GET /api/v1/files/{relPath}` | N/A |
+| Write file | `POST /api/v1/files/{relPath}` | git-rest (auto-commit) |
+| Delete file | `DELETE /api/v1/files/{relPath}` | git-rest (auto-commit) |
+| List files | `GET /api/v1/files/?glob={pattern}` | N/A |
 
-## Push Retry with Rebase
+git-rest ensures one commit per write. The controller's `/readiness` endpoint reflects
+git-rest readiness: if git-rest returns 503 (push stuck), the controller reports 503
+and the Kafka consumer goroutine blocks inside the write retry loop until git-rest
+recovers. Kafka offsets are not advanced during this block.
 
-When `git push` fails (remote has new commits), the controller:
-
-1. Fetches latest changes
-2. Rebases local commits on top
-3. If rebase is clean → retry push
-4. If rebase has conflicts → invoke LLM conflict resolver
-
-## LLM Conflict Resolution
-
-Git merge conflicts are resolved via Gemini API (`gemini-2.5-flash`). The resolver:
-
-- Receives the conflicted file content with `<<<<<<<`/`=======`/`>>>>>>>` markers
-- Returns clean merged markdown
-- Is generic (no task/domain knowledge) — works for any markdown file
-- Requires `GEMINI_API_KEY` env var (controller won't start without it)
+BoltDB (at `/data/bolt` on the `datadir` PVC) continues to track Kafka consumer
+offsets — unchanged from the pre-migration architecture.
 
 ## Content Sanitization
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.54.14
+
+- feat(task/controller): delete `pkg/gitclient/` and `pkg/conflict/` — all vault I/O now flows through git-rest HTTP API
+- feat(task/controller): remove `GIT_URL`, `GIT_BRANCH`, `GEMINI_API_KEY` flags and manifests — git-rest holds the SSH key
+- docs: update `docs/controller-design.md` — rewrite vault write sections to reflect git-rest architecture
+
 ## v0.54.13
 
 - feat(task/controller): remove SSH key volume from StatefulSet manifest; add `GIT_REST_URL` and `USE_GIT_REST=true` env vars

@@ -11,15 +11,13 @@ import (
 
 	"github.com/bborbe/errors"
 	"github.com/golang/glog"
-
-	"github.com/bborbe/agent/task/controller/pkg/gitclient"
 )
 
-// NewGitClient creates a gitclient.GitClient backed by git-rest HTTP calls.
+// NewGitClient creates a GitClient backed by git-rest HTTP calls.
 // basePath is the logical root path used when computing relative paths
 // (e.g. "/data/vault") — it does NOT need to exist on disk.
 // gitRestClient is the HTTP client created by NewGitRestClient.
-func NewGitClient(gitRestClient GitRestClient, basePath string) gitclient.GitClient {
+func NewGitClient(gitRestClient GitRestClient, basePath string) GitClient {
 	return &gitRestGitClientAdapter{
 		client:   gitRestClient,
 		basePath: strings.TrimRight(basePath, "/"),
@@ -32,7 +30,7 @@ type gitRestGitClientAdapter struct {
 }
 
 // Compile-time assertion — catches missing methods if the GitClient interface evolves.
-var _ gitclient.GitClient = (*gitRestGitClientAdapter)(nil)
+var _ GitClient = (*gitRestGitClientAdapter)(nil)
 
 // EnsureCloned probes git-rest readiness at startup.
 func (a *gitRestGitClientAdapter) EnsureCloned(ctx context.Context) error {
