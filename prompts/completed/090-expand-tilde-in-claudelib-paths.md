@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Added Resolve() method to ClaudeConfigDir and AgentDir for tilde expansion, created expandTilde helper, updated claude-runner.go to call Resolve() at subprocess boundaries, added unit tests, and updated CHANGELOG.md.
 container: agent-090-expand-tilde-in-claudelib-paths
 dark-factory-version: dev
 created: "2026-05-02T15:50:00Z"
 queued: "2026-05-02T15:48:05Z"
 started: "2026-05-02T15:48:06Z"
+completed: "2026-05-02T15:51:23Z"
 ---
 
 <summary>
