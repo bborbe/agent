@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.54.9
+
+- feat(lib/claude): add `Resolve()` method to `ClaudeConfigDir` and `AgentDir` that expands a leading `~/` to the user's home directory. `claude-runner.go` now calls `Resolve()` at the env-var emission and working-directory boundaries, so consumers can declare `default:"~/.claude"` (or pass `~/.claude` via env) and have the path correctly expand. Backwards-compatible — existing `.String()` callers see no change.
+
 ## v0.54.8
 
 - chore(task/executor): migrate from tools.go to tools.env + Makefile @version pattern; drop obsolete replace directives; bump bborbe/metrics to v0.5.2

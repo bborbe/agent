@@ -35,7 +35,10 @@ type claudeRunner struct {
 }
 
 func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, error) {
-	cmd := r.buildCommand(ctx, prompt)
+	cmd, err := r.buildCommand(ctx, prompt)
+	if err != nil {
+		return nil, errors.Wrap(ctx, err, "build command")
+	}
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -65,7 +68,7 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 func (r *claudeRunner) buildCommand(
 	ctx context.Context,
 	prompt string,
-) *exec.Cmd {
+) (*exec.Cmd, error) {
 	args := []string{
 		"--print",
 		"--output-format", "stream-json",
@@ -85,16 +88,24 @@ func (r *claudeRunner) buildCommand(
 
 	cmd := exec.CommandContext(ctx, "claude", args...)
 	if r.config.WorkingDirectory != "" {
-		cmd.Dir = r.config.WorkingDirectory.String()
+		workDir, err := r.config.WorkingDirectory.Resolve(ctx)
+		if err != nil {
+			return nil, errors.Wrap(ctx, err, "resolve WorkingDirectory")
+		}
+		cmd.Dir = workDir
 	}
 
 	cmd.Stdin = bytes.NewBufferString(prompt)
 
 	cmd.Env = allowlistEnv()
 	if r.config.ClaudeConfigDir != "" {
+		cfgDir, err := r.config.ClaudeConfigDir.Resolve(ctx)
+		if err != nil {
+			return nil, errors.Wrap(ctx, err, "resolve ClaudeConfigDir")
+		}
 		cmd.Env = append(
 			cmd.Env,
-			"CLAUDE_CONFIG_DIR="+r.config.ClaudeConfigDir.String(),
+			"CLAUDE_CONFIG_DIR="+cfgDir,
 		)
 	}
 	for k, v := range r.config.Env {
@@ -102,7 +113,7 @@ func (r *claudeRunner) buildCommand(
 	}
 	glog.V(4).Infof("env %+v", cmd.Env)
 
-	return cmd
+	return cmd, nil
 }
 
 // scanOutput reads stream-json lines from stdout, logs events, and returns the result text.
