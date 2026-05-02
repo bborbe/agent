@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.54.13
+
+- feat(task/controller): remove SSH key volume from StatefulSet manifest; add `GIT_REST_URL` and `USE_GIT_REST=true` env vars
+- feat(task/controller): add `NetworkPolicy` restricting git-rest ingress to agent-task-controller pods only
+- docs: add `scenarios/use-git-rest-for-vault-writes.md` — full E2E acceptance criteria for spec-018
+
 ## v0.54.12
 
 - feat(task/controller): adapt vault scanner and `FindTaskFilePath` to use `gitclient.GitClient` interface methods instead of `os.DirFS` — enables git-rest HTTP mode

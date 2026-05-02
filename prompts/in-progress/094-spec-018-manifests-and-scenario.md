@@ -1,8 +1,12 @@
 ---
-status: approved
+status: committing
 spec: [018-use-git-rest-for-vault-writes]
+summary: Removed SSH key volume/mount from StatefulSet, added GIT_REST_URL and USE_GIT_REST=true env vars, removed git-ssh-key from Secret, created NetworkPolicy for vault-obsidian-openclaw ingress, created scenarios/use-git-rest-for-vault-writes.md E2E scenario, and updated CHANGELOG.md with Unreleased entries.
+container: agent-094-spec-018-manifests-and-scenario
+dark-factory-version: dev
 created: "2026-05-02T19:50:00Z"
 queued: "2026-05-02T19:43:38Z"
+started: "2026-05-02T20:12:25Z"
 branch: dark-factory/use-git-rest-for-vault-writes
 ---
 

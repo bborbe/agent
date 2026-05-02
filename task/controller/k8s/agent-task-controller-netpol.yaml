@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vault-obsidian-openclaw-ingress
+  namespace: '{{ "NAMESPACE" | env }}'
+spec:
+  podSelector:
+    matchLabels:
+      app: vault-obsidian-openclaw
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: agent-task-controller
+      ports:
+        - protocol: TCP
+          port: 9090

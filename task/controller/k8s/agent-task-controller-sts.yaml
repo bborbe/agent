@@ -57,12 +57,14 @@ spec:
               value: '{{ "GIT_BRANCH" | env }}'
             - name: GIT_URL
               value: '{{ "GIT_URL" | env }}'
-            - name: GIT_SSH_COMMAND
-              value: 'ssh -i /ssh/id_ed25519 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null'
+            - name: GIT_REST_URL
+              value: 'http://vault-obsidian-openclaw:9090'
             - name: POLL_INTERVAL
               value: '60s'
             - name: TASK_DIR
               value: 'tasks'
+            - name: USE_GIT_REST
+              value: "true"
             - name: DATA_DIR
               value: /data/bolt
             - name: NO_SYNC
@@ -103,19 +105,8 @@ spec:
           volumeMounts:
             - mountPath: /data
               name: datadir
-            - mountPath: /ssh
-              name: ssh-key
-              readOnly: true
       imagePullSecrets:
         - name: docker
-      volumes:
-        - name: ssh-key
-          secret:
-            secretName: agent-task-controller
-            defaultMode: 0600
-            items:
-              - key: git-ssh-key
-                path: id_ed25519
   updateStrategy:
     type: RollingUpdate
   volumeClaimTemplates:
