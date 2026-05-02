@@ -49,14 +49,18 @@ func NewUpdateFrontmatterExecutor(
 			if len(cmd.Updates) == 0 && cmd.Body == nil {
 				return nil, nil, nil
 			}
-			taskDirPath := filepath.Join(gitClient.Path(), taskDir)
-			absPath, _, err := result.FindTaskFilePath(ctx, taskDirPath, cmd.TaskIdentifier)
+			matchedRelPath, _, err := result.FindTaskFilePath(
+				ctx,
+				gitClient,
+				taskDir,
+				cmd.TaskIdentifier,
+			)
 			if err != nil {
 				metrics.FrontmatterCommandsTotal.WithLabelValues("update-frontmatter", "error").
 					Inc()
 				return nil, nil, errors.Wrapf(ctx, err, "find task file for update")
 			}
-			if absPath == "" {
+			if matchedRelPath == "" {
 				glog.Warningf(
 					"update-frontmatter: task file not found for %s, skipping",
 					cmd.TaskIdentifier,
@@ -65,9 +69,10 @@ func NewUpdateFrontmatterExecutor(
 					Inc()
 				return nil, nil, nil
 			}
+			fullAbsPath := filepath.Join(gitClient.Path(), matchedRelPath)
 			if err := gitClient.AtomicReadModifyWriteAndCommitPush(
 				ctx,
-				absPath,
+				fullAbsPath,
 				buildUpdateModifyFn(ctx, cmd.Updates, cmd.Body),
 				fmt.Sprintf("[agent-task-controller] update frontmatter for task %s", cmd.TaskIdentifier),
 			); err != nil {

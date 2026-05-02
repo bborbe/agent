@@ -101,6 +101,7 @@ var _ = Describe("VaultScanner", func() {
 			pollInterval: time.Second,
 			hashes:       make(map[string]fileEntry),
 			trigger:      make(chan struct{}),
+			ops:          newLocalFileOps(tmpDir),
 		}
 	})
 

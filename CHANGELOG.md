@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.54.12
+
+- feat(task/controller): adapt vault scanner and `FindTaskFilePath` to use `gitclient.GitClient` interface methods instead of `os.DirFS` — enables git-rest HTTP mode
+- feat(task/controller): add `USE_GIT_REST` and `GIT_REST_URL` flags to `main.go`; feature flag switches all vault I/O to git-rest HTTP API when enabled
+- feat(task/controller): controller `/readiness` reflects git-rest health when `USE_GIT_REST=true`
+
 ## v0.54.11
 
 - feat(task/controller): extend `gitclient.GitClient` interface with `ListFiles`, `ReadFile`, `WriteFile` for filesystem-agnostic vault access

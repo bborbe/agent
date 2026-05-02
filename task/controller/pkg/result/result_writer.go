@@ -7,8 +7,6 @@ package result
 import (
 	"context"
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -50,71 +48,72 @@ type resultWriter struct {
 	currentDateTime libtime.CurrentDateTimeGetter
 }
 
-// FindTaskFilePath walks taskDirPath and returns the absolute path of the .md file
-// whose frontmatter has task_identifier == id, plus the parsed existing frontmatter.
+// FindTaskFilePath lists files in taskDir via gitClient and returns the relative path of
+// the .md file whose frontmatter has task_identifier == id, plus the parsed existing frontmatter.
 // Returns ("", nil, nil) when no match is found (not an error).
 func FindTaskFilePath(
 	ctx context.Context,
-	taskDirPath string,
+	gitClient gitclient.GitClient,
+	taskDir string,
 	id lib.TaskIdentifier,
 ) (string, lib.TaskFrontmatter, error) {
-	fsys := os.DirFS(taskDirPath)
-	var matchedAbsPath string
+	glob := taskDir + "/*.md"
+	paths, err := gitClient.ListFiles(ctx, glob)
+	if err != nil {
+		return "", nil, errors.Wrapf(ctx, err, "list task files with glob %s", glob)
+	}
+	var matchedRelPath string
 	var existingFrontmatter lib.TaskFrontmatter
-	if err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
-			return nil
-		}
-		content, readErr := fs.ReadFile(fsys, path)
+	for _, relPath := range paths {
+		content, readErr := gitClient.ReadFile(ctx, relPath)
 		if readErr != nil {
-			glog.V(3).Infof("FindTaskFilePath: skip %s (read error: %v)", path, readErr)
-			return nil
+			glog.V(3).Infof("FindTaskFilePath: skip %s (read error: %v)", relPath, readErr)
+			continue
 		}
 		frontmatter, fmErr := ExtractFrontmatter(ctx, content)
 		if fmErr != nil {
-			glog.V(3).Infof("FindTaskFilePath: skip %s (frontmatter error: %v)", path, fmErr)
-			return nil
+			glog.V(3).Infof("FindTaskFilePath: skip %s (frontmatter error: %v)", relPath, fmErr)
+			continue
 		}
 		var fm struct {
 			TaskIdentifier string `yaml:"task_identifier"`
 		}
 		if umErr := yaml.Unmarshal([]byte(frontmatter), &fm); umErr != nil {
-			glog.V(3).Infof("FindTaskFilePath: skip %s (unmarshal error: %v)", path, umErr)
-			return nil
+			glog.V(3).Infof("FindTaskFilePath: skip %s (unmarshal error: %v)", relPath, umErr)
+			continue
 		}
-		glog.V(3).Infof("FindTaskFilePath: file %s has task_identifier=%s", path, fm.TaskIdentifier)
+		glog.V(3).
+			Infof("FindTaskFilePath: file %s has task_identifier=%s", relPath, fm.TaskIdentifier)
 		if lib.TaskIdentifier(fm.TaskIdentifier) == id {
-			matchedAbsPath = filepath.Join(taskDirPath, path)
-			glog.V(2).Infof("FindTaskFilePath: matched file %s for task %s", matchedAbsPath, id)
+			matchedRelPath = relPath
+			glog.V(2).Infof("FindTaskFilePath: matched file %s for task %s", matchedRelPath, id)
 			var existingFm lib.TaskFrontmatter
 			if umErr := yaml.Unmarshal([]byte(frontmatter), &existingFm); umErr != nil {
-				glog.V(3).Infof("FindTaskFilePath: could not unmarshal existing frontmatter for %s: %v", path, umErr)
+				glog.V(3).
+					Infof("FindTaskFilePath: could not unmarshal existing frontmatter for %s: %v", relPath, umErr)
 			} else {
 				existingFrontmatter = existingFm
 			}
 		}
-		return nil
-	}); err != nil {
-		return "", nil, errors.Wrapf(ctx, err, "walk task dir failed")
 	}
-	return matchedAbsPath, existingFrontmatter, nil
+	return matchedRelPath, existingFrontmatter, nil
 }
 
 func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 	glog.V(2).Infof("WriteResult: starting for task %s", req.TaskIdentifier)
-	taskDirPath := filepath.Join(r.gitClient.Path(), r.taskDir)
-	glog.V(3).Infof("WriteResult: scanning taskDir=%s", taskDirPath)
+	glog.V(3).Infof("WriteResult: scanning taskDir=%s", r.taskDir)
 
-	matchedAbsPath, existingFrontmatter, err := FindTaskFilePath(
+	matchedRelPath, existingFrontmatter, err := FindTaskFilePath(
 		ctx,
-		taskDirPath,
+		r.gitClient,
+		r.taskDir,
 		req.TaskIdentifier,
 	)
 	if err != nil {
 		return errors.Wrapf(ctx, err, "find task file path failed")
 	}
 
-	if matchedAbsPath == "" {
+	if matchedRelPath == "" {
 		glog.Warningf("task file not found for identifier %s, skipping", req.TaskIdentifier)
 		metrics.ResultsWrittenTotal.WithLabelValues("not_found").Inc()
 		return nil
@@ -131,10 +130,11 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 	newContent := []byte(
 		"---\n" + string(marshaledFrontmatter) + "---\n" + body,
 	)
+	absPath := filepath.Join(r.gitClient.Path(), matchedRelPath)
 	glog.V(2).Infof("WriteResult: writing and pushing for task %s", req.TaskIdentifier)
 	if err := r.gitClient.AtomicWriteAndCommitPush(
 		ctx,
-		matchedAbsPath,
+		absPath,
 		newContent,
 		fmt.Sprintf("[agent-task-controller] write result for task %s", req.TaskIdentifier),
 	); err != nil {

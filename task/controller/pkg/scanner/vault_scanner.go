@@ -7,7 +7,6 @@ package scanner
 import (
 	"context"
 	"crypto/sha256"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,12 +39,54 @@ type fileEntry struct {
 	taskIdentifier lib.TaskIdentifier
 }
 
+// fileOps holds pluggable file I/O functions so the scanner can operate over
+// either a local filesystem or the git-rest HTTP API.
+type fileOps struct {
+	listFiles func(ctx context.Context, glob string) ([]string, error)
+	readFile  func(ctx context.Context, relPath string) ([]byte, error)
+	writeFile func(ctx context.Context, relPath string, content []byte) error
+}
+
 type vaultScanner struct {
 	gitClient    gitclient.GitClient
 	taskDir      string
 	pollInterval time.Duration
 	hashes       map[string]fileEntry
 	trigger      <-chan struct{}
+	ops          fileOps
+}
+
+// newLocalFileOps creates fileOps backed by the local filesystem rooted at basePath.
+func newLocalFileOps(basePath string) fileOps {
+	return fileOps{
+		listFiles: func(_ context.Context, glob string) ([]string, error) {
+			matches, err := filepath.Glob(filepath.Join(basePath, glob))
+			if err != nil {
+				return nil, err
+			}
+			rel := make([]string, 0, len(matches))
+			for _, m := range matches {
+				r, relErr := filepath.Rel(basePath, m)
+				if relErr != nil {
+					continue
+				}
+				rel = append(rel, r)
+			}
+			return rel, nil
+		},
+		readFile: func(_ context.Context, relPath string) ([]byte, error) {
+			return os.ReadFile(
+				filepath.Join(basePath, relPath),
+			) // #nosec G304 -- basePath is a trusted vault path
+		},
+		writeFile: func(_ context.Context, relPath string, content []byte) error {
+			return os.WriteFile(
+				filepath.Join(basePath, relPath),
+				content,
+				0600,
+			) // #nosec G306 -- controlled task file
+		},
+	}
 }
 
 // NewVaultScanner creates a VaultScanner that polls git and scans the task directory.
@@ -61,6 +102,30 @@ func NewVaultScanner(
 		pollInterval: pollInterval,
 		hashes:       make(map[string]fileEntry),
 		trigger:      trigger,
+		ops:          newLocalFileOps(gitClient.Path()),
+	}
+}
+
+// NewGitRestVaultScanner creates a VaultScanner that reads and writes vault files
+// via the gitclient.GitClient interface methods (ListFiles, ReadFile, WriteFile).
+// Use this constructor when git-rest HTTP mode is enabled.
+func NewGitRestVaultScanner(
+	gitClient gitclient.GitClient,
+	taskDir string,
+	pollInterval time.Duration,
+	trigger <-chan struct{},
+) VaultScanner {
+	return &vaultScanner{
+		gitClient:    gitClient,
+		taskDir:      taskDir,
+		pollInterval: pollInterval,
+		hashes:       make(map[string]fileEntry),
+		trigger:      trigger,
+		ops: fileOps{
+			listFiles: gitClient.ListFiles,
+			readFile:  gitClient.ReadFile,
+			writeFile: gitClient.WriteFile,
+		},
 	}
 }
 
@@ -105,20 +170,19 @@ func (v *vaultScanner) runCycle(ctx context.Context, results chan<- ScanResult) 
 func (v *vaultScanner) scanFiles(
 	ctx context.Context,
 ) ([]lib.Task, []lib.TaskIdentifier, []string, bool) {
-	taskDirPath := filepath.Join(v.gitClient.Path(), v.taskDir)
-	fsys := os.DirFS(taskDirPath)
+	glob := v.taskDir + "/*.md"
+	paths, err := v.ops.listFiles(ctx, glob)
+	if err != nil {
+		glog.Warningf("list %s failed: %v", glob, err)
+		return nil, nil, nil, false
+	}
 	seen := make(map[string]struct{})
 	var changed []lib.Task
 	var written []string
 	writeError := false
-	if err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
-			return nil
-		}
-		relPath := filepath.Join(v.taskDir, path)
+	for _, relPath := range paths {
 		seen[relPath] = struct{}{}
-		absPath := filepath.Join(taskDirPath, path)
-		task, wrote, werr := v.processFile(ctx, fsys, path, absPath, relPath)
+		task, wrote, werr := v.processFile(ctx, relPath)
 		if werr {
 			writeError = true
 		}
@@ -128,10 +192,6 @@ func (v *vaultScanner) scanFiles(
 		if task != nil {
 			changed = append(changed, *task)
 		}
-		return nil
-	}); err != nil {
-		glog.Warningf("walk %s failed: %v", taskDirPath, err)
-		return nil, nil, nil, false
 	}
 	return changed, v.collectDeleted(seen), written, writeError
 }
@@ -140,10 +200,9 @@ func (v *vaultScanner) scanFiles(
 // Returns (task, writtenRelPath, writeError).
 func (v *vaultScanner) processFile(
 	ctx context.Context,
-	fsys fs.FS,
-	path, absPath, relPath string,
+	relPath string,
 ) (*lib.Task, string, bool) {
-	content, readErr := fs.ReadFile(fsys, path)
+	content, readErr := v.ops.readFile(ctx, relPath)
 	if readErr != nil {
 		glog.Warningf("failed to read %s: %v", relPath, readErr)
 		return nil, "", false
@@ -173,15 +232,15 @@ func (v *vaultScanner) processFile(
 	frontmatter := lib.TaskFrontmatter(fmMap)
 	taskID, _ := fmMap["task_identifier"].(string)
 	if taskID == "" {
-		return v.injectAndStore(content, absPath, relPath)
+		return v.injectAndStore(ctx, content, relPath)
 	}
 	if !isValidUUID(taskID) {
 		glog.Warningf("replacing non-UUID task_identifier %q in %s", taskID, relPath)
-		return v.injectAndStore(removeTaskIdentifier(content), absPath, relPath)
+		return v.injectAndStore(ctx, removeTaskIdentifier(content), relPath)
 	}
 	if !v.isIdentifierUnique(taskID, relPath) {
 		glog.Warningf("replacing duplicate task_identifier %q in %s", taskID, relPath)
-		return v.injectAndStore(removeTaskIdentifier(content), absPath, relPath)
+		return v.injectAndStore(ctx, removeTaskIdentifier(content), relPath)
 	}
 	v.hashes[relPath] = fileEntry{
 		hash:           hash,
@@ -218,11 +277,13 @@ func (v *vaultScanner) isIdentifierUnique(id string, relPath string) bool {
 	return true
 }
 
-// injectAndStore generates a UUID, writes it into the file, and records a sentinel hash entry.
+// injectAndStore generates a UUID, writes it into the file via ops.writeFile,
+// and records a sentinel hash entry.
 // Returns (nil task, writtenRelPath, writeError).
 func (v *vaultScanner) injectAndStore(
+	ctx context.Context,
 	content []byte,
-	absPath, relPath string,
+	relPath string,
 ) (*lib.Task, string, bool) {
 	id := uuid.New().String()
 	newContent, injectErr := injectTaskIdentifier(content, id)
@@ -230,7 +291,7 @@ func (v *vaultScanner) injectAndStore(
 		glog.Warningf("skipping %s: failed to inject task_identifier: %v", relPath, injectErr)
 		return nil, "", false
 	}
-	if writeErr := os.WriteFile(absPath, newContent, 0600); writeErr != nil {
+	if writeErr := v.ops.writeFile(ctx, relPath, newContent); writeErr != nil {
 		glog.Warningf("failed to write %s: %v", relPath, writeErr)
 		return nil, "", true
 	}

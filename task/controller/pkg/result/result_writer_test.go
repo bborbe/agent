@@ -64,6 +64,21 @@ var _ = Describe("ResultWriter", func() {
 
 		fakeGit = &mocks.FakeGitClient{}
 		fakeGit.PathReturns(tmpDir)
+		fakeGit.ListFilesStub = func(_ context.Context, glob string) ([]string, error) {
+			matches, err := filepath.Glob(filepath.Join(tmpDir, glob))
+			if err != nil {
+				return nil, err
+			}
+			var rel []string
+			for _, m := range matches {
+				r, _ := filepath.Rel(tmpDir, m)
+				rel = append(rel, r)
+			}
+			return rel, nil
+		}
+		fakeGit.ReadFileStub = func(_ context.Context, relPath string) ([]byte, error) {
+			return os.ReadFile(filepath.Join(tmpDir, relPath)) // #nosec G304 -- test-only path
+		}
 		fakeGit.AtomicWriteAndCommitPushStub = func(ctx context.Context, absPath string, content []byte, message string) error {
 			return os.WriteFile(absPath, content, 0600)
 		}
@@ -919,6 +934,56 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				Expect(err).To(HaveOccurred())
 				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
 			})
+		})
+
+		Context("Review section preservation", func() {
+			// PIt: test documents the known bug — ## Review content is currently stripped.
+			// Remove the P prefix once WriteResult is updated to preserve existing ## Review sections.
+			PIt("preserves prior ## Review content when writing a new result", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nassignee: claude\n---\n# Body\n## Review\nPrior review content\n",
+				)
+
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "ai_review",
+					},
+					Content: lib.TaskContent("# Body\n\n## Review\nNew review content\n"),
+				}
+
+				err := writer.WriteResult(ctx, taskFile)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+				_, _, content, _ := fakeGit.AtomicWriteAndCommitPushArgsForCall(0)
+				// Either the prior review survives in-place, OR it survives under an
+				// "## Outdated by force-push" marker. NEVER stripped silently.
+				Expect(string(content)).To(SatisfyAny(
+					ContainSubstring("Prior review content"),
+					ContainSubstring("## Outdated by"),
+				))
+			})
+		})
+	})
+
+	Describe("FindTaskFilePath", func() {
+		It("calls gitClient.ListFiles + ReadFile with the expected glob and matched paths", func() {
+			fakeGC := &mocks.FakeGitClient{}
+			fakeGC.ListFilesReturns([]string{"tasks/a.md", "tasks/b.md"}, nil)
+			fakeGC.ReadFileReturnsOnCall(0, []byte("---\ntask_identifier: foo\n---\n"), nil)
+			fakeGC.ReadFileReturnsOnCall(1, []byte("---\ntask_identifier: bar\n---\n"), nil)
+
+			matchedRelPath, _, err := result.FindTaskFilePath(ctx, fakeGC, "tasks", "bar")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(matchedRelPath).To(Equal("tasks/b.md"))
+			Expect(fakeGC.ListFilesCallCount()).To(Equal(1))
+			_, glob := fakeGC.ListFilesArgsForCall(0)
+			Expect(glob).To(Equal("tasks/*.md"))
+			Expect(fakeGC.ReadFileCallCount()).To(BeNumerically(">=", 1))
 		})
 	})
 })

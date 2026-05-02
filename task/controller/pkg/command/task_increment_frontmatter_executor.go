@@ -45,14 +45,18 @@ func NewIncrementFrontmatterExecutor(
 					err,
 				)
 			}
-			taskDirPath := filepath.Join(gitClient.Path(), taskDir)
-			absPath, _, err := result.FindTaskFilePath(ctx, taskDirPath, cmd.TaskIdentifier)
+			matchedRelPath, _, err := result.FindTaskFilePath(
+				ctx,
+				gitClient,
+				taskDir,
+				cmd.TaskIdentifier,
+			)
 			if err != nil {
 				metrics.FrontmatterCommandsTotal.WithLabelValues("increment-frontmatter", "error").
 					Inc()
 				return nil, nil, errors.Wrapf(ctx, err, "find task file for increment")
 			}
-			if absPath == "" {
+			if matchedRelPath == "" {
 				glog.Warningf(
 					"increment-frontmatter: task file not found for %s, skipping",
 					cmd.TaskIdentifier,
@@ -61,9 +65,10 @@ func NewIncrementFrontmatterExecutor(
 					Inc()
 				return nil, nil, nil
 			}
+			fullAbsPath := filepath.Join(gitClient.Path(), matchedRelPath)
 			if err := gitClient.AtomicReadModifyWriteAndCommitPush(
 				ctx,
-				absPath,
+				fullAbsPath,
 				buildIncrementModifyFn(ctx, cmd),
 				fmt.Sprintf("[agent-task-controller] increment %s for task %s", cmd.Field, cmd.TaskIdentifier),
 			); err != nil {

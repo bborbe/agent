@@ -1,8 +1,12 @@
 ---
-status: approved
+status: committing
 spec: [018-use-git-rest-for-vault-writes]
+summary: Adapted vault scanner and FindTaskFilePath to use gitclient.GitClient interface methods (ListFiles/ReadFile/WriteFile), added NewGitRestVaultScanner constructor, wired USE_GIT_REST/GIT_REST_URL flags in main.go, and updated /readiness handler to reflect git-rest health.
+container: agent-093-spec-018-scanner-resultwriter-and-wiring
+dark-factory-version: dev
 created: "2026-05-02T19:50:00Z"
 queued: "2026-05-02T19:43:35Z"
+started: "2026-05-02T19:57:42Z"
 branch: dark-factory/use-git-rest-for-vault-writes
 ---
 

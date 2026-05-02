@@ -42,6 +42,21 @@ var _ = Describe("NewIncrementFrontmatterExecutor", func() {
 
 		fakeGit = &mocks.FakeGitClient{}
 		fakeGit.PathReturns(tmpDir)
+		fakeGit.ListFilesStub = func(_ context.Context, glob string) ([]string, error) {
+			matches, err := filepath.Glob(filepath.Join(tmpDir, glob))
+			if err != nil {
+				return nil, err
+			}
+			var rel []string
+			for _, m := range matches {
+				r, _ := filepath.Rel(tmpDir, m)
+				rel = append(rel, r)
+			}
+			return rel, nil
+		}
+		fakeGit.ReadFileStub = func(_ context.Context, relPath string) ([]byte, error) {
+			return os.ReadFile(filepath.Join(tmpDir, relPath)) // #nosec G304 -- test helper
+		}
 		// Wire AtomicReadModifyWriteAndCommitPush to actually call the modify func and write the file
 		fakeGit.AtomicReadModifyWriteAndCommitPushStub = func(
 			ctx context.Context,
