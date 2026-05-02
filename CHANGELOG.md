@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- chore(task/controller): drop `agent-task-controller-netpol.yaml` — the K3s+Flannel cluster does not enforce NetworkPolicies; gateway-secret auth on git-rest is the operative defense. Goal [[Enable NetworkPolicy enforcement on K3s cluster]] tracks reintroducing real enforcement.
+
 ## v0.54.15
 
 - feat(task/controller): gitrestclient sends `X-Gateway-Secret` + `X-Gateway-Initator` headers on `/api/v1/*` calls when `GATEWAY_SECRET` is set; matches git-rest spec 004 auth contract
