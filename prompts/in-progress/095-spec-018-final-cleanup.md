@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [018-use-git-rest-for-vault-writes]
 created: "2026-05-02T19:50:00Z"
+queued: "2026-05-02T19:43:41Z"
 branch: dark-factory/use-git-rest-for-vault-writes
 ---
 
@@ -84,7 +85,7 @@ wc -l docs/controller-design.md
    ```
    This annotation moves from `pkg/gitclient/git_client.go` to `pkg/gitrestclient/git_rest_client.go`.
 
-   c. Update `git_client_adapter.go` return type annotation — `NewGitClient` already returns `GitClient` but now `GitClient` is in the same package, so the return type becomes just `GitClient` (no package prefix). Adjust if needed.
+   c. In `git_client_adapter.go`, change the `NewGitClient` return type from `gitclient.GitClient` to bare `GitClient` (now defined in the same `gitrestclient` package). Drop the `gitclient` import; remove the `gitclient.` prefix from the `var _` compile-time assertion (becomes `var _ GitClient = (*gitRestGitClientAdapter)(nil)`).
 
 2. **Update all import paths from `gitclient` to `gitrestclient` — including ALL `_test.go` files**
 
@@ -259,7 +260,6 @@ wc -l docs/controller-design.md
 - `pkg/gitclient/` and `pkg/conflict/` MUST be fully deleted — no remaining Go files
 - `GIT_URL`, `GIT_BRANCH`, `GEMINI_API_KEY` removed from both the Go struct and the StatefulSet YAML
 - `USE_GIT_REST` removed from Go struct and YAML (behavior is now always gitrest)
-- `factory.CreateSyncLoop` may remain in `pkg/factory/factory.go` for now (it's a utility; removal is deferred)
 - Error wrapping via `github.com/bborbe/errors` — never `fmt.Errorf`
 - All Go files (production + `_test.go`) that import `pkg/gitclient` must update to import `pkg/gitrestclient` with the alias `gitclient` to keep the diff minimal
 - The dev-burn-in gate is a HUMAN approval gate (see `<summary>`). The agent does not check cluster state.
@@ -307,14 +307,12 @@ grep -n "git-rest\|Vault Writes via git-rest" docs/controller-design.md
 grep -n "Push Retry\|LLM Conflict" docs/controller-design.md
 # Must return no matches (or only in a historical note if you choose to keep one)
 
-# Run all tests
-cd task/controller && make test
-# Must exit 0
-
+# Run final check (precommit already includes the test target)
 cd task/controller && make precommit
 # Must exit 0
 
-grep -n "delete \`pkg/gitclient\|pkg/conflict\|remove \`GIT_URL\|git-rest" CHANGELOG.md
-# Must show Unreleased entries (matches the bullets added in step 10)
+# Confirm Unreleased changelog entry from step 10 exists under the correct heading
+grep -A20 "^## Unreleased" CHANGELOG.md | grep -E "delete \`pkg/gitclient|pkg/conflict|remove \`GIT_URL|git-rest"
+# Must show the bullets added in step 10
 ```
 </verification>

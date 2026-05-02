@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [018-use-git-rest-for-vault-writes]
 created: "2026-05-02T19:50:00Z"
+queued: "2026-05-02T19:43:38Z"
 branch: dark-factory/use-git-rest-for-vault-writes
 ---
 

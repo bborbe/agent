@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [018-use-git-rest-for-vault-writes]
 created: "2026-05-02T19:50:00Z"
+queued: "2026-05-02T19:43:32Z"
 branch: dark-factory/use-git-rest-for-vault-writes
 ---
 
@@ -35,7 +36,7 @@ If either grep returns empty or file is missing, STOP and report `status: failed
 
 **Key files to read in full before editing:**
 
-- `task/controller/pkg/gitclient/git_client.go` — current `GitClient` interface (7 methods: `EnsureCloned`, `Pull`, `CommitAndPush`, `AtomicWriteAndCommitPush`, `AtomicReadModifyWriteAndCommitPush`, `Path`, `Resolve`) and `gitClient` struct implementation. The three new methods (`ListFiles`, `ReadFile`, `WriteFile`) are added to the interface AND to the existing struct implementation. Read all method implementations to understand the local path conventions.
+- `task/controller/pkg/gitclient/git_client.go` — current `GitClient` interface (6 methods: `EnsureCloned`, `Pull`, `CommitAndPush`, `AtomicWriteAndCommitPush`, `AtomicReadModifyWriteAndCommitPush`, `Path`) and `gitClient` struct implementation. The three new methods (`ListFiles`, `ReadFile`, `WriteFile`) are added to the interface AND to the existing struct implementation. Note: `Resolve` belongs to a SEPARATE `ConflictResolver` interface in the same file and is injected into `gitClient` as a constructor parameter — it is NOT a `GitClient` method and the gitrest adapter does NOT need to implement it.
 
 - `docs/controller-design.md` — `## Atomic Frontmatter Commands` (lines 56–109) documents the locked read-modify-write contract on the existing `gitClient`. The adapter weakens this guarantee (no mutex; relies on Kafka per-task partitioning). Read this section so the interface doc comment update in this prompt reflects the change.
 
@@ -190,7 +191,7 @@ grep -n "func.*gitClient\b" task/controller/pkg/gitclient/git_client.go | head -
    var _ gitclient.GitClient = (*gitRestGitClientAdapter)(nil)
    ```
 
-   Implement each method (the interface has 7 methods after prompt 2 + 3 new = 10 total: `EnsureCloned`, `Pull`, `CommitAndPush`, `Path`, `AtomicWriteAndCommitPush`, `AtomicReadModifyWriteAndCommitPush`, `Resolve`, `ListFiles`, `ReadFile`, `WriteFile` — every one MUST be implemented or the `var _` assertion fails to compile):
+   Implement each method. After this prompt the interface has 6 existing + 3 new = 9 methods total: `EnsureCloned`, `Pull`, `CommitAndPush`, `Path`, `AtomicWriteAndCommitPush`, `AtomicReadModifyWriteAndCommitPush`, `ListFiles`, `ReadFile`, `WriteFile`. Every one MUST be implemented or the `var _` assertion fails to compile. (`Resolve` is on a separate `ConflictResolver` interface and is NOT a `GitClient` method.)
 
    **`EnsureCloned`** — probes git-rest readiness at startup:
    ```go
@@ -227,14 +228,6 @@ grep -n "func.*gitClient\b" task/controller/pkg/gitclient/git_client.go | head -
    ```go
    func (a *gitRestGitClientAdapter) Path() string {
        return a.basePath
-   }
-   ```
-
-   **`Resolve`** — no-op (git-rest handles conflicts server-side; the local LLM resolver is unused under gitrest). Returns the content unchanged so the interface is satisfied:
-   ```go
-   func (a *gitRestGitClientAdapter) Resolve(ctx context.Context, filename string, content string) (string, error) {
-       glog.V(4).Infof("gitRestGitClientAdapter.Resolve: no-op for %s (git-rest resolves conflicts server-side)", filename)
-       return content, nil
    }
    ```
 
@@ -329,15 +322,9 @@ grep -n "func.*gitClient\b" task/controller/pkg/gitclient/git_client.go | head -
    l. **ListFiles:** delegates to `FakeGitRestClient.List`; verify glob arg is passed through.
    m. **ReadFile:** delegates to `FakeGitRestClient.Get`; verify relPath passed through.
    n. **WriteFile:** delegates to `FakeGitRestClient.Post`; verify relPath and content passed through.
-   o. **Resolve no-op:** verifies `Resolve(ctx, "any.md", "content")` returns `"content"` (echo) and nil error; verifies the FakeGitRestClient is NOT called (no Get/Post/Delete).
-   p. **Round-trip via fake:** WriteFile then ReadFile against a stub `FakeGitRestClient` whose `GetReturns` echoes the last `PostArgsForCall` content — confirms argument plumbing is symmetric.
+   o. **Round-trip via fake:** WriteFile then ReadFile against a stub `FakeGitRestClient` whose `GetReturns` echoes the last `PostArgsForCall` content — confirms argument plumbing is symmetric.
 
-   Add a constraint in the test file that asserts the compile-time interface implementation:
-   ```go
-   // Compile-time guard so the test fails to build if any GitClient method is missing.
-   var _ gitclient.GitClient = (*gitrestclient.gitRestGitClientAdapter)(nil)
-   ```
-   (If the struct is unexported, prefer the assertion inside the production file as written above; do NOT export the struct just for the test.)
+   The compile-time interface assertion belongs in the PRODUCTION file (already required above as `var _ gitclient.GitClient = (*gitRestGitClientAdapter)(nil)`); do NOT duplicate it in the test file (the unexported struct is not reachable from `gitrestclient_test`).
 
 5. **Update `CHANGELOG.md` at repo root**
 
@@ -376,7 +363,7 @@ grep -n "func.*gitClient\b" task/controller/pkg/gitclient/git_client.go | head -
 - Do NOT commit — dark-factory handles git
 - `cd task/controller && make precommit` must exit 0
 - Coordination: spec 017 (`create-task-command`) is currently `verifying`. Do NOT modify any file under `task/controller/pkg/command/` — leave executor wiring to prompt 3.
-- The compile-time assertion `var _ gitclient.GitClient = (*gitRestGitClientAdapter)(nil)` is REQUIRED — it is the only enforcement that the adapter implements every interface method (especially `Resolve`, which has no behavioural test).
+- The compile-time assertion `var _ gitclient.GitClient = (*gitRestGitClientAdapter)(nil)` is REQUIRED — it is the only enforcement that the adapter implements every interface method (especially the no-op trivials `Pull`, `CommitAndPush`, `Path`).
 </constraints>
 
 <verification>

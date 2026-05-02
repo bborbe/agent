@@ -1,7 +1,11 @@
 ---
-status: draft
+status: executing
 spec: [018-use-git-rest-for-vault-writes]
+container: agent-091-spec-018-gitrestclient-package
+dark-factory-version: dev
 created: "2026-05-02T19:50:00Z"
+queued: "2026-05-02T19:43:29Z"
+started: "2026-05-02T19:43:31Z"
 branch: dark-factory/use-git-rest-for-vault-writes
 ---
 
