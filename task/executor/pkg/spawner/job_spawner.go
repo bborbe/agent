@@ -11,6 +11,7 @@ import (
 	k8s "github.com/bborbe/k8s"
 	libtime "github.com/bborbe/time"
 	"github.com/golang/glog"
+	"gopkg.in/yaml.v3"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -73,14 +74,9 @@ func (s *jobSpawner) SpawnJob(
 	now := s.currentDateTimeGetter.Now()
 	jobName := jobNameFromTask(assignee, task.TaskIdentifier, now)
 
-	envBuilder := k8s.NewEnvBuilder()
-	envBuilder.Add("TASK_CONTENT", string(task.Content))
-	envBuilder.Add("TASK_ID", string(task.TaskIdentifier))
-	envBuilder.Add("KAFKA_BROKERS", s.kafkaBrokers)
-	envBuilder.Add("BRANCH", s.branch)
-	envBuilder.Add("PHASE", taskPhaseString(task.Frontmatter))
-	for key, value := range config.Env {
-		envBuilder.Add(key, value)
+	envBuilder, err := s.buildJobEnvBuilder(ctx, task, config)
+	if err != nil {
+		return "", err
 	}
 
 	containerBuilder := k8s.NewContainerBuilder()
@@ -299,4 +295,46 @@ func jobNameFromTask(assignee string, taskID lib.TaskIdentifier, now libtime.Dat
 		id = id[:8]
 	}
 	return assignee + "-" + id + "-" + now.UTC().Format("20060102150405")
+}
+
+// buildJobEnvBuilder constructs the env var set for the spawned Job's container.
+// It renders the full markdown for TASK_CONTENT so agents can parse frontmatter
+// fields like clone_url, ref, and base_ref.
+func (s *jobSpawner) buildJobEnvBuilder(
+	ctx context.Context,
+	task lib.Task,
+	config pkg.AgentConfiguration,
+) (k8s.EnvBuilder, error) {
+	taskContent, err := renderTaskContent(ctx, task)
+	if err != nil {
+		return nil, err
+	}
+	envBuilder := k8s.NewEnvBuilder()
+	envBuilder.Add("TASK_CONTENT", taskContent)
+	envBuilder.Add("TASK_ID", string(task.TaskIdentifier))
+	envBuilder.Add("KAFKA_BROKERS", s.kafkaBrokers)
+	envBuilder.Add("BRANCH", s.branch)
+	envBuilder.Add("PHASE", taskPhaseString(task.Frontmatter))
+	for key, value := range config.Env {
+		envBuilder.Add(key, value)
+	}
+	return envBuilder, nil
+}
+
+// renderTaskContent serializes task into the markdown form an agent expects:
+// "---\n<yaml-frontmatter>---\n<body>". When task.Frontmatter is empty, the
+// body is returned unchanged (no empty "{}" wrapper).
+//
+// The agent side (lib.ParseMarkdown) reads frontmatter fields like
+// clone_url / ref / base_ref directly from this string — keep the wrapper
+// shape byte-compatible with controller/pkg/result.WriteResult.
+func renderTaskContent(ctx context.Context, task lib.Task) (string, error) {
+	if len(task.Frontmatter) == 0 {
+		return string(task.Content), nil
+	}
+	fmBytes, err := yaml.Marshal(map[string]any(task.Frontmatter))
+	if err != nil {
+		return "", errors.Wrapf(ctx, err, "marshal frontmatter for task %s", task.TaskIdentifier)
+	}
+	return "---\n" + string(fmBytes) + "---\n" + string(task.Content), nil
 }

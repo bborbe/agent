@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.54.16
 
+- fix(task/executor): include YAML frontmatter when rendering `TASK_CONTENT` for spawned Jobs. Previously only the body was emitted, causing pr-reviewer (and any agent that reads frontmatter fields like `clone_url`, `ref`, `base_ref`) to fail with `clone_url is missing from task frontmatter`. The executor now emits `---\n<yaml>\n---\n<body>` matching the controller's result writer; round-trips through `lib.ParseMarkdown` cleanly.
 - chore(task/controller): drop `agent-task-controller-netpol.yaml` — the K3s+Flannel cluster does not enforce NetworkPolicies; gateway-secret auth on git-rest is the operative defense. Goal [[Enable NetworkPolicy enforcement on K3s cluster]] tracks reintroducing real enforcement.
 
 ## v0.54.15

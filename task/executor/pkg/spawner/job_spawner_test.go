@@ -101,12 +101,124 @@ var _ = Describe("JobSpawner", func() {
 			for _, e := range container.Env {
 				envMap[e.Name] = e.Value
 			}
-			Expect(envMap["TASK_CONTENT"]).To(Equal("do the work"))
+			Expect(envMap["TASK_CONTENT"]).To(HavePrefix("---\n"))
+			Expect(envMap["TASK_CONTENT"]).To(ContainSubstring("\n---\n"))
+			Expect(envMap["TASK_CONTENT"]).To(ContainSubstring("assignee: claude"))
+			Expect(envMap["TASK_CONTENT"]).To(ContainSubstring("phase: planning"))
+			Expect(envMap["TASK_CONTENT"]).To(HaveSuffix("\n---\ndo the work"))
 			Expect(envMap["TASK_ID"]).To(Equal("abc12345-rest-ignored"))
 			Expect(envMap["KAFKA_BROKERS"]).To(Equal("kafka:9092"))
 			Expect(envMap["BRANCH"]).To(Equal("develop"))
 			Expect(envMap["GEMINI_API_KEY"]).To(Equal("test-gemini-key"))
 			Expect(envMap["PHASE"]).To(Equal("planning"))
+		})
+
+		It(
+			"includes frontmatter delimiters and keys in TASK_CONTENT so spawned agents can parse fields like clone_url",
+			func() {
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("pr-task-uuid"),
+					Frontmatter: lib.TaskFrontmatter{
+						"assignee":  "pr-reviewer",
+						"phase":     "in_progress",
+						"clone_url": "https://github.com/bborbe/code-reviewer.git",
+						"ref":       "f82244d6abcdef",
+						"base_ref":  "master",
+					},
+					Content: lib.TaskContent("# PR Review:\n\nbody here"),
+				}
+				config := pkg.AgentConfiguration{
+					Assignee: "pr-reviewer",
+					Image:    "pr-reviewer-agent:latest",
+					Env:      map[string]string{},
+				}
+				_, err := jobSpawner.SpawnJob(ctx, task, config)
+				Expect(err).To(BeNil())
+
+				jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+				Expect(err).To(BeNil())
+				Expect(jobs.Items).To(HaveLen(1))
+				container := jobs.Items[0].Spec.Template.Spec.Containers[0]
+				envMap := make(map[string]string)
+				for _, e := range container.Env {
+					envMap[e.Name] = e.Value
+				}
+				got := envMap["TASK_CONTENT"]
+				// wrapper present
+				Expect(got).To(HavePrefix("---\n"))
+				Expect(got).To(ContainSubstring("\n---\n# PR Review:"))
+				// frontmatter keys propagated — these are exactly the fields the
+				// pr-reviewer execution step reads
+				Expect(
+					got,
+				).To(ContainSubstring("clone_url: https://github.com/bborbe/code-reviewer.git"))
+				Expect(got).To(ContainSubstring("ref: f82244d6abcdef"))
+				Expect(got).To(ContainSubstring("base_ref: master"))
+				Expect(got).To(ContainSubstring("assignee: pr-reviewer"))
+				// body preserved
+				Expect(got).To(ContainSubstring("# PR Review:\n\nbody here"))
+			},
+		)
+
+		It(
+			"emits TASK_CONTENT that lib.ParseMarkdown round-trips back to the original frontmatter",
+			func() {
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("roundtrip-task"),
+					Frontmatter: lib.TaskFrontmatter{
+						"assignee":  "pr-reviewer",
+						"clone_url": "https://github.com/bborbe/code-reviewer.git",
+						"ref":       "abc123",
+						"base_ref":  "master",
+					},
+					Content: lib.TaskContent("# Body\n"),
+				}
+				config := pkg.AgentConfiguration{Assignee: "pr-reviewer", Image: "x:y"}
+				_, err := jobSpawner.SpawnJob(ctx, task, config)
+				Expect(err).To(BeNil())
+
+				jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+				Expect(err).To(BeNil())
+				container := jobs.Items[0].Spec.Template.Spec.Containers[0]
+				var taskContent string
+				for _, e := range container.Env {
+					if e.Name == "TASK_CONTENT" {
+						taskContent = e.Value
+					}
+				}
+				Expect(taskContent).NotTo(BeEmpty())
+
+				parsed, parseErr := lib.ParseMarkdown(ctx, taskContent)
+				Expect(parseErr).NotTo(HaveOccurred())
+				Expect(
+					parsed.Frontmatter,
+				).To(HaveKeyWithValue("clone_url", "https://github.com/bborbe/code-reviewer.git"))
+				Expect(parsed.Frontmatter).To(HaveKeyWithValue("ref", "abc123"))
+				Expect(parsed.Frontmatter).To(HaveKeyWithValue("base_ref", "master"))
+				Expect(parsed.Frontmatter).To(HaveKeyWithValue("assignee", "pr-reviewer"))
+			},
+		)
+
+		It("emits raw body without wrapper when frontmatter is empty", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("no-fm-task"),
+				Frontmatter:    lib.TaskFrontmatter{}, // explicitly empty
+				Content:        lib.TaskContent("just a body"),
+			}
+			config := pkg.AgentConfiguration{Assignee: "claude", Image: "x:y"}
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			container := jobs.Items[0].Spec.Template.Spec.Containers[0]
+			envMap := make(map[string]string)
+			for _, e := range container.Env {
+				envMap[e.Name] = e.Value
+			}
+			Expect(envMap["TASK_CONTENT"]).To(Equal("just a body"))
+			Expect(envMap["TASK_CONTENT"]).NotTo(ContainSubstring("---"))
+			Expect(envMap["TASK_CONTENT"]).NotTo(ContainSubstring("{}"))
 		})
 
 		It("injects empty PHASE when task frontmatter has no phase", func() {
