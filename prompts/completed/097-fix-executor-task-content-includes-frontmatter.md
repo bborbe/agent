@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Fixed task executor to include YAML frontmatter in TASK_CONTENT env var for spawned Jobs by adding renderTaskContent helper and buildJobEnvBuilder method, with 3 new regression tests and a round-trip integration test.
 container: agent-097-fix-executor-task-content-includes-frontmatter
 dark-factory-version: dev
 created: "2026-05-03T00:00:00Z"
 queued: "2026-05-03T13:04:56Z"
 started: "2026-05-03T13:04:57Z"
+completed: "2026-05-03T13:11:16Z"
 ---
 
 <summary>
