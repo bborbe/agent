@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.54.17
+
+- fix(ci): point `actions/setup-go` at `lib/go.mod` instead of nonexistent root `go.mod`. Multi-module repo has go.mod files only in subdirs (lib, agent/*, task/*); CI was failing immediately at `Set up Go` step.
+
 ## v0.54.16
 
 - fix(task/executor): include YAML frontmatter when rendering `TASK_CONTENT` for spawned Jobs. Previously only the body was emitted, causing pr-reviewer (and any agent that reads frontmatter fields like `clone_url`, `ref`, `base_ref`) to fail with `clone_url is missing from task frontmatter`. The executor now emits `---\n<yaml>\n---\n<body>` matching the controller's result writer; round-trips through `lib.ParseMarkdown` cleanly.
