@@ -1,7 +1,8 @@
 # Changelog
 
-## v0.54.21
+## v0.58.0
 
+- chore(release): align lib + root tag numbers — paired tag bump to resync `lib/vX.Y.Z` with `vX.Y.Z` at the same commit (latest published `lib/v0.57.0` was stale; this unblocks downstream consumers)
 - refactor(lib): move `CreateTaskCommand` (→ `task.CreateCommand`), `UpdateFrontmatterCommand`, `IncrementFrontmatterCommand`, and `BodySection` to `lib/command/task` sub-package; remove flat `agent_task-commands.go`
 - refactor(task/controller): migrate command executors to `lib/command/task` types
 - refactor(task/executor): migrate `ResultPublisher` to `lib/command/task` types
