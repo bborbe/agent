@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [019-human-readable-vault-task-paths]
 summary: Added Title field to CreateTaskCommand, Validate method with cross-platform-safe title rules, CreateTaskCommandSender interface with factory and counterfeiter mock, and comprehensive tests covering all validation cases.
 container: agent-098-spec-019-lib-title-validate-sender
@@ -7,6 +7,7 @@ dark-factory-version: v0.151.2-4-g3dc5753
 created: "2026-05-07T16:04:09Z"
 queued: "2026-05-07T16:23:49Z"
 started: "2026-05-07T16:23:50Z"
+completed: "2026-05-07T16:29:56Z"
 branch: dark-factory/human-readable-vault-task-paths
 ---
 
