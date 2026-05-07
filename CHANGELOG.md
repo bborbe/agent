@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.58.1
+
+- chore: bump Go toolchain 1.26.2 → 1.26.3 across all modules (stdlib CVE fixes GO-2026-4918, GO-2026-4971)
+
 ## v0.58.0
 
 - chore(release): align lib + root tag numbers — paired tag bump to resync `lib/vX.Y.Z` with `vX.Y.Z` at the same commit (latest published `lib/v0.57.0` was stale; this unblocks downstream consumers)
