@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.54.20
+
+- feat(lib): add `lib/command/task` package with `CreateCommand`, `UpdateFrontmatterCommand`, `IncrementFrontmatterCommand` types, `Validate` methods, and typed command senders
+
 ## v0.54.19
 
 - feat(task/controller): create-task executor now writes vault task files at `tasks/{title}.md`; re-validates `Title` on receive with WARN + UUID-path fallback on failure or path collision

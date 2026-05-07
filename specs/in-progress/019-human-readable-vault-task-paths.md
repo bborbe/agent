@@ -1,11 +1,12 @@
 ---
-status: prompted
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-05-07T16:03:38Z"
 generating: "2026-05-07T16:04:09Z"
 prompted: "2026-05-07T16:13:02Z"
+verifying: "2026-05-07T16:35:06Z"
 branch: dark-factory/human-readable-vault-task-paths
 ---
 
