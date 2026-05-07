@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-05-07T16:03:38Z"
 generating: "2026-05-07T16:04:09Z"
 prompted: "2026-05-07T16:13:02Z"
 verifying: "2026-05-07T16:35:06Z"
+completed: "2026-05-07T22:16:59Z"
 branch: dark-factory/human-readable-vault-task-paths
 ---
 
@@ -119,3 +120,17 @@ Expected: both commands exit 0, all tests pass, lint clean, coverage ≥80% for 
 ## Do-Nothing Option
 
 Leaving filenames as UUIDs keeps the alpha controller working but locks in indefinite human-unscannable vault triage and forces the maintainer's `filename_hint` workaround to live at the wrong layer (a watcher-side wrapper that the controller does not honor). Doing nothing means accepting that operators continue to grep frontmatter to find a specific PR's task. The full lib restructure (per-command sub-packages, sender helpers for all commands) can be deferred indefinitely without affecting the human-readable-filename win.
+
+## Verification Result
+
+**Verified:** 2026-05-07T22:16:14Z (HEAD 1058d0b)
+**Binary:** dark-factory v0.154.0 (installed at /Users/bborbe/Documents/workspaces/go/bin/dark-factory; agent repo, not dark-factory itself)
+**Scenario:** None — spec opted out per `dark-factory/docs/scenario-writing.md` four-condition test (validator is in-code, no real-external-system boundary). Verification per spec's `## Verification` section: `make precommit` in both affected modules.
+**Evidence:**
+- `cd agent/lib && make precommit` → exit 0, all checks PASS (gosec 0 issues / 58 files / 4648 lines, trivy clean, license headers OK). Coverage: `command/task` 96.3%, `delivery` 93.4%.
+- `cd agent/task/controller && make precommit` → exit 0, all checks PASS (gosec 0 issues / 21 files / 4089 lines, trivy clean). Coverage on changed packages: `pkg/command` 81.4% (≥80% bar), `pkg/gitrestclient` 88.0%, `pkg/metrics` 100.0%, `pkg/publisher` 91.7%, `pkg/scanner` 83.9%, `pkg/sync` 92.3%.
+- Controller table-driven tests exercise valid-title (`tasks/{title}.md`), invalid-title WARN+UUID-fallback, empty-title WARN+UUID-fallback, and Title-collision (different `task_identifier` at same title path) — all pass under precommit.
+- `lib/command/task/create-command.go:26` declares `Title string \`json:"title"\``; `:32` declares `Validate(ctx) error`.
+- `task/controller/pkg/command/task_create_task_executor.go:111` writes `tasks/{title}.md`; `:100-110` log WARN and fall back to `tasks/{task_identifier}.md` on Title re-validation failure.
+- `docs/task-flow-and-failure-semantics.md:170` adds `## Create-Task Path Resolution (spec-019)` with the permanent-contract clause at `:181`.
+**Verdict:** PASS
