@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [020-agent-lib-command-package-restructure]
 summary: Created lib/command/task package with CreateCommand, UpdateFrontmatterCommand, IncrementFrontmatterCommand types, Validate methods, typed senders, counterfeiter mocks, and comprehensive tests; added dupl exclusion for sender files in .golangci.yml.
 container: agent-100-spec-020-lib-command-task-package
@@ -7,6 +7,7 @@ dark-factory-version: v0.151.2-4-g3dc5753
 created: "2026-05-07T18:00:00Z"
 queued: "2026-05-07T18:17:58Z"
 started: "2026-05-07T18:18:00Z"
+completed: "2026-05-07T18:25:17Z"
 branch: dark-factory/agent-lib-command-package-restructure
 ---
 
