@@ -157,6 +157,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 
 				cmdObj := buildCmdObj(lib.CreateTaskCommand{
 					TaskIdentifier: lib.TaskIdentifier("existing-task"),
+					Title:          "existing-task",
 					Frontmatter: lib.TaskFrontmatter{
 						"assignee": "claude",
 						"status":   "todo",
@@ -173,6 +174,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 				taskID := lib.TaskIdentifier("new-task-abc")
 				cmdObj := buildCmdObj(lib.CreateTaskCommand{
 					TaskIdentifier: taskID,
+					Title:          "New Task ABC",
 					Frontmatter: lib.TaskFrontmatter{
 						"assignee": "claude",
 						"status":   "todo",
@@ -184,7 +186,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
 
 				_, absPath, content, message := fakeGit.AtomicWriteAndCommitPushArgsForCall(0)
-				Expect(absPath).To(HaveSuffix(string(taskID) + ".md"))
+				Expect(absPath).To(HaveSuffix("New Task ABC.md"))
 				Expect(message).To(ContainSubstring(string(taskID)))
 
 				contentStr := string(content)
@@ -204,6 +206,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 
 				cmdObj := buildCmdObj(lib.CreateTaskCommand{
 					TaskIdentifier: lib.TaskIdentifier("error-task"),
+					Title:          "Error Task",
 					Frontmatter: lib.TaskFrontmatter{
 						"assignee": "claude",
 						"status":   "todo",
@@ -212,6 +215,122 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("git push failed"))
+			})
+		})
+
+		Context("valid title", func() {
+			It("writes the task file at tasks/{title}.md", func() {
+				taskID := lib.TaskIdentifier("uuid-1234")
+				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+					TaskIdentifier: taskID,
+					Title:          "My Feature Task",
+					Frontmatter: lib.TaskFrontmatter{
+						"assignee": "claude",
+						"status":   "todo",
+					},
+					Body: "Task description.\n",
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+				_, absPath, _, _ := fakeGit.AtomicWriteAndCommitPushArgsForCall(0)
+				Expect(absPath).To(HaveSuffix("My Feature Task.md"))
+				Expect(absPath).NotTo(ContainSubstring(string(taskID)))
+			})
+		})
+
+		Context("invalid title (contains forbidden char)", func() {
+			It("logs WARN and writes the task file at tasks/{task_identifier}.md", func() {
+				taskID := lib.TaskIdentifier("uuid-5678")
+				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+					TaskIdentifier: taskID,
+					Title:          "bad/title",
+					Frontmatter: lib.TaskFrontmatter{
+						"assignee": "claude",
+						"status":   "todo",
+					},
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+				_, absPath, _, _ := fakeGit.AtomicWriteAndCommitPushArgsForCall(0)
+				Expect(absPath).To(HaveSuffix(string(taskID) + ".md"))
+			})
+		})
+
+		Context("empty title", func() {
+			It("logs WARN and writes the task file at tasks/{task_identifier}.md", func() {
+				taskID := lib.TaskIdentifier("uuid-empty-title")
+				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+					TaskIdentifier: taskID,
+					Title:          "",
+					Frontmatter: lib.TaskFrontmatter{
+						"assignee": "claude",
+						"status":   "todo",
+					},
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+				_, absPath, _, _ := fakeGit.AtomicWriteAndCommitPushArgsForCall(0)
+				Expect(absPath).To(HaveSuffix(string(taskID) + ".md"))
+			})
+		})
+
+		Context("title path occupied by a different task", func() {
+			It("falls back to UUID path; existing file is unchanged", func() {
+				// Pre-create the title path with a different task_identifier.
+				titlePath := filepath.Join(tmpDir, taskDir, "My Colliding Task.md")
+				originalContent := []byte(
+					"---\ntask_identifier: other-task-id\nassignee: alice\nstatus: todo\n---\n",
+				)
+				Expect(os.WriteFile(titlePath, originalContent, 0600)).To(Succeed())
+
+				taskID := lib.TaskIdentifier("new-task-id")
+				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+					TaskIdentifier: taskID,
+					Title:          "My Colliding Task",
+					Frontmatter: lib.TaskFrontmatter{
+						"assignee": "claude",
+						"status":   "todo",
+					},
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).NotTo(HaveOccurred())
+
+				// New task written at UUID path.
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+				_, absPath, _, _ := fakeGit.AtomicWriteAndCommitPushArgsForCall(0)
+				Expect(absPath).To(HaveSuffix(string(taskID) + ".md"))
+
+				// Original file unchanged.
+				Expect(os.ReadFile(titlePath)).To(Equal(originalContent))
+			})
+		})
+
+		Context("title path already occupied by the same task (idempotent)", func() {
+			It("returns nil without calling AtomicWriteAndCommitPush", func() {
+				taskID := lib.TaskIdentifier("same-task-id")
+				titlePath := filepath.Join(tmpDir, taskDir, "Existing Title.md")
+				Expect(
+					os.WriteFile(
+						titlePath,
+						[]byte("---\ntask_identifier: same-task-id\n---\n"),
+						0600,
+					),
+				).To(Succeed())
+
+				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+					TaskIdentifier: taskID,
+					Title:          "Existing Title",
+					Frontmatter: lib.TaskFrontmatter{
+						"assignee": "claude",
+						"status":   "todo",
+					},
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(0))
 			})
 		})
 	})

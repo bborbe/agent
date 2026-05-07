@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.54.19
+
+- feat(task/controller): create-task executor now writes vault task files at `tasks/{title}.md`; re-validates `Title` on receive with WARN + UUID-path fallback on failure or path collision
+
 ## v0.54.18
 
 - feat(lib): add `Title` field to `CreateTaskCommand` with cross-platform-safe validation rules enforced by a new `Validate(ctx)` method

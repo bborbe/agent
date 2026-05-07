@@ -18,12 +18,14 @@ import (
 
 	lib "github.com/bborbe/agent/lib"
 	gitclient "github.com/bborbe/agent/task/controller/pkg/gitrestclient"
+	"github.com/bborbe/agent/task/controller/pkg/result"
 )
 
 // NewCreateTaskExecutor creates a cdb.CommandObjectExecutorTx that materializes
-// a new vault task file for the given task_identifier. If a file for that identifier
-// already exists the command is a strict no-op (idempotent). Frontmatter must include
-// "assignee" and "status"; missing fields return a wrapped validation error.
+// a new vault task file for the given task_identifier. If cmd.Title passes validation
+// the file is written at tasks/{title}.md; otherwise it falls back to tasks/{task_identifier}.md.
+// If a file for the resolved path already exists the command is a strict no-op (idempotent).
+// Frontmatter must include "assignee" and "status"; missing fields return a wrapped validation error.
 func NewCreateTaskExecutor(
 	gitClient gitclient.GitClient,
 	taskDir string,
@@ -48,11 +50,11 @@ func NewCreateTaskExecutor(
 				return nil, nil, errors.Wrapf(ctx, err, "validate frontmatter")
 			}
 			taskDirPath := filepath.Join(gitClient.Path(), taskDir)
-			absPath := filepath.Join(taskDirPath, string(cmd.TaskIdentifier)+".md")
+			absPath := resolveCreateTaskPath(ctx, taskDirPath, cmd)
 			if _, err := os.Stat(absPath); err == nil {
 				glog.Infof(
-					"create-task: task file already exists for %s, skipping (idempotent)",
-					cmd.TaskIdentifier,
+					"create-task: task file already exists at %s for %s, skipping (idempotent)",
+					absPath, cmd.TaskIdentifier,
 				)
 				return nil, nil, nil
 			}
@@ -78,10 +80,86 @@ func NewCreateTaskExecutor(
 					cmd.TaskIdentifier,
 				)
 			}
-			glog.V(2).Infof("create-task: created task file for %s", cmd.TaskIdentifier)
+			glog.V(2).
+				Infof("create-task: created task file at %s for %s", absPath, cmd.TaskIdentifier)
 			return nil, nil, nil
 		},
 	)
+}
+
+// resolveCreateTaskPath returns the absolute path where the task file should be written.
+// If cmd.Title passes validation and the title-derived path is unoccupied (or occupied by
+// the same task), the title path is returned. Otherwise a WARN is logged and the UUID path
+// is returned as fallback so the task is always materialized.
+func resolveCreateTaskPath(
+	ctx context.Context,
+	taskDirPath string,
+	cmd lib.CreateTaskCommand,
+) string {
+	uuidPath := filepath.Join(taskDirPath, string(cmd.TaskIdentifier)+".md")
+
+	// Re-validate the command (defense-in-depth: sender may have been bypassed).
+	if err := cmd.Validate(ctx); err != nil {
+		glog.Warningf(
+			"create-task: Title validation failed for task %s (%v); falling back to UUID path",
+			cmd.TaskIdentifier, err,
+		)
+		return uuidPath
+	}
+
+	titlePath := filepath.Join(taskDirPath, cmd.Title+".md")
+
+	// Check if a file already exists at the title-derived path.
+	existing, err := os.ReadFile(
+		titlePath,
+	) // #nosec G304 -- path built from validated Title within taskDirPath
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Title path is free — use it.
+			return titlePath
+		}
+		// Unexpected read error: fall back to UUID path and log.
+		glog.Warningf(
+			"create-task: could not read %s (%v); falling back to UUID path for task %s",
+			titlePath, err, cmd.TaskIdentifier,
+		)
+		return uuidPath
+	}
+
+	// File exists at title path — extract + parse frontmatter to check task_identifier.
+	frontmatterStr, extractErr := result.ExtractFrontmatter(ctx, existing)
+	if extractErr != nil {
+		glog.Warningf(
+			"create-task: could not extract frontmatter at %s (%v); treating as collision, falling back to UUID path for task %s",
+			titlePath,
+			extractErr,
+			cmd.TaskIdentifier,
+		)
+		return uuidPath
+	}
+	fm, parseErr := parseTaskFrontmatter(frontmatterStr)
+	if parseErr != nil {
+		glog.Warningf(
+			"create-task: could not parse frontmatter at %s (%v); treating as collision, falling back to UUID path for task %s",
+			titlePath,
+			parseErr,
+			cmd.TaskIdentifier,
+		)
+		return uuidPath
+	}
+	existingID, _ := fm.String("task_identifier")
+	if lib.TaskIdentifier(existingID) == cmd.TaskIdentifier {
+		// Same task owns this file — idempotent.
+		return titlePath
+	}
+	// Different task_identifier at the title path — collision.
+	glog.Warningf(
+		"create-task: title path %s is already occupied by task %q (current task: %s); falling back to UUID path",
+		titlePath,
+		existingID,
+		cmd.TaskIdentifier,
+	)
+	return uuidPath
 }
 
 func validateCreateTaskFrontmatter(ctx context.Context, fm lib.TaskFrontmatter) error {

@@ -167,6 +167,19 @@ Only the listed frontmatter keys are written; all other keys — including `trig
 | `PublishSpawnNotification` | `update-frontmatter` | `current_job`, `job_started_at`, `spawn_notification` |
 | `PublishFailure` | `update-frontmatter` | `status`, `phase`, `current_job` |
 
+## Create-Task Path Resolution (spec-019)
+
+When the controller processes a `create-task` command it resolves the vault path as follows:
+
+1. **Title valid + title path unoccupied** → write `tasks/{title}.md`
+2. **Title valid + title path occupied by the same `task_identifier`** → no-op (idempotent)
+3. **Title valid + title path occupied by a different `task_identifier`** → WARN + fall back to `tasks/{task_identifier}.md`
+4. **Title fails validation (any rule)** → WARN + fall back to `tasks/{task_identifier}.md`
+
+In cases 3 and 4 the task is always materialized under its UUID path — the system never drops the task. The WARN log surfaces the anomaly to operators.
+
+**UUID fallback is permanent contract, not a migration affordance.** Producers that bypass the sender's `Validate`-before-publish (e.g. anyone with Kafka write access publishing a raw command) will trigger the fallback; the WARN log is the alerting mechanism. The existing file at `tasks/{task_identifier}.md` (if any) is the idempotency record.
+
 ## References
 
 - `lib/delivery/status.go` — `AgentStatus` enum
