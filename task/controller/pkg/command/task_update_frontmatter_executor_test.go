@@ -17,6 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/bborbe/agent/lib"
+	task "github.com/bborbe/agent/lib/command/task"
 	"github.com/bborbe/agent/task/controller/mocks"
 	"github.com/bborbe/agent/task/controller/pkg/command"
 )
@@ -101,7 +102,7 @@ var _ = Describe("NewUpdateFrontmatterExecutor", func() {
 		return fm
 	}
 
-	buildCmdObj := func(cmd lib.UpdateFrontmatterCommand) cdb.CommandObject {
+	buildCmdObj := func(cmd task.UpdateFrontmatterCommand) cdb.CommandObject {
 		event, err := base.ParseEvent(ctx, cmd)
 		Expect(err).NotTo(HaveOccurred())
 		return cdb.CommandObject{
@@ -130,7 +131,7 @@ var _ = Describe("NewUpdateFrontmatterExecutor", func() {
 					"task.md",
 					"---\ntask_identifier: update-test-uuid\nstatus: in_progress\nphase: ai_review\nassignee: claude\n---\nbody\n",
 				)
-				cmd := buildCmdObj(lib.UpdateFrontmatterCommand{
+				cmd := buildCmdObj(task.UpdateFrontmatterCommand{
 					TaskIdentifier: lib.TaskIdentifier("update-test-uuid"),
 					Updates: lib.TaskFrontmatter{
 						"phase": "human_review",
@@ -151,7 +152,7 @@ var _ = Describe("NewUpdateFrontmatterExecutor", func() {
 					"task.md",
 					"---\ntask_identifier: noop-uuid\nstatus: open\n---\nbody\n",
 				)
-				cmd := buildCmdObj(lib.UpdateFrontmatterCommand{
+				cmd := buildCmdObj(task.UpdateFrontmatterCommand{
 					TaskIdentifier: lib.TaskIdentifier("noop-uuid"),
 					Updates:        nil,
 				})
@@ -165,7 +166,7 @@ var _ = Describe("NewUpdateFrontmatterExecutor", func() {
 					"task.md",
 					"---\ntask_identifier: noop2-uuid\nstatus: open\n---\nbody\n",
 				)
-				cmd := buildCmdObj(lib.UpdateFrontmatterCommand{
+				cmd := buildCmdObj(task.UpdateFrontmatterCommand{
 					TaskIdentifier: lib.TaskIdentifier("noop2-uuid"),
 					Updates:        lib.TaskFrontmatter{},
 				})
@@ -180,7 +181,7 @@ var _ = Describe("NewUpdateFrontmatterExecutor", func() {
 				_, _, err := executor.HandleCommand(
 					ctx,
 					nil,
-					buildCmdObj(lib.UpdateFrontmatterCommand{
+					buildCmdObj(task.UpdateFrontmatterCommand{
 						TaskIdentifier: lib.TaskIdentifier("nonexistent-uuid"),
 						Updates:        lib.TaskFrontmatter{"phase": "human_review"},
 					}),
@@ -196,7 +197,7 @@ var _ = Describe("NewUpdateFrontmatterExecutor", func() {
 					"task.md",
 					"---\ntask_identifier: multi-update-uuid\nstatus: in_progress\nphase: ai_review\nassignee: claude\ncustom: preserve\n---\nbody\n",
 				)
-				cmd := buildCmdObj(lib.UpdateFrontmatterCommand{
+				cmd := buildCmdObj(task.UpdateFrontmatterCommand{
 					TaskIdentifier: lib.TaskIdentifier("multi-update-uuid"),
 					Updates: lib.TaskFrontmatter{
 						"status": "completed",
@@ -222,14 +223,14 @@ var _ = Describe("NewUpdateFrontmatterExecutor", func() {
 						"---\ntask_identifier: body-append-uuid\nstatus: in_progress\nphase: ai_review\n---\n## Result\n\nok\n",
 					)
 					failureSection := "## Failure\n\n- **Timestamp:** 2026-04-24T12:00:00Z\n- **Job:** job-abc\n- **Reason:** OOMKilled\n"
-					cmd := buildCmdObj(lib.UpdateFrontmatterCommand{
+					cmd := buildCmdObj(task.UpdateFrontmatterCommand{
 						TaskIdentifier: lib.TaskIdentifier("body-append-uuid"),
 						Updates: lib.TaskFrontmatter{
 							"status":      "in_progress",
 							"phase":       "human_review",
 							"current_job": "",
 						},
-						Body: &lib.BodySection{
+						Body: &task.BodySection{
 							Heading: "## Failure",
 							Section: failureSection,
 						},
@@ -257,7 +258,7 @@ var _ = Describe("NewUpdateFrontmatterExecutor", func() {
 					"task.md",
 					"---\ntask_identifier: body-nil-uuid\nstatus: in_progress\nphase: ai_review\n---\n"+originalBody,
 				)
-				cmd := buildCmdObj(lib.UpdateFrontmatterCommand{
+				cmd := buildCmdObj(task.UpdateFrontmatterCommand{
 					TaskIdentifier: lib.TaskIdentifier("body-nil-uuid"),
 					Updates: lib.TaskFrontmatter{
 						"phase": "human_review",

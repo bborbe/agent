@@ -17,6 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/bborbe/agent/lib"
+	task "github.com/bborbe/agent/lib/command/task"
 	"github.com/bborbe/agent/task/controller/mocks"
 	"github.com/bborbe/agent/task/controller/pkg/command"
 )
@@ -102,7 +103,7 @@ var _ = Describe("NewIncrementFrontmatterExecutor", func() {
 		return fm
 	}
 
-	buildCmdObj := func(cmd lib.IncrementFrontmatterCommand) cdb.CommandObject {
+	buildCmdObj := func(cmd task.IncrementFrontmatterCommand) cdb.CommandObject {
 		event, err := base.ParseEvent(ctx, cmd)
 		Expect(err).NotTo(HaveOccurred())
 		return cdb.CommandObject{
@@ -131,7 +132,7 @@ var _ = Describe("NewIncrementFrontmatterExecutor", func() {
 					"task.md",
 					"---\ntask_identifier: inc-test-uuid\ntrigger_count: 0\n---\nbody\n",
 				)
-				cmd1 := buildCmdObj(lib.IncrementFrontmatterCommand{
+				cmd1 := buildCmdObj(task.IncrementFrontmatterCommand{
 					TaskIdentifier: lib.TaskIdentifier("inc-test-uuid"),
 					Field:          "trigger_count",
 					Delta:          1,
@@ -140,7 +141,7 @@ var _ = Describe("NewIncrementFrontmatterExecutor", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// Simulate second command: stub now reads updated file
-				cmd2 := buildCmdObj(lib.IncrementFrontmatterCommand{
+				cmd2 := buildCmdObj(task.IncrementFrontmatterCommand{
 					TaskIdentifier: lib.TaskIdentifier("inc-test-uuid"),
 					Field:          "trigger_count",
 					Delta:          1,
@@ -160,7 +161,7 @@ var _ = Describe("NewIncrementFrontmatterExecutor", func() {
 					"---\ntask_identifier: cap-test-uuid\ntrigger_count: 0\nmax_triggers: 2\n---\nbody\n",
 				)
 				// First increment: 0 -> 1, no escalation
-				cmd1 := buildCmdObj(lib.IncrementFrontmatterCommand{
+				cmd1 := buildCmdObj(task.IncrementFrontmatterCommand{
 					TaskIdentifier: lib.TaskIdentifier("cap-test-uuid"),
 					Field:          "trigger_count",
 					Delta:          1,
@@ -172,7 +173,7 @@ var _ = Describe("NewIncrementFrontmatterExecutor", func() {
 				Expect(fm["phase"]).To(BeNil())
 
 				// Second increment: 1 -> 2, escalation fires
-				cmd2 := buildCmdObj(lib.IncrementFrontmatterCommand{
+				cmd2 := buildCmdObj(task.IncrementFrontmatterCommand{
 					TaskIdentifier: lib.TaskIdentifier("cap-test-uuid"),
 					Field:          "trigger_count",
 					Delta:          1,
@@ -191,7 +192,7 @@ var _ = Describe("NewIncrementFrontmatterExecutor", func() {
 					"task.md",
 					"---\ntask_identifier: nocap-uuid\ntrigger_count: 1\nmax_triggers: 3\nphase: ai_review\n---\nbody\n",
 				)
-				cmd := buildCmdObj(lib.IncrementFrontmatterCommand{
+				cmd := buildCmdObj(task.IncrementFrontmatterCommand{
 					TaskIdentifier: lib.TaskIdentifier("nocap-uuid"),
 					Field:          "trigger_count",
 					Delta:          1,
@@ -210,7 +211,7 @@ var _ = Describe("NewIncrementFrontmatterExecutor", func() {
 					"task.md",
 					"---\ntask_identifier: missing-field-uuid\n---\nbody\n",
 				)
-				cmd := buildCmdObj(lib.IncrementFrontmatterCommand{
+				cmd := buildCmdObj(task.IncrementFrontmatterCommand{
 					TaskIdentifier: lib.TaskIdentifier("missing-field-uuid"),
 					Field:          "trigger_count",
 					Delta:          1,
@@ -228,7 +229,7 @@ var _ = Describe("NewIncrementFrontmatterExecutor", func() {
 				_, _, err := executor.HandleCommand(
 					ctx,
 					nil,
-					buildCmdObj(lib.IncrementFrontmatterCommand{
+					buildCmdObj(task.IncrementFrontmatterCommand{
 						TaskIdentifier: lib.TaskIdentifier("nonexistent-uuid"),
 						Field:          "trigger_count",
 						Delta:          1,

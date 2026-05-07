@@ -17,6 +17,7 @@ import (
 	"github.com/golang/glog"
 
 	lib "github.com/bborbe/agent/lib"
+	task "github.com/bborbe/agent/lib/command/task"
 	gitclient "github.com/bborbe/agent/task/controller/pkg/gitrestclient"
 	"github.com/bborbe/agent/task/controller/pkg/result"
 )
@@ -31,10 +32,10 @@ func NewCreateTaskExecutor(
 	taskDir string,
 ) cdb.CommandObjectExecutorTx {
 	return cdb.CommandObjectExecutorTxFunc(
-		lib.CreateTaskCommandOperation,
+		task.CreateCommandOperation,
 		true,
 		func(ctx context.Context, tx libkv.Tx, commandObject cdb.CommandObject) (*base.EventID, base.Event, error) {
-			var cmd lib.CreateTaskCommand
+			var cmd task.CreateCommand
 			if err := commandObject.Command.Data.MarshalInto(ctx, &cmd); err != nil {
 				return nil, nil, errors.Wrapf(
 					ctx,
@@ -94,7 +95,7 @@ func NewCreateTaskExecutor(
 func resolveCreateTaskPath(
 	ctx context.Context,
 	taskDirPath string,
-	cmd lib.CreateTaskCommand,
+	cmd task.CreateCommand,
 ) string {
 	uuidPath := filepath.Join(taskDirPath, string(cmd.TaskIdentifier)+".md")
 
@@ -172,7 +173,7 @@ func validateCreateTaskFrontmatter(ctx context.Context, fm lib.TaskFrontmatter) 
 	return nil
 }
 
-func buildCreateTaskContent(ctx context.Context, cmd lib.CreateTaskCommand) ([]byte, error) {
+func buildCreateTaskContent(ctx context.Context, cmd task.CreateCommand) ([]byte, error) {
 	fm := make(lib.TaskFrontmatter)
 	for k, v := range cmd.Frontmatter {
 		fm[k] = v

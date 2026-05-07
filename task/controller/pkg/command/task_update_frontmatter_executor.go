@@ -16,6 +16,7 @@ import (
 	"github.com/golang/glog"
 
 	lib "github.com/bborbe/agent/lib"
+	task "github.com/bborbe/agent/lib/command/task"
 	delivery "github.com/bborbe/agent/lib/delivery"
 	gitclient "github.com/bborbe/agent/task/controller/pkg/gitrestclient"
 	"github.com/bborbe/agent/task/controller/pkg/metrics"
@@ -23,7 +24,7 @@ import (
 )
 
 // UpdateFrontmatterCommandOperation is the CQRS command operation name for partial frontmatter update.
-const UpdateFrontmatterCommandOperation base.CommandOperation = lib.UpdateFrontmatterCommandOperation
+const UpdateFrontmatterCommandOperation base.CommandOperation = task.UpdateFrontmatterCommandOperation
 
 // NewUpdateFrontmatterExecutor creates a cdb.CommandObjectExecutorTx that atomically
 // reads the task file, merges only the specified key-value pairs, and commits.
@@ -36,7 +37,7 @@ func NewUpdateFrontmatterExecutor(
 		UpdateFrontmatterCommandOperation,
 		true,
 		func(ctx context.Context, tx libkv.Tx, commandObject cdb.CommandObject) (*base.EventID, base.Event, error) {
-			var cmd lib.UpdateFrontmatterCommand
+			var cmd task.UpdateFrontmatterCommand
 			if err := commandObject.Command.Data.MarshalInto(ctx, &cmd); err != nil {
 				return nil, nil, errors.Wrapf(
 					ctx,
@@ -94,7 +95,7 @@ func NewUpdateFrontmatterExecutor(
 func buildUpdateModifyFn(
 	ctx context.Context,
 	updates lib.TaskFrontmatter,
-	bodySection *lib.BodySection,
+	bodySection *task.BodySection,
 ) func([]byte) ([]byte, error) {
 	return func(current []byte) ([]byte, error) {
 		frontmatterStr, err := result.ExtractFrontmatter(ctx, current)

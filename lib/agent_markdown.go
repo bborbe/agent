@@ -20,7 +20,7 @@ import (
 // higher level (no trailing newline).
 //
 // Section is the parsed structural unit. The CQRS BodySection (in
-// agent_task-commands.go) is a different concept: it carries the full
+// lib/command/task) is a different concept: it carries the full
 // serialized section text including the heading line, used as a partial
 // frontmatter+body update payload.
 type Section struct {

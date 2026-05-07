@@ -17,6 +17,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	lib "github.com/bborbe/agent/lib"
+	task "github.com/bborbe/agent/lib/command/task"
 	"github.com/bborbe/agent/task/controller/mocks"
 	"github.com/bborbe/agent/task/controller/pkg/command"
 )
@@ -59,13 +60,13 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 		Expect(os.RemoveAll(tmpDir)).To(Succeed())
 	})
 
-	buildCmdObj := func(cmd lib.CreateTaskCommand) cdb.CommandObject {
+	buildCmdObj := func(cmd task.CreateCommand) cdb.CommandObject {
 		event, err := base.ParseEvent(ctx, cmd)
 		Expect(err).NotTo(HaveOccurred())
 		return cdb.CommandObject{
 			Command: base.Command{
 				RequestID: base.NewRequestID(),
-				Operation: lib.CreateTaskCommandOperation,
+				Operation: task.CreateCommandOperation,
 				Initiator: "test",
 				Data:      event,
 			},
@@ -86,7 +87,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 				cmdObj := cdb.CommandObject{
 					Command: base.Command{
 						RequestID: base.NewRequestID(),
-						Operation: lib.CreateTaskCommandOperation,
+						Operation: task.CreateCommandOperation,
 						Initiator: "test",
 						Data:      base.Event{"taskIdentifier": make(chan int)},
 					},
@@ -101,7 +102,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 
 		Context("empty TaskIdentifier", func() {
 			It("returns a validation error without writing", func() {
-				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+				cmdObj := buildCmdObj(task.CreateCommand{
 					TaskIdentifier: lib.TaskIdentifier(""),
 					Frontmatter: lib.TaskFrontmatter{
 						"assignee": "claude",
@@ -116,7 +117,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 
 		Context("missing assignee in frontmatter", func() {
 			It("returns a validation error without writing", func() {
-				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+				cmdObj := buildCmdObj(task.CreateCommand{
 					TaskIdentifier: lib.TaskIdentifier("my-task-id"),
 					Frontmatter: lib.TaskFrontmatter{
 						"status": "todo",
@@ -131,7 +132,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 
 		Context("missing status in frontmatter", func() {
 			It("returns a validation error without writing", func() {
-				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+				cmdObj := buildCmdObj(task.CreateCommand{
 					TaskIdentifier: lib.TaskIdentifier("my-task-id"),
 					Frontmatter: lib.TaskFrontmatter{
 						"assignee": "claude",
@@ -155,7 +156,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 					),
 				).To(Succeed())
 
-				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+				cmdObj := buildCmdObj(task.CreateCommand{
 					TaskIdentifier: lib.TaskIdentifier("existing-task"),
 					Title:          "existing-task",
 					Frontmatter: lib.TaskFrontmatter{
@@ -172,7 +173,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 		Context("success: new file created", func() {
 			It("calls AtomicWriteAndCommitPush with correct content and commit message", func() {
 				taskID := lib.TaskIdentifier("new-task-abc")
-				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+				cmdObj := buildCmdObj(task.CreateCommand{
 					TaskIdentifier: taskID,
 					Title:          "New Task ABC",
 					Frontmatter: lib.TaskFrontmatter{
@@ -204,7 +205,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 				fakeGit.AtomicWriteAndCommitPushStub = nil
 				fakeGit.AtomicWriteAndCommitPushReturns(errors.New("git push failed"))
 
-				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+				cmdObj := buildCmdObj(task.CreateCommand{
 					TaskIdentifier: lib.TaskIdentifier("error-task"),
 					Title:          "Error Task",
 					Frontmatter: lib.TaskFrontmatter{
@@ -221,7 +222,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 		Context("valid title", func() {
 			It("writes the task file at tasks/{title}.md", func() {
 				taskID := lib.TaskIdentifier("uuid-1234")
-				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+				cmdObj := buildCmdObj(task.CreateCommand{
 					TaskIdentifier: taskID,
 					Title:          "My Feature Task",
 					Frontmatter: lib.TaskFrontmatter{
@@ -242,7 +243,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 		Context("invalid title (contains forbidden char)", func() {
 			It("logs WARN and writes the task file at tasks/{task_identifier}.md", func() {
 				taskID := lib.TaskIdentifier("uuid-5678")
-				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+				cmdObj := buildCmdObj(task.CreateCommand{
 					TaskIdentifier: taskID,
 					Title:          "bad/title",
 					Frontmatter: lib.TaskFrontmatter{
@@ -261,7 +262,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 		Context("empty title", func() {
 			It("logs WARN and writes the task file at tasks/{task_identifier}.md", func() {
 				taskID := lib.TaskIdentifier("uuid-empty-title")
-				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+				cmdObj := buildCmdObj(task.CreateCommand{
 					TaskIdentifier: taskID,
 					Title:          "",
 					Frontmatter: lib.TaskFrontmatter{
@@ -287,7 +288,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 				Expect(os.WriteFile(titlePath, originalContent, 0600)).To(Succeed())
 
 				taskID := lib.TaskIdentifier("new-task-id")
-				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+				cmdObj := buildCmdObj(task.CreateCommand{
 					TaskIdentifier: taskID,
 					Title:          "My Colliding Task",
 					Frontmatter: lib.TaskFrontmatter{
@@ -320,7 +321,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 					),
 				).To(Succeed())
 
-				cmdObj := buildCmdObj(lib.CreateTaskCommand{
+				cmdObj := buildCmdObj(task.CreateCommand{
 					TaskIdentifier: taskID,
 					Title:          "Existing Title",
 					Frontmatter: lib.TaskFrontmatter{

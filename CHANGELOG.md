@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.54.21
+
+- refactor(lib): move `CreateTaskCommand` (→ `task.CreateCommand`), `UpdateFrontmatterCommand`, `IncrementFrontmatterCommand`, and `BodySection` to `lib/command/task` sub-package; remove flat `agent_task-commands.go`
+- refactor(task/controller): migrate command executors to `lib/command/task` types
+- refactor(task/executor): migrate `ResultPublisher` to `lib/command/task` types
+
 ## v0.54.20
 
 - feat(lib): add `lib/command/task` package with `CreateCommand`, `UpdateFrontmatterCommand`, `IncrementFrontmatterCommand` types, `Validate` methods, and typed command senders

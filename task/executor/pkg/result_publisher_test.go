@@ -17,6 +17,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	lib "github.com/bborbe/agent/lib"
+	taskcmd "github.com/bborbe/agent/lib/command/task"
 	"github.com/bborbe/agent/task/executor/pkg"
 )
 
@@ -48,7 +49,7 @@ var _ libkafka.SyncProducer = &capturingSyncProducer{}
 // decodeUpdateFrontmatterCommand extracts the operation and UpdateFrontmatterCommand from a captured message.
 func decodeUpdateFrontmatterCommand(
 	msg *sarama.ProducerMessage,
-) (base.CommandOperation, lib.UpdateFrontmatterCommand) {
+) (base.CommandOperation, taskcmd.UpdateFrontmatterCommand) {
 	raw, err := msg.Value.Encode()
 	Expect(err).NotTo(HaveOccurred())
 
@@ -59,7 +60,7 @@ func decodeUpdateFrontmatterCommand(
 	dataBytes, err := json.Marshal(command.Data)
 	Expect(err).NotTo(HaveOccurred())
 
-	var cmd lib.UpdateFrontmatterCommand
+	var cmd taskcmd.UpdateFrontmatterCommand
 	Expect(json.Unmarshal(dataBytes, &cmd)).To(Succeed())
 
 	return command.Operation, cmd
@@ -103,7 +104,7 @@ var _ = Describe("ResultPublisher", func() {
 			Expect(producer.messages).To(HaveLen(1))
 			operation, cmd := decodeUpdateFrontmatterCommand(producer.messages[0])
 
-			Expect(string(operation)).To(Equal(string(lib.UpdateFrontmatterCommandOperation)))
+			Expect(string(operation)).To(Equal(string(taskcmd.UpdateFrontmatterCommandOperation)))
 			Expect(cmd.Updates).To(HaveLen(3))
 
 			Expect(cmd.Updates["spawn_notification"]).To(Equal(true))
@@ -144,7 +145,9 @@ var _ = Describe("ResultPublisher", func() {
 				Expect(producer.messages).To(HaveLen(1))
 				operation, cmd := decodeUpdateFrontmatterCommand(producer.messages[0])
 
-				Expect(string(operation)).To(Equal(string(lib.UpdateFrontmatterCommandOperation)))
+				Expect(
+					string(operation),
+				).To(Equal(string(taskcmd.UpdateFrontmatterCommandOperation)))
 				Expect(cmd.Updates).To(HaveLen(3))
 
 				Expect(cmd.Updates["status"]).To(Equal("in_progress"))

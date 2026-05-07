@@ -17,6 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/bborbe/agent/lib"
+	task "github.com/bborbe/agent/lib/command/task"
 	"github.com/bborbe/agent/task/controller/mocks"
 	"github.com/bborbe/agent/task/controller/pkg/command"
 )
@@ -103,7 +104,7 @@ var _ = Describe("Frontmatter sequence integration", func() {
 		return fm
 	}
 
-	buildIncrementCmdObj := func(cmd lib.IncrementFrontmatterCommand) cdb.CommandObject {
+	buildIncrementCmdObj := func(cmd task.IncrementFrontmatterCommand) cdb.CommandObject {
 		event, err := base.ParseEvent(ctx, cmd)
 		Expect(err).NotTo(HaveOccurred())
 		return cdb.CommandObject{
@@ -117,7 +118,7 @@ var _ = Describe("Frontmatter sequence integration", func() {
 		}
 	}
 
-	buildUpdateCmdObj := func(cmd lib.UpdateFrontmatterCommand) cdb.CommandObject {
+	buildUpdateCmdObj := func(cmd task.UpdateFrontmatterCommand) cdb.CommandObject {
 		event, err := base.ParseEvent(ctx, cmd)
 		Expect(err).NotTo(HaveOccurred())
 		return cdb.CommandObject{
@@ -144,7 +145,7 @@ var _ = Describe("Frontmatter sequence integration", func() {
 				_, _, err := incrementExec.HandleCommand(
 					ctx,
 					nil,
-					buildIncrementCmdObj(lib.IncrementFrontmatterCommand{
+					buildIncrementCmdObj(task.IncrementFrontmatterCommand{
 						TaskIdentifier: lib.TaskIdentifier("seq-test-001"),
 						Field:          "trigger_count",
 						Delta:          1,
@@ -159,7 +160,7 @@ var _ = Describe("Frontmatter sequence integration", func() {
 				_, _, err = updateExec.HandleCommand(
 					ctx,
 					nil,
-					buildUpdateCmdObj(lib.UpdateFrontmatterCommand{
+					buildUpdateCmdObj(task.UpdateFrontmatterCommand{
 						TaskIdentifier: lib.TaskIdentifier("seq-test-001"),
 						Updates: lib.TaskFrontmatter{
 							"current_job":        "claude-20260424120000",
@@ -193,7 +194,7 @@ var _ = Describe("Frontmatter sequence integration", func() {
 			_, _, err := updateExec.HandleCommand(
 				ctx,
 				nil,
-				buildUpdateCmdObj(lib.UpdateFrontmatterCommand{
+				buildUpdateCmdObj(task.UpdateFrontmatterCommand{
 					TaskIdentifier: lib.TaskIdentifier("seq-test-002"),
 					Updates: lib.TaskFrontmatter{
 						"status":      "in_progress",
@@ -222,7 +223,7 @@ var _ = Describe("Frontmatter sequence integration", func() {
 			_, _, err := updateExec.HandleCommand(
 				ctx,
 				nil,
-				buildUpdateCmdObj(lib.UpdateFrontmatterCommand{
+				buildUpdateCmdObj(task.UpdateFrontmatterCommand{
 					TaskIdentifier: lib.TaskIdentifier("seq-test-003"),
 					Updates:        nil,
 				}),

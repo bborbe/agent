@@ -1,8 +1,12 @@
 ---
-status: approved
+status: committing
 spec: [020-agent-lib-command-package-restructure]
+summary: Migrated all callers of lib.CreateTaskCommand, lib.UpdateFrontmatterCommand, lib.IncrementFrontmatterCommand, and lib.BodySection to lib/command/task sub-package types, then deleted the six superseded lib/ files; all three make precommit runs exit 0.
+container: agent-101-spec-020-migrate-callers-retire-old-files
+dark-factory-version: v0.151.2-4-g3dc5753
 created: "2026-05-07T18:00:00Z"
 queued: "2026-05-07T18:17:58Z"
+started: "2026-05-07T18:25:19Z"
 branch: dark-factory/agent-lib-command-package-restructure
 ---
 

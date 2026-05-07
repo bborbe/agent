@@ -18,6 +18,7 @@ import (
 	libtime "github.com/bborbe/time"
 
 	lib "github.com/bborbe/agent/lib"
+	taskcmd "github.com/bborbe/agent/lib/command/task"
 )
 
 //counterfeiter:generate -o ../mocks/result_publisher.go --fake-name FakeResultPublisher . ResultPublisher
@@ -62,7 +63,7 @@ func (p *resultPublisher) PublishSpawnNotification(
 	task lib.Task,
 	jobName string,
 ) error {
-	cmd := lib.UpdateFrontmatterCommand{
+	cmd := taskcmd.UpdateFrontmatterCommand{
 		TaskIdentifier: task.TaskIdentifier,
 		Updates: lib.TaskFrontmatter{
 			"spawn_notification": true,
@@ -70,7 +71,7 @@ func (p *resultPublisher) PublishSpawnNotification(
 			"job_started_at":     p.currentDateTime.Now().UTC().Format("2006-01-02T15:04:05Z07:00"),
 		},
 	}
-	return p.publishRaw(ctx, lib.UpdateFrontmatterCommandOperation, cmd)
+	return p.publishRaw(ctx, taskcmd.UpdateFrontmatterCommandOperation, cmd)
 }
 
 func (p *resultPublisher) PublishFailure(
@@ -86,28 +87,28 @@ func (p *resultPublisher) PublishFailure(
 		jobName,
 		reason,
 	)
-	cmd := lib.UpdateFrontmatterCommand{
+	cmd := taskcmd.UpdateFrontmatterCommand{
 		TaskIdentifier: task.TaskIdentifier,
 		Updates: lib.TaskFrontmatter{
 			"status":      "in_progress",
 			"phase":       "human_review",
 			"current_job": "",
 		},
-		Body: &lib.BodySection{
+		Body: &taskcmd.BodySection{
 			Heading: "## Failure",
 			Section: section,
 		},
 	}
-	return p.publishRaw(ctx, lib.UpdateFrontmatterCommandOperation, cmd)
+	return p.publishRaw(ctx, taskcmd.UpdateFrontmatterCommandOperation, cmd)
 }
 
 func (p *resultPublisher) PublishIncrementTriggerCount(ctx context.Context, task lib.Task) error {
-	cmd := lib.IncrementFrontmatterCommand{
+	cmd := taskcmd.IncrementFrontmatterCommand{
 		TaskIdentifier: task.TaskIdentifier,
 		Field:          "trigger_count",
 		Delta:          1,
 	}
-	return p.publishRaw(ctx, lib.IncrementFrontmatterCommandOperation, cmd)
+	return p.publishRaw(ctx, taskcmd.IncrementFrontmatterCommandOperation, cmd)
 }
 
 func (p *resultPublisher) publishRaw(
