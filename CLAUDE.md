@@ -106,6 +106,10 @@ This project follows the [coding-guidelines](https://github.com/bborbe/coding-gu
 
 - Single global `CHANGELOG.md` at repo root. No per-module CHANGELOG.
 - Every release pairs two tags at the same commit: `vX.Y.Z` (root module) and `lib/vX.Y.Z` (lib module). Always same number, always same commit. Required so other repos can `go get github.com/bborbe/agent/lib@vX.Y.Z`.
+- **Both tags MUST equal the latest `## vX.Y.Z` header in `CHANGELOG.md`.** If lib + root tag numbers drift (auto-release tooling occasionally bumps only one), fix manually:
+  1. Pick a version higher than ALL existing root **and** lib tags (`git tag -l "v*" --sort=-v:refname`, `git tag -l "lib/v*" --sort=-v:refname`)
+  2. Bump the CHANGELOG header to that version (rename or add new section)
+  3. `git commit -m "release vX.Y.Z"` → `git tag vX.Y.Z` → `git tag lib/vX.Y.Z` → `git push origin master vX.Y.Z lib/vX.Y.Z`
 
 ### Test conventions
 
