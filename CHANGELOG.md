@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.54.18
+
+- feat(lib): add `Title` field to `CreateTaskCommand` with cross-platform-safe validation rules enforced by a new `Validate(ctx)` method
+- feat(lib): add `CreateTaskCommandSender` interface and `NewCreateTaskCommandSender` factory with validate-before-send invariant
+
 ## v0.54.17
 
 - fix(ci): point `actions/setup-go` at `lib/go.mod` instead of nonexistent root `go.mod`. Multi-module repo has go.mod files only in subdirs (lib, agent/*, task/*); CI was failing immediately at `Set up Go` step.

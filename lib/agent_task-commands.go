@@ -55,6 +55,7 @@ type UpdateFrontmatterCommand struct {
 // if either is absent.
 type CreateTaskCommand struct {
 	TaskIdentifier TaskIdentifier  `json:"taskIdentifier"`
+	Title          string          `json:"title"`
 	Frontmatter    TaskFrontmatter `json:"frontmatter"`
 	Body           string          `json:"body,omitempty"`
 }
