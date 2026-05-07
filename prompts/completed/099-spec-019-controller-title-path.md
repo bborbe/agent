@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [019-human-readable-vault-task-paths]
 summary: Updated create-task executor to derive vault task file path from Title field with WARN+UUID fallback on invalid title or path collision; added 5 new test cases; updated docs and CHANGELOG.
 container: agent-099-spec-019-controller-title-path
@@ -7,6 +7,7 @@ dark-factory-version: v0.151.2-4-g3dc5753
 created: "2026-05-07T16:04:09Z"
 queued: "2026-05-07T16:23:49Z"
 started: "2026-05-07T16:29:58Z"
+completed: "2026-05-07T16:35:06Z"
 branch: dark-factory/human-readable-vault-task-paths
 ---
 
