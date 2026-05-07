@@ -1,11 +1,12 @@
 ---
-status: prompted
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-05-07T17:38:42Z"
 generating: "2026-05-07T17:38:43Z"
 prompted: "2026-05-07T18:06:54Z"
+verifying: "2026-05-07T18:33:37Z"
 branch: dark-factory/agent-lib-command-package-restructure
 ---
 
