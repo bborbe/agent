@@ -100,3 +100,21 @@ Expected: all three exit 0, all tests pass, lint clean, coverage ≥80% for `age
 ## Do-Nothing Option
 
 Leaving the half-flat layout in place after spec 019 ships keeps `CreateCommand` enjoying `Validate` + sender while `UpdateFrontmatterCommand` and `IncrementFrontmatterCommand` are still raw structs that every producer hand-publishes. The cost: the validation barrier is enforced for one command and not the other two, so per-producer validation drift continues for the un-modernized commands; the lib's organization diverges from the trading lib pattern; mocking individual command senders requires extra wrapper code. Doing nothing is acceptable only if we're willing to live with that asymmetry indefinitely. Note: the `Title` field win is already delivered by spec 019 — this spec does not gate the user-visible win, it cleans up the architectural seam.
+
+## Verification Result
+
+**Verified:** 2026-05-08T05:54:07Z (HEAD 12d11e4)
+**Binary:** installed `dark-factory` (agent repo, not dark-factory itself — Phase 0 skipped)
+**Scenario:** No scenario (pure refactor; four-condition test fails at (1) — wire format byte-identical). Verification model: precommit-as-evidence per spec 019 precedent.
+**Evidence:**
+- `cd lib && make precommit` → `ready to commit` (gosec 0 issues, trivy 0 vulns, addlicense clean)
+- `cd task/controller && make precommit` → `ready to commit`
+- `cd task/executor && make precommit` → `ready to commit`
+- `go test -cover ./command/task/...` → `coverage: 96.3% of statements` (≥80% threshold)
+- Package layout: `lib/command/task/{create,update-frontmatter,increment-frontmatter}-command{,_test}.go` + matching `*-command-sender{,_test}.go` + `mocks/task-{create,update-frontmatter,increment-frontmatter}-command-sender.go`
+- Type renames in place: `type CreateCommand`, `type UpdateFrontmatterCommand`, `type IncrementFrontmatterCommand`
+- Operation strings byte-identical: `"create-task"`, `"update-frontmatter"`, `"increment-frontmatter"`
+- Retired files absent: `agent_task-commands.go`, `agent_create-task-command.go`, `agent_create-task-command-sender{,_test}.go`, `mocks/lib-create-task-command-sender.go`
+- All four internal callers (`task/controller/pkg/command/task_{create_task,update_frontmatter,increment_frontmatter}_executor.go`, `task/executor/pkg/result_publisher.go`) import `github.com/bborbe/agent/lib/command/task`; zero `lib.{Create,Update,Increment}` references remain
+- Released as v0.58.0 (paired root + lib tag)
+**Verdict:** PASS
