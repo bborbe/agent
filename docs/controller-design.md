@@ -37,7 +37,9 @@ On agent-task-v1-request (operation: "update"):
   ├── walk task directory, find file matching task_identifier in frontmatter
   ├── merge frontmatter + apply escalation check (counter set by executor, not incremented here)
   │     ├── read retry_count from merged frontmatter (set by executor at spawn time, spec 011)
-  │     └── if retry_count >= max_retries → set phase: human_review, append ## Retry Escalation
+  │     ├── if trigger_count >= max_triggers → clear assignee: "", preserve lifecycle phase, append ## Trigger Cap Escalation (once)
+  │     ├── if retry_count >= max_retries   → clear assignee: "", preserve lifecycle phase, append ## Retry Escalation (once)
+  │     └── if agent emits needs_input (phase: human_review) → set phase: human_review, clear assignee: ""
   ├── sanitize content (escape bare --- lines to prevent YAML corruption)
   ├── write frontmatter + content to file
   ├── git add + commit + push
@@ -53,6 +55,24 @@ Existing file:  {assignee: backtest-agent, tags: [agent-task], task_identifier: 
 Agent provides: {status: completed, phase: done}
 Merged result:  {assignee: backtest-agent, tags: [agent-task], task_identifier: xyz, status: completed, phase: done}
 ```
+
+## Assignee-Clear on Escalation (spec 021)
+
+Every escalation path writes `assignee: ""` so the task surfaces in operator inbox:
+
+| Escalation trigger | `phase` written | `assignee` written |
+|---|---|---|
+| `trigger_count >= max_triggers` | unchanged (lifecycle stage preserved) | `""` |
+| `retry_count >= max_retries` | unchanged (lifecycle stage preserved) | `""` |
+| Agent emits `needs_input` | `human_review` | `""` |
+
+Once a task is parked (escalation section present, `assignee: ""`), repeated stale agent
+result publishes are idempotent: the escalation section is not duplicated, the lifecycle
+phase is restored from the on-disk value, and assignee stays empty.
+
+## Empty-to-Named Reset (spec 021)
+
+When the vault scanner observes a task file whose `assignee` transitions from empty (or absent) to a non-empty agent name, it writes `trigger_count: 0` and `retry_count: 0` back to the file atomically and queues a git commit. This refills the per-attempt budgets for the re-delegated agent without requiring manual counter edits. The reset fires exactly once per empty-to-named transition (named→named and named→empty transitions do not trigger a reset).
 
 ## Atomic Frontmatter Commands
 

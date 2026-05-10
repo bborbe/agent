@@ -9,12 +9,26 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"
 )
+
+func extractFrontmatterStr(fileContent string) string {
+	const pfx = "---\n"
+	if !strings.HasPrefix(fileContent, pfx) {
+		return ""
+	}
+	rest := fileContent[len(pfx):]
+	idx := strings.Index(rest, "\n---")
+	if idx == -1 {
+		return ""
+	}
+	return rest[:idx]
+}
 
 // testGitClient is a simple test double for gitclient.GitClient.
 // We cannot use mocks.FakeGitClient here because mocks imports scanner (for ScanResult),
@@ -107,6 +121,191 @@ var _ = Describe("VaultScanner", func() {
 
 	AfterEach(func() {
 		Expect(os.RemoveAll(tmpDir)).To(Succeed())
+	})
+
+	Describe("assignee transition → counter reset", func() {
+		It(
+			"resets trigger_count and retry_count when assignee transitions from empty to named",
+			func() {
+				taskID := "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+				absPath := filepath.Join(tmpDir, taskDir, "parked.md")
+				initialContent := "---\ntask_identifier: " + taskID + "\nstatus: in_progress\nphase: ai_review\nassignee: \ntrigger_count: 3\nretry_count: 2\n---\n# body\n"
+				Expect(os.WriteFile(absPath, []byte(initialContent), 0600)).To(Succeed())
+
+				// First scan: parked (assignee empty), no task published, no reset
+				s.runCycle(ctx, results)
+				var r1 ScanResult
+				Expect(results).To(Receive(&r1))
+				Expect(r1.Changed).To(BeEmpty())
+
+				// Operator re-delegates: set assignee to claude
+				delegatedContent := "---\ntask_identifier: " + taskID + "\nstatus: in_progress\nphase: ai_review\nassignee: claude\ntrigger_count: 3\nretry_count: 2\n---\n# body\n"
+				Expect(os.WriteFile(absPath, []byte(delegatedContent), 0600)).To(Succeed())
+
+				// Second scan: detects transition, writes reset, no task published yet (zero-hash sentinel)
+				s.runCycle(ctx, results)
+				var r2 ScanResult
+				Expect(results).To(Receive(&r2))
+				Expect(r2.Changed).To(BeEmpty())
+
+				// Verify the file was rewritten with reset counters
+				written, _ := os.ReadFile(absPath) // #nosec G304 -- test-only path
+				var fm map[string]interface{}
+				Expect(
+					yaml.Unmarshal([]byte(extractFrontmatterStr(string(written))), &fm),
+				).To(Succeed())
+				Expect(fm["trigger_count"]).To(BeNumerically("==", 0))
+				Expect(fm["retry_count"]).To(BeNumerically("==", 0))
+				Expect(fm["assignee"]).To(Equal("claude"))
+
+				// Third scan: reads reset file, publishes task with fresh counters
+				s.runCycle(ctx, results)
+				var r3 ScanResult
+				Expect(results).To(Receive(&r3))
+				Expect(r3.Changed).To(HaveLen(1))
+				Expect(string(r3.Changed[0].Frontmatter.Assignee())).To(Equal("claude"))
+				Expect(r3.Changed[0].Frontmatter.TriggerCount()).To(Equal(0))
+				Expect(r3.Changed[0].Frontmatter.RetryCount()).To(Equal(0))
+			},
+		)
+
+		It(
+			"does not reset counters when assignee changes from one name to another (named → named)",
+			func() {
+				taskID := "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+				absPath := filepath.Join(tmpDir, taskDir, "named-named.md")
+				initialContent := "---\ntask_identifier: " + taskID + "\nstatus: in_progress\nphase: ai_review\nassignee: claudeA\ntrigger_count: 2\nretry_count: 1\n---\n# body\n"
+				Expect(os.WriteFile(absPath, []byte(initialContent), 0600)).To(Succeed())
+
+				// First scan: task published with claudeA
+				s.runCycle(ctx, results)
+				Expect(results).To(Receive())
+
+				// Operator changes to claudeB
+				changedContent := "---\ntask_identifier: " + taskID + "\nstatus: in_progress\nphase: ai_review\nassignee: claudeB\ntrigger_count: 2\nretry_count: 1\n---\n# body\n"
+				Expect(os.WriteFile(absPath, []byte(changedContent), 0600)).To(Succeed())
+
+				// Second scan: named → named, no reset, task published with new assignee
+				s.runCycle(ctx, results)
+				var r2 ScanResult
+				Expect(results).To(Receive(&r2))
+				Expect(r2.Changed).To(HaveLen(1))
+
+				// Counters must NOT have been reset
+				written, _ := os.ReadFile(absPath) // #nosec G304 -- test-only path
+				var fm map[string]interface{}
+				Expect(
+					yaml.Unmarshal([]byte(extractFrontmatterStr(string(written))), &fm),
+				).To(Succeed())
+				Expect(fm["trigger_count"]).To(BeNumerically("==", 2))
+				Expect(fm["retry_count"]).To(BeNumerically("==", 1))
+			},
+		)
+
+		It(
+			"does not reset counters when assignee is cleared from named to empty (named → empty)",
+			func() {
+				taskID := "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+				absPath := filepath.Join(tmpDir, taskDir, "named-empty.md")
+				initialContent := "---\ntask_identifier: " + taskID + "\nstatus: in_progress\nphase: ai_review\nassignee: claude\ntrigger_count: 2\nretry_count: 1\n---\n# body\n"
+				Expect(os.WriteFile(absPath, []byte(initialContent), 0600)).To(Succeed())
+
+				// First scan: task published with claude
+				s.runCycle(ctx, results)
+				Expect(results).To(Receive())
+
+				// Operator clears assignee
+				clearedContent := "---\ntask_identifier: " + taskID + "\nstatus: in_progress\nphase: ai_review\nassignee: \ntrigger_count: 2\nretry_count: 1\n---\n# body\n"
+				Expect(os.WriteFile(absPath, []byte(clearedContent), 0600)).To(Succeed())
+
+				// Second scan: named → empty, no reset, task skipped (empty assignee)
+				s.runCycle(ctx, results)
+				var r2 ScanResult
+				Expect(results).To(Receive(&r2))
+				Expect(r2.Changed).To(BeEmpty())
+
+				// File counters must NOT have changed
+				written, _ := os.ReadFile(absPath) // #nosec G304 -- test-only path
+				var fm map[string]interface{}
+				Expect(
+					yaml.Unmarshal([]byte(extractFrontmatterStr(string(written))), &fm),
+				).To(Succeed())
+				Expect(fm["trigger_count"]).To(BeNumerically("==", 2))
+				Expect(fm["retry_count"]).To(BeNumerically("==", 1))
+			},
+		)
+
+		It(
+			"emits counter reset exactly once even if the same empty→named transition is observed twice in consecutive scans",
+			func() {
+				taskID := "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+				absPath := filepath.Join(tmpDir, taskDir, "idempotent.md")
+				initialContent := "---\ntask_identifier: " + taskID + "\nstatus: in_progress\nphase: ai_review\nassignee: \ntrigger_count: 3\nretry_count: 2\n---\n# body\n"
+				Expect(os.WriteFile(absPath, []byte(initialContent), 0600)).To(Succeed())
+
+				// First scan: parked, no task
+				s.runCycle(ctx, results)
+				Expect(results).To(Receive())
+
+				// Operator re-delegates
+				delegatedContent := "---\ntask_identifier: " + taskID + "\nstatus: in_progress\nphase: ai_review\nassignee: claude\ntrigger_count: 3\nretry_count: 2\n---\n# body\n"
+				Expect(os.WriteFile(absPath, []byte(delegatedContent), 0600)).To(Succeed())
+
+				// Second scan: detects transition, writes reset once
+				s.runCycle(ctx, results)
+				Expect(results).To(Receive())
+
+				// Capture file state after first reset
+				afterFirstReset, _ := os.ReadFile(absPath) // #nosec G304 -- test-only path
+				var fm1 map[string]interface{}
+				Expect(
+					yaml.Unmarshal([]byte(extractFrontmatterStr(string(afterFirstReset))), &fm1),
+				).To(Succeed())
+				Expect(fm1["trigger_count"]).To(BeNumerically("==", 0))
+				Expect(fm1["retry_count"]).To(BeNumerically("==", 0))
+
+				// Third scan: zero-hash sentinel forces re-process, but prevEntry.assignee = "claude"
+				// → no second transition detected → no second reset
+				s.runCycle(ctx, results)
+				Expect(results).To(Receive())
+
+				// File content must be byte-identical to post-first-reset (no second write)
+				afterSecondScan, _ := os.ReadFile(absPath) // #nosec G304 -- test-only path
+				Expect(afterSecondScan).To(Equal(afterFirstReset))
+
+				var fm2 map[string]interface{}
+				Expect(
+					yaml.Unmarshal([]byte(extractFrontmatterStr(string(afterSecondScan))), &fm2),
+				).To(Succeed())
+				Expect(fm2["trigger_count"]).To(BeNumerically("==", 0))
+				Expect(fm2["retry_count"]).To(BeNumerically("==", 0))
+			},
+		)
+
+		It(
+			"does not reset counters on first scan of a file that already has a non-empty assignee",
+			func() {
+				taskID := "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+				absPath := filepath.Join(tmpDir, taskDir, "already-assigned.md")
+				content := "---\ntask_identifier: " + taskID + "\nstatus: in_progress\nphase: ai_review\nassignee: claude\ntrigger_count: 5\nretry_count: 4\n---\n# body\n"
+				Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+
+				// First scan ever — prevEntry.taskIdentifier == "" (zero value)
+				s.runCycle(ctx, results)
+				var r1 ScanResult
+				Expect(results).To(Receive(&r1))
+				Expect(r1.Changed).To(HaveLen(1))
+
+				// Counters must NOT have been reset
+				written, _ := os.ReadFile(absPath) // #nosec G304 -- test-only path
+				var fm map[string]interface{}
+				Expect(
+					yaml.Unmarshal([]byte(extractFrontmatterStr(string(written))), &fm),
+				).To(Succeed())
+				Expect(fm["trigger_count"]).To(BeNumerically("==", 5))
+				Expect(fm["retry_count"]).To(BeNumerically("==", 4))
+			},
+		)
 	})
 
 	Describe("processFile edge cases", func() {

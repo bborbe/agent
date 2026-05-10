@@ -37,6 +37,7 @@ type VaultScanner interface {
 type fileEntry struct {
 	hash           [32]byte
 	taskIdentifier lib.TaskIdentifier
+	assignee       lib.TaskAssignee
 }
 
 // fileOps holds pluggable file I/O functions so the scanner can operate over
@@ -154,7 +155,7 @@ func (v *vaultScanner) runCycle(ctx context.Context, results chan<- ScanResult) 
 	changed, deleted, written, writeError := v.scanFiles(ctx)
 
 	if len(written) > 0 && !writeError {
-		if err := v.gitClient.CommitAndPush(ctx, "[agent-task-controller] add task_identifier to tasks"); err != nil {
+		if err := v.gitClient.CommitAndPush(ctx, "[agent-task-controller] update task metadata"); err != nil {
 			glog.Warningf("git commit+push failed, skipping publish: %v", err)
 			return
 		}
@@ -231,26 +232,49 @@ func (v *vaultScanner) processFile(
 	}
 	frontmatter := lib.TaskFrontmatter(fmMap)
 	taskID, _ := fmMap["task_identifier"].(string)
+	currentFMAssignee := frontmatter.Assignee()
 	if taskID == "" {
-		return v.injectAndStore(ctx, content, relPath)
+		return v.injectAndStore(ctx, content, relPath, currentFMAssignee)
 	}
 	if !isValidUUID(taskID) {
 		glog.Warningf("replacing non-UUID task_identifier %q in %s", taskID, relPath)
-		return v.injectAndStore(ctx, removeTaskIdentifier(content), relPath)
+		return v.injectAndStore(ctx, removeTaskIdentifier(content), relPath, currentFMAssignee)
 	}
 	if !v.isIdentifierUnique(taskID, relPath) {
 		glog.Warningf("replacing duplicate task_identifier %q in %s", taskID, relPath)
-		return v.injectAndStore(ctx, removeTaskIdentifier(content), relPath)
+		return v.injectAndStore(ctx, removeTaskIdentifier(content), relPath, currentFMAssignee)
 	}
+	prevEntry := v.hashes[relPath]
+
+	// Detect empty → named assignee transition (operator re-delegated a parked task).
+	if currentFMAssignee != "" && prevEntry.taskIdentifier != "" && prevEntry.assignee == "" {
+		wrote, werr := v.writeCounterReset(ctx, relPath, content, fmMap)
+		if werr {
+			return nil, "", true
+		}
+		if wrote != "" {
+			// Store zero-hash sentinel so next scan re-processes and publishes the task.
+			// Store new assignee so the transition is not re-triggered on the next pass.
+			v.hashes[relPath] = fileEntry{
+				hash:           [32]byte{},
+				taskIdentifier: lib.TaskIdentifier(taskID),
+				assignee:       currentFMAssignee,
+			}
+			return nil, wrote, false
+		}
+	}
+
+	// Normal path: update stored entry with current state.
 	v.hashes[relPath] = fileEntry{
 		hash:           hash,
 		taskIdentifier: lib.TaskIdentifier(taskID),
+		assignee:       currentFMAssignee,
 	}
 	if frontmatter.Status() == "" {
 		glog.Warningf("skipping %s: invalid frontmatter: status is empty", relPath)
 		return nil, "", false
 	}
-	if frontmatter.Assignee() == "" {
+	if currentFMAssignee == "" {
 		return nil, "", false
 	}
 	body := extractBody(content)
@@ -278,12 +302,13 @@ func (v *vaultScanner) isIdentifierUnique(id string, relPath string) bool {
 }
 
 // injectAndStore generates a UUID, writes it into the file via ops.writeFile,
-// and records a sentinel hash entry.
+// and records a sentinel hash entry with the file's current assignee.
 // Returns (nil task, writtenRelPath, writeError).
 func (v *vaultScanner) injectAndStore(
 	ctx context.Context,
 	content []byte,
 	relPath string,
+	currentAssignee lib.TaskAssignee,
 ) (*lib.Task, string, bool) {
 	id := uuid.New().String()
 	newContent, injectErr := injectTaskIdentifier(content, id)
@@ -295,8 +320,45 @@ func (v *vaultScanner) injectAndStore(
 		glog.Warningf("failed to write %s: %v", relPath, writeErr)
 		return nil, "", true
 	}
-	v.hashes[relPath] = fileEntry{hash: [32]byte{}, taskIdentifier: lib.TaskIdentifier(id)}
+	v.hashes[relPath] = fileEntry{
+		hash:           [32]byte{},
+		taskIdentifier: lib.TaskIdentifier(id),
+		assignee:       currentAssignee,
+	}
 	return nil, relPath, false
+}
+
+// writeCounterReset rewrites the task file with trigger_count: 0 and retry_count: 0.
+// fmMap is the already-parsed frontmatter map for this file.
+// Returns (relPath, false) on success, ("", true) on write error.
+func (v *vaultScanner) writeCounterReset(
+	ctx context.Context,
+	relPath string,
+	content []byte,
+	fmMap map[string]interface{},
+) (string, bool) {
+	resetFm := make(map[string]interface{}, len(fmMap))
+	for k, val := range fmMap {
+		resetFm[k] = val
+	}
+	resetFm["trigger_count"] = 0
+	resetFm["retry_count"] = 0
+
+	newFmYAML, err := yaml.Marshal(resetFm)
+	if err != nil {
+		glog.Warningf("writeCounterReset: marshal failed for %s: %v", relPath, err)
+		return "", false
+	}
+
+	body := extractBody(content)
+	newContent := []byte("---\n" + string(newFmYAML) + "---\n" + body)
+
+	if writeErr := v.ops.writeFile(ctx, relPath, newContent); writeErr != nil {
+		glog.Warningf("writeCounterReset: write failed for %s: %v", relPath, writeErr)
+		return "", true
+	}
+	glog.V(2).Infof("writeCounterReset: reset trigger_count/retry_count for %s", relPath)
+	return relPath, false
 }
 
 func (v *vaultScanner) collectDeleted(seen map[string]struct{}) []lib.TaskIdentifier {

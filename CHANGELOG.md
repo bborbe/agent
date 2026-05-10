@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.60.0
+
+- feat: reset `trigger_count` and `retry_count` to 0 when vault scanner detects `assignee` transition from empty to named (operator re-delegation refills spawn budget automatically)
+- docs: update `task-flow-and-failure-semantics.md` and `controller-design.md` to document `assignee: ""` as single inbox signal and new escalation shape
+
 ## v0.59.0
 
 - feat: clear `assignee` to empty on all escalation paths (trigger cap, retry cap, needs_input) so parked tasks surface in operator inbox by assignee filter

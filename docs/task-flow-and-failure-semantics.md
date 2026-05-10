@@ -21,9 +21,16 @@ Related specs:
 | **AgentStatus** | What the agent reports: `done`, `failed`, or `needs_input` |
 | **Phase** | Task lifecycle step: `planning` → `in_progress` → (`ai_review` | `done` | `human_review`) |
 | **Trigger counter** | `trigger_count` frontmatter field, incremented atomically by the controller on every spawn-trigger event via `IncrementFrontmatterCommand`. Counts spawn-trigger attempts independent of job outcome. |
-| **Max triggers** | `max_triggers` frontmatter field (default 3). When `trigger_count >= max_triggers`, the executor skips further spawns and the controller escalates phase to `human_review` on the same increment. |
+| **Max triggers** | `max_triggers` frontmatter field (default 3). When `trigger_count >= max_triggers`, the executor skips further spawns and the controller clears `assignee` to `""` — the lifecycle phase is left at the stage where the cap fired (spec 021). |
 | **Retry counter** | `retry_count` frontmatter field. Removed as of spec 016 — `PublishRetryCountBump` deleted from executor; `retry_count` still readable in existing task files but is no longer written. |
-| **Escalation** | Controller flips phase to `human_review` once `trigger_count >= max_triggers` (spec 015) or on terminal agent outcome (`needs_input`, `done`). |
+| **Escalation** | Controller clears `assignee` to `""` on every escalation path (trigger cap, retry cap, `needs_input`) so the task surfaces in operator inbox. For `needs_input` the controller also sets `phase: human_review`. For cap escalations the lifecycle phase is left at the stage where the cap fired (`planning`, `in_progress`, or `ai_review`). Reference: spec 021. |
+
+## Inbox Signal (spec 021)
+
+`assignee == ""` is the single canonical signal for "task needs attention". Operator boards and tooling that surface unclaimed work should filter on `assignee`, not on `phase`.
+
+- `phase: human_review` means a human must do the actual work (agent emitted `needs_input`).
+- `phase: ai_review` / `in_progress` / `planning` with `assignee: ""` means an agent hit a cap; fix the underlying issue and re-delegate by setting `assignee` to an agent name.
 
 ## Status Taxonomy
 
@@ -88,7 +95,7 @@ default (failed):
     phase  = ai_review           ← re-enters executor allowlist
     retry_count: unchanged        ← executor already bumped it at spawn time (spec 011)
     if retry_count >= max_retries:
-        phase = human_review     ← escalated
+        assignee = ""            ← escalated; phase stays at ai_review (spec 021)
 }
 ```
 
@@ -119,9 +126,9 @@ default (failed):
 ### Agent emits `failed` (infra, exceeds max)
 
 1. Runs 1..N all emit `failed`.
-2. On run N, `retry_count >= max_retries` → controller flips to `phase: human_review` + appends `## Retry Escalation` section.
-3. Executor stops re-spawning.
-4. Human investigates the infra/prompt.
+2. On run N, `retry_count >= max_retries` → controller clears `assignee: ""`, leaves phase at `ai_review`, appends `## Retry Escalation` section (spec 021).
+3. Executor stops re-spawning (no assignee match).
+4. Human investigates the infra/prompt, then re-delegates by setting `assignee`.
 
 ### Silent infra failure (spec 009)
 
