@@ -120,7 +120,7 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 	}
 
 	merged := mergeFrontmatter(existingFrontmatter, req.Frontmatter)
-	body := r.applyRetryCounter(merged, string(req.Content))
+	body := r.applyRetryCounter(merged, existingFrontmatter, string(req.Content))
 
 	marshaledFrontmatter, err := yaml.Marshal(map[string]any(merged))
 	if err != nil {
@@ -147,7 +147,7 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 	return nil
 }
 
-func (r *resultWriter) applyRetryCounter(merged lib.TaskFrontmatter, body string) string {
+func (r *resultWriter) applyRetryCounter(merged, existing lib.TaskFrontmatter, body string) string {
 	if string(merged.Status()) == "completed" {
 		return body
 	}
@@ -164,12 +164,7 @@ func (r *resultWriter) applyRetryCounter(merged lib.TaskFrontmatter, body string
 	// ai_review). The triggerCount > 0 guard prevents degenerate
 	// escalation of brand-new tasks where trigger_count is absent.
 	triggerCount := merged.TriggerCount()
-	if triggerCount > 0 && triggerCount >= merged.MaxTriggers() {
-		merged["phase"] = "human_review"
-		if !containsEscalationSection(body, "## Trigger Cap Escalation") {
-			body += r.triggerEscalationSection(triggerCount, merged)
-		}
-	}
+	body = r.applyTriggerCap(merged, existing, triggerCount, body)
 
 	if merged.SpawnNotification() {
 		delete(merged, "spawn_notification")
@@ -179,27 +174,77 @@ func (r *resultWriter) applyRetryCounter(merged lib.TaskFrontmatter, body string
 	// retry_count is authoritative in the task file — the executor bumped it
 	// at spawn time (spec 011). The writer only applies escalation.
 	retryCount := merged.RetryCount()
-	if retryCount >= merged.MaxRetries() {
-		merged["phase"] = "human_review"
-		if !containsEscalationSection(body, "## Retry Escalation") {
-			body += r.escalationSection(retryCount, merged)
-		}
+	body = r.applyRetryCap(merged, existing, retryCount, body)
+
+	// needs_input: agent explicitly requested human review — clear assignee so task surfaces in operator inbox
+	if phase, ok := merged["phase"].(string); ok && phase == "human_review" {
+		merged["assignee"] = ""
 	}
+
 	return body
 }
 
-func (r *resultWriter) escalationSection(retryCount int, merged lib.TaskFrontmatter) string {
+// applyTriggerCap enforces the trigger-count cap. The triggerCount > 0 guard prevents
+// degenerate escalation of brand-new tasks where trigger_count is absent. When the task
+// is already parked (section present), existing.Phase() restores the on-disk lifecycle
+// phase to prevent stale-result phase clobber (cap stickiness).
+func (r *resultWriter) applyTriggerCap(
+	merged, existing lib.TaskFrontmatter,
+	triggerCount int,
+	body string,
+) string {
+	if triggerCount == 0 || triggerCount < merged.MaxTriggers() {
+		return body
+	}
+	agentName := string(merged.Assignee()) // capture before clear
+	merged["assignee"] = ""
+	if containsEscalationSection(body, "## Trigger Cap Escalation") {
+		restoreExistingPhase(existing, merged)
+		return body
+	}
+	return body + r.triggerEscalationSection(triggerCount, agentName, merged)
+}
+
+// applyRetryCap enforces the retry-count cap. When the task is already parked (section
+// present), existing.Phase() restores the on-disk lifecycle phase (cap stickiness).
+func (r *resultWriter) applyRetryCap(
+	merged, existing lib.TaskFrontmatter,
+	retryCount int,
+	body string,
+) string {
+	if retryCount < merged.MaxRetries() {
+		return body
+	}
+	agentName := string(merged.Assignee()) // capture before clear
+	merged["assignee"] = ""
+	if containsEscalationSection(body, "## Retry Escalation") {
+		restoreExistingPhase(existing, merged)
+		return body
+	}
+	return body + r.escalationSection(retryCount, agentName)
+}
+
+// restoreExistingPhase writes the on-disk phase back into merged when the existing
+// frontmatter has a phase value. Used to enforce cap stickiness on repeated writes.
+func restoreExistingPhase(existing, merged lib.TaskFrontmatter) {
+	if p := existing.Phase(); p != nil {
+		merged["phase"] = string(*p)
+	}
+}
+
+func (r *resultWriter) escalationSection(retryCount int, agentName string) string {
 	ts := r.currentDateTime.Now().UTC().Format(time.RFC3339)
 	return fmt.Sprintf(
 		"\n## Retry Escalation\n\n- **Timestamp:** %s\n- **Attempts:** %d\n- **Assignee:** %s\n- **Last error:** see agent output above\n",
 		ts,
 		retryCount,
-		string(merged.Assignee()),
+		agentName,
 	)
 }
 
 func (r *resultWriter) triggerEscalationSection(
 	triggerCount int,
+	agentName string,
 	merged lib.TaskFrontmatter,
 ) string {
 	ts := r.currentDateTime.Now().UTC().Format(time.RFC3339)
@@ -208,7 +253,7 @@ func (r *resultWriter) triggerEscalationSection(
 		ts,
 		triggerCount,
 		merged.MaxTriggers(),
-		string(merged.Assignee()),
+		agentName,
 	)
 }
 

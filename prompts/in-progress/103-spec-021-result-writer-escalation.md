@@ -1,6 +1,7 @@
 ---
-status: executing
+status: committing
 spec: [021-clear-assignee-on-escalation-and-reset-trigger-count-on-redelegation]
+summary: Modified result_writer.go to clear assignee on all escalation paths and preserve lifecycle phase on cap escalations; refactored into applyTriggerCap/applyRetryCap helpers; updated and extended tests to 94.1% coverage; updated CHANGELOG.md
 container: agent-103-spec-021-result-writer-escalation
 dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-10T16:45:00Z"

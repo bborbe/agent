@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.59.0
+
+- feat: clear `assignee` to empty on all escalation paths (trigger cap, retry cap, needs_input) so parked tasks surface in operator inbox by assignee filter
+- feat: preserve lifecycle phase on cap escalations — trigger-count and retry-count cap no longer overwrite phase to `human_review`; phase stays at the stage where the cap fired
+
 ## v0.58.1
 
 - chore: bump Go toolchain 1.26.2 → 1.26.3 across all modules (stdlib CVE fixes GO-2026-4918, GO-2026-4971)

@@ -134,11 +134,21 @@ Wrapping an error with `cdb.ErrCommandObjectSkipped` tells the framework to sile
 
 ### Status Mapping
 
-| Agent Outcome | Task Status | Task Phase |
-|---------------|-------------|------------|
-| Success | completed | done |
-| Needs human input | in_progress | human_review |
-| Failed (recoverable) | in_progress | human_review |
+> **Doctrine update (2026-05-10):** `assignee: ""` is the inbox signal, not `phase: human_review`. See [[Agent Pipeline Concept#Two orthogonal axes]]. `phase: human_review` is reserved for genuine human-style work; transient failures empty the assignee but leave phase as-was so the operator inbox surfaces them at the correct lifecycle stage.
+
+| Agent Outcome | status | phase | assignee |
+|---------------|--------|-------|----------|
+| Success | completed | done | (unchanged) |
+| Needs human input (genuine) | in_progress | human_review | `""` |
+| Failed transient — cap reached | in_progress | (unchanged from before failure) | `""` |
+| Untrusted-author at creation | todo | human_review | `""` |
+
+Empty `assignee` is the visibility flag for every escalation surface (boards, notifications, inbox queries). The phase tells the operator *what kind of intervention* is needed:
+
+- `phase ∈ {planning, in_progress, ai_review}` + empty assignee → "agent stopped mid-flight, fix the underlying issue and re-delegate"
+- `phase: human_review` + empty assignee → "human, do this work yourself"
+
+When the operator transitions assignee from empty back to an agent name, the controller resets `trigger_count: 0` so the per-attempt retry budget refills.
 
 ## Content Sanitization
 

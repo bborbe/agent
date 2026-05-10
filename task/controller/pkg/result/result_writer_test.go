@@ -511,7 +511,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 			})
 
 			It(
-				"escalates to human_review when retry_count (set by executor) meets default max_retries",
+				"escalates when retry_count (set by executor) meets default max_retries, preserving lifecycle phase",
 				func() {
 					writeTaskFile(
 						"my-task.md",
@@ -531,10 +531,19 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
 					s := string(written)
 					Expect(s).To(ContainSubstring("retry_count: 3")) // unchanged — executor set it
-					Expect(s).To(ContainSubstring("phase: human_review"))
+					// phase preserved at lifecycle stage where cap fired (not overwritten to human_review)
+					Expect(s).To(ContainSubstring("phase: ai_review"))
+					Expect(s).NotTo(ContainSubstring("phase: human_review"))
 					Expect(s).To(ContainSubstring("## Retry Escalation"))
 					Expect(s).To(ContainSubstring("**Attempts:** 3"))
-					Expect(s).To(ContainSubstring("**Assignee:** claude"))
+					Expect(
+						s,
+					).To(ContainSubstring("**Assignee:** claude"))
+					// section text records pre-clear agent
+					Expect(
+						s,
+					).NotTo(ContainSubstring("assignee: claude"))
+					// frontmatter assignee cleared
 					Expect(s).To(ContainSubstring("2026-04-18T12:00:00Z"))
 				},
 			)
@@ -563,7 +572,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 			})
 
 			It(
-				"escalates immediately when retry_count (set by executor) meets max_retries 0",
+				"escalates immediately when retry_count (set by executor) meets max_retries 0, preserving lifecycle phase",
 				func() {
 					writeTaskFile(
 						"my-task.md",
@@ -584,8 +593,14 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
 					s := string(written)
 					Expect(s).To(ContainSubstring("retry_count: 1")) // unchanged
-					Expect(s).To(ContainSubstring("phase: human_review"))
+					// phase preserved at lifecycle stage where cap fired
+					Expect(s).To(ContainSubstring("phase: ai_review"))
+					Expect(s).NotTo(ContainSubstring("phase: human_review"))
 					Expect(s).To(ContainSubstring("## Retry Escalation"))
+					Expect(
+						s,
+					).NotTo(ContainSubstring("assignee: claude"))
+					// frontmatter assignee cleared
 				},
 			)
 
@@ -611,6 +626,84 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				Expect(s).To(ContainSubstring("retry_count: 3")) // unchanged — 3 < 5, no escalation
 				Expect(s).NotTo(ContainSubstring("human_review"))
 				Expect(s).NotTo(ContainSubstring("Retry Escalation"))
+			})
+
+			It("writes assignee: empty and preserves phase: ai_review at retry cap", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\nretry_count: 3\nassignee: claude\n---\n## Result\nStatus: failed\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "ai_review",
+						"retry_count":     3,
+						"assignee":        "claude",
+					},
+					Content: lib.TaskContent("## Result\nStatus: failed\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("phase: ai_review"))
+				Expect(s).NotTo(ContainSubstring("phase: human_review"))
+				Expect(s).NotTo(ContainSubstring("assignee: claude"))
+				Expect(s).To(ContainSubstring("**Assignee:** claude"))
+				Expect(s).To(ContainSubstring("## Retry Escalation"))
+			})
+
+			It("writes assignee: empty and preserves phase: in_progress at retry cap", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: in_progress\nretry_count: 3\nassignee: claude\n---\n## Result\nStatus: failed\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "in_progress",
+						"retry_count":     3,
+						"assignee":        "claude",
+					},
+					Content: lib.TaskContent("## Result\nStatus: failed\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("phase: in_progress"))
+				Expect(s).NotTo(ContainSubstring("phase: human_review"))
+				Expect(s).NotTo(ContainSubstring("assignee: claude"))
+				Expect(s).To(ContainSubstring("**Assignee:** claude"))
+				Expect(s).To(ContainSubstring("## Retry Escalation"))
+			})
+
+			It("writes assignee: empty and preserves phase: planning at retry cap", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: planning\nretry_count: 3\nassignee: claude\n---\n## Result\nStatus: failed\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "planning",
+						"retry_count":     3,
+						"assignee":        "claude",
+					},
+					Content: lib.TaskContent("## Result\nStatus: failed\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("phase: planning"))
+				Expect(s).NotTo(ContainSubstring("phase: human_review"))
+				Expect(s).NotTo(ContainSubstring("assignee: claude"))
+				Expect(s).To(ContainSubstring("**Assignee:** claude"))
+				Expect(s).To(ContainSubstring("## Retry Escalation"))
 			})
 		})
 
@@ -695,6 +788,8 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					// no escalation section — needs_input is not an infra failure
 					Expect(s).NotTo(ContainSubstring("## Retry Escalation"))
 					Expect(s).To(ContainSubstring("No trades found"))
+					// assignee cleared — task surfaces in operator inbox
+					Expect(s).NotTo(ContainSubstring("assignee: claude"))
 				},
 			)
 
@@ -721,8 +816,33 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					Expect(s).To(ContainSubstring("retry_count: 2"))
 					Expect(s).To(ContainSubstring("phase: human_review"))
 					Expect(s).NotTo(ContainSubstring("## Retry Escalation"))
+					// assignee remains empty (already cleared by prior write)
+					Expect(s).NotTo(ContainSubstring("assignee: claude"))
 				},
 			)
+
+			It("clears assignee when agent emits needs_input (phase: human_review)", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\nassignee: claude\n---\nOriginal body\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "human_review",
+					},
+					Content: lib.TaskContent("Needs human input.\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("phase: human_review"))
+				Expect(s).NotTo(ContainSubstring("assignee: claude"))
+				Expect(s).NotTo(ContainSubstring("## Retry Escalation"))
+				Expect(s).NotTo(ContainSubstring("## Trigger Cap Escalation"))
+			})
 		})
 
 		Context("trigger_count cap escalation", func() {
@@ -753,10 +873,12 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				"keeps phase: human_review sticky when incoming payload carries stale phase: ai_review at cap",
 				func() {
 					// Encodes the live dev bug: task ba1bad61 — IncrementFrontmatterExecutor
-					// escalated correctly, then agent's stale result-publish clobbered it.
+					// escalated correctly (task parked with section on disk), then agent's stale
+					// result-publish clobbered phase. Disk has section → existing.Phase() restores.
+					existingEscalationBody := "\n## Trigger Cap Escalation\n\n- **Timestamp:** 2026-04-18T11:00:00Z\n- **Trigger count:** 3\n- **Max triggers:** 3\n- **Assignee:** claude\n- **Last agent output:** see `## Result` above\n"
 					writeTaskFile(
 						"my-task.md",
-						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: human_review\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\n---\n",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: human_review\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\n---\n"+existingEscalationBody,
 					)
 					taskFile = lib.Task{
 						TaskIdentifier: identifier,
@@ -769,7 +891,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 							"assignee":        "claude",
 						},
 						Content: lib.TaskContent(
-							"## Result\nStatus: failed\nMessage: gh auth failed\n",
+							"## Result\nStatus: failed\nMessage: gh auth failed\n" + existingEscalationBody,
 						),
 					}
 					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
@@ -781,6 +903,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					Expect(strings.Count(s, "## Trigger Cap Escalation")).To(Equal(1))
 					Expect(s).To(ContainSubstring("Status: failed"))
 					Expect(s).To(ContainSubstring("gh auth failed"))
+					Expect(s).NotTo(ContainSubstring("assignee: claude")) // assignee cleared
 				},
 			)
 
@@ -809,6 +932,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					s := string(written)
 					Expect(strings.Count(s, "## Trigger Cap Escalation")).To(Equal(1))
 					Expect(s).To(ContainSubstring("phase: human_review"))
+					Expect(s).NotTo(ContainSubstring("assignee: claude")) // assignee cleared
 				},
 			)
 
@@ -838,20 +962,21 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 			)
 
 			It(
-				"keeps phase: human_review sticky and appends Trigger Cap Escalation even when merged frontmatter carries inherited spawn_notification=true",
+				"keeps phase: human_review sticky despite inherited spawn_notification=true at already-parked task",
 				func() {
 					// Encodes the live-dev failure from task ba1bad61-5ad4-48e7-ad05-e15ba8dfbfb9
 					// (controller v0.52.4, commit 1a1c570): executor's IncrementFrontmatterExecutor
-					// wrote phase: human_review at cap; spawn-notification update then wrote
-					// spawn_notification: true to the file; the agent's subsequent result publish
-					// called WriteResult with phase: ai_review — mergeFrontmatter preserved the
-					// spawn_notification: true from disk, the pre-reorder applyRetryCounter hit
-					// the SpawnNotification() early return before reaching the cap check, and the
-					// file landed with phase: ai_review (regression). Post-reorder, the cap check
-					// runs first, enforcing phase: human_review unconditionally.
+					// wrote phase: human_review at cap (task parked, section on disk);
+					// spawn-notification update then wrote spawn_notification: true to the file;
+					// the agent's subsequent result publish called WriteResult with phase: ai_review
+					// — mergeFrontmatter preserved spawn_notification: true from disk, the
+					// pre-reorder applyRetryCounter hit the SpawnNotification() early return before
+					// reaching the cap check, and the file landed with phase: ai_review (regression).
+					// Post-reorder, the cap check runs first; existing.Phase() restores human_review.
+					existingEscalationBody := "\n## Trigger Cap Escalation\n\n- **Timestamp:** 2026-04-18T11:00:00Z\n- **Trigger count:** 3\n- **Max triggers:** 3\n- **Assignee:** claude\n- **Last agent output:** see `## Result` above\n"
 					writeTaskFile(
 						"my-task.md",
-						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: human_review\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\nspawn_notification: true\n---\n## Result\nStatus: failed\nMessage: previous run\n",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: human_review\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\nspawn_notification: true\n---\n## Result\nStatus: failed\nMessage: previous run\n"+existingEscalationBody,
 					)
 					taskFile = lib.Task{
 						TaskIdentifier: identifier,
@@ -861,7 +986,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 							"phase":           "ai_review", // stale — agent did not observe escalation
 						},
 						Content: lib.TaskContent(
-							"## Result\nStatus: failed\nMessage: gh auth failed\n",
+							"## Result\nStatus: failed\nMessage: gh auth failed\n" + existingEscalationBody,
 						),
 					}
 					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
@@ -875,11 +1000,13 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					Expect(s).To(ContainSubstring("max_triggers: 3"))
 					// spawn_notification consumed (deleted) by the branch after cap enforcement
 					Expect(s).NotTo(ContainSubstring("spawn_notification"))
-					// escalation section present exactly once
+					// escalation section present exactly once (not duplicated)
 					Expect(strings.Count(s, "## Trigger Cap Escalation")).To(Equal(1))
 					// agent's fresh result content is present
 					Expect(s).To(ContainSubstring("Status: failed"))
 					Expect(s).To(ContainSubstring("gh auth failed"))
+					// assignee cleared
+					Expect(s).NotTo(ContainSubstring("assignee: claude"))
 				},
 			)
 
@@ -907,6 +1034,156 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					s := string(written)
 					Expect(strings.Count(s, "## Retry Escalation")).To(Equal(1))
 					Expect(s).To(ContainSubstring("phase: human_review"))
+					Expect(s).NotTo(ContainSubstring("assignee: claude")) // assignee cleared
+				},
+			)
+
+			It("writes assignee: empty and preserves phase: ai_review at trigger cap", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\n---\n## Result\nStatus: failed\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "ai_review",
+						"trigger_count":   3,
+						"max_triggers":    3,
+						"assignee":        "claude",
+					},
+					Content: lib.TaskContent("## Result\nStatus: failed\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("phase: ai_review"))
+				Expect(s).NotTo(ContainSubstring("phase: human_review"))
+				Expect(s).NotTo(ContainSubstring("assignee: claude"))
+				Expect(s).To(ContainSubstring("**Assignee:** claude"))
+				Expect(s).To(ContainSubstring("## Trigger Cap Escalation"))
+			})
+
+			It("writes assignee: empty and preserves phase: in_progress at trigger cap", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: in_progress\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\n---\n## Result\nStatus: failed\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "in_progress",
+						"trigger_count":   3,
+						"max_triggers":    3,
+						"assignee":        "claude",
+					},
+					Content: lib.TaskContent("## Result\nStatus: failed\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("phase: in_progress"))
+				Expect(s).NotTo(ContainSubstring("phase: human_review"))
+				Expect(s).NotTo(ContainSubstring("assignee: claude"))
+				Expect(s).To(ContainSubstring("**Assignee:** claude"))
+				Expect(s).To(ContainSubstring("## Trigger Cap Escalation"))
+			})
+
+			It("writes assignee: empty and preserves phase: planning at trigger cap", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: planning\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\n---\n## Result\nStatus: failed\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "planning",
+						"trigger_count":   3,
+						"max_triggers":    3,
+						"assignee":        "claude",
+					},
+					Content: lib.TaskContent("## Result\nStatus: failed\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				s := string(written)
+				Expect(s).To(ContainSubstring("phase: planning"))
+				Expect(s).NotTo(ContainSubstring("phase: human_review"))
+				Expect(s).NotTo(ContainSubstring("assignee: claude"))
+				Expect(s).To(ContainSubstring("**Assignee:** claude"))
+				Expect(s).To(ContainSubstring("## Trigger Cap Escalation"))
+			})
+
+			It(
+				"keeps assignee empty and phase unchanged when stale result arrives at already-parked task",
+				func() {
+					existingEscalationBody := "\n## Trigger Cap Escalation\n\n- **Timestamp:** 2026-04-18T11:00:00Z\n- **Trigger count:** 3\n- **Max triggers:** 3\n- **Assignee:** claude\n- **Last agent output:** see `## Result` above\n"
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\ntrigger_count: 3\nmax_triggers: 3\nassignee: \"\"\n---\n"+existingEscalationBody,
+					)
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "planning", // stale different phase
+							"trigger_count":   3,
+							"max_triggers":    3,
+							"assignee":        "claude", // stale assignee
+						},
+						Content: lib.TaskContent(
+							"## Result\nStatus: failed\n" + existingEscalationBody,
+						),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					// phase must be restored to disk's ai_review (not stale planning)
+					Expect(s).To(ContainSubstring("phase: ai_review"))
+					Expect(s).NotTo(ContainSubstring("phase: planning"))
+					// assignee must remain empty (stale claude not revived)
+					Expect(s).NotTo(ContainSubstring("assignee: claude"))
+					// escalation section count stays at 1
+					Expect(strings.Count(s, "## Trigger Cap Escalation")).To(Equal(1))
+				},
+			)
+
+			It(
+				"escalation section body records the agent name active at escalation time, not the cleared value",
+				func() {
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\n---\n## Result\nStatus: failed\n",
+					)
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "ai_review",
+							"trigger_count":   3,
+							"max_triggers":    3,
+							"assignee":        "claude",
+						},
+						Content: lib.TaskContent("## Result\nStatus: failed\n"),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					Expect(
+						s,
+					).To(ContainSubstring("**Assignee:** claude"))
+					// section text records pre-clear agent
+					Expect(
+						s,
+					).NotTo(ContainSubstring("assignee: claude"))
+					// frontmatter field is cleared
 				},
 			)
 		})
@@ -984,6 +1261,82 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 			_, glob := fakeGC.ListFilesArgsForCall(0)
 			Expect(glob).To(Equal("tasks/*.md"))
 			Expect(fakeGC.ReadFileCallCount()).To(BeNumerically(">=", 1))
+		})
+
+		It("returns empty path when no file matches", func() {
+			fakeGC := &mocks.FakeGitClient{}
+			fakeGC.ListFilesReturns([]string{"tasks/a.md"}, nil)
+			fakeGC.ReadFileReturnsOnCall(0, []byte("---\ntask_identifier: other\n---\n"), nil)
+
+			matchedRelPath, fm, err := result.FindTaskFilePath(ctx, fakeGC, "tasks", "missing")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(matchedRelPath).To(Equal(""))
+			Expect(fm).To(BeNil())
+		})
+
+		It("skips files that fail to read", func() {
+			fakeGC := &mocks.FakeGitClient{}
+			fakeGC.ListFilesReturns([]string{"tasks/bad.md", "tasks/good.md"}, nil)
+			fakeGC.ReadFileReturnsOnCall(0, nil, errTest)
+			fakeGC.ReadFileReturnsOnCall(1, []byte("---\ntask_identifier: target\n---\n"), nil)
+
+			matchedRelPath, _, err := result.FindTaskFilePath(ctx, fakeGC, "tasks", "target")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(matchedRelPath).To(Equal("tasks/good.md"))
+		})
+
+		It("skips files with invalid frontmatter", func() {
+			fakeGC := &mocks.FakeGitClient{}
+			fakeGC.ListFilesReturns([]string{"tasks/bad.md", "tasks/good.md"}, nil)
+			fakeGC.ReadFileReturnsOnCall(0, []byte("no frontmatter here"), nil)
+			fakeGC.ReadFileReturnsOnCall(1, []byte("---\ntask_identifier: target\n---\n"), nil)
+
+			matchedRelPath, _, err := result.FindTaskFilePath(ctx, fakeGC, "tasks", "target")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(matchedRelPath).To(Equal("tasks/good.md"))
+		})
+
+		It("returns error when ListFiles fails", func() {
+			fakeGC := &mocks.FakeGitClient{}
+			fakeGC.ListFilesReturns(nil, errTest)
+
+			_, _, err := result.FindTaskFilePath(ctx, fakeGC, "tasks", "any")
+			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	Describe("ExtractBody", func() {
+		It("returns body after frontmatter delimiter", func() {
+			content := []byte("---\nkey: value\n---\nbody content here\n")
+			body, err := result.ExtractBody(ctx, content)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(body).To(Equal("body content here\n"))
+		})
+
+		It("returns empty string when body is empty", func() {
+			content := []byte("---\nkey: value\n---\n")
+			body, err := result.ExtractBody(ctx, content)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(body).To(Equal(""))
+		})
+
+		It("returns error when no frontmatter delimiter", func() {
+			content := []byte("no delimiter here")
+			_, err := result.ExtractBody(ctx, content)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("returns error when frontmatter is not closed", func() {
+			content := []byte("---\nkey: value\n")
+			_, err := result.ExtractBody(ctx, content)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("handles CRLF line endings after opening delimiter", func() {
+			content := []byte("---\r\nkey: value\n---\nbody\n")
+			body, err := result.ExtractBody(ctx, content)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(body).To(Equal("body\n"))
 		})
 	})
 })
