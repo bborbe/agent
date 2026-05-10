@@ -1,7 +1,11 @@
 ---
-status: draft
+status: executing
 spec: [022-agent-config-task-type-field]
+container: agent-105-spec-022-tasktype-field
+dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-10T20:50:00Z"
+queued: "2026-05-10T20:51:23Z"
+started: "2026-05-10T20:51:24Z"
 branch: dark-factory/agent-config-task-type-field
 ---
 
@@ -165,11 +169,11 @@ return apiextensionsv1.JSONSchemaProps{
    ```
    Must return at least one match.
 
-   Verify no codegen drift is left uncommitted:
+   Verify no codegen drift is left uncommitted (run from repo root, no `cd`):
    ```bash
-   cd task/executor && git diff --exit-code task/executor/k8s/
+   git diff --exit-code -- task/executor/k8s/
    ```
-   Must exit 0 after staging the generated files (or exit 0 if nothing changed in deepcopy).
+   Must exit 0. (dark-factory commits the result; the prompt only needs to verify the tree is in a consistent post-codegen state.)
 
    Then run `make ensure` to tidy modules:
    ```bash
@@ -421,7 +425,7 @@ return apiextensionsv1.JSONSchemaProps{
 - `ConfigSpec.Equal` and `ConfigSpec.Validate` must BOTH be updated in the same commit as the type change — omitting either breaks the controller informer or admission flow.
 - `make generatek8s` is the only sanctioned way to regenerate `applyconfiguration/` and `zz_generated.deepcopy.go`. Do NOT hand-edit any file whose first line contains `// Code generated`.
 - Run `make generatek8s` BEFORE `make precommit` — codegen is not called by precommit.
-- After `make generatek8s`, verify `git diff --exit-code task/executor/k8s/` exits 0 (no uncommitted drift). If drift exists, stage the generated files.
+- After `make generatek8s`, verify `git diff --exit-code -- task/executor/k8s/` (from repo root) exits 0. Any drift means codegen and committed files disagree — fix the source then re-run codegen.
 - Do NOT touch `task/controller/`, `prompt/`, `lib/`, or any agent other than `agent/claude/`.
 - Do NOT edit manifests in sibling repos (trading, maintainer) — out of scope for this spec.
 - Error wrapping: `github.com/bborbe/errors` — never `fmt.Errorf`.
@@ -456,9 +460,9 @@ grep -n "WithTaskType" task/executor/k8s/client/applyconfiguration/agent.benjami
 ```
 Expected: method definition.
 
-Verify no codegen drift:
+Verify no codegen drift (run from repo root):
 ```bash
-cd task/executor && git diff --exit-code task/executor/k8s/
+git diff --exit-code -- task/executor/k8s/
 ```
 Expected: exit 0.
 
