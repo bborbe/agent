@@ -14,6 +14,7 @@ metadata:
   namespace: dev
 spec:
   assignee: backtest-agent        # matches task assignee field
+  taskType: backtest              # task_type value in task frontmatter
   image: backtest-agent:latest    # container image for K8s Job
   heartbeat: 15m                  # re-spawn interval for in_progress tasks
   resources:
@@ -29,7 +30,7 @@ spec:
 
 | Component | Uses | For |
 |-----------|------|-----|
-| Controller | `spec.assignee`, `spec.heartbeat` | Match tasks, enforce heartbeat |
+| Controller | `spec.assignee`, `spec.heartbeat`, `spec.taskType` | Match tasks, enforce heartbeat |
 | Job Creator | `spec.image`, `spec.resources`, `spec.env`, `spec.secretName`, `spec.volumeClaim`, `spec.volumeMountPath` | Spawn K8s Job with correct image/limits/env/secret/volume |
 
 ## Fields
@@ -39,6 +40,7 @@ spec:
 | `spec.assignee` | yes | Matches the `assignee` field in task frontmatter |
 | `spec.image` | yes | Docker image for the K8s Job (tag appended at runtime from branch) |
 | `spec.heartbeat` | yes | Interval between re-spawns for `in_progress` tasks |
+| `spec.taskType` | yes | Task type this agent handles; must match `^[a-z0-9-]+$`, max 63 chars (e.g. `claude`, `pr-review`, `trade-analysis`). Matches the `task_type` key in task frontmatter. |
 | `spec.resources` | no | CPU/memory/storage requests for the job pod |
 | `spec.env` | no | Per-agent environment variables, merged with shared vars (`TASK_CONTENT`, `TASK_ID`, `KAFKA_BROKERS`, `BRANCH`) |
 | `spec.secretName` | no | Name of an existing K8s Secret mounted on the container via `envFrom` |

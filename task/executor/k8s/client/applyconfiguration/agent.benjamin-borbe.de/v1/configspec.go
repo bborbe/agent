@@ -16,6 +16,8 @@ type ConfigSpecApplyConfiguration struct {
 	Image *string `json:"image,omitempty"`
 	// Heartbeat is the interval at which the agent re-spawns (e.g. "30m").
 	Heartbeat *string `json:"heartbeat,omitempty"`
+	// TaskType is the task_type value in task frontmatter that routes to this agent.
+	TaskType *string `json:"taskType,omitempty"`
 	// Resources holds optional resource requests for the agent container.
 	Resources *AgentResourcesApplyConfiguration `json:"resources,omitempty"`
 	// Env holds per-agent environment variables.
@@ -59,6 +61,14 @@ func (b *ConfigSpecApplyConfiguration) WithImage(value string) *ConfigSpecApplyC
 // If called multiple times, the Heartbeat field is set to the value of the last call.
 func (b *ConfigSpecApplyConfiguration) WithHeartbeat(value string) *ConfigSpecApplyConfiguration {
 	b.Heartbeat = &value
+	return b
+}
+
+// WithTaskType sets the TaskType field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the TaskType field is set to the value of the last call.
+func (b *ConfigSpecApplyConfiguration) WithTaskType(value string) *ConfigSpecApplyConfiguration {
+	b.TaskType = &value
 	return b
 }
 

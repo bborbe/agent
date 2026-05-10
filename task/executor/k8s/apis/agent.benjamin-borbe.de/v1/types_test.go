@@ -7,6 +7,7 @@ package v1_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	libk8s "github.com/bborbe/k8s"
@@ -123,6 +124,7 @@ var _ = Describe("Config", func() {
 					Assignee:  "claude",
 					Image:     "registry/agent-claude",
 					Heartbeat: "30m",
+					TaskType:  "claude",
 				},
 			}
 			Expect(a.Validate(ctx)).To(BeNil())
@@ -143,6 +145,7 @@ var _ = Describe("ConfigSpec", func() {
 				Assignee:  "claude",
 				Image:     "registry/agent-claude",
 				Heartbeat: "30m",
+				TaskType:  "claude",
 			}
 			Expect(s.Validate(ctx)).To(BeNil())
 		})
@@ -151,6 +154,7 @@ var _ = Describe("ConfigSpec", func() {
 			s := agentv1.ConfigSpec{
 				Image:     "registry/agent-claude",
 				Heartbeat: "30m",
+				TaskType:  "claude",
 			}
 			err := s.Validate(ctx)
 			Expect(err).To(HaveOccurred())
@@ -161,6 +165,7 @@ var _ = Describe("ConfigSpec", func() {
 			s := agentv1.ConfigSpec{
 				Assignee:  "claude",
 				Heartbeat: "30m",
+				TaskType:  "claude",
 			}
 			err := s.Validate(ctx)
 			Expect(err).To(HaveOccurred())
@@ -171,6 +176,7 @@ var _ = Describe("ConfigSpec", func() {
 			s := agentv1.ConfigSpec{
 				Assignee: "claude",
 				Image:    "registry/agent-claude",
+				TaskType: "claude",
 			}
 			err := s.Validate(ctx)
 			Expect(err).To(HaveOccurred())
@@ -184,6 +190,7 @@ var _ = Describe("ConfigSpec", func() {
 					Assignee:    "claude",
 					Image:       "registry/agent-claude",
 					Heartbeat:   "30m",
+					TaskType:    "claude",
 					VolumeClaim: "my-pvc",
 				}
 				err := s.Validate(ctx)
@@ -199,6 +206,7 @@ var _ = Describe("ConfigSpec", func() {
 				Assignee:        "claude",
 				Image:           "registry/agent-claude",
 				Heartbeat:       "30m",
+				TaskType:        "claude",
 				VolumeClaim:     "my-pvc",
 				VolumeMountPath: "/data",
 			}
@@ -321,7 +329,12 @@ var _ = Describe("ConfigSpec", func() {
 
 	Describe("Validate - Trigger field", func() {
 		baseSpec := func() agentv1.ConfigSpec {
-			return agentv1.ConfigSpec{Assignee: "agent", Image: "img:latest", Heartbeat: "1m"}
+			return agentv1.ConfigSpec{
+				Assignee:  "agent",
+				Image:     "img:latest",
+				Heartbeat: "1m",
+				TaskType:  "claude",
+			}
 		}
 
 		It("passes with nil Trigger", func() {
@@ -369,6 +382,129 @@ var _ = Describe("ConfigSpec", func() {
 			}
 			Expect(spec.Validate(ctx)).NotTo(Succeed())
 		})
+	})
+
+	Describe("Validate - TaskType field", func() {
+		baseSpec := func() agentv1.ConfigSpec {
+			return agentv1.ConfigSpec{
+				Assignee:  "agent",
+				Image:     "img:latest",
+				Heartbeat: "1m",
+				TaskType:  "claude",
+			}
+		}
+
+		It("passes with taskType 'pr-review'", func() {
+			spec := baseSpec()
+			spec.TaskType = "pr-review"
+			Expect(spec.Validate(ctx)).To(Succeed())
+		})
+
+		It("passes with taskType 'claude'", func() {
+			Expect(baseSpec().Validate(ctx)).To(Succeed())
+		})
+
+		It("passes with taskType containing leading digit '2fa-setup'", func() {
+			spec := baseSpec()
+			spec.TaskType = "2fa-setup"
+			Expect(spec.Validate(ctx)).To(Succeed())
+		})
+
+		It("passes with single-character taskType 'a'", func() {
+			spec := baseSpec()
+			spec.TaskType = "a"
+			Expect(spec.Validate(ctx)).To(Succeed())
+		})
+
+		It("passes with exactly 63-character taskType", func() {
+			spec := baseSpec()
+			spec.TaskType = strings.Repeat("a", 63)
+			Expect(spec.Validate(ctx)).To(Succeed())
+		})
+
+		It("fails when TaskType is empty", func() {
+			spec := baseSpec()
+			spec.TaskType = ""
+			err := spec.Validate(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("taskType is empty")))
+		})
+
+		It("fails when TaskType contains uppercase letters (PR-Review)", func() {
+			spec := baseSpec()
+			spec.TaskType = "PR-Review"
+			err := spec.Validate(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("taskType must match")))
+		})
+
+		It("fails when TaskType contains underscore (pr_review)", func() {
+			spec := baseSpec()
+			spec.TaskType = "pr_review"
+			err := spec.Validate(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("taskType must match")))
+		})
+
+		It("fails when TaskType contains a dot (pr.review)", func() {
+			spec := baseSpec()
+			spec.TaskType = "pr.review"
+			err := spec.Validate(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("taskType must match")))
+		})
+
+		It("fails when TaskType exceeds 63 characters", func() {
+			spec := baseSpec()
+			spec.TaskType = strings.Repeat("a", 64)
+			err := spec.Validate(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("taskType exceeds maximum length")))
+		})
+	})
+
+	Describe("Equal - TaskType field", func() {
+		It("returns false when TaskType differs", func() {
+			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "claude"}
+			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "general"}
+			Expect(a.Equal(b)).To(BeFalse())
+		})
+
+		It("returns false when one TaskType is empty and the other is not", func() {
+			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: ""}
+			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "claude"}
+			Expect(a.Equal(b)).To(BeFalse())
+		})
+
+		It("returns true when TaskType is identical", func() {
+			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "claude"}
+			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "claude"}
+			Expect(a.Equal(b)).To(BeTrue())
+		})
+	})
+})
+
+var _ = Describe("JSON round-trip for taskType", func() {
+	It("round-trips taskType through JSON", func() {
+		spec := agentv1.ConfigSpec{
+			Assignee:  "agent",
+			Image:     "img:latest",
+			Heartbeat: "1m",
+			TaskType:  "pr-review",
+		}
+		data, err := json.Marshal(spec)
+		Expect(err).To(BeNil())
+		Expect(string(data)).To(ContainSubstring(`"taskType":"pr-review"`))
+		var decoded agentv1.ConfigSpec
+		Expect(json.Unmarshal(data, &decoded)).To(Succeed())
+		Expect(decoded.TaskType).To(Equal("pr-review"))
+	})
+
+	It("includes taskType in JSON even when empty (no omitempty)", func() {
+		spec := agentv1.ConfigSpec{Assignee: "agent", Image: "img:latest", Heartbeat: "1m"}
+		data, err := json.Marshal(spec)
+		Expect(err).To(BeNil())
+		Expect(string(data)).To(ContainSubstring(`"taskType":`))
 	})
 })
 

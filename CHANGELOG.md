@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.61.0
+
+- feat: Config CRD gains required `spec.taskType` string field; `ConfigSpec.Validate` rejects empty, non-`^[a-z0-9-]+$`, and >63-char values; `ConfigSpec.Equal` detects `TaskType` diff; OpenAPIV3Schema updated with pattern and maxLength; applyconfiguration regenerated with `WithTaskType` builder; `agent/claude` manifest migrated to `taskType: claude`
+
 ## v0.60.0
 
 - feat: reset `trigger_count` and `retry_count` to 0 when vault scanner detects `assignee` transition from empty to named (operator re-delegation refills spawn budget automatically)

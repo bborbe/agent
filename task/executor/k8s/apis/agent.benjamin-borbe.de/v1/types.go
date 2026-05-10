@@ -7,6 +7,7 @@ package v1
 import (
 	"context"
 	"reflect"
+	"regexp"
 
 	"github.com/bborbe/errors"
 	libk8s "github.com/bborbe/k8s"
@@ -17,6 +18,8 @@ import (
 
 // var _ k8s.Type = Config{} ensures Config implements k8s.Type at compile time.
 var _ libk8s.Type = Config{}
+
+var taskTypePattern = regexp.MustCompile(`^[a-z0-9-]+$`)
 
 // +genclient
 // +genclient:noStatus
@@ -45,6 +48,8 @@ type ConfigSpec struct {
 	Image string `json:"image"`
 	// Heartbeat is the interval at which the agent re-spawns (e.g. "30m").
 	Heartbeat string `json:"heartbeat"`
+	// TaskType is the task_type value in task frontmatter that routes to this agent.
+	TaskType string `json:"taskType"`
 	// Resources holds optional resource requests for the agent container.
 	Resources *AgentResources `json:"resources,omitempty"`
 	// Env holds per-agent environment variables.
@@ -122,6 +127,7 @@ func (s ConfigSpec) Equal(o ConfigSpec) bool {
 	return s.Assignee == o.Assignee &&
 		s.Image == o.Image &&
 		s.Heartbeat == o.Heartbeat &&
+		s.TaskType == o.TaskType &&
 		s.SecretName == o.SecretName &&
 		s.VolumeClaim == o.VolumeClaim &&
 		s.VolumeMountPath == o.VolumeMountPath &&
@@ -156,6 +162,15 @@ func (s ConfigSpec) Validate(ctx context.Context) error {
 				return errors.Wrapf(ctx, err, "invalid trigger status %q", status)
 			}
 		}
+	}
+	if s.TaskType == "" {
+		return errors.Wrapf(ctx, validation.Error, "taskType is empty")
+	}
+	if !taskTypePattern.MatchString(s.TaskType) {
+		return errors.Wrapf(ctx, validation.Error, "taskType must match ^[a-z0-9-]+$")
+	}
+	if len(s.TaskType) > 63 {
+		return errors.Wrapf(ctx, validation.Error, "taskType exceeds maximum length of 63")
 	}
 	return nil
 }

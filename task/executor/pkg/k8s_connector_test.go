@@ -132,11 +132,11 @@ var _ = Describe("desiredCRDSpec (via SetupCustomResourceDefinition)", func() {
 		Expect(crd.Spec.Scope).To(Equal(apiextensionsv1.NamespaceScoped))
 	})
 
-	It("sets required spec fields to assignee, image, heartbeat", func() {
+	It("sets required spec fields to assignee, image, heartbeat, taskType", func() {
 		crd := getCRDFromCreateAction(cs.Actions())
 		schema := crd.Spec.Versions[0].Schema.OpenAPIV3Schema
 		specProps := schema.Properties["spec"]
-		Expect(specProps.Required).To(ConsistOf("assignee", "image", "heartbeat"))
+		Expect(specProps.Required).To(ConsistOf("assignee", "image", "heartbeat", "taskType"))
 	})
 
 	It("sets heartbeat pattern", func() {

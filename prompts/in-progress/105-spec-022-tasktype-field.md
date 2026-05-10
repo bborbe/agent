@@ -1,6 +1,7 @@
 ---
-status: executing
+status: committing
 spec: [022-agent-config-task-type-field]
+summary: Added required `spec.taskType` field to ConfigSpec Go type, OpenAPIV3Schema, applyconfiguration layer (via make generatek8s), agent-claude manifest, and docs; all tests pass and make precommit exits 0.
 container: agent-105-spec-022-tasktype-field
 dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-10T20:50:00Z"

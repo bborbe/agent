@@ -146,6 +146,7 @@ func desiredCRDSpec() apiextensionsv1.CustomResourceDefinitionSpec {
 
 func configSpecSchema() apiextensionsv1.JSONSchemaProps {
 	minLen := int64(1)
+	maxLen63 := int64(63)
 	resourceList := apiextensionsv1.JSONSchemaProps{
 		Type: "object",
 		Properties: map[string]apiextensionsv1.JSONSchemaProps{
@@ -156,11 +157,16 @@ func configSpecSchema() apiextensionsv1.JSONSchemaProps {
 	}
 	return apiextensionsv1.JSONSchemaProps{
 		Type:     "object",
-		Required: []string{"assignee", "image", "heartbeat"},
+		Required: []string{"assignee", "image", "heartbeat", "taskType"},
 		Properties: map[string]apiextensionsv1.JSONSchemaProps{
 			"assignee":  {Type: "string", MinLength: &minLen},
 			"image":     {Type: "string", MinLength: &minLen},
 			"heartbeat": {Type: "string", Pattern: "^[0-9]+(s|m|h)$"},
+			"taskType": {
+				Type:      "string",
+				Pattern:   `^[a-z0-9-]+$`,
+				MaxLength: &maxLen63,
+			},
 			"resources": {
 				Type: "object",
 				Properties: map[string]apiextensionsv1.JSONSchemaProps{
