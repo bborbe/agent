@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [021-clear-assignee-on-escalation-and-reset-trigger-count-on-redelegation]
 summary: Extended vault_scanner.go to detect empty→named assignee transitions and atomically reset trigger_count/retry_count to 0; added 5 targeted tests covering all transition cases; updated docs and CHANGELOG.
 container: agent-104-spec-021-scanner-counter-reset
@@ -7,6 +7,7 @@ dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-10T16:45:00Z"
 queued: "2026-05-10T20:09:43Z"
 started: "2026-05-10T20:22:20Z"
+completed: "2026-05-10T20:29:23Z"
 branch: dark-factory/clear-assignee-on-escalation-and-reset-trigger-count-on-redelegation
 ---
 
