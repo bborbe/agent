@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: 'Fixed passthroughContentGenerator to write ## Failure section on AgentStatusFailed and AgentStatusNeedsInput, mirroring fallback and section generators; added DescribeTable regression harness (6 entries) and focused PassthroughContentGenerator Describe block; updated CHANGELOG.md under ## Unreleased.'
 container: agent-106-passthrough-generator-writes-failure-body
 dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-12T22:00:00Z"
 queued: "2026-05-12T21:44:33Z"
 started: "2026-05-12T21:44:34Z"
+completed: "2026-05-12T21:48:04Z"
 ---
 
 <summary>
