@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.60.1
+
+- fix(lib/delivery): `passthroughContentGenerator` now writes a `## Failure` body section on `AgentStatusFailed` and `AgentStatusNeedsInput`, mirroring the existing behavior of `fallbackContentGenerator` and `sectionContentGenerator`. Previously, agents using the passthrough generator (e.g. pr-reviewer) lost the failure reason whenever `result.Output` was empty — operators had to dig through TTL-cleaned pod logs to diagnose. Live incident: pr-reviewer task `712b7974-cfbf-5999-a1fc-6946207e21c3` on 2026-05-12 — Claude API 401 → empty task body. Adds table-driven regression test covering every generator × non-success status.
+
 ## v0.61.0
 
 - feat: Config CRD gains required `spec.taskType` string field; `ConfigSpec.Validate` rejects empty, non-`^[a-z0-9-]+$`, and >63-char values; `ConfigSpec.Equal` detects `TaskType` diff; OpenAPIV3Schema updated with pattern and maxLength; applyconfiguration regenerated with `WithTaskType` builder; `agent/claude` manifest migrated to `taskType: claude`

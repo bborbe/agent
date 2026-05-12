@@ -119,6 +119,11 @@ func buildMinimalResultSection(result agentlib.AgentResultInfo) string {
 // status: completed / phase: done on success without each agent having to
 // mutate the frontmatter map manually. The Kafka deliverer overrides
 // status/phase again after this generator runs (same end state).
+//
+// On AgentStatusFailed or AgentStatusNeedsInput, the passthrough generator
+// splices a ## Failure section into result.Output so operators always see the
+// failure reason — without this, early-step failures (where Output is empty)
+// leave a body-less task. Mirrors fallback + section generators.
 func NewPassthroughContentGenerator() ContentGenerator {
 	return &passthroughContentGenerator{}
 }
@@ -130,7 +135,16 @@ func (g *passthroughContentGenerator) Generate(
 	_ string,
 	result agentlib.AgentResultInfo,
 ) (string, error) {
-	return applyStatusFrontmatter(result.Output, result.Status), nil
+	updated := applyStatusFrontmatter(result.Output, result.Status)
+	if result.Status == agentlib.AgentStatusFailed ||
+		result.Status == agentlib.AgentStatusNeedsInput {
+		// result.Output is unreliable on early-step failures — agents return
+		// status=failed/needs_input WITHOUT having written anything to Output.
+		// Surface result.Message via the shared ## Failure section so operators
+		// can diagnose without log archaeology. Mirrors fallback + section generators.
+		return ReplaceOrAppendSection(updated, "## Failure", buildFailureSection(result)), nil
+	}
+	return updated, nil
 }
 
 // NewSectionContentGenerator creates a ContentGenerator that writes its output under a
