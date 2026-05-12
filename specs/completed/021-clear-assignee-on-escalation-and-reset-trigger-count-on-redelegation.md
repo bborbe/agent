@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-05-10T16:25:00Z"
 generating: "2026-05-10T16:35:07Z"
 prompted: "2026-05-10T16:48:15Z"
 verifying: "2026-05-10T20:29:23Z"
+completed: "2026-05-12T23:01:52Z"
 branch: dark-factory/clear-assignee-on-escalation-and-reset-trigger-count-on-redelegation
 ---
 
