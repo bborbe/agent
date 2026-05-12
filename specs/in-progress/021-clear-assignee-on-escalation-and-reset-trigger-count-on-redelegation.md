@@ -171,3 +171,18 @@ This is reasonable to defer if the operator inbox is not yet a primary workflow.
 - `specs/completed/016-partial-frontmatter-publishers.md` — atomic partial-update primitive used by the reset path
 - Sibling task-orch operator-inbox filter spec (already approved, separate repo) — depends on this controller-side change to land
 - Out-of-scope: [[Auto-Retry Transient Agent Failures Before Human Review]] (`failure_class` field), maintainer-repo untrusted-author spec
+
+## Verification Result
+
+**Verified:** 2026-05-12T23:01:33Z (HEAD 9958d45)
+**Binary:** /Users/bborbe/Documents/workspaces/go/bin/dark-factory (v0.156.1)
+**Scenario:** Fresh `make precommit` and full Ginkgo suites in `task/controller/pkg/result` + `task/controller/pkg/scanner`; live dev pod `agent-task-controller-0` running image built from this HEAD.
+**Evidence:**
+- `make precommit` in `task/controller`: "ready to commit" (gosec 0 issues, trivy 0 vuln)
+- `pkg/result` Ginkgo: Ran 44 of 45 Specs, 44 Passed, 0 Failed — incl. `clears assignee when agent emits needs_input`, `writes assignee: empty and preserves phase: {ai_review,in_progress,planning} at trigger cap`, `does not append duplicate Trigger Cap Escalation section`, `does not append duplicate Retry Escalation section`, `keeps assignee empty and phase unchanged when stale result arrives at already-parked task`, `escalation section body records the agent name active at escalation time, not the cleared value`
+- `pkg/scanner` Ginkgo: Ran 29 of 29 Specs, 29 Passed — incl. `resets trigger_count and retry_count when assignee transitions from empty to named`, `does not reset counters when assignee changes from one name to another`, `does not reset counters when assignee is cleared from named to empty`, `emits counter reset exactly once even if the same empty→named transition is observed twice`
+- `docs/task-flow-and-failure-semantics.md` and `docs/controller-design.md` both contain `spec 021` references documenting assignee-clear on escalation + empty→named reset
+- `CHANGELOG.md` records the behavior change under `v0.59.0` (result writer) and `v0.60.0` (scanner reset)
+- Dev pod `agent-task-controller-0`: image sha `b25c65e8`, started 2026-05-12T22:01:45Z, log line `agent-task-controller started version=lib/v0.61.0-2-g9958d45 commit=9958d45` confirms new code is live
+- AC 17 explicitly waives live-cluster smoke; unit + integration Ginkgo coverage against fake gitclient + synthetic vault files is sufficient by spec design
+**Verdict:** PASS
