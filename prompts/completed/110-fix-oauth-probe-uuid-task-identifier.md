@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Replaced non-UUID `probe-<agent>` task identifiers with deterministic UUIDv5s using `uuid.NewSHA1(probeNamespace, []byte(agentName))`, added four new boundary-contract tests, promoted `github.com/google/uuid` to a direct dependency, documented the UUID contract in `docs/task-service-design.md`, and updated `CHANGELOG.md`.
 container: agent-110-fix-oauth-probe-uuid-task-identifier
 dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-13T19:00:00Z"
 queued: "2026-05-13T19:02:51Z"
 started: "2026-05-13T19:02:52Z"
+completed: "2026-05-13T19:34:49Z"
 ---
 
 <summary>
