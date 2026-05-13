@@ -108,16 +108,24 @@ func CreateConsumer(
 	)
 }
 
-// CreateOAuthProbeCron creates a cron-scheduled probe that publishes create-task + update-frontmatter
-// commands for every known Config CR on each tick.
-func CreateOAuthProbeCron(
-	expression libcron.Expression,
+// CreateOAuthProbeRunner creates the OAuth probe runner shared between the cron path and the
+// HTTP trigger path. Callers must pass the same instance to both CreateOAuthProbeCron and
+// the HTTP handler so probe behavior is identical regardless of invocation path.
+func CreateOAuthProbeRunner(
 	configProvider pkg.EventHandlerConfig,
 	syncProducer libkafka.SyncProducer,
 	branch base.Branch,
-) run.Runnable {
+) probe.OAuthProbeRunner {
 	sender := cdb.NewCommandObjectSender(syncProducer, branch, log.DefaultSamplerFactory)
 	publisher := probe.NewCommandPublisher(sender)
-	runner := probe.NewOAuthProbeRunner(configProvider, publisher)
+	return probe.NewOAuthProbeRunner(configProvider, publisher)
+}
+
+// CreateOAuthProbeCron wraps the given runner in a cron scheduler. Pass the runner returned by
+// CreateOAuthProbeRunner so the cron and the HTTP handler share the same instance.
+func CreateOAuthProbeCron(
+	expression libcron.Expression,
+	runner probe.OAuthProbeRunner,
+) run.Runnable {
 	return libcron.NewExpressionCron(expression, runner)
 }

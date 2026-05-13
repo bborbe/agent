@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/factory"
 	"github.com/bborbe/agent/task/executor/pkg/handler"
+	"github.com/bborbe/agent/task/executor/pkg/probe"
 )
 
 func main() {
@@ -83,9 +85,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		return errors.Wrapf(ctx, err, "create sarama client")
 	}
 	defer saramaClient.Close()
-
 	currentDateTimeGetter := libtime.NewCurrentDateTime()
-
 	syncProducer, err := libkafka.NewSyncProducerFromSaramaClient(ctx, saramaClient)
 	if err != nil {
 		return errors.Wrapf(ctx, err, "create kafka sync producer")
@@ -96,11 +96,14 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	taskStore := pkg.NewTaskStore()
 	jobWatcher := factory.CreateJobWatcher(kubeClient, a.Namespace, taskStore, resultPublisher)
 
-	probeCron := factory.CreateOAuthProbeCron(
-		libcron.Expression(a.OAuthProbeCronExpression),
+	oAuthProbeRunner := factory.CreateOAuthProbeRunner(
 		eventHandlerConfig,
 		syncProducer,
 		a.Branch,
+	)
+	probeCron := factory.CreateOAuthProbeCron(
+		libcron.Expression(a.OAuthProbeCronExpression),
+		oAuthProbeRunner,
 	)
 
 	consumer := factory.CreateConsumer(
@@ -127,18 +130,24 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		func(ctx context.Context) error {
 			return jobWatcher.Run(ctx)
 		},
-		a.createHTTPServer(eventHandlerConfig),
+		a.createHTTPServer(eventHandlerConfig, oAuthProbeRunner),
 		probeCron.Run,
 	)
 }
 
-func (a *application) createHTTPServer(configProvider pkg.EventHandlerConfig) run.Func {
+func (a *application) createHTTPServer(
+	configProvider pkg.EventHandlerConfig,
+	runner probe.OAuthProbeRunner,
+) run.Func {
 	return func(ctx context.Context) error {
 		router := mux.NewRouter()
 		router.Path("/healthz").Handler(libhttp.NewPrintHandler("OK"))
 		router.Path("/readiness").Handler(libhttp.NewPrintHandler("OK"))
 		router.Path("/metrics").Handler(promhttp.Handler())
 		router.Path("/agents").Handler(handler.NewAgentsHandler(configProvider))
+		router.Path("/oauth-probe/trigger").Methods(http.MethodPost).Handler(
+			handler.NewOAuthProbeTriggerHandler(ctx, runner),
+		)
 		router.Path("/setloglevel/{level}").
 			Handler(log.NewSetLoglevelHandler(ctx, log.NewLogLevelSetter(2, 5*time.Minute)))
 

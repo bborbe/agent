@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.61.6
+
+- feat(task/executor): add POST `/oauth-probe/trigger` HTTP endpoint — fires the OAuth probe loop on demand with fire-and-forget and single-flight semantics; the runner instance is shared with the existing weekly cron so behavior is identical regardless of invocation path
+
 ## v0.61.5
 
 - fix(task/executor): OAuth probe task identifiers are now deterministic UUIDv5s per agent (previously `probe-<agent>` literal strings, which the vault scanner silently rewrote with random UUIDs on each scan — producing merge conflicts and breaking `update-frontmatter` re-triggers). Probe vault files remain at the human-readable path `tasks/probe-<agent>.md` (driven by Title, not by task_identifier).
