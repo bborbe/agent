@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.61.3
+
+- chore: bump direct dependencies across `lib/`, `task/controller`, `task/executor`, `agent/claude`, `agent/code`, `agent/gemini`. Notable: `bborbe/time v1.25.10 → v1.27.0`, `bborbe/vault-cli v0.58.1 → v0.64.0`, `bborbe/kafka v1.22.12 → v1.22.15`, `bborbe/errors v1.5.11 → v1.5.13`. Indirect bumps in `IBM/sarama`, `getsentry/sentry-go`, and various `bborbe/*` transitives.
+
 ## v0.61.2
 
 - fix(lib/delivery): wrap the failure-section `Reason:` body in a fenced code block. Previously rendered as a single inline bullet, which produced unreadable output in Obsidian / GitHub / generic CommonMark viewers when `Result.Message` was long or contained markdown-confusing characters (asterisks, brackets, braces — common in JSON tails from `lib/v0.61.1`). The fence preserves monospace formatting, prevents stray markdown interpretation, and gives operators a one-click select-and-copy block. Empty-reason fallback keeps its inline form.
