@@ -1,0 +1,211 @@
+// Copyright (c) 2026 Benjamin Borbe All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package probe_test
+
+import (
+	"context"
+	"fmt"
+
+	cqrsmocks "github.com/bborbe/cqrs/mocks"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	taskcmd "github.com/bborbe/agent/lib/command/task"
+	agentv1 "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de/v1"
+	"github.com/bborbe/agent/task/executor/pkg/probe"
+	"github.com/bborbe/agent/task/executor/pkg/probe/mocks"
+)
+
+var _ = Describe("OAuthProbeRunner", func() {
+	var (
+		ctx            context.Context
+		configProvider *mocks.FakeConfigProvider
+		publisher      *mocks.FakeCommandPublisher
+		runner         probe.OAuthProbeRunner
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		configProvider = new(mocks.FakeConfigProvider)
+		publisher = new(mocks.FakeCommandPublisher)
+		runner = probe.NewOAuthProbeRunner(configProvider, publisher)
+	})
+
+	Context("N configs produce 2N commands in the expected order", func() {
+		BeforeEach(func() {
+			configProvider.GetReturns([]agentv1.Config{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "agent-a"},
+					Spec:       agentv1.ConfigSpec{Assignee: "agent-a"},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "agent-b"},
+					Spec:       agentv1.ConfigSpec{Assignee: "agent-b"},
+				},
+			}, nil)
+		})
+
+		It("calls Publish exactly 4 times for 2 configs", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			Expect(publisher.PublishCallCount()).To(Equal(4))
+		})
+
+		It("first call is create-task for agent-a", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			_, op, _ := publisher.PublishArgsForCall(0)
+			Expect(op).To(Equal("create-task"))
+		})
+
+		It("second call is update-frontmatter for agent-a", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			_, op, _ := publisher.PublishArgsForCall(1)
+			Expect(op).To(Equal("update-frontmatter"))
+		})
+
+		It("third call is create-task for agent-b", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			_, op, _ := publisher.PublishArgsForCall(2)
+			Expect(op).To(Equal("create-task"))
+		})
+
+		It("fourth call is update-frontmatter for agent-b", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			_, op, _ := publisher.PublishArgsForCall(3)
+			Expect(op).To(Equal("update-frontmatter"))
+		})
+
+		It("returns no error", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+		})
+	})
+
+	Context("empty lister", func() {
+		BeforeEach(func() {
+			configProvider.GetReturns([]agentv1.Config{}, nil)
+		})
+
+		It("produces zero Publish calls", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			Expect(publisher.PublishCallCount()).To(Equal(0))
+		})
+
+		It("returns no error", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+		})
+	})
+
+	Context("create-task publish fails", func() {
+		BeforeEach(func() {
+			configProvider.GetReturns([]agentv1.Config{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "agent-a"},
+					Spec:       agentv1.ConfigSpec{Assignee: "agent-a"},
+				},
+			}, nil)
+			publisher.PublishReturnsOnCall(0, fmt.Errorf("kafka unavailable"))
+		})
+
+		It("returns a wrapped error", func() {
+			err := runner.Run(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("kafka unavailable"))
+		})
+
+		It("makes exactly 1 Publish call — no rollback", func() {
+			Expect(runner.Run(ctx)).To(HaveOccurred())
+			Expect(publisher.PublishCallCount()).To(Equal(1))
+		})
+	})
+
+	Context("update-frontmatter publish fails after create-task succeeded", func() {
+		BeforeEach(func() {
+			configProvider.GetReturns([]agentv1.Config{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "agent-a"},
+					Spec:       agentv1.ConfigSpec{Assignee: "agent-a"},
+				},
+			}, nil)
+			publisher.PublishReturnsOnCall(0, nil) // create-task succeeds
+			publisher.PublishReturnsOnCall(
+				1,
+				fmt.Errorf("write timeout"),
+			) // update-frontmatter fails
+		})
+
+		It("returns a wrapped error containing the timeout message", func() {
+			err := runner.Run(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("write timeout"))
+		})
+
+		It("makes exactly 2 Publish calls — no rollback", func() {
+			Expect(runner.Run(ctx)).To(HaveOccurred())
+			Expect(publisher.PublishCallCount()).To(Equal(2))
+		})
+	})
+
+	Context("CommandPublisher real implementation", func() {
+		var (
+			sender    *cqrsmocks.CDBCommandObjectSender
+			publisher probe.CommandPublisher
+		)
+
+		BeforeEach(func() {
+			sender = new(cqrsmocks.CDBCommandObjectSender)
+			publisher = probe.NewCommandPublisher(sender)
+		})
+
+		It("publishes a command via the sender", func() {
+			cmd := taskcmd.CreateCommand{
+				TaskIdentifier: "probe-agent-a",
+				Title:          "probe-agent-a",
+				Frontmatter: map[string]interface{}{
+					"phase": "planning",
+				},
+			}
+			Expect(publisher.Publish(ctx, "create-task", cmd)).To(Succeed())
+			Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
+		})
+
+		It("propagates sender error", func() {
+			sender.SendCommandObjectReturns(fmt.Errorf("broker down"))
+			cmd := taskcmd.CreateCommand{
+				TaskIdentifier: "probe-agent-a",
+				Title:          "probe-agent-a",
+			}
+			err := publisher.Publish(ctx, "create-task", cmd)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("broker down"))
+		})
+	})
+
+	Context("emitted commands satisfy library validation (boundary contract)", func() {
+		BeforeEach(func() {
+			configProvider.GetReturns([]agentv1.Config{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "agent-a"},
+					Spec:       agentv1.ConfigSpec{Assignee: "agent-a"},
+				},
+			}, nil)
+		})
+
+		It("the create-task payload passes CreateCommand.Validate", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			_, _, payload := publisher.PublishArgsForCall(0)
+			createCmd, ok := payload.(taskcmd.CreateCommand)
+			Expect(ok).To(BeTrue(), "payload at call 0 must be a CreateCommand")
+			Expect(createCmd.Validate(ctx)).To(Succeed())
+		})
+
+		It("the update-frontmatter payload passes UpdateFrontmatterCommand.Validate", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			_, _, payload := publisher.PublishArgsForCall(1)
+			updateCmd, ok := payload.(taskcmd.UpdateFrontmatterCommand)
+			Expect(ok).To(BeTrue(), "payload at call 1 must be an UpdateFrontmatterCommand")
+			Expect(updateCmd.Validate(ctx)).To(Succeed())
+		})
+	})
+})

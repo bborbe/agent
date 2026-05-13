@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bborbe/cqrs/base"
+	libcron "github.com/bborbe/cron"
 	"github.com/bborbe/errors"
 	libhttp "github.com/bborbe/http"
 	libk8s "github.com/bborbe/k8s"
@@ -37,15 +38,16 @@ func main() {
 }
 
 type application struct {
-	SentryDSN       string            `required:"true"  arg:"sentry-dsn"        env:"SENTRY_DSN"        usage:"SentryDSN"                                                display:"length"`
-	SentryProxy     string            `required:"false" arg:"sentry-proxy"      env:"SENTRY_PROXY"      usage:"Sentry Proxy"`
-	Listen          string            `required:"true"  arg:"listen"            env:"LISTEN"            usage:"address to listen to"`
-	KafkaBrokers    string            `required:"true"  arg:"kafka-brokers"     env:"KAFKA_BROKERS"     usage:"comma-separated Kafka broker addresses"`
-	Branch          base.Branch       `required:"true"  arg:"branch"            env:"BRANCH"            usage:"Kafka topic prefix branch (develop/live)"`
-	Namespace       libk8s.Namespace  `required:"true"  arg:"namespace"         env:"NAMESPACE"         usage:"K8s namespace to spawn Jobs in"`
-	BuildGitVersion string            `required:"false" arg:"build-git-version" env:"BUILD_GIT_VERSION" usage:"Build Git version (git describe --tags --always --dirty)"                  default:"dev"`
-	BuildGitCommit  string            `required:"false" arg:"build-git-commit"  env:"BUILD_GIT_COMMIT"  usage:"Build Git commit hash"                                                     default:"none"`
-	BuildDate       *libtime.DateTime `required:"false" arg:"build-date"        env:"BUILD_DATE"        usage:"Build timestamp (RFC3339)"`
+	SentryDSN                string            `required:"true"  arg:"sentry-dsn"                  env:"SENTRY_DSN"                  usage:"SentryDSN"                                                display:"length"`
+	SentryProxy              string            `required:"false" arg:"sentry-proxy"                env:"SENTRY_PROXY"                usage:"Sentry Proxy"`
+	Listen                   string            `required:"true"  arg:"listen"                      env:"LISTEN"                      usage:"address to listen to"`
+	KafkaBrokers             string            `required:"true"  arg:"kafka-brokers"               env:"KAFKA_BROKERS"               usage:"comma-separated Kafka broker addresses"`
+	Branch                   base.Branch       `required:"true"  arg:"branch"                      env:"BRANCH"                      usage:"Kafka topic prefix branch (develop/live)"`
+	Namespace                libk8s.Namespace  `required:"true"  arg:"namespace"                   env:"NAMESPACE"                   usage:"K8s namespace to spawn Jobs in"`
+	BuildGitVersion          string            `required:"false" arg:"build-git-version"           env:"BUILD_GIT_VERSION"           usage:"Build Git version (git describe --tags --always --dirty)"                  default:"dev"`
+	BuildGitCommit           string            `required:"false" arg:"build-git-commit"            env:"BUILD_GIT_COMMIT"            usage:"Build Git commit hash"                                                     default:"none"`
+	BuildDate                *libtime.DateTime `required:"false" arg:"build-date"                  env:"BUILD_DATE"                  usage:"Build timestamp (RFC3339)"`
+	OAuthProbeCronExpression string            `                 arg:"oauth-probe-cron-expression" env:"OAUTH_PROBE_CRON_EXPRESSION" usage:"Cron expression for Claude OAuth health probes"                            default:"0 0 8 * * 1"`
 }
 
 func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
@@ -94,6 +96,13 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	taskStore := pkg.NewTaskStore()
 	jobWatcher := factory.CreateJobWatcher(kubeClient, a.Namespace, taskStore, resultPublisher)
 
+	probeCron := factory.CreateOAuthProbeCron(
+		libcron.Expression(a.OAuthProbeCronExpression),
+		eventHandlerConfig,
+		syncProducer,
+		a.Branch,
+	)
+
 	consumer := factory.CreateConsumer(
 		saramaClient,
 		a.Branch,
@@ -119,6 +128,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 			return jobWatcher.Run(ctx)
 		},
 		a.createHTTPServer(eventHandlerConfig),
+		probeCron.Run,
 	)
 }
 

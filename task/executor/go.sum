@@ -10,6 +10,8 @@ github.com/bborbe/collection v1.20.12 h1:FUiCMioYDmNlPidUQ26NbnN7D0JBsiZfHUVjvCd
 github.com/bborbe/collection v1.20.12/go.mod h1:S+agk3S8rIFGh7/XstkM5jBdl/DMec2TxQRGoeYx+fc=
 github.com/bborbe/cqrs v0.5.1 h1:KO91dgEvJtIUEB3DUJ+Y1mul1zm3JcSHK/vzr4L3nDc=
 github.com/bborbe/cqrs v0.5.1/go.mod h1:KhTFRfs+Zd/UgmLQxxJqF2m4rOvQH+QYzM62JNYwjM4=
+github.com/bborbe/cron v1.8.17 h1:rVzqkISWpfcqfS2WXJFjDNe9WHK1OoWQHjG5Ep8ImRY=
+github.com/bborbe/cron v1.8.17/go.mod h1:oEjvKexd9qLVR753lbCJiLVRmKh7xBSWeLguPnxcrGo=
 github.com/bborbe/errors v1.5.13 h1:h2F5R6cL5R+DnUmwFEKziRTzcsKrLlhCrPbKwzfcBo4=
 github.com/bborbe/errors v1.5.13/go.mod h1:yRcmhOEgO6Htvibc63ALT1f1tNrBlWk7n5o6lZ8FOTQ=
 github.com/bborbe/http v1.26.12 h1:0DEfzf6ctLJg7xmh1cHiwZyv45jmkuJIGbuzjfZFJwM=

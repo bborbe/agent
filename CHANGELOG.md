@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.61.4
+
+- feat(task/executor): add weekly OAuth probe cron (`OAUTH_PROBE_CRON_EXPRESSION`, default `0 0 8 * * 1`) — publishes `create-task` + `update-frontmatter` commands per Config CR on each tick to keep agent PVC OAuth credentials warm; failed probes escalate via existing `human_review` route; new agents auto-enrolled at next tick
+
 ## v0.61.3
 
 - chore: bump direct dependencies across `lib/`, `task/controller`, `task/executor`, `agent/claude`, `agent/code`, `agent/gemini`. Notable: `bborbe/time v1.25.10 → v1.27.0`, `bborbe/vault-cli v0.58.1 → v0.64.0`, `bborbe/kafka v1.22.12 → v1.22.15`, `bborbe/errors v1.5.11 → v1.5.13`. Indirect bumps in `IBM/sarama`, `getsentry/sentry-go`, and various `bborbe/*` transitives.

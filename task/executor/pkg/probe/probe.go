@@ -1,0 +1,131 @@
+// Copyright (c) 2026 Benjamin Borbe All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package probe
+
+import (
+	"context"
+
+	"github.com/bborbe/cqrs/base"
+	cdb "github.com/bborbe/cqrs/cdb"
+	cqrsiam "github.com/bborbe/cqrs/iam"
+	"github.com/bborbe/errors"
+
+	lib "github.com/bborbe/agent/lib"
+	taskcmd "github.com/bborbe/agent/lib/command/task"
+	agentv1 "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de/v1"
+)
+
+//counterfeiter:generate -o mocks/fake_config_provider.go --fake-name FakeConfigProvider . ConfigProvider
+
+// ConfigProvider lists all known Config CRs.
+type ConfigProvider interface {
+	Get(ctx context.Context) ([]agentv1.Config, error)
+}
+
+//counterfeiter:generate -o mocks/fake_command_publisher.go --fake-name FakeCommandPublisher . CommandPublisher
+
+// CommandPublisher publishes a single serialised command to the request topic.
+type CommandPublisher interface {
+	Publish(ctx context.Context, operation string, payload interface{}) error
+}
+
+type commandPublisher struct {
+	commandObjectSender cdb.CommandObjectSender
+}
+
+// NewCommandPublisher creates a CommandPublisher backed by the given sender.
+func NewCommandPublisher(sender cdb.CommandObjectSender) CommandPublisher {
+	return &commandPublisher{commandObjectSender: sender}
+}
+
+func (p *commandPublisher) Publish(
+	ctx context.Context,
+	operation string,
+	payload interface{},
+) error {
+	event, err := base.ParseEvent(ctx, payload)
+	if err != nil {
+		return errors.Wrapf(ctx, err, "parse event for operation %s", operation)
+	}
+	requestIDCh := make(chan base.RequestID, 1)
+	requestIDCh <- base.NewRequestID()
+	commandCreator := base.NewCommandCreator(requestIDCh)
+	commandObject := cdb.CommandObject{
+		Command: commandCreator.NewCommand(
+			base.CommandOperation(operation),
+			cqrsiam.Initiator("executor"),
+			"",
+			event,
+		),
+		SchemaID: lib.TaskV1SchemaID,
+	}
+	if err := p.commandObjectSender.SendCommandObject(ctx, commandObject); err != nil {
+		return errors.Wrapf(ctx, err, "send command for operation %s", operation)
+	}
+	return nil
+}
+
+//counterfeiter:generate -o mocks/fake_o_auth_probe_runner.go --fake-name FakeOAuthProbeRunner . OAuthProbeRunner
+
+// OAuthProbeRunner executes one probe tick: publishes create-task + update-frontmatter per Config CR.
+type OAuthProbeRunner interface {
+	Run(ctx context.Context) error
+}
+
+type oAuthProbeRunner struct {
+	configProvider ConfigProvider
+	publisher      CommandPublisher
+}
+
+// NewOAuthProbeRunner creates an OAuthProbeRunner.
+func NewOAuthProbeRunner(
+	configProvider ConfigProvider,
+	publisher CommandPublisher,
+) OAuthProbeRunner {
+	return &oAuthProbeRunner{
+		configProvider: configProvider,
+		publisher:      publisher,
+	}
+}
+
+// Run lists all Config CRs and publishes two commands per agent on each cron tick.
+func (r *oAuthProbeRunner) Run(ctx context.Context) error {
+	configs, err := r.configProvider.Get(ctx)
+	if err != nil {
+		return errors.Wrap(ctx, err, "list configs")
+	}
+	for _, config := range configs {
+		agentName := config.Spec.Assignee
+		taskID := lib.TaskIdentifier("probe-" + agentName)
+
+		createCmd := taskcmd.CreateCommand{
+			TaskIdentifier: taskID,
+			Title:          "probe-" + agentName,
+			Frontmatter: lib.TaskFrontmatter{
+				"task_type": "oauth-probe",
+				"status":    "in_progress",
+				"phase":     "planning",
+				"assignee":  agentName,
+			},
+			Body: "reply 'ok'",
+		}
+		if err := r.publisher.Publish(ctx, string(taskcmd.CreateCommandOperation), createCmd); err != nil {
+			return errors.Wrapf(ctx, err, "publish create-task for %s", agentName)
+		}
+
+		updateCmd := taskcmd.UpdateFrontmatterCommand{
+			TaskIdentifier: taskID,
+			Updates: lib.TaskFrontmatter{
+				"phase":         "planning",
+				"trigger_count": 0,
+				"retry_count":   0,
+			},
+		}
+		if err := r.publisher.Publish(ctx, string(taskcmd.UpdateFrontmatterCommandOperation), updateCmd); err != nil {
+			return errors.Wrapf(ctx, err, "publish update-frontmatter for %s", agentName)
+		}
+	}
+	return nil
+}

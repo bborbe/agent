@@ -9,6 +9,8 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/bborbe/cqrs/base"
+	cdb "github.com/bborbe/cqrs/cdb"
+	libcron "github.com/bborbe/cron"
 	libk8s "github.com/bborbe/k8s"
 	libkafka "github.com/bborbe/kafka"
 	"github.com/bborbe/log"
@@ -21,6 +23,7 @@ import (
 	lib "github.com/bborbe/agent/lib"
 	pkg "github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/handler"
+	"github.com/bborbe/agent/task/executor/pkg/probe"
 	"github.com/bborbe/agent/task/executor/pkg/spawner"
 )
 
@@ -103,4 +106,18 @@ func CreateConsumer(
 		run.NewTrigger(),
 		logSamplerFactory,
 	)
+}
+
+// CreateOAuthProbeCron creates a cron-scheduled probe that publishes create-task + update-frontmatter
+// commands for every known Config CR on each tick.
+func CreateOAuthProbeCron(
+	expression libcron.Expression,
+	configProvider pkg.EventHandlerConfig,
+	syncProducer libkafka.SyncProducer,
+	branch base.Branch,
+) run.Runnable {
+	sender := cdb.NewCommandObjectSender(syncProducer, branch, log.DefaultSamplerFactory)
+	publisher := probe.NewCommandPublisher(sender)
+	runner := probe.NewOAuthProbeRunner(configProvider, publisher)
+	return libcron.NewExpressionCron(expression, runner)
 }
