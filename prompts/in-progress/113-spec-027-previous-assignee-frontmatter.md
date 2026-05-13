@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [027-agent-task-previous-assignee-frontmatter]
 created: "2026-05-13T20:10:00Z"
+queued: "2026-05-13T20:11:13Z"
 branch: dark-factory/agent-task-previous-assignee-frontmatter
 ---
 
@@ -162,15 +163,43 @@ if phase, ok := merged["phase"].(string); ok && phase == "human_review" {
 }
 ```
 
-## 5. Run `make test` iteratively after code changes
+## 5. Compile check (do NOT run tests yet — they will fail in step 6 due to substring collision)
 
 ```bash
-cd task/controller && make test
+cd task/controller && go build ./...
 ```
 
-Expected: all existing tests pass (the behavior change is purely additive — `previous_assignee` is a new key in frontmatter; no existing assertions check for its absence).
+Expected: exit 0. Do NOT run `make test` here — many existing tests in `result_writer_test.go` assert `NotTo(ContainSubstring("assignee: claude"))` after a clear, and after this change the YAML will contain `previous_assignee: claude` which **contains** that substring. Step 6 fixes those assertions BEFORE running tests.
 
-## 6. Extend existing tests in `task/controller/pkg/result/result_writer_test.go`
+## 6. Fix substring-collision in existing assertions (REQUIRED — do before adding new assertions)
+
+The new `previous_assignee: <name>` line will contain the substring `assignee: <name>`. Existing tests that assert the cleared assignee with `NotTo(ContainSubstring("assignee: claude"))` (or other agent names) will flip to failing. Fix every such assertion in `task/controller/pkg/result/result_writer_test.go` BEFORE adding the new positive assertions.
+
+**Search for affected assertions:**
+```bash
+grep -n 'NotTo(ContainSubstring("assignee: ' task/controller/pkg/result/result_writer_test.go
+```
+
+**Substitution (line-anchored matcher avoids the `previous_assignee:` prefix):**
+
+Replace every occurrence of the form:
+```go
+Expect(s).NotTo(ContainSubstring("assignee: <name>"))
+```
+with:
+```go
+Expect(s).NotTo(ContainSubstring("\nassignee: <name>"))
+```
+
+The leading `\n` anchors the match to the start of a line, so `previous_assignee:` (which is preceded by `\n` followed by `previous_`) cannot match. Apply this substitution to **every match** the grep returns — the auditor identified ~17 sites; fix them all consistently regardless of the exact count.
+
+Run compile check after the substitution:
+```bash
+cd task/controller && go build ./...
+```
+Expected: exit 0.
+
+## 7. Extend existing tests in `task/controller/pkg/result/result_writer_test.go`
 
 Read the full test file before editing. For each of the following `It` blocks, add one assertion immediately after the last existing assertion in that block:
 
@@ -230,7 +259,7 @@ It("previous_assignee persists when operator re-delegates by setting a non-empty
     written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
     s := string(written)
     Expect(s).To(ContainSubstring("previous_assignee: claude"))
-    Expect(s).NotTo(ContainSubstring("assignee: claude"))
+    Expect(s).NotTo(ContainSubstring("\nassignee: claude")) // line-anchored to skip previous_assignee:
 
     // Second write: operator re-delegates by setting a non-empty assignee
     taskFile = lib.Task{
@@ -256,6 +285,8 @@ It("previous_assignee persists when operator re-delegates by setting a non-empty
 ```
 
 **Why this works:** The second write has `trigger_count: 0`, so `applyTriggerCap` returns early without touching frontmatter. `clearAssignee` is never called. `previous_assignee: claude` from disk is preserved by `mergeFrontmatter` (agent didn't send `previous_assignee`, so the disk value is kept).
+
+**Verify the merge contract first.** Before writing this test, read `mergeFrontmatter` in `task/controller/pkg/result/result_writer.go` (or wherever it lives) and confirm: when an incoming task's frontmatter does NOT contain a key that exists on disk, the merge preserves the disk value (does NOT remove it). If that contract does NOT hold, this test will fail and the helper needs the same treatment as `previous_assignee` itself — preserve-on-merge. Cite the line you verified in a comment next to the test.
 
 ## 8. Add new test: empty pre-clear assignee (defensive case)
 
@@ -283,12 +314,50 @@ It("does not set previous_assignee when pre-clear assignee is already empty (def
     Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
     written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
     s := string(written)
-    // clearAssignee captures "", which is not "", so it skips writing previous_assignee
+    // agentName captured from merged.Assignee() is "", so clearAssignee skips writing previous_assignee
     Expect(s).NotTo(ContainSubstring("previous_assignee:"))
     // escalation section is still appended
     Expect(s).To(ContainSubstring("## Trigger Cap Escalation"))
 })
 ```
+
+## 9.5. Add YAML round-trip test for `previous_assignee` (boundary test)
+
+The substring-based assertions added in step 7 verify the field is present in the serialized bytes but do NOT verify it round-trips through the YAML parser back into a frontmatter map. Add one test (inside Context `"trigger_count cap escalation"` or as a sibling) that exercises the full marshal+unmarshal boundary:
+
+```go
+It("previous_assignee round-trips through YAML on a parked task", func() {
+    writeTaskFile(
+        "my-task.md",
+        "---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\n---\n## Result\nStatus: failed\n",
+    )
+    taskFile = lib.Task{
+        TaskIdentifier: identifier,
+        Frontmatter: lib.TaskFrontmatter{
+            "task_identifier": "test-task-uuid-1234",
+            "status":          "in_progress",
+            "phase":           "ai_review",
+            "trigger_count":   3,
+            "max_triggers":    3,
+            "assignee":        "claude",
+        },
+        Content: lib.TaskContent("## Result\nStatus: failed\n"),
+    }
+    Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+
+    written, err := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+    Expect(err).NotTo(HaveOccurred())
+
+    // Parse the written file's frontmatter back into a map and assert the key
+    // exists with the expected value. This exercises the YAML marshal+unmarshal
+    // boundary, not just substring presence in the bytes.
+    fm, _, err := extractFrontmatterFromFile(written) // helper already used elsewhere in this test file
+    Expect(err).NotTo(HaveOccurred())
+    Expect(fm["previous_assignee"]).To(Equal("claude"))
+})
+```
+
+If `extractFrontmatterFromFile` (or whatever the test file already uses to parse frontmatter — grep for `Unmarshal` or `yaml.NewDecoder` near the top of the test file) does not exist, use the same approach the surrounding tests use to parse YAML — DO NOT introduce a new YAML library.
 
 ## 9. Run tests after extending them
 
@@ -301,10 +370,12 @@ Expected: all tests pass including the two new `It` blocks. Fix compile errors b
 ## 10. Check coverage for `pkg/result/` package
 
 ```bash
-cd task/controller && go test -coverprofile=/tmp/result-cover.out -mod=vendor ./pkg/result/... && go tool cover -func=/tmp/result-cover.out | grep "total:"
+cd task/controller && go test -coverprofile=/tmp/result-cover.out ./pkg/result/... && go tool cover -func=/tmp/result-cover.out | grep "total:"
 ```
 
 Expected: ≥80% total coverage for the result package.
+
+**Do NOT pass `-mod=vendor`** — `make ensure` (called by `make precommit`) removes the `vendor/` tree during iterative testing; the default `-mod=mod` is correct. `make precommit` re-creates vendor in its own pipeline as needed.
 
 ## 11. Update `docs/task-flow-and-failure-semantics.md`
 
@@ -407,9 +478,9 @@ Expected: exit 0, all specs pass.
 
 Run coverage:
 ```bash
-cd task/controller && go test -coverprofile=/tmp/result-cover.out -mod=vendor ./pkg/result/... && go tool cover -func=/tmp/result-cover.out | grep "total:"
+cd task/controller && go test -coverprofile=/tmp/result-cover.out ./pkg/result/... && go tool cover -func=/tmp/result-cover.out | grep "total:"
 ```
-Expected: ≥80%.
+Expected: ≥80%. Do NOT pass `-mod=vendor` — `make ensure` removed vendor; default mode is correct.
 
 Run precommit:
 ```bash

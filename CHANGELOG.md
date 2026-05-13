@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.0
+
+- feat: Config CRD gains optional `spec.taskTypes []string` field; `ConfigSpec.Validate` accepts either `taskType` or `taskTypes` (at-least-one-of); `ConfigSpec.Equal` detects `taskTypes` slice diffs; OpenAPIV3Schema gains `taskTypes` array property with item pattern + maxLength and CEL at-least-one-of rule; `taskType` field is marked deprecated in doc comments; generated deepcopy and applyconfiguration updated
+
 ## v0.61.6
 
 - feat(task/executor): add POST `/oauth-probe/trigger` HTTP endpoint — fires the OAuth probe loop on demand with fire-and-forget and single-flight semantics; the runner instance is shared with the existing weekly cron so behavior is identical regardless of invocation path

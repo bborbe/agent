@@ -16,8 +16,12 @@ type ConfigSpecApplyConfiguration struct {
 	Image *string `json:"image,omitempty"`
 	// Heartbeat is the interval at which the agent re-spawns (e.g. "30m").
 	Heartbeat *string `json:"heartbeat,omitempty"`
+	// Deprecated: prefer TaskTypes (list). Stays functional indefinitely; use taskTypes for new agents.
 	// TaskType is the task_type value in task frontmatter that routes to this agent.
 	TaskType *string `json:"taskType,omitempty"`
+	// TaskTypes is the list of task_type values in task frontmatter that route to this agent.
+	// Optional when taskType is set; at least one of taskType or taskTypes must be non-empty.
+	TaskTypes []string `json:"taskTypes,omitempty"`
 	// Resources holds optional resource requests for the agent container.
 	Resources *AgentResourcesApplyConfiguration `json:"resources,omitempty"`
 	// Env holds per-agent environment variables.
@@ -69,6 +73,16 @@ func (b *ConfigSpecApplyConfiguration) WithHeartbeat(value string) *ConfigSpecAp
 // If called multiple times, the TaskType field is set to the value of the last call.
 func (b *ConfigSpecApplyConfiguration) WithTaskType(value string) *ConfigSpecApplyConfiguration {
 	b.TaskType = &value
+	return b
+}
+
+// WithTaskTypes adds the given value to the TaskTypes field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the TaskTypes field.
+func (b *ConfigSpecApplyConfiguration) WithTaskTypes(values ...string) *ConfigSpecApplyConfiguration {
+	for i := range values {
+		b.TaskTypes = append(b.TaskTypes, values[i])
+	}
 	return b
 }
 

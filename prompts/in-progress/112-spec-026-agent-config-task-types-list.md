@@ -1,8 +1,12 @@
 ---
-status: approved
+status: committing
 spec: [026-agent-config-task-types-list]
+summary: Added optional TaskTypes []string field to ConfigSpec, deprecated TaskType, updated Equal/Validate with at-least-one-of semantics, updated OpenAPIV3Schema with XValidations CEL rule and taskTypes array property, ran make generatek8s to regenerate deepcopy and applyconfiguration, added comprehensive tests, updated docs and CHANGELOG.
+container: agent-112-spec-026-agent-config-task-types-list
+dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-13T20:00:00Z"
 queued: "2026-05-13T20:04:42Z"
+started: "2026-05-13T20:08:46Z"
 branch: dark-factory/agent-config-task-types-list
 ---
 

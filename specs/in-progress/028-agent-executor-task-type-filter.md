@@ -1,8 +1,11 @@
 ---
-status: draft
+status: generating
 tags:
     - dark-factory
     - spec
+approved: "2026-05-13T20:09:39Z"
+generating: "2026-05-13T20:09:39Z"
+branch: dark-factory/agent-executor-task-type-filter
 ---
 
 ## Summary
@@ -20,6 +23,7 @@ tags:
 - **Spec 022** — added singular `spec.taskType` to the Config CRD. Today registry metadata only.
 - **Spec 024** — weekly OAuth probe. Concrete consumer of this filter (probes route via `task_type: oauth-probe` and need the filter to validate routing).
 - **agent-config-task-types-list.md (sibling, draft)** — adds plural `spec.taskTypes` list to the CRD. Must merge before this spec can be approved.
+- **agent-task-previous-assignee-frontmatter.md (sibling, approved as spec 027)** — adds `previous_assignee` frontmatter via a single chokepoint in the controller's result writer. This spec's synthetic-failure path inherits the field automatically once 027 ships; if 027 lands first, the previous-assignee bullet in `## Failure` is reinforced by a queryable frontmatter field with no work in this spec.
 
 ## Problem
 
@@ -83,7 +87,7 @@ After this spec, the executor reads the agent's effective task-type set (`{cfg.T
 - The existing synthetic-failure publisher introduced by spec 009 is reachable from the task-event handler and can be invoked with a custom Reason string. Verification of the exact entry point is part of the implementation prompt.
 - The task's `task_type` frontmatter value is accessible via the existing `lib.TaskFrontmatter` accessor pattern (same shape as other frontmatter reads like `Status()` and `Assignee()`).
 - The operator-inbox query surfacing `assignee == ""` (per spec 021) is already in production. This spec inherits that surface.
-- Existing in-cluster Config CRs all declare a single `taskType` today. The "at-least-one-of" effective set is non-empty for every CR, so the filter has something to compare against from day one.
+- Existing in-cluster Config CRs all declare a single `taskType` today. (Constraint: operator must ensure at least one of `taskType` or `taskTypes` is set per CR — enforced by the sibling spec's admission rule. If a CR slips through with both empty, every routed task mismatches and escalates; this surfaces as a high-volume escalation storm in the operator inbox, not silent failure.)
 
 ## Failure Modes
 

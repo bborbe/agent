@@ -157,7 +157,13 @@ func configSpecSchema() apiextensionsv1.JSONSchemaProps {
 	}
 	return apiextensionsv1.JSONSchemaProps{
 		Type:     "object",
-		Required: []string{"assignee", "image", "heartbeat", "taskType"},
+		Required: []string{"assignee", "image", "heartbeat"},
+		XValidations: apiextensionsv1.ValidationRules{
+			{
+				Rule:    "(has(self.taskType) && size(self.taskType) > 0) || (has(self.taskTypes) && size(self.taskTypes) > 0)",
+				Message: "at least one of spec.taskType or spec.taskTypes must be non-empty",
+			},
+		},
 		Properties: map[string]apiextensionsv1.JSONSchemaProps{
 			"assignee":  {Type: "string", MinLength: &minLen},
 			"image":     {Type: "string", MinLength: &minLen},
@@ -166,6 +172,16 @@ func configSpecSchema() apiextensionsv1.JSONSchemaProps {
 				Type:      "string",
 				Pattern:   `^[a-z0-9-]+$`,
 				MaxLength: &maxLen63,
+			},
+			"taskTypes": {
+				Type: "array",
+				Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+					Schema: &apiextensionsv1.JSONSchemaProps{
+						Type:      "string",
+						Pattern:   `^[a-z0-9-]+$`,
+						MaxLength: &maxLen63,
+					},
+				},
 			},
 			"resources": {
 				Type: "object",

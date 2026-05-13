@@ -14,7 +14,7 @@ metadata:
   namespace: dev
 spec:
   assignee: backtest-agent        # matches task assignee field
-  taskType: backtest              # task_type value in task frontmatter
+  taskType: backtest              # task_type value (deprecated: prefer taskTypes list)
   image: backtest-agent:latest    # container image for K8s Job
   heartbeat: 15m                  # re-spawn interval for in_progress tasks
   resources:
@@ -30,7 +30,7 @@ spec:
 
 | Component | Uses | For |
 |-----------|------|-----|
-| Controller | `spec.assignee`, `spec.heartbeat`, `spec.taskType` | Match tasks, enforce heartbeat |
+| Controller | `spec.assignee`, `spec.heartbeat`, `spec.taskType`, `spec.taskTypes` | Match tasks, enforce heartbeat |
 | Job Creator | `spec.image`, `spec.resources`, `spec.env`, `spec.secretName`, `spec.volumeClaim`, `spec.volumeMountPath` | Spawn K8s Job with correct image/limits/env/secret/volume |
 
 ## Fields
@@ -40,7 +40,8 @@ spec:
 | `spec.assignee` | yes | Matches the `assignee` field in task frontmatter |
 | `spec.image` | yes | Docker image for the K8s Job (tag appended at runtime from branch) |
 | `spec.heartbeat` | yes | Interval between re-spawns for `in_progress` tasks |
-| `spec.taskType` | yes | Task type this agent handles; must match `^[a-z0-9-]+$`, max 63 chars (e.g. `claude`, `pr-review`, `trade-analysis`). Matches the `task_type` key in task frontmatter. |
+| `spec.taskType` | conditional | Task type this agent handles; must match `^[a-z0-9-]+$`, max 63 chars. **Deprecated: prefer `spec.taskTypes` (list).** Stays functional indefinitely. Required unless `spec.taskTypes` is non-empty. |
+| `spec.taskTypes` | no | List of task_type values this agent handles; overrides nothing, supplements `taskType`. Each element must match `^[a-z0-9-]+$`, max 63 chars. At least one of `taskType` or `taskTypes` must be non-empty. Filtering on this list is enforced by a follow-up spec. |
 | `spec.resources` | no | CPU/memory/storage requests for the job pod |
 | `spec.env` | no | Per-agent environment variables, merged with shared vars (`TASK_CONTENT`, `TASK_ID`, `KAFKA_BROKERS`, `BRANCH`) |
 | `spec.secretName` | no | Name of an existing K8s Secret mounted on the container via `envFrom` |
@@ -92,6 +93,21 @@ spec:
   resources:
     cpu: 2
     memory: 2Gi
+```
+
+```yaml
+apiVersion: agent.benjamin-borbe.de/v1
+kind: Config
+metadata:
+  name: pr-reviewer-agent
+spec:
+  assignee: pr-reviewer-agent
+  taskType: pr-review
+  taskTypes:
+    - pr-review
+    - oauth-probe
+  image: pr-reviewer-agent:latest
+  heartbeat: 5m
 ```
 
 ## Future Extensions

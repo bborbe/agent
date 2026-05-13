@@ -27,8 +27,8 @@ var taskTypePattern = regexp.MustCompile(`^[a-z0-9-]+$`)
 
 // Config declares a single agent type that the executor can spawn.
 type Config struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta   `           json:",inline"`
+	metav1.ObjectMeta `           json:"metadata,omitempty"`
 	// Spec holds the configuration for this agent type.
 	Spec ConfigSpec `json:"spec"`
 }
@@ -48,8 +48,12 @@ type ConfigSpec struct {
 	Image string `json:"image"`
 	// Heartbeat is the interval at which the agent re-spawns (e.g. "30m").
 	Heartbeat string `json:"heartbeat"`
+	// Deprecated: prefer TaskTypes (list). Stays functional indefinitely; use taskTypes for new agents.
 	// TaskType is the task_type value in task frontmatter that routes to this agent.
 	TaskType string `json:"taskType"`
+	// TaskTypes is the list of task_type values in task frontmatter that route to this agent.
+	// Optional when taskType is set; at least one of taskType or taskTypes must be non-empty.
+	TaskTypes []string `json:"taskTypes,omitempty"`
 	// Resources holds optional resource requests for the agent container.
 	Resources *AgentResources `json:"resources,omitempty"`
 	// Env holds per-agent environment variables.
@@ -89,8 +93,8 @@ type AgentResourceList struct {
 
 // ConfigList is a list of Config resources.
 type ConfigList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.TypeMeta `         json:",inline"`
+	metav1.ListMeta `         json:"metadata"`
 	// Items is the list of Config resources.
 	Items []Config `json:"items"`
 }
@@ -128,6 +132,7 @@ func (s ConfigSpec) Equal(o ConfigSpec) bool {
 		s.Image == o.Image &&
 		s.Heartbeat == o.Heartbeat &&
 		s.TaskType == o.TaskType &&
+		reflect.DeepEqual(s.TaskTypes, o.TaskTypes) &&
 		s.SecretName == o.SecretName &&
 		s.VolumeClaim == o.VolumeClaim &&
 		s.VolumeMountPath == o.VolumeMountPath &&
@@ -151,26 +156,70 @@ func (s ConfigSpec) Validate(ctx context.Context) error {
 	if s.VolumeClaim != "" && s.VolumeMountPath == "" {
 		return errors.Wrapf(ctx, validation.Error, "VolumeMountPath required when VolumeClaim set")
 	}
-	if s.Trigger != nil {
-		for _, phase := range s.Trigger.Phases {
-			if err := phase.Validate(ctx); err != nil {
-				return errors.Wrapf(ctx, err, "invalid trigger phase %q", phase)
-			}
-		}
-		for _, status := range s.Trigger.Statuses {
-			if err := status.Validate(ctx); err != nil {
-				return errors.Wrapf(ctx, err, "invalid trigger status %q", status)
-			}
+	if err := validateTrigger(ctx, s.Trigger); err != nil {
+		return err
+	}
+	if s.TaskType == "" && len(s.TaskTypes) == 0 {
+		return errors.Wrapf(
+			ctx,
+			validation.Error,
+			"at least one of taskType or taskTypes must be set",
+		)
+	}
+	if err := validateTaskTypeValue(ctx, s.TaskType); err != nil {
+		return err
+	}
+	return validateTaskTypesList(ctx, s.TaskTypes)
+}
+
+func validateTrigger(ctx context.Context, trigger *Trigger) error {
+	if trigger == nil {
+		return nil
+	}
+	for _, phase := range trigger.Phases {
+		if err := phase.Validate(ctx); err != nil {
+			return errors.Wrapf(ctx, err, "invalid trigger phase %q", phase)
 		}
 	}
-	if s.TaskType == "" {
-		return errors.Wrapf(ctx, validation.Error, "taskType is empty")
+	for _, status := range trigger.Statuses {
+		if err := status.Validate(ctx); err != nil {
+			return errors.Wrapf(ctx, err, "invalid trigger status %q", status)
+		}
 	}
-	if !taskTypePattern.MatchString(s.TaskType) {
+	return nil
+}
+
+func validateTaskTypeValue(ctx context.Context, taskType string) error {
+	if taskType == "" {
+		return nil
+	}
+	if !taskTypePattern.MatchString(taskType) {
 		return errors.Wrapf(ctx, validation.Error, "taskType must match ^[a-z0-9-]+$")
 	}
-	if len(s.TaskType) > 63 {
+	if len(taskType) > 63 {
 		return errors.Wrapf(ctx, validation.Error, "taskType exceeds maximum length of 63")
+	}
+	return nil
+}
+
+func validateTaskTypesList(ctx context.Context, types []string) error {
+	for _, t := range types {
+		if !taskTypePattern.MatchString(t) {
+			return errors.Wrapf(
+				ctx,
+				validation.Error,
+				"taskTypes element %q must match ^[a-z0-9-]+$",
+				t,
+			)
+		}
+		if len(t) > 63 {
+			return errors.Wrapf(
+				ctx,
+				validation.Error,
+				"taskTypes element %q exceeds maximum length of 63",
+				t,
+			)
+		}
 	}
 	return nil
 }

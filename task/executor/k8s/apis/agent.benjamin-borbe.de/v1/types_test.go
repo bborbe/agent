@@ -422,12 +422,15 @@ var _ = Describe("ConfigSpec", func() {
 			Expect(spec.Validate(ctx)).To(Succeed())
 		})
 
-		It("fails when TaskType is empty", func() {
+		It("fails when neither taskType nor taskTypes is set", func() {
 			spec := baseSpec()
 			spec.TaskType = ""
+			// TaskTypes not set — neither field populated
 			err := spec.Validate(ctx)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError(ContainSubstring("taskType is empty")))
+			Expect(
+				err,
+			).To(MatchError(ContainSubstring("at least one of taskType or taskTypes must be set")))
 		})
 
 		It("fails when TaskType contains uppercase letters (PR-Review)", func() {
@@ -482,6 +485,116 @@ var _ = Describe("ConfigSpec", func() {
 			Expect(a.Equal(b)).To(BeTrue())
 		})
 	})
+
+	Describe("Validate - TaskTypes field", func() {
+		baseSpec := func() agentv1.ConfigSpec {
+			return agentv1.ConfigSpec{Assignee: "agent", Image: "img:latest", Heartbeat: "1m"}
+		}
+
+		It("passes when only taskType is set", func() {
+			spec := baseSpec()
+			spec.TaskType = "pr-review"
+			Expect(spec.Validate(ctx)).To(Succeed())
+		})
+
+		It("passes when only taskTypes is set (non-empty list)", func() {
+			spec := baseSpec()
+			spec.TaskTypes = []string{"pr-review", "oauth-probe"}
+			Expect(spec.Validate(ctx)).To(Succeed())
+		})
+
+		It("passes when both taskType and taskTypes are set", func() {
+			spec := baseSpec()
+			spec.TaskType = "pr-review"
+			spec.TaskTypes = []string{"oauth-probe"}
+			Expect(spec.Validate(ctx)).To(Succeed())
+		})
+
+		It("fails when neither taskType nor taskTypes is set", func() {
+			spec := baseSpec()
+			err := spec.Validate(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(
+				err,
+			).To(MatchError(ContainSubstring("at least one of taskType or taskTypes must be set")))
+		})
+
+		It("fails when taskTypes has an element with uppercase letters", func() {
+			spec := baseSpec()
+			spec.TaskTypes = []string{"PR-Review"}
+			err := spec.Validate(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("must match")))
+		})
+
+		It("fails when taskTypes has an element with underscore", func() {
+			spec := baseSpec()
+			spec.TaskTypes = []string{"pr_review"}
+			err := spec.Validate(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("must match")))
+		})
+
+		It("fails when taskTypes has an element exceeding 63 characters", func() {
+			spec := baseSpec()
+			spec.TaskTypes = []string{strings.Repeat("a", 64)}
+			err := spec.Validate(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("exceeds maximum length")))
+		})
+
+		It("passes when taskTypes has an element of exactly 63 characters", func() {
+			spec := baseSpec()
+			spec.TaskTypes = []string{strings.Repeat("a", 63)}
+			Expect(spec.Validate(ctx)).To(Succeed())
+		})
+
+		It("passes when taskTypes is an empty list and taskType is set", func() {
+			spec := baseSpec()
+			spec.TaskType = "claude"
+			spec.TaskTypes = []string{}
+			Expect(spec.Validate(ctx)).To(Succeed())
+		})
+	})
+
+	Describe("Equal - TaskTypes field", func() {
+		It("returns false when TaskTypes differs", func() {
+			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "claude",
+				TaskTypes: []string{"oauth-probe"}}
+			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "claude",
+				TaskTypes: []string{"pr-review"}}
+			Expect(a.Equal(b)).To(BeFalse())
+		})
+
+		It("returns false when TaskTypes differ in order (order-sensitive)", func() {
+			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m",
+				TaskTypes: []string{"pr-review", "oauth-probe"}}
+			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m",
+				TaskTypes: []string{"oauth-probe", "pr-review"}}
+			Expect(a.Equal(b)).To(BeFalse())
+		})
+
+		It("returns false when one has nil TaskTypes and the other has a non-empty slice", func() {
+			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "claude"}
+			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "claude",
+				TaskTypes: []string{"oauth-probe"}}
+			Expect(a.Equal(b)).To(BeFalse())
+		})
+
+		It("returns true when both TaskTypes are nil", func() {
+			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "claude"}
+			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "claude"}
+			Expect(a.Equal(b)).To(BeTrue())
+		})
+
+		It("returns true when TaskTypes are identical slices", func() {
+			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m",
+				TaskTypes: []string{"pr-review", "oauth-probe"}}
+			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m",
+				TaskTypes: []string{"pr-review", "oauth-probe"}}
+			Expect(a.Equal(b)).To(BeTrue())
+		})
+	})
 })
 
 var _ = Describe("JSON round-trip for taskType", func() {
@@ -505,6 +618,36 @@ var _ = Describe("JSON round-trip for taskType", func() {
 		data, err := json.Marshal(spec)
 		Expect(err).To(BeNil())
 		Expect(string(data)).To(ContainSubstring(`"taskType":`))
+	})
+})
+
+var _ = Describe("JSON round-trip for taskTypes", func() {
+	It("round-trips taskTypes through JSON", func() {
+		spec := agentv1.ConfigSpec{
+			Assignee:  "agent",
+			Image:     "img:latest",
+			Heartbeat: "1m",
+			TaskType:  "pr-review",
+			TaskTypes: []string{"pr-review", "oauth-probe"},
+		}
+		data, err := json.Marshal(spec)
+		Expect(err).To(BeNil())
+		Expect(string(data)).To(ContainSubstring(`"taskTypes":["pr-review","oauth-probe"]`))
+		var decoded agentv1.ConfigSpec
+		Expect(json.Unmarshal(data, &decoded)).To(Succeed())
+		Expect(decoded.TaskTypes).To(Equal([]string{"pr-review", "oauth-probe"}))
+	})
+
+	It("omits taskTypes from JSON when nil (omitempty)", func() {
+		spec := agentv1.ConfigSpec{
+			Assignee:  "agent",
+			Image:     "img:latest",
+			Heartbeat: "1m",
+			TaskType:  "pr-review",
+		}
+		data, err := json.Marshal(spec)
+		Expect(err).To(BeNil())
+		Expect(string(data)).NotTo(ContainSubstring("taskTypes"))
 	})
 })
 
