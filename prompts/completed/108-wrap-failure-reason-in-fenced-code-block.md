@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Wrapped buildFailureSection non-empty message in a fenced code block for readable markdown rendering, added fence assertions to all relevant test blocks, added empty-message test, and updated CHANGELOG.
 container: agent-108-wrap-failure-reason-in-fenced-code-block
 dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-13T08:51:01Z"
 queued: "2026-05-13T08:51:01Z"
 started: "2026-05-13T08:51:03Z"
+completed: "2026-05-13T08:54:21Z"
 ---
 <summary>
 - `lib/delivery/content-generator.go:80-91` `buildFailureSection` currently renders the failure reason as `- **Reason:** <message>\n` — a single bullet line with the full message inline. When the message is short ("agent crashed", "config missing") that reads fine. When it's the new stream-json tail from `lib/v0.61.1` (5 lines of JSON joined with ` | `, ~2KB total), the body section becomes a wall of unwrapped text that renders poorly in Obsidian and other markdown viewers: the `**`, `_`, `[]`, and `{}` characters in the JSON confuse markdown parsers, the text doesn't wrap predictably, and operators can't easily select-and-copy the JSON portion.
