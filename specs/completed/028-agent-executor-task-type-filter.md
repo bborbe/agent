@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-05-13T20:09:39Z"
 generating: "2026-05-13T20:09:39Z"
 prompted: "2026-05-13T20:19:13Z"
 verifying: "2026-05-13T20:41:10Z"
+completed: "2026-05-13T21:28:12Z"
 branch: dark-factory/agent-executor-task-type-filter
 ---
 
