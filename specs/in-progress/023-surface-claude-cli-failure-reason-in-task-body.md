@@ -134,3 +134,17 @@ The manual check is gated on a release tag bump + the maintainer go.mod bump, bo
 Ship nothing further. `lib/v0.61.0` already added the `## Failure` body section, so the symptom is "the section is there but the message is content-free." Operators continue to race the agent pod's TTL cleanup window (default ~30 minutes on dev) to grab `kubectl logs <pod>` whenever pr-reviewer or any other claude-based agent fails. For low-frequency failures this is annoying but survivable. For a recurring failure mode (OAuth expiration, sustained rate-limit, image-registry hiccup), operators waste cycles on every incident chasing logs that the failure section should already contain. The original task's Definition of Done explicitly required an operator-readable explanation; leaving the message at `exit status 1` ships a half-fix and treats the DoD as advisory rather than binding.
 
 The cost of fixing is small (one file in `lib/claude`, table-driven unit tests, one CHANGELOG bullet). The cost of not fixing accumulates on every failure investigation and is borne by whichever operator is paged.
+
+## Verification Result
+
+**Verified:** 2026-05-13T09:37:18Z (HEAD 69c1967)
+**Binary:** /Users/bborbe/Documents/workspaces/go/bin/dark-factory (v0.156.1-1-g04f3863-dirty)
+**Scenario:** rung-1 unit tests (cd lib && make precommit) + rung-2 forced replay on dev: pr-reviewer Job spawned against broken OAuth, captured failure body on task page.
+**Evidence:**
+- cd lib && make precommit → "ready to commit" (lint, license, gosec 0 issues, trivy clean, 95/95 Ginkgo specs PASS in claude pkg)
+- lib/claude/claude-runner_test.go covers all 5 Ginkgo cases mandated by AC (diagnostic substring, no-stdout, >5-line eviction, >512-byte truncation, success path)
+- lib/claude/claude-runner.go: cmd.Stderr is not assigned anywhere; failure-message path reads only the captured tail (constants tailMaxLines=5, tailMaxBytes=512, tailJoiner=" | ")
+- git show --stat b11404f: change touches only lib/claude/claude-runner.go, lib/claude/claude-runner_test.go, CHANGELOG.md (AC 106)
+- CHANGELOG.md v0.61.1 bullet present
+- Rung-2 dev replay: task page `PR Review github - bborbe-go-skeleton - 10 - test-human-readable-filename-rung-2-verification.md` ## Failure body contains 5 stdout lines joined with " | " (4 joiner occurrences), verbatim `"result":"Failed to authenticate. API Error: 401 Invalid authentication credentials"`, observable mid-line truncation at 512 bytes, and `grep -c ": :"` returns 0 — AC 92 holds against the live binary.
+**Verdict:** PASS
