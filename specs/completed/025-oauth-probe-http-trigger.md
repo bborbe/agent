@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-05-13T19:05:10Z"
 generating: "2026-05-13T19:05:10Z"
 prompted: "2026-05-13T19:37:44Z"
 verifying: "2026-05-13T20:08:44Z"
+completed: "2026-05-13T20:49:30Z"
 branch: dark-factory/oauth-probe-http-trigger
 ---
 

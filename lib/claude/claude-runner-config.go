@@ -15,7 +15,7 @@ type ClaudeRunnerConfig struct {
 	// WorkingDirectory sets the CLI process working directory.
 	WorkingDirectory AgentDir
 	// Env holds extra KEY=VALUE entries appended to the subprocess environment
-	// AFTER the allowlist filter (see allowlistEnv in claude-runner.go). This is
+	// AFTER the allowlist + CLAUDE_CONFIG_DIR layers (see buildSubprocessEnv in claude-runner.go). This is
 	// the escape hatch for passing through secrets or vars the allowlist would
 	// otherwise strip (e.g. GH_TOKEN for gh CLI auth). Values here cross the
 	// trust boundary into the Claude CLI subprocess — only add what the agent

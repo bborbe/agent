@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-05-13T20:00:57Z"
 generating: "2026-05-13T20:00:57Z"
 prompted: "2026-05-13T20:05:48Z"
 verifying: "2026-05-13T20:24:33Z"
+completed: "2026-05-13T21:18:22Z"
 branch: dark-factory/agent-task-previous-assignee-frontmatter
 ---
 

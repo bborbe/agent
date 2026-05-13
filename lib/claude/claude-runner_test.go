@@ -6,6 +6,7 @@ package claude_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -156,6 +157,125 @@ exit 0`,
 			result, _ := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
 			Expect(result).NotTo(BeNil())
 			Expect(result.Result).To(Equal("task-output-text"))
+		})
+	})
+})
+
+var _ = Describe("claudeRunner CLAUDE_CONFIG_DIR env propagation", func() {
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	// writeEnvShim writes a fake "claude" binary that echoes the named env var
+	// as the `result` field of a stream-json result event, then exits 0.
+	writeEnvShim := func(envVar string) {
+		shimDir := GinkgoT().TempDir()
+		shimPath := filepath.Join(shimDir, "claude")
+		script := fmt.Sprintf(`#!/bin/sh
+echo "{\"type\":\"result\",\"result\":\"%s=$%s\"}"
+exit 0
+`, envVar, envVar)
+		Expect(os.WriteFile(shimPath, []byte(script), 0755)).To(Succeed()) //nolint:gosec
+		originalPath := os.Getenv("PATH")
+		DeferCleanup(func() {
+			Expect(os.Setenv("PATH", originalPath)).To(Succeed())
+		})
+		Expect(os.Setenv("PATH", shimDir+":"+originalPath)).To(Succeed())
+	}
+
+	Context("when config.ClaudeConfigDir is empty (default)", func() {
+		BeforeEach(func() {
+			writeEnvShim("CLAUDE_CONFIG_DIR")
+		})
+
+		It("passes CLAUDE_CONFIG_DIR=<expanded ~/.claude> to the subprocess", func() {
+			home, err := os.UserHomeDir()
+			Expect(err).NotTo(HaveOccurred())
+
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Result).To(Equal("CLAUDE_CONFIG_DIR=" + filepath.Join(home, ".claude")))
+		})
+	})
+
+	Context("when config.ClaudeConfigDir is an explicit absolute path", func() {
+		BeforeEach(func() {
+			writeEnvShim("CLAUDE_CONFIG_DIR")
+		})
+
+		It("passes that path through unchanged", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+				ClaudeConfigDir: claude.ClaudeConfigDir("/custom/claude/path"),
+			}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Result).To(Equal("CLAUDE_CONFIG_DIR=/custom/claude/path"))
+		})
+	})
+
+	Context("when config.ClaudeConfigDir is a tilde-prefixed path", func() {
+		BeforeEach(func() {
+			writeEnvShim("CLAUDE_CONFIG_DIR")
+		})
+
+		It("expands the tilde to the user's home directory", func() {
+			home, err := os.UserHomeDir()
+			Expect(err).NotTo(HaveOccurred())
+
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+				ClaudeConfigDir: claude.ClaudeConfigDir("~/custom-claude"),
+			}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(
+				result.Result,
+			).To(Equal("CLAUDE_CONFIG_DIR=" + filepath.Join(home, "custom-claude")))
+		})
+	})
+
+	Context("when CLAUDE_CONFIG_DIR is set in the parent process env", func() {
+		BeforeEach(func() {
+			writeEnvShim("CLAUDE_CONFIG_DIR")
+			originalEnv, hadOriginal := os.LookupEnv("CLAUDE_CONFIG_DIR")
+			DeferCleanup(func() {
+				if hadOriginal {
+					Expect(os.Setenv("CLAUDE_CONFIG_DIR", originalEnv)).To(Succeed())
+				} else {
+					Expect(os.Unsetenv("CLAUDE_CONFIG_DIR")).To(Succeed())
+				}
+			})
+			Expect(os.Setenv("CLAUDE_CONFIG_DIR", "/env-set/claude")).To(Succeed())
+		})
+
+		It("uses the parent env value when explicit config is empty", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Result).To(Equal("CLAUDE_CONFIG_DIR=/env-set/claude"))
+		})
+
+		It("explicit config takes precedence over parent env", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+				ClaudeConfigDir: claude.ClaudeConfigDir("/explicit/claude"),
+			}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Result).To(Equal("CLAUDE_CONFIG_DIR=/explicit/claude"))
+		})
+	})
+
+	Context("when r.config.Env explicitly sets CLAUDE_CONFIG_DIR", func() {
+		BeforeEach(func() {
+			writeEnvShim("CLAUDE_CONFIG_DIR")
+		})
+
+		It("the consumer-provided value wins over everything (highest precedence)", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+				ClaudeConfigDir: claude.ClaudeConfigDir("/explicit/claude"),
+				Env: map[string]string{
+					"CLAUDE_CONFIG_DIR": "/consumer-env/claude",
+				},
+			}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Result).To(Equal("CLAUDE_CONFIG_DIR=/consumer-env/claude"))
 		})
 	})
 })

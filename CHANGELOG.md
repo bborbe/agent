@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.3
+
+- fix(lib/claude): `CLAUDE_CONFIG_DIR` is now always passed to the Claude subprocess, defaulting to `~/.claude` when the consumer has not configured a value. Previously the env var was only set when explicitly configured, which made Claude write `.claude.json` to the agent's ephemeral `$HOME` rather than the persistent `~/.claude/` PVC mount — refresh tokens were silently lost across Job restarts, eventually causing 401 errors. **Behavioral regression**: agents deployed against existing PVCs (which still have `.claude.json` at the old ephemeral path) will fail with "config file not found" on the next Job start. Re-run `claude login` per PVC via [[Agent - Refresh Claude OAuth Login]] after bumping `lib/claude`. A failure to resolve `$HOME` in the pod (rare) now manifests as a hard `Run` error rather than silent ephemeral fallback.
+
 ## v0.62.2
 
 - feat(task/executor): add pre-spawn task-type filter — executor computes effective type set (`taskType` ∪ `taskTypes`) from the Config CR and publishes a synthetic failure (phase=ai_review, assignee="" cleared) when a task's `task_type` is absent or mismatched; no Job is spawned and trigger_count/retry_count are not bumped; **NOTE:** tasks without a `task_type` frontmatter field will now be rejected on first event delivery when the agent has `taskType`/`taskTypes` configured — operators must add `task_type` to legacy task templates before deploying this change

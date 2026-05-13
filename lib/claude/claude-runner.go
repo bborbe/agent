@@ -107,20 +107,11 @@ func (r *claudeRunner) buildCommand(
 
 	cmd.Stdin = bytes.NewBufferString(prompt)
 
-	cmd.Env = allowlistEnv()
-	if r.config.ClaudeConfigDir != "" {
-		cfgDir, err := r.config.ClaudeConfigDir.Resolve(ctx)
-		if err != nil {
-			return nil, errors.Wrap(ctx, err, "resolve ClaudeConfigDir")
-		}
-		cmd.Env = append(
-			cmd.Env,
-			"CLAUDE_CONFIG_DIR="+cfgDir,
-		)
+	env, err := r.buildSubprocessEnv(ctx)
+	if err != nil {
+		return nil, errors.Wrap(ctx, err, "build subprocess env")
 	}
-	for k, v := range r.config.Env {
-		cmd.Env = append(cmd.Env, k+"="+v)
-	}
+	cmd.Env = env
 	glog.V(4).Infof("env %+v", cmd.Env)
 
 	return cmd, nil
@@ -184,24 +175,57 @@ func scanOutput(
 	return resultText, tail
 }
 
-// allowlistEnv returns a minimal set of environment variables safe to pass to
-// the Claude CLI subprocess. The parent process (task executor) typically runs
-// with secrets, Kafka creds, and other sensitive vars in its environment; we
-// do NOT want those flowing into Claude sessions by default. This allowlist
-// enforces that trust boundary — only well-known, non-sensitive vars pass
-// through automatically.
+// buildSubprocessEnv constructs the env var slice for the Claude CLI subprocess.
+// Precedence (later layers override earlier):
 //
-// To pass additional vars (e.g. GH_TOKEN for gh CLI auth), populate
-// ClaudeRunnerConfig.Env, which is merged in after this allowlist.
-func allowlistEnv() []string {
-	keys := []string{
-		"HOME", "PATH", "USER", "TZ", "ZONEINFO", "TMPDIR", "LANG", "LC_ALL",
-	}
-	var env []string
-	for _, k := range keys {
+//  1. Allowlist: pass-through of safe parent-process vars (HOME, PATH, ...).
+//     The parent process (task executor) typically runs with secrets, Kafka creds,
+//     and other sensitive vars in its environment; we do NOT want those flowing into
+//     Claude sessions by default. This allowlist enforces that trust boundary — only
+//     well-known, non-sensitive vars pass through automatically.
+//  2. CLAUDE_CONFIG_DIR: explicit config > parent process env > default "~/.claude".
+//  3. Consumer-provided r.config.Env: arbitrary overrides — highest precedence.
+//     To pass additional vars (e.g. GH_TOKEN for gh CLI auth), populate
+//     ClaudeRunnerConfig.Env. Values here cross the trust boundary into the
+//     Claude CLI subprocess — only add what the agent genuinely needs.
+//
+// Building via map[string]string makes precedence linear by assignment order and
+// prevents duplicate-key entries in the resulting []string.
+func (r *claudeRunner) buildSubprocessEnv(ctx context.Context) ([]string, error) {
+	env := map[string]string{}
+
+	// Layer 1: allowlist pass-through.
+	for _, k := range []string{"HOME", "PATH", "USER", "TZ", "ZONEINFO", "TMPDIR", "LANG", "LC_ALL"} {
 		if v, ok := os.LookupEnv(k); ok {
-			env = append(env, k+"="+v)
+			env[k] = v
 		}
 	}
-	return env
+
+	// Layer 2: CLAUDE_CONFIG_DIR with precedence config > env > default.
+	cfgDir := r.config.ClaudeConfigDir
+	if cfgDir == "" {
+		if envVal := os.Getenv("CLAUDE_CONFIG_DIR"); envVal != "" {
+			cfgDir = ClaudeConfigDir(envVal)
+		}
+	}
+	if cfgDir == "" {
+		cfgDir = "~/.claude"
+	}
+	resolved, err := cfgDir.Resolve(ctx)
+	if err != nil {
+		return nil, errors.Wrap(ctx, err, "resolve ClaudeConfigDir")
+	}
+	env["CLAUDE_CONFIG_DIR"] = resolved
+
+	// Layer 3: consumer-provided env overrides everything above.
+	for k, v := range r.config.Env {
+		env[k] = v
+	}
+
+	// Convert to []string for exec.Cmd.
+	result := make([]string, 0, len(env))
+	for k, v := range env {
+		result = append(result, k+"="+v)
+	}
+	return result, nil
 }
