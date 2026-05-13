@@ -178,7 +178,7 @@ func (r *resultWriter) applyRetryCounter(merged, existing lib.TaskFrontmatter, b
 
 	// needs_input: agent explicitly requested human review — clear assignee so task surfaces in operator inbox
 	if phase, ok := merged["phase"].(string); ok && phase == "human_review" {
-		merged["assignee"] = ""
+		clearAssignee(merged) // sets previous_assignee and clears assignee
 	}
 
 	return body
@@ -196,8 +196,7 @@ func (r *resultWriter) applyTriggerCap(
 	if triggerCount == 0 || triggerCount < merged.MaxTriggers() {
 		return body
 	}
-	agentName := string(merged.Assignee()) // capture before clear
-	merged["assignee"] = ""
+	agentName := clearAssignee(merged)
 	if containsEscalationSection(body, "## Trigger Cap Escalation") {
 		restoreExistingPhase(existing, merged)
 		return body
@@ -215,13 +214,24 @@ func (r *resultWriter) applyRetryCap(
 	if retryCount < merged.MaxRetries() {
 		return body
 	}
-	agentName := string(merged.Assignee()) // capture before clear
-	merged["assignee"] = ""
+	agentName := clearAssignee(merged)
 	if containsEscalationSection(body, "## Retry Escalation") {
 		restoreExistingPhase(existing, merged)
 		return body
 	}
 	return body + r.escalationSection(retryCount, agentName)
+}
+
+// clearAssignee sets previous_assignee to the current assignee value (if non-empty),
+// then clears assignee to "". Returns the captured name for use in escalation body text.
+// This is the single chokepoint for all assignee-clear operations in the result writer.
+func clearAssignee(merged lib.TaskFrontmatter) string {
+	agentName := string(merged.Assignee())
+	if agentName != "" {
+		merged["previous_assignee"] = agentName
+	}
+	merged["assignee"] = ""
+	return agentName
 }
 
 // restoreExistingPhase writes the on-disk phase back into merged when the existing

@@ -1,11 +1,12 @@
 ---
-status: prompted
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-05-13T19:50:24Z"
 generating: "2026-05-13T19:50:25Z"
 prompted: "2026-05-13T19:55:29Z"
+verifying: "2026-05-13T20:16:55Z"
 branch: dark-factory/agent-config-task-types-list
 ---
 

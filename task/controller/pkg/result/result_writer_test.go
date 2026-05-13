@@ -542,9 +542,10 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					// section text records pre-clear agent
 					Expect(
 						s,
-					).NotTo(ContainSubstring("assignee: claude"))
+					).NotTo(ContainSubstring("\nassignee: claude"))
 					// frontmatter assignee cleared
 					Expect(s).To(ContainSubstring("2026-04-18T12:00:00Z"))
+					Expect(s).To(ContainSubstring("previous_assignee: claude"))
 				},
 			)
 
@@ -599,8 +600,9 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					Expect(s).To(ContainSubstring("## Retry Escalation"))
 					Expect(
 						s,
-					).NotTo(ContainSubstring("assignee: claude"))
+					).NotTo(ContainSubstring("\nassignee: claude"))
 					// frontmatter assignee cleared
+					Expect(s).To(ContainSubstring("previous_assignee: claude"))
 				},
 			)
 
@@ -649,9 +651,10 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				s := string(written)
 				Expect(s).To(ContainSubstring("phase: ai_review"))
 				Expect(s).NotTo(ContainSubstring("phase: human_review"))
-				Expect(s).NotTo(ContainSubstring("assignee: claude"))
+				Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
 				Expect(s).To(ContainSubstring("**Assignee:** claude"))
 				Expect(s).To(ContainSubstring("## Retry Escalation"))
+				Expect(s).To(ContainSubstring("previous_assignee: claude"))
 			})
 
 			It("writes assignee: empty and preserves phase: in_progress at retry cap", func() {
@@ -675,9 +678,10 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				s := string(written)
 				Expect(s).To(ContainSubstring("phase: in_progress"))
 				Expect(s).NotTo(ContainSubstring("phase: human_review"))
-				Expect(s).NotTo(ContainSubstring("assignee: claude"))
+				Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
 				Expect(s).To(ContainSubstring("**Assignee:** claude"))
 				Expect(s).To(ContainSubstring("## Retry Escalation"))
+				Expect(s).To(ContainSubstring("previous_assignee: claude"))
 			})
 
 			It("writes assignee: empty and preserves phase: planning at retry cap", func() {
@@ -701,9 +705,10 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				s := string(written)
 				Expect(s).To(ContainSubstring("phase: planning"))
 				Expect(s).NotTo(ContainSubstring("phase: human_review"))
-				Expect(s).NotTo(ContainSubstring("assignee: claude"))
+				Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
 				Expect(s).To(ContainSubstring("**Assignee:** claude"))
 				Expect(s).To(ContainSubstring("## Retry Escalation"))
+				Expect(s).To(ContainSubstring("previous_assignee: claude"))
 			})
 		})
 
@@ -789,7 +794,8 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					Expect(s).NotTo(ContainSubstring("## Retry Escalation"))
 					Expect(s).To(ContainSubstring("No trades found"))
 					// assignee cleared — task surfaces in operator inbox
-					Expect(s).NotTo(ContainSubstring("assignee: claude"))
+					Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
+					Expect(s).To(ContainSubstring("previous_assignee: claude"))
 				},
 			)
 
@@ -817,7 +823,8 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					Expect(s).To(ContainSubstring("phase: human_review"))
 					Expect(s).NotTo(ContainSubstring("## Retry Escalation"))
 					// assignee remains empty (already cleared by prior write)
-					Expect(s).NotTo(ContainSubstring("assignee: claude"))
+					Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
+					Expect(s).To(ContainSubstring("previous_assignee: claude"))
 				},
 			)
 
@@ -839,9 +846,10 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
 				s := string(written)
 				Expect(s).To(ContainSubstring("phase: human_review"))
-				Expect(s).NotTo(ContainSubstring("assignee: claude"))
+				Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
 				Expect(s).NotTo(ContainSubstring("## Retry Escalation"))
 				Expect(s).NotTo(ContainSubstring("## Trigger Cap Escalation"))
+				Expect(s).To(ContainSubstring("previous_assignee: claude"))
 			})
 		})
 
@@ -903,7 +911,8 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					Expect(strings.Count(s, "## Trigger Cap Escalation")).To(Equal(1))
 					Expect(s).To(ContainSubstring("Status: failed"))
 					Expect(s).To(ContainSubstring("gh auth failed"))
-					Expect(s).NotTo(ContainSubstring("assignee: claude")) // assignee cleared
+					Expect(s).NotTo(ContainSubstring("\nassignee: claude")) // assignee cleared
+					Expect(s).To(ContainSubstring("previous_assignee: claude"))
 				},
 			)
 
@@ -932,7 +941,8 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					s := string(written)
 					Expect(strings.Count(s, "## Trigger Cap Escalation")).To(Equal(1))
 					Expect(s).To(ContainSubstring("phase: human_review"))
-					Expect(s).NotTo(ContainSubstring("assignee: claude")) // assignee cleared
+					Expect(s).NotTo(ContainSubstring("\nassignee: claude")) // assignee cleared
+					Expect(s).To(ContainSubstring("previous_assignee: claude"))
 				},
 			)
 
@@ -1006,7 +1016,8 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					Expect(s).To(ContainSubstring("Status: failed"))
 					Expect(s).To(ContainSubstring("gh auth failed"))
 					// assignee cleared
-					Expect(s).NotTo(ContainSubstring("assignee: claude"))
+					Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
+					Expect(s).To(ContainSubstring("previous_assignee: claude"))
 				},
 			)
 
@@ -1034,7 +1045,8 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					s := string(written)
 					Expect(strings.Count(s, "## Retry Escalation")).To(Equal(1))
 					Expect(s).To(ContainSubstring("phase: human_review"))
-					Expect(s).NotTo(ContainSubstring("assignee: claude")) // assignee cleared
+					Expect(s).NotTo(ContainSubstring("\nassignee: claude")) // assignee cleared
+					Expect(s).To(ContainSubstring("previous_assignee: claude"))
 				},
 			)
 
@@ -1060,9 +1072,10 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				s := string(written)
 				Expect(s).To(ContainSubstring("phase: ai_review"))
 				Expect(s).NotTo(ContainSubstring("phase: human_review"))
-				Expect(s).NotTo(ContainSubstring("assignee: claude"))
+				Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
 				Expect(s).To(ContainSubstring("**Assignee:** claude"))
 				Expect(s).To(ContainSubstring("## Trigger Cap Escalation"))
+				Expect(s).To(ContainSubstring("previous_assignee: claude"))
 			})
 
 			It("writes assignee: empty and preserves phase: in_progress at trigger cap", func() {
@@ -1087,9 +1100,10 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				s := string(written)
 				Expect(s).To(ContainSubstring("phase: in_progress"))
 				Expect(s).NotTo(ContainSubstring("phase: human_review"))
-				Expect(s).NotTo(ContainSubstring("assignee: claude"))
+				Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
 				Expect(s).To(ContainSubstring("**Assignee:** claude"))
 				Expect(s).To(ContainSubstring("## Trigger Cap Escalation"))
+				Expect(s).To(ContainSubstring("previous_assignee: claude"))
 			})
 
 			It("writes assignee: empty and preserves phase: planning at trigger cap", func() {
@@ -1114,9 +1128,10 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				s := string(written)
 				Expect(s).To(ContainSubstring("phase: planning"))
 				Expect(s).NotTo(ContainSubstring("phase: human_review"))
-				Expect(s).NotTo(ContainSubstring("assignee: claude"))
+				Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
 				Expect(s).To(ContainSubstring("**Assignee:** claude"))
 				Expect(s).To(ContainSubstring("## Trigger Cap Escalation"))
+				Expect(s).To(ContainSubstring("previous_assignee: claude"))
 			})
 
 			It(
@@ -1148,9 +1163,10 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					Expect(s).To(ContainSubstring("phase: ai_review"))
 					Expect(s).NotTo(ContainSubstring("phase: planning"))
 					// assignee must remain empty (stale claude not revived)
-					Expect(s).NotTo(ContainSubstring("assignee: claude"))
+					Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
 					// escalation section count stays at 1
 					Expect(strings.Count(s, "## Trigger Cap Escalation")).To(Equal(1))
+					Expect(s).To(ContainSubstring("previous_assignee: claude"))
 				},
 			)
 
@@ -1182,10 +1198,125 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					// section text records pre-clear agent
 					Expect(
 						s,
-					).NotTo(ContainSubstring("assignee: claude"))
+					).NotTo(ContainSubstring("\nassignee: claude"))
 					// frontmatter field is cleared
+					Expect(s).To(ContainSubstring("previous_assignee: claude"))
 				},
 			)
+
+			It(
+				"previous_assignee persists when operator re-delegates by setting a non-empty assignee",
+				func() {
+					// First write: trigger cap fires — assignee cleared, previous_assignee set
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\n---\n## Result\nStatus: failed\n",
+					)
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "ai_review",
+							"trigger_count":   3,
+							"max_triggers":    3,
+							"assignee":        "claude",
+						},
+						Content: lib.TaskContent("## Result\nStatus: failed\n"),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					Expect(s).To(ContainSubstring("previous_assignee: claude"))
+					Expect(
+						s,
+					).NotTo(ContainSubstring("\nassignee: claude"))
+					// line-anchored to skip previous_assignee:
+
+					// Second write: operator re-delegates by setting a non-empty assignee.
+					// mergeFrontmatter preserves disk keys not present in incoming — previous_assignee:
+					// claude from disk is kept because agent payload does not contain previous_assignee.
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "planning",
+							"trigger_count":   0, // operator reset
+							"max_triggers":    3,
+							"assignee":        "backtest-agent", // re-delegation
+						},
+						Content: lib.TaskContent("## Task\nRetrying with backtest-agent.\n"),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written2, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s2 := string(written2)
+					// previous_assignee must NOT be cleared or overwritten — it persists
+					Expect(s2).To(ContainSubstring("previous_assignee: claude"))
+					// new assignee is set
+					Expect(s2).To(ContainSubstring("assignee: backtest-agent"))
+				},
+			)
+
+			It(
+				"does not set previous_assignee when pre-clear assignee is already empty (defensive case)",
+				func() {
+					// disk: assignee already "", no previous_assignee
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\ntrigger_count: 3\nmax_triggers: 3\nassignee: \"\"\n---\n## Result\nStatus: failed\n",
+					)
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "ai_review",
+							"trigger_count":   3,
+							"max_triggers":    3,
+							"assignee":        "", // empty — malformed upstream state
+						},
+						Content: lib.TaskContent("## Result\nStatus: failed\n"),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					// agentName captured from merged.Assignee() is "", so clearAssignee skips writing previous_assignee
+					Expect(s).NotTo(ContainSubstring("previous_assignee:"))
+					// escalation section is still appended
+					Expect(s).To(ContainSubstring("## Trigger Cap Escalation"))
+				},
+			)
+
+			It("previous_assignee round-trips through YAML on a parked task", func() {
+				writeTaskFile(
+					"my-task.md",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\n---\n## Result\nStatus: failed\n",
+				)
+				taskFile = lib.Task{
+					TaskIdentifier: identifier,
+					Frontmatter: lib.TaskFrontmatter{
+						"task_identifier": "test-task-uuid-1234",
+						"status":          "in_progress",
+						"phase":           "ai_review",
+						"trigger_count":   3,
+						"max_triggers":    3,
+						"assignee":        "claude",
+					},
+					Content: lib.TaskContent("## Result\nStatus: failed\n"),
+				}
+				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+
+				written, err := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+				Expect(err).NotTo(HaveOccurred())
+
+				// Parse the written file's frontmatter back into a map and assert the key
+				// exists with the expected value. This exercises the YAML marshal+unmarshal
+				// boundary, not just substring presence in the bytes.
+				fm, fmErr := extractTestFrontmatter(string(written))
+				Expect(fmErr).NotTo(HaveOccurred())
+				Expect(fm["previous_assignee"]).To(Equal("claude"))
+			})
 		})
 
 		Context("atomic write and push error", func() {

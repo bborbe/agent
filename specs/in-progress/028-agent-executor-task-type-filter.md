@@ -1,10 +1,11 @@
 ---
-status: generating
+status: prompted
 tags:
     - dark-factory
     - spec
 approved: "2026-05-13T20:09:39Z"
 generating: "2026-05-13T20:09:39Z"
+prompted: "2026-05-13T20:19:13Z"
 branch: dark-factory/agent-executor-task-type-filter
 ---
 

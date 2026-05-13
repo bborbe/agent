@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.1
+
+- feat(task/controller): write `previous_assignee` frontmatter field on every assignee-clear path (trigger cap, retry cap, needs_input) — captures the pre-clear agent name so operator-inbox queries can group parked tasks by parked-by-agent without parsing body content; persists across operator re-delegation
+
 ## v0.62.0
 
 - feat: Config CRD gains optional `spec.taskTypes []string` field; `ConfigSpec.Validate` accepts either `taskType` or `taskTypes` (at-least-one-of); `ConfigSpec.Equal` detects `taskTypes` slice diffs; OpenAPIV3Schema gains `taskTypes` array property with item pattern + maxLength and CEL at-least-one-of rule; `taskType` field is marked deprecated in doc comments; generated deepcopy and applyconfiguration updated

@@ -1,8 +1,12 @@
 ---
-status: approved
+status: committing
 spec: [027-agent-task-previous-assignee-frontmatter]
+summary: Added clearAssignee helper as single chokepoint for all assignee-clear paths; all three escalation paths (trigger cap, retry cap, needs_input) now write previous_assignee frontmatter field; 17 existing tests extended, 3 new tests added, docs and CHANGELOG updated
+container: agent-113-spec-027-previous-assignee-frontmatter
+dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-13T20:10:00Z"
 queued: "2026-05-13T20:11:13Z"
+started: "2026-05-13T20:16:57Z"
 branch: dark-factory/agent-task-previous-assignee-frontmatter
 ---
 
