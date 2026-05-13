@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [025-oauth-probe-http-trigger]
 summary: Added POST /oauth-probe/trigger HTTP endpoint to task/executor with fire-and-forget and single-flight semantics, sharing the OAuthProbeRunner instance with the existing weekly cron
 container: agent-111-spec-025-oauth-probe-http-trigger
@@ -7,6 +7,7 @@ dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-13T19:15:00Z"
 queued: "2026-05-13T19:41:16Z"
 started: "2026-05-13T19:41:18Z"
+completed: "2026-05-13T20:08:44Z"
 branch: dark-factory/oauth-probe-http-trigger
 ---
 
