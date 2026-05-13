@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [023-surface-claude-cli-failure-reason-in-task-body]
 summary: Modified claudeRunner in lib/claude to surface a bounded stdout tail (last 5 lines, 512 bytes/line) on CLI subprocess failures, replacing the empty double-colon rendering with real diagnostic output; added six new Ginkgo tests covering all error paths and the success path; updated CHANGELOG.md.
 container: agent-107-spec-023-claude-runner-stdout-tail
@@ -7,6 +7,7 @@ dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-13T00:00:00Z"
 queued: "2026-05-13T06:54:23Z"
 started: "2026-05-13T06:54:24Z"
+completed: "2026-05-13T07:00:55Z"
 branch: dark-factory/surface-claude-cli-failure-reason-in-task-body
 ---
 
