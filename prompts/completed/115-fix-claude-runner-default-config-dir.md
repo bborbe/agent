@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Replaced allowlistEnv with buildSubprocessEnv that always passes CLAUDE_CONFIG_DIR defaulting to ~/.claude, added 5 boundary-case tests, and updated CHANGELOG.md with operator re-login note.
 container: agent-115-fix-claude-runner-default-config-dir
 dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-13T21:30:00Z"
 queued: "2026-05-13T21:14:48Z"
 started: "2026-05-13T21:14:50Z"
+completed: "2026-05-13T21:18:56Z"
 ---
 
 <summary>
