@@ -7,7 +7,7 @@ replace (
 )
 
 require (
-	github.com/IBM/sarama v1.48.1
+	github.com/IBM/sarama v1.48.2
 	github.com/bborbe/agent/lib v0.0.0-20260329144024-36889d7c0620
 	github.com/bborbe/cqrs v0.5.1
 	github.com/bborbe/cron v1.8.17
