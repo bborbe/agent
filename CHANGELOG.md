@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.61.1
+
+- fix(lib/claude): surface bounded stdout tail from failed `claude` CLI subprocess runs — ring buffer captures last 5 non-empty stdout lines (512 bytes/line max), joined with ` | `, so the `## Failure` body section on the task page contains the actual CLI diagnostic output (auth failures, rate-limit events, API errors) instead of the empty `claude CLI failed: : exit status 1` rendering caused by stream-json's always-empty stderr
+
 ## v0.61.0
 
 - feat: Config CRD gains required `spec.taskType` string field; `ConfigSpec.Validate` rejects empty, non-`^[a-z0-9-]+$`, and >63-char values; `ConfigSpec.Equal` detects `TaskType` diff; OpenAPIV3Schema updated with pattern and maxLength; applyconfiguration regenerated with `WithTaskType` builder; `agent/claude` manifest migrated to `taskType: claude`

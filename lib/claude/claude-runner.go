@@ -11,9 +11,16 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/bborbe/errors"
 	"github.com/golang/glog"
+)
+
+const (
+	tailMaxLines = 5
+	tailMaxBytes = 512
+	tailJoiner   = " | "
 )
 
 //counterfeiter:generate -o ../mocks/claude-claude-runner.go --fake-name ClaudeRunner . ClaudeRunner
@@ -45,17 +52,20 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 		return nil, errors.Wrap(ctx, err, "create stdout pipe")
 	}
 
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
 	if err := cmd.Start(); err != nil {
 		return nil, errors.Wrap(ctx, err, "start claude CLI")
 	}
 
-	resultText := scanOutput(ctx, stdoutPipe)
+	resultText, tail := scanOutput(ctx, stdoutPipe)
 
 	if err := cmd.Wait(); err != nil {
-		return nil, errors.Wrapf(ctx, err, "claude CLI failed: %s", stderr.String())
+		var tailMsg string
+		if len(tail) > 0 {
+			tailMsg = strings.Join(tail, tailJoiner)
+		} else {
+			tailMsg = "no stdout captured"
+		}
+		return nil, errors.Wrapf(ctx, err, "claude CLI failed: %s", tailMsg)
 	}
 
 	if resultText == "" {
@@ -116,20 +126,42 @@ func (r *claudeRunner) buildCommand(
 	return cmd, nil
 }
 
-// scanOutput reads stream-json lines from stdout, logs events, and returns the result text.
-func scanOutput(ctx context.Context, reader interface{ Read([]byte) (int, error) }) string {
+// appendTail appends a non-empty line to the ring buffer, truncating to tailMaxBytes and evicting the oldest entry when over tailMaxLines.
+func appendTail(tail []string, line []byte) []string {
+	if len(line) == 0 {
+		return tail
+	}
+	captured := line
+	if len(captured) > tailMaxBytes {
+		captured = captured[:tailMaxBytes]
+	}
+	tail = append(tail, string(captured))
+	if len(tail) > tailMaxLines {
+		tail = tail[len(tail)-tailMaxLines:]
+	}
+	return tail
+}
+
+// scanOutput reads stream-json lines from stdout, logs events, and returns the result text and a bounded tail of all non-empty lines.
+func scanOutput(
+	ctx context.Context,
+	reader interface{ Read([]byte) (int, error) },
+) (string, []string) {
 	var resultText string
+	var tail []string
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
-			return ""
+			return "", nil
 		default:
 		}
 
 		line := scanner.Bytes()
 		glog.V(4).Infof("[line] %s", line)
+
+		tail = appendTail(tail, line)
 
 		var event claudeEvent
 		if err := json.Unmarshal(line, &event); err != nil {
@@ -149,7 +181,7 @@ func scanOutput(ctx context.Context, reader interface{ Read([]byte) (int, error)
 			}
 		}
 	}
-	return resultText
+	return resultText, tail
 }
 
 // allowlistEnv returns a minimal set of environment variables safe to pass to
