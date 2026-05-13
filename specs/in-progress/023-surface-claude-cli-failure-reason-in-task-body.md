@@ -1,11 +1,12 @@
 ---
-status: prompted
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-05-12T23:38:41Z"
 generating: "2026-05-12T23:38:41Z"
 prompted: "2026-05-12T23:45:13Z"
+verifying: "2026-05-13T07:00:55Z"
 branch: dark-factory/surface-claude-cli-failure-reason-in-task-body
 ---
 

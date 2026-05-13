@@ -54,6 +54,7 @@ var _ = Describe("FallbackContentGenerator", func() {
 				Expect(generated).NotTo(ContainSubstring("phase: ai_review"))
 				Expect(generated).To(ContainSubstring("## Failure"))
 				Expect(generated).To(ContainSubstring("claude CLI failed: exit status 1"))
+				Expect(generated).To(ContainSubstring("```\n"))
 				Expect(generated).NotTo(ContainSubstring("## Result"))
 			},
 		)
@@ -199,10 +200,25 @@ var _ = Describe("FallbackContentGenerator", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(generated).To(ContainSubstring("## Failure"))
 				Expect(generated).To(ContainSubstring("container OOMKilled"))
+				Expect(generated).To(ContainSubstring("```\n"))
 				Expect(generated).NotTo(ContainSubstring("## Result"))
 				Expect(strings.Count(generated, "## Failure")).To(Equal(1))
 			},
 		)
+
+		It("omits fence when Message is empty on failed status", func() {
+			original := "---\ntitle: My Task\n---\n"
+			result := agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusFailed,
+				Message: "",
+				Output:  "",
+			}
+			generated, err := generator.Generate(ctx, original, result)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(generated).To(ContainSubstring("## Failure"))
+			Expect(generated).To(ContainSubstring("no message provided"))
+			Expect(generated).NotTo(ContainSubstring("```"))
+		})
 
 		It("omits **Message:** when both Output and Message are empty", func() {
 			original := "---\ntitle: My Task\n---\n"
@@ -240,6 +256,7 @@ var _ = Describe("PassthroughContentGenerator", func() {
 		Expect(
 			generated,
 		).To(ContainSubstring("pr-plan claude run failed: claude CLI failed: exit status 1"))
+		Expect(generated).To(ContainSubstring("```\n"))
 	})
 
 	It(
@@ -256,6 +273,7 @@ var _ = Describe("PassthroughContentGenerator", func() {
 			Expect(
 				generated,
 			).To(ContainSubstring("pr-plan claude run failed: claude CLI failed: exit status 1"))
+			Expect(generated).To(ContainSubstring("```\n"))
 			Expect(generated).To(ContainSubstring("phase: human_review"))
 			Expect(generated).To(ContainSubstring("status: in_progress"))
 		},
@@ -271,6 +289,7 @@ var _ = Describe("PassthroughContentGenerator", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(generated).To(ContainSubstring("## Failure"))
 		Expect(generated).To(ContainSubstring("missing PR URL in task description"))
+		Expect(generated).To(ContainSubstring("```\n"))
 	})
 
 	It(
@@ -395,6 +414,7 @@ var _ = Describe("NewSectionContentGenerator", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(generated).To(ContainSubstring("## Failure"))
 			Expect(generated).To(ContainSubstring("boom"))
+			Expect(generated).To(ContainSubstring("```\n"))
 			Expect(generated).NotTo(ContainSubstring("## Plan"))
 		})
 	})

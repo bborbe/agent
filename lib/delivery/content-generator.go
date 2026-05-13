@@ -81,9 +81,10 @@ func buildFailureSection(result agentlib.AgentResultInfo) string {
 	var b strings.Builder
 	b.WriteString("## Failure\n\n")
 	if result.Message != "" {
-		b.WriteString("- **Reason:** ")
+		b.WriteString("- **Reason:**\n\n")
+		b.WriteString("```\n")
 		b.WriteString(result.Message)
-		b.WriteString("\n")
+		b.WriteString("\n```\n")
 	} else {
 		b.WriteString("- **Reason:** agent returned status: failed (no message provided)\n")
 	}

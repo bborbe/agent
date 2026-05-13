@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.61.2
+
+- fix(lib/delivery): wrap the failure-section `Reason:` body in a fenced code block. Previously rendered as a single inline bullet, which produced unreadable output in Obsidian / GitHub / generic CommonMark viewers when `Result.Message` was long or contained markdown-confusing characters (asterisks, brackets, braces — common in JSON tails from `lib/v0.61.1`). The fence preserves monospace formatting, prevents stray markdown interpretation, and gives operators a one-click select-and-copy block. Empty-reason fallback keeps its inline form.
+
 ## v0.61.1
 
 - fix(lib/claude): surface bounded stdout tail from failed `claude` CLI subprocess runs — ring buffer captures last 5 non-empty stdout lines (512 bytes/line max), joined with ` | `, so the `## Failure` body section on the task page contains the actual CLI diagnostic output (auth failures, rate-limit events, API errors) instead of the empty `claude CLI failed: : exit status 1` rendering caused by stream-json's always-empty stderr
