@@ -12,6 +12,12 @@ import (
 type AgentConfiguration struct {
 	// Assignee is the task frontmatter assignee value that routes to this agent.
 	Assignee string
+	// TaskType is the singular task_type value from ConfigSpec.TaskType.
+	// Deprecated in favour of TaskTypes; stays functional.
+	TaskType string
+	// TaskTypes is the list of task_type values from ConfigSpec.TaskTypes.
+	// Nil when the CRD only sets the singular TaskType field.
+	TaskTypes []string
 	// Image is the container image base name (without tag). Tag is appended at runtime from branch.
 	Image string
 	// Env holds per-agent environment variables (e.g. API keys, config).
@@ -57,6 +63,8 @@ func (a AgentConfigurations) TaggedConfigurations(branch string) AgentConfigurat
 	for i, c := range a {
 		result[i] = AgentConfiguration{
 			Assignee:          c.Assignee,
+			TaskType:          c.TaskType,
+			TaskTypes:         append([]string(nil), c.TaskTypes...),
 			Image:             c.Image + ":" + branch,
 			Env:               c.Env,
 			VolumeClaim:       c.VolumeClaim,

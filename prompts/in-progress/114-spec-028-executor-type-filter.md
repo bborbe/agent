@@ -1,6 +1,7 @@
 ---
-status: executing
+status: committing
 spec: [028-agent-executor-task-type-filter]
+summary: 'Added pre-spawn task-type filter to task/executor: EffectiveTaskTypes/TaskTypeInSet helpers, PublishTypeMismatchFailure publisher method, type_mismatch metric label, 5 handler behavior matrix tests, docs/CHANGELOG updated, make precommit exit 0.'
 container: agent-114-spec-028-executor-type-filter
 dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-13T20:30:00Z"

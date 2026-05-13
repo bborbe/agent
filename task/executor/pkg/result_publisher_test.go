@@ -169,4 +169,50 @@ var _ = Describe("ResultPublisher", func() {
 			},
 		)
 	})
+
+	Describe("PublishTypeMismatchFailure", func() {
+		It(
+			"publishes phase=ai_review, assignee='', current_job='' and Assignee bullet in body",
+			func() {
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("test-task-3"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":   "in_progress",
+						"phase":    "planning",
+						"assignee": "agent-pr-reviewer",
+					},
+				}
+				err := publisher.PublishTypeMismatchFailure(
+					ctx,
+					task,
+					`task_type "oauth-probe" not in effective set [pr-review] of agent "agent-pr-reviewer"`,
+				)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(producer.messages).To(HaveLen(1))
+				operation, cmd := decodeUpdateFrontmatterCommand(producer.messages[0])
+
+				Expect(
+					string(operation),
+				).To(Equal(string(taskcmd.UpdateFrontmatterCommandOperation)))
+				Expect(cmd.Updates).To(HaveLen(4))
+
+				Expect(cmd.Updates["status"]).To(Equal("in_progress"))
+				Expect(cmd.Updates["phase"]).To(Equal("ai_review"))
+				Expect(cmd.Updates["assignee"]).To(Equal(""))
+				Expect(cmd.Updates["current_job"]).To(Equal(""))
+
+				Expect(cmd.Body).NotTo(BeNil())
+				Expect(cmd.Body.Heading).To(Equal("## Failure"))
+				Expect(cmd.Body.Section).To(ContainSubstring("2026-04-18T12:00:00Z"))
+				Expect(cmd.Body.Section).To(ContainSubstring("agent-pr-reviewer"))
+				Expect(cmd.Body.Section).To(ContainSubstring("oauth-probe"))
+
+				_, hasTriggerCount := cmd.Updates["trigger_count"]
+				Expect(
+					hasTriggerCount,
+				).To(BeFalse(), "trigger_count must not be in type mismatch update")
+			},
+		)
+	})
 })

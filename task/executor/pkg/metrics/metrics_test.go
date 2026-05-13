@@ -40,6 +40,7 @@ var _ = Describe("Metrics", func() {
 			"skipped_unknown_assignee",
 			"skipped_active_job",
 			"error",
+			"type_mismatch",
 		))
 	})
 })

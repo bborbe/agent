@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"fmt"
 
 	"github.com/IBM/sarama"
 	"github.com/bborbe/cqrs/base"
@@ -108,30 +109,27 @@ func (h *taskEventHandler) parseAndFilter(
 	}
 
 	// Resolve the per-agent Config before the status/phase checks so both filters
-	// can use the per-Config trigger. Skip lookup when assignee is empty — the
-	// empty-assignee filter below handles that path.
-	var config *pkg.AgentConfiguration
-	if task.Frontmatter.Assignee() != "" {
-		resolved, err := h.resolver.Resolve(ctx, string(task.Frontmatter.Assignee()))
-		if err != nil {
-			if stderrors.Is(err, pkg.ErrConfigNotFound) {
-				glog.Warningf(
-					"skip task %s: unknown assignee %s",
-					task.TaskIdentifier,
-					task.Frontmatter.Assignee(),
-				)
-				metrics.TaskEventsTotal.WithLabelValues("skipped_unknown_assignee").Inc()
-				return lib.Task{}, nil, true, nil
-			}
+	// can use the per-Config trigger. Skip lookup when assignee is empty.
+	config, skip, err := h.resolveConfig(ctx, task)
+	if err != nil {
+		return lib.Task{}, nil, false, err
+	}
+	if skip {
+		return lib.Task{}, nil, true, nil
+	}
+
+	// Type filter: effective set = {cfg.TaskType} ∪ cfg.TaskTypes.
+	// Skipped when the effective set is empty (agent has no task types configured).
+	if mismatch := taskTypeMismatchReason(task, config); mismatch != "" {
+		if err := h.resultPublisher.PublishTypeMismatchFailure(ctx, task, mismatch); err != nil {
 			metrics.TaskEventsTotal.WithLabelValues("error").Inc()
 			return lib.Task{}, nil, false, errors.Wrapf(
-				ctx,
-				err,
-				"resolve agent config for task %s",
-				task.TaskIdentifier,
+				ctx, err, "publish type mismatch failure for task %s", task.TaskIdentifier,
 			)
 		}
-		config = &resolved
+		glog.V(2).Infof("type mismatch: %s (task %s)", mismatch, task.TaskIdentifier)
+		metrics.TaskEventsTotal.WithLabelValues("type_mismatch").Inc()
+		return lib.Task{}, nil, true, nil
 	}
 
 	effectiveStatuses := effectiveTriggerStatuses(config)
@@ -166,6 +164,66 @@ func (h *taskEventHandler) parseAndFilter(
 	}
 
 	return task, config, false, nil
+}
+
+// resolveConfig looks up the agent Config CR for the task's assignee.
+// Returns (nil, false, nil) when assignee is empty (caller handles the empty-assignee path).
+// Returns (nil, true, nil) when the assignee is unknown (ErrConfigNotFound).
+// Returns (nil, false, err) on unexpected resolver errors.
+func (h *taskEventHandler) resolveConfig(
+	ctx context.Context,
+	task lib.Task,
+) (*pkg.AgentConfiguration, bool, error) {
+	if task.Frontmatter.Assignee() == "" {
+		return nil, false, nil
+	}
+	resolved, err := h.resolver.Resolve(ctx, string(task.Frontmatter.Assignee()))
+	if err != nil {
+		if stderrors.Is(err, pkg.ErrConfigNotFound) {
+			glog.Warningf(
+				"skip task %s: unknown assignee %s",
+				task.TaskIdentifier,
+				task.Frontmatter.Assignee(),
+			)
+			metrics.TaskEventsTotal.WithLabelValues("skipped_unknown_assignee").Inc()
+			return nil, true, nil
+		}
+		metrics.TaskEventsTotal.WithLabelValues("error").Inc()
+		return nil, false, errors.Wrapf(
+			ctx,
+			err,
+			"resolve agent config for task %s",
+			task.TaskIdentifier,
+		)
+	}
+	return &resolved, false, nil
+}
+
+// taskTypeMismatchReason returns a non-empty reason string when the task's task_type is not in the
+// agent's effective type set. Returns "" when the filter passes (match or effective set is empty).
+func taskTypeMismatchReason(task lib.Task, cfg *pkg.AgentConfiguration) string {
+	if cfg == nil {
+		return ""
+	}
+	effectiveTypes := pkg.EffectiveTaskTypes(cfg.TaskType, cfg.TaskTypes)
+	if len(effectiveTypes) == 0 {
+		return ""
+	}
+	taskType, _ := task.Frontmatter.String("task_type")
+	if pkg.TaskTypeInSet(taskType, effectiveTypes) {
+		return ""
+	}
+	if taskType == "" {
+		return fmt.Sprintf(
+			"task has no task_type; agent %q accepts %v",
+			cfg.Assignee,
+			effectiveTypes,
+		)
+	}
+	return fmt.Sprintf(
+		"task_type %q not in effective set %v of agent %q",
+		taskType, effectiveTypes, cfg.Assignee,
+	)
 }
 
 // effectiveTriggerPhases returns the phase allow-list from the Config trigger,

@@ -49,6 +49,19 @@ type FakeResultPublisher struct {
 	publishSpawnNotificationReturnsOnCall map[int]struct {
 		result1 error
 	}
+	PublishTypeMismatchFailureStub        func(context.Context, lib.Task, string) error
+	publishTypeMismatchFailureMutex       sync.RWMutex
+	publishTypeMismatchFailureArgsForCall []struct {
+		arg1 context.Context
+		arg2 lib.Task
+		arg3 string
+	}
+	publishTypeMismatchFailureReturns struct {
+		result1 error
+	}
+	publishTypeMismatchFailureReturnsOnCall map[int]struct {
+		result1 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -238,6 +251,69 @@ func (fake *FakeResultPublisher) PublishSpawnNotificationReturnsOnCall(i int, re
 		})
 	}
 	fake.publishSpawnNotificationReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeResultPublisher) PublishTypeMismatchFailure(arg1 context.Context, arg2 lib.Task, arg3 string) error {
+	fake.publishTypeMismatchFailureMutex.Lock()
+	ret, specificReturn := fake.publishTypeMismatchFailureReturnsOnCall[len(fake.publishTypeMismatchFailureArgsForCall)]
+	fake.publishTypeMismatchFailureArgsForCall = append(fake.publishTypeMismatchFailureArgsForCall, struct {
+		arg1 context.Context
+		arg2 lib.Task
+		arg3 string
+	}{arg1, arg2, arg3})
+	stub := fake.PublishTypeMismatchFailureStub
+	fakeReturns := fake.publishTypeMismatchFailureReturns
+	fake.recordInvocation("PublishTypeMismatchFailure", []interface{}{arg1, arg2, arg3})
+	fake.publishTypeMismatchFailureMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeResultPublisher) PublishTypeMismatchFailureCallCount() int {
+	fake.publishTypeMismatchFailureMutex.RLock()
+	defer fake.publishTypeMismatchFailureMutex.RUnlock()
+	return len(fake.publishTypeMismatchFailureArgsForCall)
+}
+
+func (fake *FakeResultPublisher) PublishTypeMismatchFailureCalls(stub func(context.Context, lib.Task, string) error) {
+	fake.publishTypeMismatchFailureMutex.Lock()
+	defer fake.publishTypeMismatchFailureMutex.Unlock()
+	fake.PublishTypeMismatchFailureStub = stub
+}
+
+func (fake *FakeResultPublisher) PublishTypeMismatchFailureArgsForCall(i int) (context.Context, lib.Task, string) {
+	fake.publishTypeMismatchFailureMutex.RLock()
+	defer fake.publishTypeMismatchFailureMutex.RUnlock()
+	argsForCall := fake.publishTypeMismatchFailureArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeResultPublisher) PublishTypeMismatchFailureReturns(result1 error) {
+	fake.publishTypeMismatchFailureMutex.Lock()
+	defer fake.publishTypeMismatchFailureMutex.Unlock()
+	fake.PublishTypeMismatchFailureStub = nil
+	fake.publishTypeMismatchFailureReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeResultPublisher) PublishTypeMismatchFailureReturnsOnCall(i int, result1 error) {
+	fake.publishTypeMismatchFailureMutex.Lock()
+	defer fake.publishTypeMismatchFailureMutex.Unlock()
+	fake.PublishTypeMismatchFailureStub = nil
+	if fake.publishTypeMismatchFailureReturnsOnCall == nil {
+		fake.publishTypeMismatchFailureReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.publishTypeMismatchFailureReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }

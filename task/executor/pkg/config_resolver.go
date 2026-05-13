@@ -66,6 +66,8 @@ func (r *configResolver) Resolve(
 func convert(obj agentv1.Config, branch string) AgentConfiguration {
 	return AgentConfiguration{
 		Assignee:          obj.Spec.Assignee,
+		TaskType:          obj.Spec.TaskType,
+		TaskTypes:         append([]string(nil), obj.Spec.TaskTypes...),
 		Image:             obj.Spec.Image + ":" + branch,
 		Env:               copyEnv(obj.Spec.Env),
 		SecretName:        obj.Spec.SecretName,

@@ -54,7 +54,8 @@ task/controller  [git watcher]
     │  publishes agent-task-v1-event on Kafka
     ▼
 task/executor    [consumer + K8s Job spawner]
-    │  filter: status=in_progress AND phase ∈ {planning, in_progress, ai_review}
+    │  filter: task_type ∈ agent's effective set AND
+    │           status=in_progress AND phase ∈ {planning, in_progress, ai_review}
     │           AND matching assignee AND matching stage
     │  spawn K8s Job with TASK_CONTENT, TASK_ID, KAFKA_BROKERS, BRANCH, STAGE
     │  watch Job terminal state (informer)
@@ -130,6 +131,15 @@ default (failed):
 3. Executor stops re-spawning (no assignee match).
 4. Human investigates the infra/prompt, then re-delegates by setting `assignee`.
 
+### Type mismatch (spec 028)
+
+1. Task `phase: planning`, `task_type: oauth-probe`, routed to `agent-pr-reviewer` whose effective set is `[pr-review]`.
+2. Executor resolves Config CR for `agent-pr-reviewer`, computes effective set `[pr-review]`.
+3. Type filter detects mismatch — no Job is spawned.
+4. Executor synthesises a failure: `phase: ai_review`, `assignee: ""`, `current_job: ""`. Failure body names the mismatch.
+5. Task surfaces in operator inbox (assignee-empty signal). `trigger_count` is NOT incremented.
+6. Operator either edits the task's `task_type` to `pr-review`, or adds `oauth-probe` to the agent's `taskTypes` CRD field, then re-delegates by setting `assignee`.
+
 ### Silent infra failure (spec 009)
 
 1. Agent process is SIGKILL'd (OOM, evict, backoffLimit) — never publishes.
@@ -173,6 +183,7 @@ Only the listed frontmatter keys are written; all other keys — including `trig
 | `PublishIncrementTriggerCount` | `increment-frontmatter` | `trigger_count` (delta +1) |
 | `PublishSpawnNotification` | `update-frontmatter` | `current_job`, `job_started_at`, `spawn_notification` |
 | `PublishFailure` | `update-frontmatter` | `status`, `phase`, `current_job` |
+| `PublishTypeMismatchFailure` | `update-frontmatter` | `status`, `phase` (`ai_review`), `assignee` (`""`), `current_job` |
 
 ## Create-Task Path Resolution (spec-019)
 

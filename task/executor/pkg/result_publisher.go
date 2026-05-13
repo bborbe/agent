@@ -35,6 +35,10 @@ type ResultPublisher interface {
 	// PublishIncrementTriggerCount sends an IncrementFrontmatterCommand that atomically
 	// increments trigger_count by 1. Must complete before SpawnJob is called.
 	PublishIncrementTriggerCount(ctx context.Context, task lib.Task) error
+	// PublishTypeMismatchFailure publishes a synthetic failure when the task's task_type
+	// is not in the agent's effective type set. Sets phase=ai_review and clears assignee
+	// so the task surfaces in the operator inbox. Does not bump trigger_count or retry_count.
+	PublishTypeMismatchFailure(ctx context.Context, task lib.Task, reason string) error
 }
 
 // NewResultPublisher creates a ResultPublisher.
@@ -109,6 +113,34 @@ func (p *resultPublisher) PublishIncrementTriggerCount(ctx context.Context, task
 		Delta:          1,
 	}
 	return p.publishRaw(ctx, taskcmd.IncrementFrontmatterCommandOperation, cmd)
+}
+
+func (p *resultPublisher) PublishTypeMismatchFailure(
+	ctx context.Context,
+	task lib.Task,
+	reason string,
+) error {
+	now := p.currentDateTime.Now().UTC().Format(time.RFC3339)
+	section := fmt.Sprintf(
+		"## Failure\n\n- **Timestamp:** %s\n- **Assignee:** %s\n- **Reason:** %s\n",
+		now,
+		task.Frontmatter.Assignee(),
+		reason,
+	)
+	cmd := taskcmd.UpdateFrontmatterCommand{
+		TaskIdentifier: task.TaskIdentifier,
+		Updates: lib.TaskFrontmatter{
+			"status":      "in_progress",
+			"phase":       "ai_review",
+			"assignee":    "",
+			"current_job": "",
+		},
+		Body: &taskcmd.BodySection{
+			Heading: "## Failure",
+			Section: section,
+		},
+	}
+	return p.publishRaw(ctx, taskcmd.UpdateFrontmatterCommandOperation, cmd)
 }
 
 func (p *resultPublisher) publishRaw(

@@ -797,5 +797,156 @@ var _ = Describe("TaskEventHandler", func() {
 			Expect(err).To(BeNil())
 			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
 		})
+
+		// --- Type filter behavior matrix (spec 028) ---
+
+		It(
+			"spawns job when singular-only TaskType matches task_type (singular-only match)",
+			func() {
+				fakeSpawner.IsJobActiveReturns(false, nil)
+				fakeResolver.ResolveReturns(
+					pkg.AgentConfiguration{
+						Assignee:  "agent-pr-reviewer",
+						Image:     "my-image:latest",
+						TaskType:  "pr-review",
+						TaskTypes: nil,
+					},
+					nil,
+				)
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("tid-type-1"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":    "in_progress",
+						"phase":     string(domain.TaskPhasePlanning),
+						"stage":     "prod",
+						"assignee":  "agent-pr-reviewer",
+						"task_type": "pr-review",
+					},
+				}
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+				Expect(fakeResultPublisher.PublishTypeMismatchFailureCallCount()).To(Equal(0))
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+			},
+		)
+
+		It("spawns job when list-only TaskTypes matches task_type (list-only match)", func() {
+			fakeSpawner.IsJobActiveReturns(false, nil)
+			fakeResolver.ResolveReturns(
+				pkg.AgentConfiguration{
+					Assignee:  "agent-pr-reviewer",
+					Image:     "my-image:latest",
+					TaskType:  "",
+					TaskTypes: []string{"oauth-probe"},
+				},
+				nil,
+			)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("tid-type-2"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":    "in_progress",
+					"phase":     string(domain.TaskPhasePlanning),
+					"stage":     "prod",
+					"assignee":  "agent-pr-reviewer",
+					"task_type": "oauth-probe",
+				},
+			}
+			err := h.ConsumeMessage(ctx, buildMsg(task))
+			Expect(err).To(BeNil())
+			Expect(fakeResultPublisher.PublishTypeMismatchFailureCallCount()).To(Equal(0))
+			Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+		})
+
+		It(
+			"spawns job when task_type matches via TaskTypes list when both singular and list are set (overlap match)",
+			func() {
+				fakeSpawner.IsJobActiveReturns(false, nil)
+				fakeResolver.ResolveReturns(
+					pkg.AgentConfiguration{
+						Assignee:  "agent-pr-reviewer",
+						Image:     "my-image:latest",
+						TaskType:  "pr-review",
+						TaskTypes: []string{"oauth-probe"},
+					},
+					nil,
+				)
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("tid-type-3"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":    "in_progress",
+						"phase":     string(domain.TaskPhasePlanning),
+						"stage":     "prod",
+						"assignee":  "agent-pr-reviewer",
+						"task_type": "oauth-probe",
+					},
+				}
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+				Expect(fakeResultPublisher.PublishTypeMismatchFailureCallCount()).To(Equal(0))
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+			},
+		)
+
+		It(
+			"publishes type mismatch failure and does not spawn when task_type is not in effective set (mismatch)",
+			func() {
+				fakeResolver.ResolveReturns(
+					pkg.AgentConfiguration{
+						Assignee:  "agent-pr-reviewer",
+						Image:     "my-image:latest",
+						TaskType:  "pr-review",
+						TaskTypes: []string{"oauth-probe"},
+					},
+					nil,
+				)
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("tid-type-4"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":    "in_progress",
+						"phase":     string(domain.TaskPhasePlanning),
+						"stage":     "prod",
+						"assignee":  "agent-pr-reviewer",
+						"task_type": "code-review",
+					},
+				}
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+				Expect(fakeResultPublisher.PublishTypeMismatchFailureCallCount()).To(Equal(1))
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+				_, _, reason := fakeResultPublisher.PublishTypeMismatchFailureArgsForCall(0)
+				Expect(reason).To(ContainSubstring("code-review"))
+			},
+		)
+
+		It(
+			"publishes type mismatch failure and does not spawn when task_type key is absent from frontmatter (missing task_type)",
+			func() {
+				fakeResolver.ResolveReturns(
+					pkg.AgentConfiguration{
+						Assignee:  "agent-pr-reviewer",
+						Image:     "my-image:latest",
+						TaskType:  "pr-review",
+						TaskTypes: nil,
+					},
+					nil,
+				)
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("tid-type-5"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":   "in_progress",
+						"phase":    string(domain.TaskPhasePlanning),
+						"stage":    "prod",
+						"assignee": "agent-pr-reviewer",
+						// task_type key intentionally absent
+					},
+				}
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+				Expect(fakeResultPublisher.PublishTypeMismatchFailureCallCount()).To(Equal(1))
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+				_, _, reason := fakeResultPublisher.PublishTypeMismatchFailureArgsForCall(0)
+				Expect(reason).To(ContainSubstring("no task_type"))
+			},
+		)
 	})
 })

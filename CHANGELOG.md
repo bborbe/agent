@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.2
+
+- feat(task/executor): add pre-spawn task-type filter — executor computes effective type set (`taskType` ∪ `taskTypes`) from the Config CR and publishes a synthetic failure (phase=ai_review, assignee="" cleared) when a task's `task_type` is absent or mismatched; no Job is spawned and trigger_count/retry_count are not bumped; **NOTE:** tasks without a `task_type` frontmatter field will now be rejected on first event delivery when the agent has `taskType`/`taskTypes` configured — operators must add `task_type` to legacy task templates before deploying this change
+
 ## v0.62.1
 
 - feat(task/controller): write `previous_assignee` frontmatter field on every assignee-clear path (trigger cap, retry cap, needs_input) — captures the pre-clear agent name so operator-inbox queries can group parked tasks by parked-by-agent without parsing body content; persists across operator re-delegation
