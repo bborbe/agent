@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [024-oauth-probe-weekly]
 summary: 'Added weekly OAuth probe cron to task/executor: new pkg/probe package with ConfigProvider/CommandPublisher/OAuthProbeRunner interfaces, CreateOAuthProbeCron factory, OAuthProbeCronExpression config field wired into service.Run, 92% test coverage, CHANGELOG updated.'
 container: agent-109-spec-024-oauth-probe-cron
@@ -7,6 +7,7 @@ dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-13T17:15:00Z"
 queued: "2026-05-13T17:34:36Z"
 started: "2026-05-13T17:34:38Z"
+completed: "2026-05-13T17:51:35Z"
 branch: dark-factory/oauth-probe-weekly
 ---
 
