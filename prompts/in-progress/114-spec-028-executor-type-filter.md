@@ -1,7 +1,11 @@
 ---
-status: draft
+status: executing
 spec: [028-agent-executor-task-type-filter]
+container: agent-114-spec-028-executor-type-filter
+dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-13T20:30:00Z"
+queued: "2026-05-13T20:30:17Z"
+started: "2026-05-13T20:30:20Z"
 branch: dark-factory/agent-executor-task-type-filter
 ---
 
@@ -335,6 +339,28 @@ The `nil` config guard (`if config != nil`) means: when assignee is empty (confi
 
 Verify no import is added that the file already has. Check the existing import block before editing.
 
+## 6b. Pre-initialize the new `type_mismatch` metric label
+
+**File:** `task/executor/pkg/metrics/metrics.go`
+
+The agent repo pre-initializes every `TaskEventsTotal` label combination at startup (the metrics test asserts this). Step 6 introduces `WithLabelValues("type_mismatch")` as a new label value — without pre-init, the metrics test will fail and `make precommit` will not exit 0.
+
+Read the file before editing. Find the existing pre-init block — it looks like a series of `TaskEventsTotal.WithLabelValues("<label>").Add(0)` calls (or equivalent). Add a new line for the `type_mismatch` label using the same idiom:
+
+```go
+TaskEventsTotal.WithLabelValues("type_mismatch").Add(0)
+```
+
+**File:** `task/executor/pkg/metrics/metrics_test.go`
+
+Find the existing assertion (around line 30) that verifies all `TaskEventsTotal` label combinations are pre-initialized. Extend the expected-labels list to include `"type_mismatch"`.
+
+Verify both files via:
+```bash
+grep -n "type_mismatch" task/executor/pkg/metrics/metrics.go task/executor/pkg/metrics/metrics_test.go
+```
+Expected: at least one match in each file.
+
 ## 7. Regenerate mocks
 
 ```bash
@@ -450,6 +476,23 @@ var _ = Describe("TaskTypeInSet", func() {
 	})
 })
 ```
+
+## 8b. Add boundary-validation test for the synthetic-failure payload
+
+**File:** `task/executor/pkg/result_publisher_test.go`
+
+The synthetic failure builds an `UpdateFrontmatterCommand` and ships it through the cqrs publish path. The cqrs framework validates command payloads at publish time via `cmd.Validate(ctx)` (see `lib/command/task/update-frontmatter-command.go` for the contract). A shape-only test that only inspects what the publisher CALLED on the fake sender would silently let a malformed command slip through.
+
+Add a test inside the existing `Describe("ResultPublisher")` block that:
+
+1. Calls `publisher.PublishTypeMismatchFailure(ctx, task, "reason text")` with a real publisher (use the existing constructor pattern in this test file, with a counterfeiter fake `CommandObjectSender`).
+2. Captures the published `cdb.CommandObject` via the fake sender's `SendCommandObjectArgsForCall(0)`.
+3. Extracts the `Event` payload, type-asserts to `taskcmd.UpdateFrontmatterCommand`, and calls `cmd.Validate(ctx)`.
+4. Asserts `Validate(ctx)` returns no error (`Expect(cmd.Validate(ctx)).To(Succeed())`).
+
+The exact unmarshal/type-assert pattern should mirror what `result_publisher_test.go` already uses for inspecting published commands — grep the existing test file for `SendCommandObjectArgsForCall` to find the pattern. If no precedent exists in this test file, do NOT invent a new unmarshal approach; instead inspect the command's `Operation` and verify `cmd.TaskIdentifier` is non-empty and `cmd.Updates` contains `assignee = ""`, `phase = "ai_review"`, `current_job = ""` — all of which are the shape contract the controller will rely on.
+
+This boundary test catches a schema-tightening regression (if `UpdateFrontmatterCommand.Validate` ever gets stricter) before it silently breaks the synthetic failure path in production.
 
 ## 9. Add handler behavior matrix tests
 
