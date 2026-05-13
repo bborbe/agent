@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.61.5
+
+- fix(task/executor): OAuth probe task identifiers are now deterministic UUIDv5s per agent (previously `probe-<agent>` literal strings, which the vault scanner silently rewrote with random UUIDs on each scan — producing merge conflicts and breaking `update-frontmatter` re-triggers). Probe vault files remain at the human-readable path `tasks/probe-<agent>.md` (driven by Title, not by task_identifier).
+
 ## v0.61.4
 
 - feat(task/executor): add weekly OAuth probe cron (`OAUTH_PROBE_CRON_EXPRESSION`, default `0 0 8 * * 1`) — publishes `create-task` + `update-frontmatter` commands per Config CR on each tick to keep agent PVC OAuth credentials warm; failed probes escalate via existing `human_review` route; new agents auto-enrolled at next tick

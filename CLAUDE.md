@@ -151,5 +151,11 @@ Never invent values (e.g. `pending`) — they fail silently in the executor filt
 - **K8s-native** — controller pattern, CRDs for agent config
 - **Multi-service mono-repo** — each subdir is a separate service with its own `make precommit`
 - **Factory functions are pure composition** — no conditionals, no I/O, no `context.Background()`
-- **Counterfeiter mocks** — generated into `mocks/`, regenerated on `make generate`
+- **Counterfeiter mocks** — generated into `mocks/`, regenerated on `make generate`. The `//counterfeiter:generate . Foo` shortform is a **silent no-op** in this repo's pipeline — `make generate` only invokes counterfeiter via explicit `//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate` directives. Use the explicit form on the interface line:
+
+  ```go
+  //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
+  //counterfeiter:generate -o mocks/fake_foo.go --fake-name FakeFoo . Foo
+  type Foo interface { ... }
+  ```
 - **No vendor** — `go mod tidy` removes vendor dir

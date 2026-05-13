@@ -11,6 +11,7 @@ import (
 	cdb "github.com/bborbe/cqrs/cdb"
 	cqrsiam "github.com/bborbe/cqrs/iam"
 	"github.com/bborbe/errors"
+	"github.com/google/uuid"
 
 	lib "github.com/bborbe/agent/lib"
 	taskcmd "github.com/bborbe/agent/lib/command/task"
@@ -90,6 +91,17 @@ func NewOAuthProbeRunner(
 	}
 }
 
+// probeNamespace is the UUIDv5 namespace for OAuth probe task identifiers.
+// Stable per spec 024 follow-up — do NOT change without a migration plan.
+var probeNamespace = uuid.MustParse("00000000-0000-0000-0000-000000000024")
+
+// probeTaskID returns the deterministic UUIDv5 for a probe task targeting agentName.
+// Same agentName always yields the same UUID, both within a single executor
+// process and across restarts.
+func probeTaskID(agentName string) lib.TaskIdentifier {
+	return lib.TaskIdentifier(uuid.NewSHA1(probeNamespace, []byte(agentName)).String())
+}
+
 // Run lists all Config CRs and publishes two commands per agent on each cron tick.
 func (r *oAuthProbeRunner) Run(ctx context.Context) error {
 	configs, err := r.configProvider.Get(ctx)
@@ -98,7 +110,7 @@ func (r *oAuthProbeRunner) Run(ctx context.Context) error {
 	}
 	for _, config := range configs {
 		agentName := config.Spec.Assignee
-		taskID := lib.TaskIdentifier("probe-" + agentName)
+		taskID := probeTaskID(agentName)
 
 		createCmd := taskcmd.CreateCommand{
 			TaskIdentifier: taskID,

@@ -63,3 +63,9 @@ Could swap to postgres or SQLite without changing any consumer.
 | task-watcher | Functionality absorbed (fsnotify change detection) |
 | obsidian-git | Handles Obsidian-side sync, task service handles agent-side writes |
 | Trading Kafka | Same cluster, same patterns, new `agent-*` topics |
+
+## Task Identifier Contract
+
+`task_identifier` MUST be a UUID. The vault scanner (`task/controller/pkg/scanner/vault_scanner.go`) enforces this: any task file whose frontmatter contains a non-UUID `task_identifier` is rewritten with a freshly generated UUID on the next scan cycle, breaking any caller that depends on a deterministic identifier.
+
+Publishers (executor probe loop, agents, manual operators) MUST therefore construct UUID task identifiers. For deterministic-per-agent identifiers, prefer `uuid.NewSHA1(namespace, []byte(agentName))` over `uuid.New()` so the value is stable across process restarts and re-deploys.

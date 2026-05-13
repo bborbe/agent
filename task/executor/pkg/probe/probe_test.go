@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	cqrsmocks "github.com/bborbe/cqrs/mocks"
+	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -179,6 +180,65 @@ var _ = Describe("OAuthProbeRunner", func() {
 			err := publisher.Publish(ctx, "create-task", cmd)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("broker down"))
+		})
+	})
+
+	Context("task IDs are deterministic UUIDv5s per agent (boundary contract)", func() {
+		BeforeEach(func() {
+			configProvider.GetReturns([]agentv1.Config{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "agent-a"},
+					Spec:       agentv1.ConfigSpec{Assignee: "agent-a"},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "agent-b"},
+					Spec:       agentv1.ConfigSpec{Assignee: "agent-b"},
+				},
+			}, nil)
+		})
+
+		It("create-task task_identifier is a valid UUID string", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			_, _, payload := publisher.PublishArgsForCall(0)
+			createCmd, ok := payload.(taskcmd.CreateCommand)
+			Expect(ok).To(BeTrue())
+			_, err := uuid.Parse(string(createCmd.TaskIdentifier))
+			Expect(
+				err,
+			).NotTo(HaveOccurred(), "task_identifier %q must parse as a UUID", createCmd.TaskIdentifier)
+		})
+
+		It("repeated invocations produce identical task IDs per agent", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			Expect(runner.Run(ctx)).To(Succeed())
+
+			_, _, agentACreate1 := publisher.PublishArgsForCall(0) // first run, agent-a create
+			_, _, agentACreate2 := publisher.PublishArgsForCall(4) // second run, agent-a create
+
+			cmd1, ok1 := agentACreate1.(taskcmd.CreateCommand)
+			Expect(ok1).To(BeTrue())
+			cmd2, ok2 := agentACreate2.(taskcmd.CreateCommand)
+			Expect(ok2).To(BeTrue())
+			Expect(cmd1.TaskIdentifier).To(Equal(cmd2.TaskIdentifier))
+		})
+
+		It("different agents produce different task IDs", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			_, _, agentACreate := publisher.PublishArgsForCall(0)
+			_, _, agentBCreate := publisher.PublishArgsForCall(2)
+			cmdA, okA := agentACreate.(taskcmd.CreateCommand)
+			Expect(okA).To(BeTrue())
+			cmdB, okB := agentBCreate.(taskcmd.CreateCommand)
+			Expect(okB).To(BeTrue())
+			Expect(cmdA.TaskIdentifier).NotTo(Equal(cmdB.TaskIdentifier))
+		})
+
+		It("title still uses the human-readable form", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			_, _, payload := publisher.PublishArgsForCall(0)
+			createCmd, ok := payload.(taskcmd.CreateCommand)
+			Expect(ok).To(BeTrue())
+			Expect(createCmd.Title).To(Equal("probe-agent-a"))
 		})
 	})
 
