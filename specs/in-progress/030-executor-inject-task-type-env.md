@@ -129,3 +129,19 @@ Both must exit zero. The spawner test output must include the new `TASK_TYPE` en
 ## Do-Nothing Option
 
 If we skip this, the `TASK_TYPE` env field declared by every agent binary (spec 029) silently stays at its `"unknown"` default forever. Per-task-type Prometheus grouping never works in production. Any future per-agent dispatch logic is forced to re-parse `TASK_CONTENT` markdown inside `main.go` — duplicating frontmatter parsing the executor already performs, and re-introducing the same drift risk that justified the typed accessor pattern in the first place. Not acceptable: the cost is two new lines in the executor and one new accessor in `lib/`, against an indefinite tax on every future task-type-aware feature.
+
+## Verification Result
+
+**Verified:** 2026-05-14T13:56:58Z (HEAD c0391a5)
+**Binary:** /Users/bborbe/Documents/workspaces/go/bin/dark-factory (v0.156.1-1-g04f3863-dirty)
+**Scenario:** No new scenario per AC #15. Verified via (1) static code inspection of all AC artifacts and (2) operator-supplied runtime evidence — executor redeployed via `make buca` in dev + prod today; `/healthcheck-trigger` fired post-deploy produced pushgateway rows labeled `task_type="healthcheck"` (not `"unknown"`), proving end-to-end env injection.
+**Evidence:**
+- `lib/agent_task-type.go` defines `TaskType` with `String`/`Bytes`/`Ptr`/`Validate` and constants `TaskTypeClaude`/`TaskTypePRReview`/`TaskTypeBacktest`/`TaskTypeHypothesis`/`TaskTypeTradeAnalysis`/`TaskTypeOAuthProbe` (deprecated GoDoc) plus `TaskTypeHealthcheck`
+- `lib/agent_task-frontmatter.go:37-40` `TaskType()` accessor returns named type; tests at `lib/agent_task_test.go:237-255` cover present/absent/non-string cases
+- `task/executor/pkg/spawner/job_spawner.go:283-286` defines `taskTypeString`; line 323 `envBuilder.Add("TASK_TYPE", taskTypeString(task.Frontmatter))`
+- `task/executor/pkg/spawner/job_spawner_test.go:650-704` asserts `TASK_TYPE=healthcheck` and `TASK_TYPE=""` cases
+- `task/executor/pkg/handler/task_event_handler.go:212-213` handler refactored to `task.Frontmatter.TaskType()` + `pkg.TaskTypeInSet(string(taskType), ...)`
+- `make precommit` passed in `lib/` and `task/executor/` today
+- CHANGELOG v0.62.6 and v0.62.7 entries reference spec 030
+- Pushgateway (dev): `agent_job_duration_seconds_count{agent="claude-agent",job="agent_job_claude_agent",task_type="healthcheck"} 1` post-deploy
+**Verdict:** PASS
