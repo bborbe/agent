@@ -1,7 +1,11 @@
 ---
-status: draft
+status: executing
 spec: [031-agent-repo-task-type-dispatch]
+container: agent-121-spec-031-agent-claude-dispatch
+dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T13:00:00Z"
+queued: "2026-05-14T12:54:19Z"
+started: "2026-05-14T12:54:20Z"
 branch: dark-factory/agent-repo-task-type-dispatch
 ---
 

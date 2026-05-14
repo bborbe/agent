@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [031-agent-repo-task-type-dispatch]
 created: "2026-05-14T13:00:00Z"
+queued: "2026-05-14T12:54:19Z"
 branch: dark-factory/agent-repo-task-type-dispatch
 ---
 

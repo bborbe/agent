@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [031-agent-repo-task-type-dispatch]
 created: "2026-05-14T13:00:00Z"
+queued: "2026-05-14T12:54:19Z"
 branch: dark-factory/agent-repo-task-type-dispatch
 ---
 
@@ -275,9 +276,9 @@ Add exactly ONE bullet:
 
 Verify:
 ```bash
-grep -A 10 "^## Unreleased" CHANGELOG.md
+grep -n "per-task-type dispatch via factory.CreateAgentForTaskType" CHANGELOG.md
 ```
-Expected: `feat(agent/{claude,gemini,code})` bullet present.
+Expected: exactly one match — the new bullet under `## Unreleased`.
 
 ## 7. Run final precommit in `agent/code/`
 
