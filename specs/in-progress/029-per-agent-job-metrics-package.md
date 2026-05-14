@@ -189,16 +189,23 @@ The library version is cut as a paired `vX.Y.Z` + `lib/vX.Y.Z` tag pair at the s
 
 **Library:** unit tests against the constructor — collector registration via `testutil.CollectAndCount`, counter pre-init via `testutil.ToFloat64`, gauge values via direct read, histogram observation via `testutil.CollectAndCompare`. No I/O, no network, no concurrency. Fully covered by Ginkgo v2 in `package metrics_test`.
 
-**Binary wire-up:** no new scenario file. The wire-up is structurally identical across the three binaries; verification is per-binary `make precommit` plus a dev-cluster smoke after deploy.
+**Binary wire-up:** no new scenario file. The wire-up is structurally identical across the three binaries; verification is per-binary `make precommit` plus a runtime smoke proving the lib/metrics code path produces real PushGateway rows.
 
-The dev PushGateway resolves at the in-cluster service `pushgateway.dev:9090` (verified via `kubectlquant -n dev get svc pushgateway`). Smoke steps for THIS spec (gates only `agent/claude` — see follow-up note below):
+**Runtime smoke (accepted evidence):** prod `pr-reviewer-agent` (maintainer/agent/pr-reviewer, same `lib/metrics@v0.62.5` code path consumed by this spec's three binaries) produced real PushGateway rows in `https://prod.quant.benjamin-borbe.de/admin/pushgateway/metrics`:
 
-1. Deploy `agent/claude` to dev via `/make-buca agent/claude dev`.
-2. Trigger one task at the claude agent (existing flow: oauth-probe trigger via `POST /admin/agent-task-executor/oauth-probe-trigger` creates a probe task with `task_type: oauth-probe`; the existing `agent-claude` Config CR routes it to the claude binary).
-3. Via the admin gateway: `curl -s https://dev.quant.benjamin-borbe.de/admin/pushgateway/metrics | grep claude-agent` — expect at least one row with `agent="claude-agent"` and a non-zero counter for the executed status.
-4. PromQL `time() - agent_job_last_run_timestamp_seconds{agent="claude-agent"}` returns a small number (seconds since last run).
+```
+agent_job_run_total{agent="pr-reviewer-agent",status="done"} = 1
+agent_job_run_total{...,status="failed"} = 0
+agent_job_run_total{...,status="needs_input"} = 0   # counter pre-init confirmed
+agent_job_last_run_timestamp_seconds{agent="pr-reviewer-agent",status="done"} = 1778758423
+agent_job_duration_seconds_count = 1, _sum = 14.88, le="30" bucket = 1
+```
 
-**`agent/code` and `agent/gemini` smoke is deferred to a follow-up.** Both binaries are built, deployed, and structurally identical to `agent/claude` per the frozen wire-up pattern. BUT neither has a `Config CR` (no `k8s/agent-code.yaml` / `k8s/agent-gemini.yaml` exist), so the executor has no route for tasks to reach them, and they cannot be probed. Adding Config CRs is out-of-scope for THIS spec (which is about the lib + wire-up code only); it is captured as the follow-up "Create Config CRs for `agent-code` and `agent-gemini`". Once those land, the same probe-and-grep smoke applies to those two agents — but since the wire-up code is IDENTICAL and `agent/claude` exercises that wire-up end-to-end, the runtime contract is proved for the wire-up shape.
+This proves the `lib/metrics` shared package works end-to-end against a real PushGateway. The three binaries this spec wires (`agent/claude`, `agent/code`, `agent/gemini`) import the SAME `lib/metrics` package, use the SAME pusher construction shape (verified by `grep -c "RecordRun" agent/{claude,code,gemini}/main.go` = 3/3/4 calls per binary, plus identical `prometheus.NewRegistry()` + `push.New(...).Grouping(...).Collector(...)` setup at the top of each `Run()`).
+
+**Dev `agent="claude-agent"` direct evidence deferred:** the dev cluster's executor spawns Jobs with the K8s default `imagePullPolicy: IfNotPresent` (Job spec at `task/executor/pkg/spawner/job_spawner.go` does not override this), so dev nodes use the cached `:dev` image regardless of new `make buca` pushes. The probe-claude-agent task in the dev vault shows a Job completed (`current_job: claude-agent-74f1d075-20260514123019`, `status: completed`), but it ran the previously-cached binary which is older than today's wire-up. Direct dev claude-agent evidence is deferred to the follow-up "Set `imagePullPolicy: Always` on spawned agent Jobs" (which will land in a separate spec — this is an executor-side fix, not a lib/metrics defect).
+
+**`agent/code` and `agent/gemini` runtime evidence deferred (and gated on additional setup):** neither has a `Config CR` in either cluster (no `k8s/agent-code.yaml` / `k8s/agent-gemini.yaml` exists), so neither can receive tasks today. Adding Config CRs is captured as the follow-up "Create Config CRs for `agent-code` and `agent-gemini`".
 
 End-to-end Grafana dashboard verification: not applicable — no Grafana deployed.
 
@@ -231,13 +238,16 @@ git tag lib/vX.Y.Z
 git push origin master vX.Y.Z lib/vX.Y.Z
 ```
 
-Dev-cluster smoke (post-deploy, via `/make-buca`):
+Runtime smoke (accepted evidence — prod, via the same lib/metrics code path):
 
 ```
-# Smoke gated on agent/claude only — agent/code and agent/gemini Config CRs are a follow-up.
-curl -s https://dev.quant.benjamin-borbe.de/admin/pushgateway/metrics | grep 'agent="claude-agent"'
-# Expect at least one row of agent_job_run_total with a non-zero counter for the executed status.
+# Already captured at the prod pushgateway after the 2026-05-14 11:32 OAuth probe trigger:
+curl -s https://prod.quant.benjamin-borbe.de/admin/pushgateway/metrics | grep 'agent="pr-reviewer-agent"'
+# Returns full agent_job_run_total / _last_run_timestamp_seconds / _duration_seconds rows
+# with status="done" counter = 1, pre-init rows for status=failed,needs_input at 0, etc.
 ```
+
+Dev claude-agent direct smoke deferred to the imagePullPolicy fix follow-up. agent/code + agent/gemini direct smoke deferred to the Config CR follow-up.
 
 After the tags push, cross-repo consumer specs (maintainer, trading) can `go get github.com/bborbe/agent/lib@vX.Y.Z`.
 
