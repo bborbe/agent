@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [032-rename-oauth-probe-to-healthcheck]
 summary: 'Renamed executor oauth-probe pipeline to healthcheck: interface OAuthProbeRunner→HealthcheckRunner, HTTP route /oauth-probe-trigger→/healthcheck-trigger, env var OAUTH_PROBE_CRON_EXPRESSION→HEALTHCHECK_CRON_EXPRESSION, factory functions CreateOAuthProbeRunner/Cron→CreateHealthcheckRunner/Cron, task_type literal replaced with lib.TaskTypeHealthcheck.String(), mock regenerated as FakeHealthcheckRunner, old mock deleted, all test and doc references updated.'
 container: agent-124-spec-032-rename-oauth-probe-to-healthcheck
@@ -7,6 +7,7 @@ dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T12:43:20Z"
 queued: "2026-05-14T12:55:25Z"
 started: "2026-05-14T13:01:53Z"
+completed: "2026-05-14T13:06:50Z"
 branch: dark-factory/rename-oauth-probe-to-healthcheck
 ---
 
