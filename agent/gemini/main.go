@@ -22,18 +22,25 @@ package main
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
 	libkafka "github.com/bborbe/kafka"
 	libsentry "github.com/bborbe/sentry"
 	"github.com/bborbe/service"
+	libtime "github.com/bborbe/time"
 	"github.com/bborbe/vault-cli/pkg/domain"
 	"github.com/golang/glog"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/push"
 
 	"github.com/bborbe/agent/agent/gemini/pkg/factory"
 	agentlib "github.com/bborbe/agent/lib"
+	libmetrics "github.com/bborbe/agent/lib/metrics"
 )
+
+const agentName = "gemini-agent"
 
 func main() {
 	app := &application{}
@@ -60,13 +67,33 @@ type application struct {
 	// Gemini API
 	GeminiAPIKey string `required:"true"  arg:"gemini-api-key" env:"GEMINI_API_KEY" usage:"Gemini API key"          display:"length"`
 	GeminiModel  string `required:"false" arg:"gemini-model"   env:"GEMINI_MODEL"   usage:"Gemini model identifier"                  default:"gemini-2.0-flash"`
+
+	PushgatewayURL string `required:"false" arg:"pushgateway-url" env:"PUSHGATEWAY_URL" usage:"Prometheus PushGateway URL"          default:"http://pushgateway:9090"`
+	TaskType       string `required:"false" arg:"task-type"       env:"TASK_TYPE"       usage:"Task type label for metric grouping" default:"unknown"`
 }
 
 func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
+	registry := prometheus.NewRegistry()
+	jobMetrics := libmetrics.NewJobMetrics(registry, libtime.NewCurrentDateTime())
+	pusher := push.New(a.PushgatewayURL, libmetrics.BuildJobMetricsName(agentName)).
+		Grouping("agent", agentName).
+		Grouping("task_type", a.TaskType).
+		Collector(registry)
+	defer func() {
+		if err := pusher.PushContext(ctx); err != nil {
+			glog.Warningf("prometheus push failed: %v", err)
+			return
+		}
+		glog.V(2).Infof("prometheus push completed")
+	}()
+	start := libtime.NewCurrentDateTime().Now().Time()
+
 	glog.V(2).Infof("agent-gemini started phase=%s", a.Phase)
 
 	geminiParser, err := factory.CreateGeminiParser(ctx, a.GeminiAPIKey, a.GeminiModel)
 	if err != nil {
+		jobMetrics.RecordRun(agentlib.AgentStatusFailed)
+		jobMetrics.RecordDuration(time.Since(start))
 		return errors.Wrap(ctx, err, "create gemini parser")
 	}
 
@@ -74,13 +101,19 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		ctx, a.TaskID, a.KafkaBrokers, a.Branch, a.TaskContent,
 	)
 	if err != nil {
+		jobMetrics.RecordRun(agentlib.AgentStatusFailed)
+		jobMetrics.RecordDuration(time.Since(start))
 		return errors.Wrap(ctx, err, "create deliverer")
 	}
 	defer cleanup()
 
 	result, err := factory.CreateAgent(geminiParser).Run(ctx, a.Phase, a.TaskContent, deliverer)
 	if err != nil {
+		jobMetrics.RecordRun(agentlib.AgentStatusFailed)
+		jobMetrics.RecordDuration(time.Since(start))
 		return errors.Wrap(ctx, err, "agent run failed")
 	}
+	jobMetrics.RecordRun(result.Status)
+	jobMetrics.RecordDuration(time.Since(start))
 	return agentlib.PrintResult(result)
 }

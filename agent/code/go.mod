@@ -16,6 +16,7 @@ require (
 	github.com/bborbe/time v1.27.0
 	github.com/bborbe/vault-cli v0.64.0
 	github.com/golang/glog v1.2.5
+	github.com/prometheus/client_golang v1.23.2
 )
 
 require (
@@ -28,6 +29,7 @@ require (
 	github.com/bborbe/kv v1.19.8 // indirect
 	github.com/bborbe/log v1.6.13 // indirect
 	github.com/bborbe/math v1.3.10 // indirect
+	github.com/bborbe/metrics v0.5.3 // indirect
 	github.com/bborbe/parse v1.10.12 // indirect
 	github.com/bborbe/run v1.9.24 // indirect
 	github.com/bborbe/strimzi v1.8.3 // indirect
@@ -68,7 +70,6 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect

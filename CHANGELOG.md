@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.5
+
+- feat(agent/{claude,code,gemini}): wire `JobMetrics` into each binary's `Run()` — constructs a fresh registry + pusher at startup, defers `PushContext` for end-of-run metric delivery, records run outcome and duration at every return path; adds `PUSHGATEWAY_URL` (default `http://pushgateway:9090`) and `TASK_TYPE` (default `unknown`) env fields
+
 ## v0.62.4
 
 - feat(lib/metrics): per-agent Prometheus PushGateway metrics package — `JobMetrics` interface with `agent_job_run_total` (CounterVec{status}), `agent_job_last_run_timestamp_seconds` (GaugeVec{status}), `agent_job_duration_seconds` (Histogram). Counter pre-initialized for `done`/`failed`/`needs_input`. Counterfeiter mock at `lib/metrics/mocks/job-metrics.go`.
