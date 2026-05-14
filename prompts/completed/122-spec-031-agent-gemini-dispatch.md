@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [031-agent-repo-task-type-dispatch]
 summary: Added CreateAgentForTaskType dispatch function to agent/gemini factory, updated main.go to use it, and added Ginkgo test suite with 100% coverage of the new function.
 container: agent-122-spec-031-agent-gemini-dispatch
@@ -7,6 +7,7 @@ dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T13:00:00Z"
 queued: "2026-05-14T12:54:19Z"
 started: "2026-05-14T12:56:59Z"
+completed: "2026-05-14T12:59:22Z"
 branch: dark-factory/agent-repo-task-type-dispatch
 ---
 
