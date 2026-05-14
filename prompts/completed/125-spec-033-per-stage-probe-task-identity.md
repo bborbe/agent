@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [033-per-stage-probe-task-identity]
 summary: Probe runner now publishes per-stage vault files and task identifiers by adding branch field to healthcheckRunner, updating probeTaskID to key on (agentName, stage), wiring branch through NewHealthcheckRunner and the factory, and adding comprehensive per-stage boundary contract tests.
 container: agent-125-spec-033-per-stage-probe-task-identity
@@ -7,6 +7,7 @@ dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T13:10:00Z"
 queued: "2026-05-14T13:12:51Z"
 started: "2026-05-14T13:12:53Z"
+completed: "2026-05-14T13:16:29Z"
 branch: dark-factory/per-stage-probe-task-identity
 ---
 
