@@ -2,9 +2,7 @@ module github.com/bborbe/agent/task/controller
 
 go 1.26.3
 
-replace (
-	github.com/bborbe/agent/lib => ../../lib
-)
+replace github.com/bborbe/agent/lib => ../../lib
 
 require (
 	github.com/bborbe/agent/lib v0.0.0-00010101000000-000000000000
@@ -18,7 +16,7 @@ require (
 	github.com/bborbe/metrics v0.5.3
 	github.com/bborbe/run v1.9.24
 	github.com/bborbe/sentry v1.9.17
-	github.com/bborbe/service v1.9.11
+	github.com/bborbe/service v1.10.0
 	github.com/bborbe/time v1.27.0
 	github.com/bborbe/validation v1.4.13
 	github.com/golang/glog v1.2.5
@@ -35,7 +33,7 @@ require (
 require (
 	github.com/IBM/sarama v1.48.1 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
-	github.com/bborbe/argument/v2 v2.12.21 // indirect
+	github.com/bborbe/argument/v2 v2.12.22 // indirect
 	github.com/bborbe/collection v1.20.12 // indirect
 	github.com/bborbe/k8s v1.14.1 // indirect
 	github.com/bborbe/math v1.3.10 // indirect
