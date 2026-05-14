@@ -9,6 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v3"
 
 	"github.com/bborbe/agent/lib/delivery"
 )
@@ -184,12 +185,11 @@ var _ = Describe("ParseMarkdownFrontmatter", func() {
 		Expect(body).To(Equal("Body.\n"))
 	})
 
-	It("handles arrays by converting to string representation", func() {
+	It("preserves array values as a native slice", func() {
 		content := "---\ntags:\n  - tag1\n  - tag2\n---\n\nBody.\n"
 		fm, body := delivery.ParseMarkdownFrontmatter(content)
 		Expect(fm).To(HaveKey("tags"))
-		Expect(fm["tags"]).To(ContainSubstring("tag1"))
-		Expect(fm["tags"]).To(ContainSubstring("tag2"))
+		Expect(fm["tags"]).To(ConsistOf("tag1", "tag2"))
 		Expect(body).To(Equal("Body.\n"))
 	})
 
@@ -201,11 +201,11 @@ var _ = Describe("ParseMarkdownFrontmatter", func() {
 		Expect(body).To(Equal("Body.\n"))
 	})
 
-	It("handles numeric values", func() {
+	It("preserves integer and float values as native numeric types", func() {
 		content := "---\ncount: 42\nprice: 3.14\n---\n\nBody.\n"
 		fm, body := delivery.ParseMarkdownFrontmatter(content)
-		Expect(fm).To(HaveKeyWithValue("count", "42"))
-		Expect(fm).To(HaveKeyWithValue("price", "3.14"))
+		Expect(fm).To(HaveKeyWithValue("count", 42))
+		Expect(fm).To(HaveKeyWithValue("price", 3.14))
 		Expect(body).To(Equal("Body.\n"))
 	})
 
@@ -221,6 +221,50 @@ var _ = Describe("ParseMarkdownFrontmatter", func() {
 		fm, body := delivery.ParseMarkdownFrontmatter(content)
 		Expect(fm).To(HaveKeyWithValue("title", "Test"))
 		Expect(body).To(Equal("Body.\n"))
+	})
+
+	It("preserves boolean value as native bool type", func() {
+		content := "---\nspawn_notification: true\nenabled: false\n---\n\nBody.\n"
+		fm, body := delivery.ParseMarkdownFrontmatter(content)
+		Expect(fm).To(HaveKeyWithValue("spawn_notification", true))
+		Expect(fm).To(HaveKeyWithValue("enabled", false))
+		Expect(body).To(Equal("Body.\n"))
+	})
+
+	It("preserves nested map as map[string]interface{}", func() {
+		content := "---\nmeta:\n  key: val\n  num: 7\n---\n\nBody.\n"
+		fm, body := delivery.ParseMarkdownFrontmatter(content)
+		Expect(fm).To(HaveKey("meta"))
+		nested, ok := fm["meta"].(map[string]interface{})
+		Expect(ok).To(BeTrue(), "expected nested map to be map[string]interface{}")
+		Expect(nested).To(HaveKeyWithValue("key", "val"))
+		Expect(nested).To(HaveKeyWithValue("num", 7))
+		Expect(body).To(Equal("Body.\n"))
+	})
+
+	It("round-trips trigger_count integer as unquoted int (spec 034 AC)", func() {
+		// Verifies the fix for the git-conflict root cause:
+		// trigger_count: 0 must remain an integer after parse, not become "0".
+		content := "---\ntrigger_count: 0\n---\n\nBody.\n"
+		fm, _ := delivery.ParseMarkdownFrontmatter(content)
+		Expect(fm).To(HaveKeyWithValue("trigger_count", 0))
+
+		// Confirm yaml.Marshal serializes the int without quotes.
+		out, err := yaml.Marshal(fm)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(out)).To(ContainSubstring("trigger_count: 0"))
+		Expect(string(out)).NotTo(ContainSubstring(`trigger_count: "0"`))
+	})
+
+	It("round-trips spawn_notification bool as unquoted bool (spec 034 AC)", func() {
+		content := "---\nspawn_notification: true\n---\n\nBody.\n"
+		fm, _ := delivery.ParseMarkdownFrontmatter(content)
+		Expect(fm).To(HaveKeyWithValue("spawn_notification", true))
+
+		out, err := yaml.Marshal(fm)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(out)).To(ContainSubstring("spawn_notification: true"))
+		Expect(string(out)).NotTo(ContainSubstring(`spawn_notification: "true"`))
 	})
 })
 

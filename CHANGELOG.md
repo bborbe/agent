@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.17
+
+- fix(lib/delivery): `ParseMarkdownFrontmatter` now returns `map[string]any` preserving native YAML types (int, float64, bool, list, map) — eliminates git merge conflicts caused by one writer serializing `trigger_count: 0` (int) while another serialized `trigger_count: "0"` (quoted string)
+
 ## v0.62.16
 
 - refactor(agent/code): factory.go is pure plumbing — `CreateAgentForTaskType` and `CreateDeliverer` removed; new `CreateAgentProvider` returns lib.AgentProvider (healthcheck-only binary); boot-time deliverer construction moved to main.go Run

@@ -5,7 +5,6 @@
 package delivery
 
 import (
-	"fmt"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -107,34 +106,30 @@ func isSectionStart(line, heading string) bool {
 }
 
 // ParseMarkdownFrontmatter splits a markdown document with YAML frontmatter into
-// a string map and the body. Returns empty map and full content if no frontmatter.
-// Values are converted to strings: arrays become fmt representation, nested objects become fmt representation.
-func ParseMarkdownFrontmatter(content string) (map[string]string, string) {
+// a typed map and the body. Returns empty map and full content if no frontmatter.
+// Nil values are omitted. All other YAML scalar types (int, float64, bool, string),
+// lists, and nested maps are preserved as their native Go types.
+func ParseMarkdownFrontmatter(content string) (map[string]any, string) {
 	if !strings.HasPrefix(content, "---") {
-		return map[string]string{}, content
+		return map[string]any{}, content
 	}
 	rest := content[3:]
 	end := strings.Index(rest, "\n---")
 	if end == -1 {
-		return map[string]string{}, content
+		return map[string]any{}, content
 	}
 	fmRaw := rest[:end]
 	body := strings.TrimLeft(rest[end+4:], "\n")
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	if err := yaml.Unmarshal([]byte(fmRaw), &parsed); err != nil {
-		return map[string]string{}, content
+		return map[string]any{}, content
 	}
 
-	fm := make(map[string]string, len(parsed))
+	fm := make(map[string]any, len(parsed))
 	for k, v := range parsed {
-		switch val := v.(type) {
-		case string:
-			fm[k] = val
-		case nil:
-			// skip nil values
-		default:
-			fm[k] = fmt.Sprintf("%v", val)
+		if v != nil {
+			fm[k] = v
 		}
 	}
 	return fm, body
