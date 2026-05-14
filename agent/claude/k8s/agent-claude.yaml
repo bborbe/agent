@@ -8,6 +8,7 @@ spec:
   taskTypes:
     - claude
     - oauth-probe
+    - healthcheck
   priorityClassName: agent-claude
   image: docker.quant.benjamin-borbe.de:443/agent-claude
   heartbeat: 5m

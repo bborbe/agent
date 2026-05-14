@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- feat(agent/claude): add `healthcheck` to `taskTypes` list alongside `claude` + `oauth-probe` — prepares for healthcheck dispatch (rename of `oauth-probe`); no behavior change yet (executor still routes both)
+
 ## v0.62.5
 
 - feat(agent/{claude,code,gemini}): wire `JobMetrics` into each binary's `Run()` — constructs a fresh registry + pusher at startup, defers `PushContext` for end-of-run metric delivery, records run outcome and duration at every return path; adds `PUSHGATEWAY_URL` (default `http://pushgateway:9090`) and `TASK_TYPE` (default `unknown`) env fields
