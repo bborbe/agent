@@ -21,6 +21,7 @@ import (
 	"github.com/bborbe/agent/agent/gemini/pkg/steps"
 	agentlib "github.com/bborbe/agent/lib"
 	delivery "github.com/bborbe/agent/lib/delivery"
+	healthcheck "github.com/bborbe/agent/lib/healthcheck"
 )
 
 const serviceName = "agent-gemini"
@@ -95,6 +96,23 @@ func CreateAgent(geminiParser agentlib.AIParser) *agentlib.Agent {
 		agentlib.NewPhase("in_progress", steps.NewExecuteStep()),
 		agentlib.NewPhase("ai_review", steps.NewVerifyStep()),
 	)
+}
+
+// CreateAgentForTaskType dispatches on taskType and returns the appropriate
+// agent for the agent-gemini binary. Only TaskTypeHealthcheck is accepted;
+// all other values return a wrapped error.
+func CreateAgentForTaskType(
+	ctx context.Context,
+	taskType agentlib.TaskType,
+	geminiParser agentlib.AIParser,
+) (*agentlib.Agent, error) {
+	switch taskType {
+	case agentlib.TaskTypeHealthcheck:
+		return healthcheck.NewAgent(healthcheck.NewGeminiStep(geminiParser)), nil
+	default:
+		return nil, errors.Errorf(ctx, "unknown task_type %q for agent-gemini; accepted: [%s]",
+			taskType, agentlib.TaskTypeHealthcheck)
+	}
 }
 
 // CreateDeliverer builds the Kafka-or-Noop deliverer used by the Kafka

@@ -107,7 +107,14 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 	}
 	defer cleanup()
 
-	result, err := factory.CreateAgent(geminiParser).Run(ctx, a.Phase, a.TaskContent, deliverer)
+	agent, err := factory.CreateAgentForTaskType(ctx, agentlib.TaskType(a.TaskType), geminiParser)
+	if err != nil {
+		jobMetrics.RecordRun(agentlib.AgentStatusFailed)
+		jobMetrics.RecordDuration(time.Since(start))
+		return errors.Wrap(ctx, err, "create agent for task type")
+	}
+
+	result, err := agent.Run(ctx, a.Phase, a.TaskContent, deliverer)
 	if err != nil {
 		jobMetrics.RecordRun(agentlib.AgentStatusFailed)
 		jobMetrics.RecordDuration(time.Since(start))
