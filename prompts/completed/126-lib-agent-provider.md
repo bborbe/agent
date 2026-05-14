@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Added AgentProvider interface, NewAgentProvider constructor, agentProvider struct+Get method in lib/agent_agent-provider.go; generated counterfeiter mock AgentAgentProvider; added full Ginkgo test suite with 100% coverage; updated CHANGELOG.md with Unreleased entry.
 container: agent-126-lib-agent-provider
 dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T13:30:00Z"
 queued: "2026-05-14T13:59:46Z"
 started: "2026-05-14T13:59:48Z"
+completed: "2026-05-14T14:02:18Z"
 branch: refactor/agent-provider
 ---
 
