@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [030-executor-inject-task-type-env]
 summary: Created lib.TaskType named type with validation, well-known constants, and TaskFrontmatter.TaskType() accessor; all tests pass and make precommit exits 0.
 container: agent-118-spec-030-lib-task-type
@@ -7,6 +7,7 @@ dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T12:10:00Z"
 queued: "2026-05-14T12:14:15Z"
 started: "2026-05-14T12:14:17Z"
+completed: "2026-05-14T12:16:41Z"
 branch: dark-factory/executor-inject-task-type-env
 ---
 
