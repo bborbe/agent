@@ -17,30 +17,30 @@ import (
 	"github.com/bborbe/agent/task/executor/pkg/probe/mocks"
 )
 
-var _ = Describe("OAuthProbeTriggerHandler", func() {
+var _ = Describe("HealthcheckTriggerHandler", func() {
 	var (
 		ctx        context.Context
-		fakeRunner *mocks.FakeOAuthProbeRunner
+		fakeRunner *mocks.FakeHealthcheckRunner
 		h          http.Handler
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		fakeRunner = new(mocks.FakeOAuthProbeRunner)
-		h = handler.NewOAuthProbeTriggerHandler(ctx, fakeRunner)
+		fakeRunner = new(mocks.FakeHealthcheckRunner)
+		h = handler.NewHealthcheckTriggerHandler(ctx, fakeRunner)
 	})
 
 	Context("POST request", func() {
 		It("returns HTTP 200", func() {
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, "/oauth-probe/trigger", nil)
+			req := httptest.NewRequest(http.MethodPost, "/healthcheck/trigger", nil)
 			h.ServeHTTP(w, req)
 			Expect(w.Code).To(Equal(http.StatusOK))
 		})
 
 		It("triggers the runner exactly once", func() {
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, "/oauth-probe/trigger", nil)
+			req := httptest.NewRequest(http.MethodPost, "/healthcheck/trigger", nil)
 			h.ServeHTTP(w, req)
 			Eventually(fakeRunner.RunCallCount).Should(Equal(1))
 		})
@@ -54,7 +54,7 @@ var _ = Describe("OAuthProbeTriggerHandler", func() {
 				return nil
 			}
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, "/oauth-probe/trigger", nil)
+			req := httptest.NewRequest(http.MethodPost, "/healthcheck/trigger", nil)
 			// ServeHTTP returns immediately even though the runner is blocked
 			h.ServeHTTP(w, req)
 			Expect(w.Code).To(Equal(http.StatusOK))
@@ -93,14 +93,14 @@ var _ = Describe("OAuthProbeTriggerHandler", func() {
 			// First request — fires runner in background, blocks on firstCallUnblock
 			h.ServeHTTP(
 				httptest.NewRecorder(),
-				httptest.NewRequest(http.MethodPost, "/oauth-probe/trigger", nil),
+				httptest.NewRequest(http.MethodPost, "/healthcheck/trigger", nil),
 			)
 			Eventually(firstCallStarted).Should(BeClosed())
 
 			// Second request while first is still in-flight
 			h.ServeHTTP(
 				httptest.NewRecorder(),
-				httptest.NewRequest(http.MethodPost, "/oauth-probe/trigger", nil),
+				httptest.NewRequest(http.MethodPost, "/healthcheck/trigger", nil),
 			)
 
 			// While G6 is still blocking, the runner must not be invoked a second time
@@ -129,12 +129,12 @@ var _ = Describe("OAuthProbeTriggerHandler", func() {
 
 			h.ServeHTTP(
 				httptest.NewRecorder(),
-				httptest.NewRequest(http.MethodPost, "/oauth-probe/trigger", nil),
+				httptest.NewRequest(http.MethodPost, "/healthcheck/trigger", nil),
 			)
 			Eventually(firstCallStarted).Should(BeClosed())
 
 			w2 := httptest.NewRecorder()
-			h.ServeHTTP(w2, httptest.NewRequest(http.MethodPost, "/oauth-probe/trigger", nil))
+			h.ServeHTTP(w2, httptest.NewRequest(http.MethodPost, "/healthcheck/trigger", nil))
 			Expect(w2.Code).To(Equal(http.StatusOK))
 
 			close(firstCallUnblock)

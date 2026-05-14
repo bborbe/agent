@@ -837,7 +837,7 @@ var _ = Describe("TaskEventHandler", func() {
 					Assignee:  "agent-pr-reviewer",
 					Image:     "my-image:latest",
 					TaskType:  "",
-					TaskTypes: []string{"oauth-probe"},
+					TaskTypes: []string{"healthcheck"},
 				},
 				nil,
 			)
@@ -848,7 +848,7 @@ var _ = Describe("TaskEventHandler", func() {
 					"phase":     string(domain.TaskPhasePlanning),
 					"stage":     "prod",
 					"assignee":  "agent-pr-reviewer",
-					"task_type": "oauth-probe",
+					"task_type": "healthcheck",
 				},
 			}
 			err := h.ConsumeMessage(ctx, buildMsg(task))
@@ -866,7 +866,7 @@ var _ = Describe("TaskEventHandler", func() {
 						Assignee:  "agent-pr-reviewer",
 						Image:     "my-image:latest",
 						TaskType:  "pr-review",
-						TaskTypes: []string{"oauth-probe"},
+						TaskTypes: []string{"healthcheck"},
 					},
 					nil,
 				)
@@ -877,7 +877,7 @@ var _ = Describe("TaskEventHandler", func() {
 						"phase":     string(domain.TaskPhasePlanning),
 						"stage":     "prod",
 						"assignee":  "agent-pr-reviewer",
-						"task_type": "oauth-probe",
+						"task_type": "healthcheck",
 					},
 				}
 				err := h.ConsumeMessage(ctx, buildMsg(task))
@@ -895,7 +895,7 @@ var _ = Describe("TaskEventHandler", func() {
 						Assignee:  "agent-pr-reviewer",
 						Image:     "my-image:latest",
 						TaskType:  "pr-review",
-						TaskTypes: []string{"oauth-probe"},
+						TaskTypes: []string{"healthcheck"},
 					},
 					nil,
 				)

@@ -499,14 +499,14 @@ var _ = Describe("ConfigSpec", func() {
 
 		It("passes when only taskTypes is set (non-empty list)", func() {
 			spec := baseSpec()
-			spec.TaskTypes = []string{"pr-review", "oauth-probe"}
+			spec.TaskTypes = []string{"pr-review", "healthcheck"}
 			Expect(spec.Validate(ctx)).To(Succeed())
 		})
 
 		It("passes when both taskType and taskTypes are set", func() {
 			spec := baseSpec()
 			spec.TaskType = "pr-review"
-			spec.TaskTypes = []string{"oauth-probe"}
+			spec.TaskTypes = []string{"healthcheck"}
 			Expect(spec.Validate(ctx)).To(Succeed())
 		})
 
@@ -560,7 +560,7 @@ var _ = Describe("ConfigSpec", func() {
 	Describe("Equal - TaskTypes field", func() {
 		It("returns false when TaskTypes differs", func() {
 			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "claude",
-				TaskTypes: []string{"oauth-probe"}}
+				TaskTypes: []string{"healthcheck"}}
 			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "claude",
 				TaskTypes: []string{"pr-review"}}
 			Expect(a.Equal(b)).To(BeFalse())
@@ -568,16 +568,16 @@ var _ = Describe("ConfigSpec", func() {
 
 		It("returns false when TaskTypes differ in order (order-sensitive)", func() {
 			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m",
-				TaskTypes: []string{"pr-review", "oauth-probe"}}
+				TaskTypes: []string{"pr-review", "healthcheck"}}
 			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m",
-				TaskTypes: []string{"oauth-probe", "pr-review"}}
+				TaskTypes: []string{"healthcheck", "pr-review"}}
 			Expect(a.Equal(b)).To(BeFalse())
 		})
 
 		It("returns false when one has nil TaskTypes and the other has a non-empty slice", func() {
 			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "claude"}
 			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "claude",
-				TaskTypes: []string{"oauth-probe"}}
+				TaskTypes: []string{"healthcheck"}}
 			Expect(a.Equal(b)).To(BeFalse())
 		})
 
@@ -589,9 +589,9 @@ var _ = Describe("ConfigSpec", func() {
 
 		It("returns true when TaskTypes are identical slices", func() {
 			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m",
-				TaskTypes: []string{"pr-review", "oauth-probe"}}
+				TaskTypes: []string{"pr-review", "healthcheck"}}
 			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m",
-				TaskTypes: []string{"pr-review", "oauth-probe"}}
+				TaskTypes: []string{"pr-review", "healthcheck"}}
 			Expect(a.Equal(b)).To(BeTrue())
 		})
 	})
@@ -628,14 +628,14 @@ var _ = Describe("JSON round-trip for taskTypes", func() {
 			Image:     "img:latest",
 			Heartbeat: "1m",
 			TaskType:  "pr-review",
-			TaskTypes: []string{"pr-review", "oauth-probe"},
+			TaskTypes: []string{"pr-review", "healthcheck"},
 		}
 		data, err := json.Marshal(spec)
 		Expect(err).To(BeNil())
-		Expect(string(data)).To(ContainSubstring(`"taskTypes":["pr-review","oauth-probe"]`))
+		Expect(string(data)).To(ContainSubstring(`"taskTypes":["pr-review","healthcheck"]`))
 		var decoded agentv1.ConfigSpec
 		Expect(json.Unmarshal(data, &decoded)).To(Succeed())
-		Expect(decoded.TaskTypes).To(Equal([]string{"pr-review", "oauth-probe"}))
+		Expect(decoded.TaskTypes).To(Equal([]string{"pr-review", "healthcheck"}))
 	})
 
 	It("omits taskTypes from JSON when nil (omitempty)", func() {

@@ -18,18 +18,18 @@ var _ = Describe("EffectiveTaskTypes", func() {
 	})
 
 	It("includes all taskTypes list elements", func() {
-		result := pkg.EffectiveTaskTypes("", []string{"pr-review", "oauth-probe"})
-		Expect(result).To(Equal([]string{"pr-review", "oauth-probe"}))
+		result := pkg.EffectiveTaskTypes("", []string{"pr-review", "healthcheck"})
+		Expect(result).To(Equal([]string{"pr-review", "healthcheck"}))
 	})
 
 	It("unions singular and list, singular first", func() {
-		result := pkg.EffectiveTaskTypes("pr-review", []string{"oauth-probe"})
-		Expect(result).To(Equal([]string{"pr-review", "oauth-probe"}))
+		result := pkg.EffectiveTaskTypes("pr-review", []string{"healthcheck"})
+		Expect(result).To(Equal([]string{"pr-review", "healthcheck"}))
 	})
 
 	It("deduplicates when singular appears in list", func() {
-		result := pkg.EffectiveTaskTypes("pr-review", []string{"pr-review", "oauth-probe"})
-		Expect(result).To(Equal([]string{"pr-review", "oauth-probe"}))
+		result := pkg.EffectiveTaskTypes("pr-review", []string{"pr-review", "healthcheck"})
+		Expect(result).To(Equal([]string{"pr-review", "healthcheck"}))
 	})
 
 	It("returns nil when both are empty", func() {
@@ -45,11 +45,11 @@ var _ = Describe("EffectiveTaskTypes", func() {
 
 var _ = Describe("TaskTypeInSet", func() {
 	It("returns true when taskType is in the set", func() {
-		Expect(pkg.TaskTypeInSet("pr-review", []string{"pr-review", "oauth-probe"})).To(BeTrue())
+		Expect(pkg.TaskTypeInSet("pr-review", []string{"pr-review", "healthcheck"})).To(BeTrue())
 	})
 
 	It("returns false when taskType is not in the set", func() {
-		Expect(pkg.TaskTypeInSet("code-review", []string{"pr-review", "oauth-probe"})).To(BeFalse())
+		Expect(pkg.TaskTypeInSet("code-review", []string{"pr-review", "healthcheck"})).To(BeFalse())
 	})
 
 	It("returns false for empty taskType regardless of set", func() {

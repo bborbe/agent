@@ -68,24 +68,24 @@ func (p *commandPublisher) Publish(
 	return nil
 }
 
-//counterfeiter:generate -o mocks/fake_o_auth_probe_runner.go --fake-name FakeOAuthProbeRunner . OAuthProbeRunner
+//counterfeiter:generate -o mocks/fake_healthcheck_runner.go --fake-name FakeHealthcheckRunner . HealthcheckRunner
 
-// OAuthProbeRunner executes one probe tick: publishes create-task + update-frontmatter per Config CR.
-type OAuthProbeRunner interface {
+// HealthcheckRunner executes one liveness check tick: publishes create-task + update-frontmatter per Config CR.
+type HealthcheckRunner interface {
 	Run(ctx context.Context) error
 }
 
-type oAuthProbeRunner struct {
+type healthcheckRunner struct {
 	configProvider ConfigProvider
 	publisher      CommandPublisher
 }
 
-// NewOAuthProbeRunner creates an OAuthProbeRunner.
-func NewOAuthProbeRunner(
+// NewHealthcheckRunner creates a HealthcheckRunner.
+func NewHealthcheckRunner(
 	configProvider ConfigProvider,
 	publisher CommandPublisher,
-) OAuthProbeRunner {
-	return &oAuthProbeRunner{
+) HealthcheckRunner {
+	return &healthcheckRunner{
 		configProvider: configProvider,
 		publisher:      publisher,
 	}
@@ -103,7 +103,7 @@ func probeTaskID(agentName string) lib.TaskIdentifier {
 }
 
 // Run lists all Config CRs and publishes two commands per agent on each cron tick.
-func (r *oAuthProbeRunner) Run(ctx context.Context) error {
+func (r *healthcheckRunner) Run(ctx context.Context) error {
 	configs, err := r.configProvider.Get(ctx)
 	if err != nil {
 		return errors.Wrap(ctx, err, "list configs")
@@ -116,7 +116,7 @@ func (r *oAuthProbeRunner) Run(ctx context.Context) error {
 			TaskIdentifier: taskID,
 			Title:          "probe-" + agentName,
 			Frontmatter: lib.TaskFrontmatter{
-				"task_type": "oauth-probe",
+				"task_type": lib.TaskTypeHealthcheck.String(),
 				"status":    "in_progress",
 				"phase":     "planning",
 				"assignee":  agentName,

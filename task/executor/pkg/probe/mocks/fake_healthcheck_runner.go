@@ -8,7 +8,7 @@ import (
 	"github.com/bborbe/agent/task/executor/pkg/probe"
 )
 
-type FakeOAuthProbeRunner struct {
+type FakeHealthcheckRunner struct {
 	RunStub        func(context.Context) error
 	runMutex       sync.RWMutex
 	runArgsForCall []struct {
@@ -24,7 +24,7 @@ type FakeOAuthProbeRunner struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeOAuthProbeRunner) Run(arg1 context.Context) error {
+func (fake *FakeHealthcheckRunner) Run(arg1 context.Context) error {
 	fake.runMutex.Lock()
 	ret, specificReturn := fake.runReturnsOnCall[len(fake.runArgsForCall)]
 	fake.runArgsForCall = append(fake.runArgsForCall, struct {
@@ -43,26 +43,26 @@ func (fake *FakeOAuthProbeRunner) Run(arg1 context.Context) error {
 	return fakeReturns.result1
 }
 
-func (fake *FakeOAuthProbeRunner) RunCallCount() int {
+func (fake *FakeHealthcheckRunner) RunCallCount() int {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	return len(fake.runArgsForCall)
 }
 
-func (fake *FakeOAuthProbeRunner) RunCalls(stub func(context.Context) error) {
+func (fake *FakeHealthcheckRunner) RunCalls(stub func(context.Context) error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = stub
 }
 
-func (fake *FakeOAuthProbeRunner) RunArgsForCall(i int) context.Context {
+func (fake *FakeHealthcheckRunner) RunArgsForCall(i int) context.Context {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	argsForCall := fake.runArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeOAuthProbeRunner) RunReturns(result1 error) {
+func (fake *FakeHealthcheckRunner) RunReturns(result1 error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = nil
@@ -71,7 +71,7 @@ func (fake *FakeOAuthProbeRunner) RunReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeOAuthProbeRunner) RunReturnsOnCall(i int, result1 error) {
+func (fake *FakeHealthcheckRunner) RunReturnsOnCall(i int, result1 error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = nil
@@ -85,7 +85,7 @@ func (fake *FakeOAuthProbeRunner) RunReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeOAuthProbeRunner) Invocations() map[string][][]interface{} {
+func (fake *FakeHealthcheckRunner) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
@@ -95,7 +95,7 @@ func (fake *FakeOAuthProbeRunner) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *FakeOAuthProbeRunner) recordInvocation(key string, args []interface{}) {
+func (fake *FakeHealthcheckRunner) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -107,4 +107,4 @@ func (fake *FakeOAuthProbeRunner) recordInvocation(key string, args []interface{
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ probe.OAuthProbeRunner = new(FakeOAuthProbeRunner)
+var _ probe.HealthcheckRunner = new(FakeHealthcheckRunner)

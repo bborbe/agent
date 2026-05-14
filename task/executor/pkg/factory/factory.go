@@ -108,24 +108,24 @@ func CreateConsumer(
 	)
 }
 
-// CreateOAuthProbeRunner creates the OAuth probe runner shared between the cron path and the
-// HTTP trigger path. Callers must pass the same instance to both CreateOAuthProbeCron and
+// CreateHealthcheckRunner creates the healthcheck runner shared between the cron path and the
+// HTTP trigger path. Callers must pass the same instance to both CreateHealthcheckCron and
 // the HTTP handler so probe behavior is identical regardless of invocation path.
-func CreateOAuthProbeRunner(
+func CreateHealthcheckRunner(
 	configProvider pkg.EventHandlerConfig,
 	syncProducer libkafka.SyncProducer,
 	branch base.Branch,
-) probe.OAuthProbeRunner {
+) probe.HealthcheckRunner {
 	sender := cdb.NewCommandObjectSender(syncProducer, branch, log.DefaultSamplerFactory)
 	publisher := probe.NewCommandPublisher(sender)
-	return probe.NewOAuthProbeRunner(configProvider, publisher)
+	return probe.NewHealthcheckRunner(configProvider, publisher)
 }
 
-// CreateOAuthProbeCron wraps the given runner in a cron scheduler. Pass the runner returned by
-// CreateOAuthProbeRunner so the cron and the HTTP handler share the same instance.
-func CreateOAuthProbeCron(
+// CreateHealthcheckCron wraps the given runner in a cron scheduler. Pass the runner returned by
+// CreateHealthcheckRunner so the cron and the HTTP handler share the same instance.
+func CreateHealthcheckCron(
 	expression libcron.Expression,
-	runner probe.OAuthProbeRunner,
+	runner probe.HealthcheckRunner,
 ) run.Runnable {
 	return libcron.NewExpressionCron(expression, runner)
 }

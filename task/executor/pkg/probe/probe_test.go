@@ -20,19 +20,19 @@ import (
 	"github.com/bborbe/agent/task/executor/pkg/probe/mocks"
 )
 
-var _ = Describe("OAuthProbeRunner", func() {
+var _ = Describe("HealthcheckRunner", func() {
 	var (
 		ctx            context.Context
 		configProvider *mocks.FakeConfigProvider
 		publisher      *mocks.FakeCommandPublisher
-		runner         probe.OAuthProbeRunner
+		runner         probe.HealthcheckRunner
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
 		configProvider = new(mocks.FakeConfigProvider)
 		publisher = new(mocks.FakeCommandPublisher)
-		runner = probe.NewOAuthProbeRunner(configProvider, publisher)
+		runner = probe.NewHealthcheckRunner(configProvider, publisher)
 	})
 
 	Context("N configs produce 2N commands in the expected order", func() {

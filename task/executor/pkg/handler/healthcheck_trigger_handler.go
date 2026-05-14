@@ -13,9 +13,12 @@ import (
 	"github.com/bborbe/agent/task/executor/pkg/probe"
 )
 
-// NewOAuthProbeTriggerHandler returns an HTTP handler that fires the OAuth probe runner
+// NewHealthcheckTriggerHandler returns an HTTP handler that fires the healthcheck runner
 // once per invocation with fire-and-forget + single-flight semantics.
 // Concurrent invocations collapse into one in-flight run (second request is silently dropped).
-func NewOAuthProbeTriggerHandler(ctx context.Context, runner probe.OAuthProbeRunner) http.Handler {
+func NewHealthcheckTriggerHandler(
+	ctx context.Context,
+	runner probe.HealthcheckRunner,
+) http.Handler {
 	return libhttp.NewBackgroundRunHandler(ctx, runner.Run)
 }

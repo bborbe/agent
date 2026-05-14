@@ -39,16 +39,16 @@ func main() {
 }
 
 type application struct {
-	SentryDSN                string            `required:"true"  arg:"sentry-dsn"                  env:"SENTRY_DSN"                  usage:"SentryDSN"                                                display:"length"`
-	SentryProxy              string            `required:"false" arg:"sentry-proxy"                env:"SENTRY_PROXY"                usage:"Sentry Proxy"`
-	Listen                   string            `required:"true"  arg:"listen"                      env:"LISTEN"                      usage:"address to listen to"`
-	KafkaBrokers             string            `required:"true"  arg:"kafka-brokers"               env:"KAFKA_BROKERS"               usage:"comma-separated Kafka broker addresses"`
-	Branch                   base.Branch       `required:"true"  arg:"branch"                      env:"BRANCH"                      usage:"Kafka topic prefix branch (develop/live)"`
-	Namespace                libk8s.Namespace  `required:"true"  arg:"namespace"                   env:"NAMESPACE"                   usage:"K8s namespace to spawn Jobs in"`
-	BuildGitVersion          string            `required:"false" arg:"build-git-version"           env:"BUILD_GIT_VERSION"           usage:"Build Git version (git describe --tags --always --dirty)"                  default:"dev"`
-	BuildGitCommit           string            `required:"false" arg:"build-git-commit"            env:"BUILD_GIT_COMMIT"            usage:"Build Git commit hash"                                                     default:"none"`
-	BuildDate                *libtime.DateTime `required:"false" arg:"build-date"                  env:"BUILD_DATE"                  usage:"Build timestamp (RFC3339)"`
-	OAuthProbeCronExpression string            `                 arg:"oauth-probe-cron-expression" env:"OAUTH_PROBE_CRON_EXPRESSION" usage:"Cron expression for Claude OAuth health probes"                            default:"0 0 8 * * 1"`
+	SentryDSN                 string            `required:"true"  arg:"sentry-dsn"                  env:"SENTRY_DSN"                  usage:"SentryDSN"                                                display:"length"`
+	SentryProxy               string            `required:"false" arg:"sentry-proxy"                env:"SENTRY_PROXY"                usage:"Sentry Proxy"`
+	Listen                    string            `required:"true"  arg:"listen"                      env:"LISTEN"                      usage:"address to listen to"`
+	KafkaBrokers              string            `required:"true"  arg:"kafka-brokers"               env:"KAFKA_BROKERS"               usage:"comma-separated Kafka broker addresses"`
+	Branch                    base.Branch       `required:"true"  arg:"branch"                      env:"BRANCH"                      usage:"Kafka topic prefix branch (develop/live)"`
+	Namespace                 libk8s.Namespace  `required:"true"  arg:"namespace"                   env:"NAMESPACE"                   usage:"K8s namespace to spawn Jobs in"`
+	BuildGitVersion           string            `required:"false" arg:"build-git-version"           env:"BUILD_GIT_VERSION"           usage:"Build Git version (git describe --tags --always --dirty)"                  default:"dev"`
+	BuildGitCommit            string            `required:"false" arg:"build-git-commit"            env:"BUILD_GIT_COMMIT"            usage:"Build Git commit hash"                                                     default:"none"`
+	BuildDate                 *libtime.DateTime `required:"false" arg:"build-date"                  env:"BUILD_DATE"                  usage:"Build timestamp (RFC3339)"`
+	HealthcheckCronExpression string            `                 arg:"healthcheck-cron-expression" env:"HEALTHCHECK_CRON_EXPRESSION" usage:"Cron expression for agent liveness health checks"                          default:"0 0 8 * * 1"`
 }
 
 func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
@@ -95,14 +95,14 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	taskStore := pkg.NewTaskStore()
 	jobWatcher := factory.CreateJobWatcher(kubeClient, a.Namespace, taskStore, resultPublisher)
 
-	oAuthProbeRunner := factory.CreateOAuthProbeRunner(
+	healthcheckRunner := factory.CreateHealthcheckRunner(
 		eventHandlerConfig,
 		syncProducer,
 		a.Branch,
 	)
-	probeCron := factory.CreateOAuthProbeCron(
-		libcron.Expression(a.OAuthProbeCronExpression),
-		oAuthProbeRunner,
+	healthcheckCron := factory.CreateHealthcheckCron(
+		libcron.Expression(a.HealthcheckCronExpression),
+		healthcheckRunner,
 	)
 
 	consumer := factory.CreateConsumer(
@@ -129,14 +129,14 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		func(ctx context.Context) error {
 			return jobWatcher.Run(ctx)
 		},
-		a.createHTTPServer(eventHandlerConfig, oAuthProbeRunner),
-		probeCron.Run,
+		a.createHTTPServer(eventHandlerConfig, healthcheckRunner),
+		healthcheckCron.Run,
 	)
 }
 
 func (a *application) createHTTPServer(
 	configProvider pkg.EventHandlerConfig,
-	runner probe.OAuthProbeRunner,
+	runner probe.HealthcheckRunner,
 ) run.Func {
 	return func(ctx context.Context) error {
 		router := mux.NewRouter()
@@ -147,8 +147,8 @@ func (a *application) createHTTPServer(
 			Handler(log.NewSetLoglevelHandler(ctx, log.NewLogLevelSetter(2, 5*time.Minute)))
 
 		router.Path("/agents").Handler(handler.NewAgentsHandler(configProvider))
-		router.Path("/oauth-probe-trigger").Handler(
-			handler.NewOAuthProbeTriggerHandler(ctx, runner),
+		router.Path("/healthcheck-trigger").Handler(
+			handler.NewHealthcheckTriggerHandler(ctx, runner),
 		)
 
 		glog.V(2).Infof("starting http server listen on %s", a.Listen)

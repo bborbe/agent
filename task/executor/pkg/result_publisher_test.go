@@ -185,7 +185,7 @@ var _ = Describe("ResultPublisher", func() {
 				err := publisher.PublishTypeMismatchFailure(
 					ctx,
 					task,
-					`task_type "oauth-probe" not in effective set [pr-review] of agent "agent-pr-reviewer"`,
+					`task_type "healthcheck" not in effective set [pr-review] of agent "agent-pr-reviewer"`,
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -206,7 +206,7 @@ var _ = Describe("ResultPublisher", func() {
 				Expect(cmd.Body.Heading).To(Equal("## Failure"))
 				Expect(cmd.Body.Section).To(ContainSubstring("2026-04-18T12:00:00Z"))
 				Expect(cmd.Body.Section).To(ContainSubstring("agent-pr-reviewer"))
-				Expect(cmd.Body.Section).To(ContainSubstring("oauth-probe"))
+				Expect(cmd.Body.Section).To(ContainSubstring("healthcheck"))
 
 				_, hasTriggerCount := cmd.Updates["trigger_count"]
 				Expect(

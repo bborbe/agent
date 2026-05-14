@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.62.11
+
+- BREAKING(task/executor): rename oauth-probe probe pipeline to healthcheck — HTTP route `/oauth-probe-trigger` → `/healthcheck-trigger` (404 on old path after deploy); env var `OAUTH_PROBE_CRON_EXPRESSION` → `HEALTHCHECK_CRON_EXPRESSION` (default `0 0 8 * * 1` unchanged); factory `CreateOAuthProbeRunner`/`CreateOAuthProbeCron` → `CreateHealthcheckRunner`/`CreateHealthcheckCron`; interface `OAuthProbeRunner` → `HealthcheckRunner`; published task_type changes from `oauth-probe` to `healthcheck`; in-flight probe tasks with stale frontmatter self-heal on next cron tick via same UUIDv5 task identifier
+- chore(lib): `TaskTypeOAuthProbe` constant intentionally retained in `lib/agent_task-type.go` for trading/maintainer consumers — removal deferred until their dispatch specs ship
+
 ## v0.62.10
 
 - feat(agent/{claude,gemini,code}): per-task-type dispatch via factory.CreateAgentForTaskType — healthcheck task type routes to a dedicated liveness agent; unknown task_type fails fast with an accepted-types error (spec 031)
