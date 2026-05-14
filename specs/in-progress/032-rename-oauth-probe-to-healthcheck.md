@@ -109,3 +109,21 @@ Expected: precommit passes both modules; grep returns zero matches.
 ## Do-Nothing Option
 
 If we keep the name: the probe pipeline continues working today. But every future agent that moves off OAuth (per the broader provider-switch effort) inherits a misleading name, every new contributor has to be told "oauth-probe doesn't only check OAuth," and the CRD `taskTypes` lists across three repos accumulate a stale value that nobody dares remove because the contract is unclear. The longer this is deferred, the more call sites accumulate.
+
+## Verification Result
+
+**Verified:** 2026-05-14T13:57:38Z (HEAD c0391a5)
+**Binary:** dark-factory v0.156.1-1-g04f3863 (installed)
+**Scenario:** Structural verification (spec declares no new scenario) — grep, code inspection, live HTTP probe, deployed env inspection, precommit on both modules.
+**Evidence:**
+- `grep -ri 'oauth-probe\|OAuthProbe\|OAUTH_PROBE' task/executor/ --exclude=CHANGELOG.md --exclude-dir=.update-logs` → zero matches (AC 1, 2)
+- `task/executor/main.go:150` registers only `/healthcheck-trigger`; no `/oauth-probe-trigger` route → 404 on legacy path (AC 3)
+- `task/executor/pkg/probe/probe.go:122` emits `"task_type": lib.TaskTypeHealthcheck.String()` (AC 4, 10)
+- `task/executor/pkg/probe/probe.go:99` UUIDv5 namespace `00000000-0000-0000-0000-000000000024` unchanged (AC 5)
+- `HealthcheckRunner` interface + `NewHealthcheckRunner` + `CreateHealthcheckRunner`/`CreateHealthcheckCron` + `NewHealthcheckTriggerHandler` + `mocks/fake_healthcheck_runner.go` (AC 6)
+- `task/executor/main.go:51`: `arg:"healthcheck-cron-expression" env:"HEALTHCHECK_CRON_EXPRESSION" default:"0 0 8 * * 1"` (AC 7, 8)
+- `lib/agent_task-type.go:62` retains `TaskTypeOAuthProbe`; line 65 adds `TaskTypeHealthcheck` (AC 9, 11)
+- `make precommit` PASS in `task/executor/` and `lib/` (AC 12)
+- `CHANGELOG.md` v0.62.11 BREAKING entry covers route, env var, factory/handler/interface renames, self-healing (AC 13); follow-up entry on retained `TaskTypeOAuthProbe` (AC 14)
+- Operator runtime confirmation: `POST /admin/agent-task-executor/healthcheck-trigger` returns "run triggered. Check logs for progress." on dev + prod; pushgateway `agent_job_*{task_type="healthcheck",agent="claude-agent"}` rows present
+**Verdict:** PASS
