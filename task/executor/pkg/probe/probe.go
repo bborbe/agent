@@ -78,16 +78,19 @@ type HealthcheckRunner interface {
 type healthcheckRunner struct {
 	configProvider ConfigProvider
 	publisher      CommandPublisher
+	branch         base.Branch
 }
 
 // NewHealthcheckRunner creates a HealthcheckRunner.
 func NewHealthcheckRunner(
 	configProvider ConfigProvider,
 	publisher CommandPublisher,
+	branch base.Branch,
 ) HealthcheckRunner {
 	return &healthcheckRunner{
 		configProvider: configProvider,
 		publisher:      publisher,
+		branch:         branch,
 	}
 }
 
@@ -95,11 +98,11 @@ func NewHealthcheckRunner(
 // Stable per spec 024 follow-up — do NOT change without a migration plan.
 var probeNamespace = uuid.MustParse("00000000-0000-0000-0000-000000000024")
 
-// probeTaskID returns the deterministic UUIDv5 for a probe task targeting agentName.
-// Same agentName always yields the same UUID, both within a single executor
+// probeTaskID returns the deterministic UUIDv5 for a probe task targeting agentName and stage.
+// Same (agentName, stage) always yields the same UUID, both within a single executor
 // process and across restarts.
-func probeTaskID(agentName string) lib.TaskIdentifier {
-	return lib.TaskIdentifier(uuid.NewSHA1(probeNamespace, []byte(agentName)).String())
+func probeTaskID(agentName, stage string) lib.TaskIdentifier {
+	return lib.TaskIdentifier(uuid.NewSHA1(probeNamespace, []byte(agentName+"-"+stage)).String())
 }
 
 // Run lists all Config CRs and publishes two commands per agent on each cron tick.
@@ -110,16 +113,17 @@ func (r *healthcheckRunner) Run(ctx context.Context) error {
 	}
 	for _, config := range configs {
 		agentName := config.Spec.Assignee
-		taskID := probeTaskID(agentName)
+		taskID := probeTaskID(agentName, string(r.branch))
 
 		createCmd := taskcmd.CreateCommand{
 			TaskIdentifier: taskID,
-			Title:          "probe-" + agentName,
+			Title:          "probe-" + agentName + "-" + string(r.branch),
 			Frontmatter: lib.TaskFrontmatter{
 				"task_type": lib.TaskTypeHealthcheck.String(),
 				"status":    "in_progress",
-				"phase":     "planning",
+				"phase":     "in_progress",
 				"assignee":  agentName,
+				"stage":     string(r.branch),
 			},
 			Body: "reply 'ok'",
 		}
@@ -130,7 +134,8 @@ func (r *healthcheckRunner) Run(ctx context.Context) error {
 		updateCmd := taskcmd.UpdateFrontmatterCommand{
 			TaskIdentifier: taskID,
 			Updates: lib.TaskFrontmatter{
-				"phase":         "planning",
+				"status":        "in_progress",
+				"phase":         "in_progress",
 				"trigger_count": 0,
 				"retry_count":   0,
 			},

@@ -118,7 +118,7 @@ func CreateHealthcheckRunner(
 ) probe.HealthcheckRunner {
 	sender := cdb.NewCommandObjectSender(syncProducer, branch, log.DefaultSamplerFactory)
 	publisher := probe.NewCommandPublisher(sender)
-	return probe.NewHealthcheckRunner(configProvider, publisher)
+	return probe.NewHealthcheckRunner(configProvider, publisher, branch)
 }
 
 // CreateHealthcheckCron wraps the given runner in a cron scheduler. Pass the runner returned by

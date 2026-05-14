@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.62.12
+
+- feat(task/executor): probe runner publishes per-stage vault files and task identifiers; `stage:` frontmatter field matches executor branch (spec 033)
+- docs: operator cleanup step — after deploy, delete stale `tasks/probe-<agent>.md` files (no stage suffix) from the OpenClaw vault host clone: `git rm tasks/probe-*.md && git commit -m "remove stale shared probe files" && git push`
+
 ## v0.62.11
 
 - BREAKING(task/executor): rename oauth-probe probe pipeline to healthcheck — HTTP route `/oauth-probe-trigger` → `/healthcheck-trigger` (404 on old path after deploy); env var `OAUTH_PROBE_CRON_EXPRESSION` → `HEALTHCHECK_CRON_EXPRESSION` (default `0 0 8 * * 1` unchanged); factory `CreateOAuthProbeRunner`/`CreateOAuthProbeCron` → `CreateHealthcheckRunner`/`CreateHealthcheckCron`; interface `OAuthProbeRunner` → `HealthcheckRunner`; published task_type changes from `oauth-probe` to `healthcheck`; in-flight probe tasks with stale frontmatter self-heal on next cron tick via same UUIDv5 task identifier

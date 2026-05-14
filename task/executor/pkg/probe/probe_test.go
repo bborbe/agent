@@ -32,7 +32,7 @@ var _ = Describe("HealthcheckRunner", func() {
 		ctx = context.Background()
 		configProvider = new(mocks.FakeConfigProvider)
 		publisher = new(mocks.FakeCommandPublisher)
-		runner = probe.NewHealthcheckRunner(configProvider, publisher)
+		runner = probe.NewHealthcheckRunner(configProvider, publisher, "dev")
 	})
 
 	Context("N configs produce 2N commands in the expected order", func() {
@@ -238,7 +238,116 @@ var _ = Describe("HealthcheckRunner", func() {
 			_, _, payload := publisher.PublishArgsForCall(0)
 			createCmd, ok := payload.(taskcmd.CreateCommand)
 			Expect(ok).To(BeTrue())
-			Expect(createCmd.Title).To(Equal("probe-agent-a"))
+			Expect(createCmd.Title).To(Equal("probe-agent-a-dev"))
+		})
+	})
+
+	Context("per-stage identity (boundary contract)", func() {
+		BeforeEach(func() {
+			configProvider.GetReturns([]agentv1.Config{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "agent-a"},
+					Spec:       agentv1.ConfigSpec{Assignee: "agent-a"},
+				},
+			}, nil)
+		})
+
+		It("title includes the stage suffix", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			_, _, payload := publisher.PublishArgsForCall(0)
+			createCmd, ok := payload.(taskcmd.CreateCommand)
+			Expect(ok).To(BeTrue())
+			Expect(createCmd.Title).To(Equal("probe-agent-a-dev"))
+		})
+
+		It("create-task frontmatter includes stage field matching the runner's branch", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			_, _, payload := publisher.PublishArgsForCall(0)
+			createCmd, ok := payload.(taskcmd.CreateCommand)
+			Expect(ok).To(BeTrue())
+			Expect(createCmd.Frontmatter).To(HaveKeyWithValue("stage", "dev"))
+		})
+
+		It("create-task frontmatter has phase in_progress", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			_, _, payload := publisher.PublishArgsForCall(0)
+			createCmd, ok := payload.(taskcmd.CreateCommand)
+			Expect(ok).To(BeTrue())
+			Expect(createCmd.Frontmatter).To(HaveKeyWithValue("phase", "in_progress"))
+		})
+
+		It("update-frontmatter has phase in_progress", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			_, _, payload := publisher.PublishArgsForCall(1)
+			updateCmd, ok := payload.(taskcmd.UpdateFrontmatterCommand)
+			Expect(ok).To(BeTrue())
+			Expect(updateCmd.Updates).To(HaveKeyWithValue("phase", "in_progress"))
+		})
+
+		It("update-frontmatter resets status to in_progress (spec AC line 76)", func() {
+			Expect(runner.Run(ctx)).To(Succeed())
+			_, _, payload := publisher.PublishArgsForCall(1)
+			updateCmd, ok := payload.(taskcmd.UpdateFrontmatterCommand)
+			Expect(ok).To(BeTrue())
+			Expect(updateCmd.Updates).To(HaveKeyWithValue("status", "in_progress"))
+		})
+
+		It("probeTaskID is a pure function of (agent, stage) — boundary contract", func() {
+			// Direct unit-level boundary test per spec AC line 75:
+			// probeTaskID must be a pure function (no state, no randomness) so
+			// every caller passing the same (agent, stage) gets the same UUID,
+			// including across a process restart.
+			// We can't import the package-private probeTaskID directly here, so
+			// we drive it via two fresh runners and compare the published TaskIdentifiers.
+			agentName := "boundary-agent"
+			configProvider.GetReturns([]agentv1.Config{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: agentName},
+					Spec:       agentv1.ConfigSpec{Assignee: agentName},
+				},
+			}, nil)
+
+			pubA := new(mocks.FakeCommandPublisher)
+			pubB := new(mocks.FakeCommandPublisher)
+			runnerA := probe.NewHealthcheckRunner(configProvider, pubA, "dev")
+			runnerB := probe.NewHealthcheckRunner(configProvider, pubB, "dev")
+			Expect(runnerA.Run(ctx)).To(Succeed())
+			Expect(runnerB.Run(ctx)).To(Succeed())
+
+			_, _, payloadA := pubA.PublishArgsForCall(0)
+			_, _, payloadB := pubB.PublishArgsForCall(0)
+			cmdA, okA2 := payloadA.(taskcmd.CreateCommand)
+			Expect(okA2).To(BeTrue())
+			cmdB, okB2 := payloadB.(taskcmd.CreateCommand)
+			Expect(okB2).To(BeTrue())
+
+			Expect(cmdA.TaskIdentifier).To(Equal(cmdB.TaskIdentifier),
+				"probeTaskID must be a pure function of (agent, stage); same inputs → same UUID")
+		})
+
+		It("dev and prod runners produce different task IDs for the same agent", func() {
+			devRunner := probe.NewHealthcheckRunner(configProvider, publisher, "dev")
+			prodPublisher := new(mocks.FakeCommandPublisher)
+			configProvider.GetReturns([]agentv1.Config{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "agent-a"},
+					Spec:       agentv1.ConfigSpec{Assignee: "agent-a"},
+				},
+			}, nil)
+			prodRunner := probe.NewHealthcheckRunner(configProvider, prodPublisher, "prod")
+
+			Expect(devRunner.Run(ctx)).To(Succeed())
+			Expect(prodRunner.Run(ctx)).To(Succeed())
+
+			_, _, devPayload := publisher.PublishArgsForCall(0)
+			_, _, prodPayload := prodPublisher.PublishArgsForCall(0)
+			devCmd, okDev := devPayload.(taskcmd.CreateCommand)
+			Expect(okDev).To(BeTrue())
+			prodCmd, okProd := prodPayload.(taskcmd.CreateCommand)
+			Expect(okProd).To(BeTrue())
+
+			Expect(devCmd.TaskIdentifier).NotTo(Equal(prodCmd.TaskIdentifier),
+				"dev and prod probes for the same agent must have different task identifiers")
 		})
 	})
 
