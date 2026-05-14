@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-05-14T12:04:04Z"
 generating: "2026-05-14T12:04:23Z"
 prompted: "2026-05-14T12:08:32Z"
 verifying: "2026-05-14T12:19:25Z"
+completed: "2026-05-14T13:57:47Z"
 branch: dark-factory/executor-inject-task-type-env
 ---
 
