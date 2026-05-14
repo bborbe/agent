@@ -105,3 +105,20 @@ ls ~/Documents/Obsidian/OpenClaw/tasks/probe-*.md
 ## Do-Nothing Option
 
 If we keep the shared probe file: dev and prod continue to fight over `tasks/probe-<agent>.md`, the executor's stage filter continues to drop both clusters' probes on the floor, and no `agent_job_*` rows reach either pushgateway. The probe is functionally a no-op in both clusters. The longer this is deferred, the longer we fly blind on agent liveness across the fleet, and the more new agents inherit a broken probe contract on first onboarding.
+
+## Verification Result
+
+**Verified:** 2026-05-14T13:56:36Z (HEAD c0391a5)
+**Binary:** /Users/bborbe/Documents/workspaces/go/bin/dark-factory (v0.156.1-1-g04f3863-dirty)
+**Scenario:** Probe runner exercised post-deploy via cron tick in dev and prod clusters; vault frontmatter inspected on host clone; UUID derivation reproduced offline from `probeTaskID` and matched runtime task identifiers byte-for-byte.
+**Evidence:**
+- Vault host clone: `probe-claude-agent-dev.md` (`stage: dev`, `task_identifier: a7032bbc-b75c-5675-a152-526c2e79a519`, `task_type: healthcheck`) and `probe-claude-agent-prod.md` (`stage: prod`, `task_identifier: 4f91c78a-54fd-5246-9744-b0fe6097c822`) — different UUIDs per stage, both files present, both ending with `phase: done`.
+- Controller logs (dev): "created task file at /data/vault/tasks/probe-claude-agent-dev.md for a7032bbc-b75c-5675-a152-526c2e79a519" plus per-stage filenames for hypothesis/trade-analysis/pr-reviewer/backtest, each with the deterministic UUID derived from `(agent, dev)`.
+- `uuid.NewSHA1(00000000-0000-0000-0000-000000000024, "claude-agent-dev")` reproduced offline = `a7032bbc-b75c-5675-a152-526c2e79a519` — exact match to runtime. Same for prod backtest = `65e512a2-e6e8-5432-a7c3-c59411c06db2`.
+- Dev executor spawned Job only for the dev UUID (`claude-agent-a7032bbc-20260514133234` succeeded); no Job log for the prod UUID `4f91c78a-...` ever appears in dev — per-stage separation holds end-to-end.
+- Pushgateway: dev claude-agent metrics with `task_type="healthcheck"` confirm spawn path executed.
+- Source: `task/executor/pkg/probe/probe.go` — `probeTaskID(agent, stage string)` pure UUIDv5; namespace constant carries "do NOT change without a migration plan" comment; `Run` publishes create + update with `status: in_progress` + `phase: in_progress` every cycle; `stage:` frontmatter set to `string(r.branch)` verbatim.
+- `task/executor/pkg/handler/task_event_handler.go` unchanged since v0.62.7 (spec 030), confirming spec 033 frozen-handler constraint.
+- `make precommit` in `task/executor/` passed clean (gosec 0 issues, trivy 0 findings, "ready to commit").
+- CHANGELOG.md v0.62.12 records publisher behavior change and operator cleanup step for stale shared probe files.
+**Verdict:** PASS
