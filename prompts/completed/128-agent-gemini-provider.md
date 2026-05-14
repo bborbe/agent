@@ -1,11 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Deleted CreateAgentForTaskType and CreateDeliverer from factory.go, added CreateAgentProvider returning lib.AgentProvider (healthcheck-only), rewrote main.go Run with inline deliverer construction and provider dispatch, rewrote factory_test.go as map-entry assertions on the provider, and make precommit passed with exit 0.
 container: agent-128-agent-gemini-provider
 dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T14:00:00Z"
 queued: "2026-05-14T14:14:13Z"
 started: "2026-05-14T14:17:37Z"
+completed: "2026-05-14T14:20:56Z"
 branch: refactor/agent-gemini-provider
 ---
 
