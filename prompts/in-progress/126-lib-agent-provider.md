@@ -1,6 +1,11 @@
 ---
-status: draft
+status: committing
+summary: Added AgentProvider interface, NewAgentProvider constructor, agentProvider struct+Get method in lib/agent_agent-provider.go; generated counterfeiter mock AgentAgentProvider; added full Ginkgo test suite with 100% coverage; updated CHANGELOG.md with Unreleased entry.
+container: agent-126-lib-agent-provider
+dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T13:30:00Z"
+queued: "2026-05-14T13:59:46Z"
+started: "2026-05-14T13:59:48Z"
 branch: refactor/agent-provider
 ---
 
@@ -21,10 +26,10 @@ Introduce the `AgentProvider` abstraction in the shared `lib/` module. This is t
 Read `CLAUDE.md` at the repo root for project conventions.
 
 Read these guides before starting:
-- `go-patterns.md` in `~/.claude/plugins/marketplaces/coding/docs/` — interface → constructor → struct order, named types, error wrapping
-- `go-factory-pattern.md` in `~/.claude/plugins/marketplaces/coding/docs/` — the design rule motivating this prompt: factories must be pure plumbing, error returns are a RED flag for factory code
-- `go-testing-guide.md` in `~/.claude/plugins/marketplaces/coding/docs/` — Ginkgo v2/Gomega, external test packages, coverage ≥80%
-- `go-doc-best-practices.md` in `~/.claude/plugins/marketplaces/coding/docs/` — GoDoc comment style
+- `~/Documents/workspaces/coding/docs/go-patterns.md` — interface → constructor → struct order, named types, error wrapping
+- `~/Documents/workspaces/coding/docs/go-factory-pattern.md` — the design rule motivating this prompt: factories must be pure plumbing, error returns are a RED flag for factory code. **Section 5 ("When You Need Dispatch — Use a Provider Interface")** describes the exact pattern this prompt implements.
+- `~/Documents/workspaces/coding/docs/go-testing-guide.md` — Ginkgo v2/Gomega, external test packages, coverage ≥80%
+- `~/Documents/workspaces/coding/docs/go-doc-best-practices.md` — GoDoc comment style
 
 **Design principle (motivating context):**
 The 3 agent-repo factories (`agent/{claude,gemini,code}/pkg/factory/factory.go`) currently expose a `CreateAgentForTaskType(ctx, taskType, ...) (*Agent, error)` function that:
@@ -187,9 +192,10 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 
-	lib "github.com/bborbe/agent/lib"
+	"github.com/bborbe/agent/lib"
 )
 ```
+(No alias — the package is named `lib`; use `lib.AgentProvider` etc. directly. Matches existing `lib/agent_task_test.go` style.)
 
 **Test structure:**
 ```go
@@ -286,7 +292,7 @@ Expected: AgentProvider specs pass.
 ```bash
 cd lib && go test -coverprofile=/tmp/agent-provider-cover.out ./... && go tool cover -func=/tmp/agent-provider-cover.out | grep "agent_agent-provider"
 ```
-Expected: `agent_agent-provider.go` at ≥80% statement coverage. The miss path is tested via `DescribeTable`; the hit path is tested twice (claude + healthcheck); the empty-map path is tested.
+Expected: every function in `agent_agent-provider.go` at 100% statement coverage. The file is small enough that every branch is exercised: `Get` hit path (2 cases), `Get` miss path (multiple `DescribeTable` entries), empty-map path, sort-determinism assertion.
 
 ## 5. Update `CHANGELOG.md` at the repo root
 

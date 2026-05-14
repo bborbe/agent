@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.13
+
+- feat(lib): add `AgentProvider` interface for task_type → *Agent dispatch — map-based provider with sorted-accepted-types error message; consumed by per-binary factory refactors that drop `CreateAgentForTaskType` switch statements (factory pattern compliance)
+
 ## v0.62.12
 
 - feat(task/executor): probe runner publishes per-stage vault files and task identifiers; `stage:` frontmatter field matches executor branch (spec 033)
