@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.10
+
+- feat(agent/{claude,gemini,code}): per-task-type dispatch via factory.CreateAgentForTaskType — healthcheck task type routes to a dedicated liveness agent; unknown task_type fails fast with an accepted-types error (spec 031)
+
 ## v0.62.9
 
 - feat(agent/claude): add `CreateAgentForTaskType` dispatch function — routes `healthcheck`/`oauth-probe` to liveness agent, `claude` to 3-phase domain agent; update `main.go` to use it (spec 031)

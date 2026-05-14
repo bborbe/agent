@@ -1,8 +1,11 @@
 ---
+status: generating
 tags:
-  - dark-factory
-  - spec
-status: draft
+    - dark-factory
+    - spec
+approved: "2026-05-14T13:00:07Z"
+generating: "2026-05-14T13:00:08Z"
+branch: dark-factory/per-stage-probe-task-identity
 ---
 
 ## Summary
@@ -35,16 +38,15 @@ After this work, each executor cluster (dev and prod) publishes its own probe ta
 2. The task identifier is a UUIDv5 derived from the tuple `(agent_name, stage)`. The same `(agent, stage)` pair yields the same UUID across restarts; different pairs yield different UUIDs. The dev and prod probes for the same agent therefore never collide on the task-identifier index.
 3. The published frontmatter includes `stage: <dev|prod>` whose value equals the executor's existing `--branch` / `BRANCH` argument.
 4. On every probe cycle, the runner publishes `status: in_progress` and `phase: in_progress` regardless of the prior cycle's terminal state. A completed prior probe does not block the next cycle from being picked up by the executor.
-5. The probe runner sources the stage from the executor's existing `Branch` argument. No new configuration is introduced.
-6. The UUIDv5 namespace constant used to derive probe identifiers is documented in code with a comment stating it is frozen and must not be changed without a migration plan. Whether the existing namespace is reused or a new one is chosen is an implementation choice; the constraint is that the chosen value is stable across runs and across restarts.
-7. The executor's task event handler is unchanged. The stage filter at `task_event_handler.go:150` still skips on stage mismatch — but now the publisher emits the correct stage, so each cluster's executor accepts only its own probe.
+5. The UUIDv5 namespace constant used to derive probe identifiers is documented in code with a comment stating it is frozen and must not be changed without a migration plan. Whether the existing namespace is reused or a new one is chosen is an implementation choice; the constraint is that the chosen value is stable across runs and across restarts.
+6. The executor's task event handler is unchanged. The stage filter at `task_event_handler.go:150` still skips on stage mismatch — but now the publisher emits the correct stage, so each cluster's executor accepts only its own probe.
 
 ## Constraints
 
 - **Executor's task event handler is frozen.** The stage filter, status filter, type filter, assignee filter, and phase filter logic must remain as-is. This spec changes only what the probe runner publishes.
 - **The probe runner's UUIDv5 namespace constant, once chosen, is frozen** and documented with a do-not-change comment. Changing it later would orphan in-flight probe tasks.
 - **The default cron expression and HTTP trigger route are unchanged.** This spec does not touch scheduling or routing.
-- **No new env vars, no new CLI flags.** Stage comes from the existing `Branch` arg.
+- **No new env vars, no new CLI flags.** Stage is sourced from the executor's existing `Branch` argument.
 - **Task type literal is unchanged by this spec.** It stays `oauth-probe` until spec 032 ships. If 032 ships first, the task type is `healthcheck` — the per-stage identity work is orthogonal to the rename and must not couple to it.
 - See `docs/task-flow-and-failure-semantics.md` for the executor's filter semantics referenced in failure modes.
 - The OpenClaw vault topology (one GitHub origin, three clones with shared paths) is documented in `[[OpenClaw Vault Sync Architecture]]` in the Personal Obsidian vault — that document is the authoritative source for why per-stage paths are required.
@@ -57,7 +59,6 @@ After this work, each executor cluster (dev and prod) publishes its own probe ta
 | `Branch` is a value other than `dev` or `prod` (e.g. `live`, `develop`) | The runner publishes that literal value as `stage:` and as the filename suffix; executor's stage filter then matches as it does today | None needed — `stage` is opaque to the runner; matching is the executor's existing concern |
 | Stale `tasks/probe-<agent>.md` (no stage suffix) exists in the vault from before this spec ships | The executor's stage filter rejects it (empty `stage` ≠ branch); new per-stage files coexist alongside the stale one | Operator deletes stale files once after deploy: `git rm tasks/probe-*.md` on the host clone, then push |
 | Prior probe cycle completed with `status: done` | New cycle overwrites `status: in_progress` and `phase: in_progress` in frontmatter under the same identifier; executor picks it up on next event | Automatic — the publisher resets both fields every cycle |
-| Two executor cron ticks fire on the same cluster within the same second | Both publish to the same identifier; the second overwrites the first; executor still observes a single task with the latest frontmatter | Acceptable — cron is per-cluster and concurrent ticks are not expected; if they did occur the worst case is one extra spawn |
 
 ## Security / Abuse Cases
 
@@ -70,7 +71,7 @@ After this work, each executor cluster (dev and prod) publishes its own probe ta
 - [ ] In a dev executor (`BRANCH=dev`), the probe runner publishes a task with filename ending `-dev.md` and frontmatter `stage: dev`.
 - [ ] In a prod executor (`BRANCH=prod`), the probe runner publishes a task with filename ending `-prod.md` and frontmatter `stage: prod`.
 - [ ] The task identifier emitted for `(claude-agent, dev)` differs from the identifier emitted for `(claude-agent, prod)`.
-- [ ] The task identifier emitted for `(claude-agent, dev)` is stable across two invocations of the runner in the same process and across a process restart.
+- [ ] The task identifier function is a pure function of `(agent, stage)` with no per-process state, package-level mutable cache, or randomness — i.e. two callers passing the same `(agent, stage)` always receive the same UUID, including across a process restart.
 - [ ] Every probe cycle publishes `status: in_progress` and `phase: in_progress`, even when the prior cycle's vault file ends in `status: done`.
 - [ ] The published frontmatter `stage` value equals the executor's `Branch` argument verbatim.
 - [ ] The UUIDv5 namespace constant carries a comment stating it is frozen and must not be changed without a migration plan.

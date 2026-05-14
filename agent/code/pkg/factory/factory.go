@@ -19,6 +19,7 @@ import (
 	"github.com/bborbe/agent/agent/code/pkg/steps"
 	agentlib "github.com/bborbe/agent/lib"
 	delivery "github.com/bborbe/agent/lib/delivery"
+	healthcheck "github.com/bborbe/agent/lib/healthcheck"
 )
 
 const serviceName = "agent-code"
@@ -74,6 +75,21 @@ func CreateAgent() *agentlib.Agent {
 		agentlib.NewPhase("in_progress", steps.NewExecuteStep()),
 		agentlib.NewPhase("ai_review", steps.NewVerifyStep()),
 	)
+}
+
+// CreateAgentForTaskType returns an agent wired for the given task type.
+// Currently only TaskTypeHealthcheck is supported; all other values return an error.
+func CreateAgentForTaskType(
+	ctx context.Context,
+	taskType agentlib.TaskType,
+) (*agentlib.Agent, error) {
+	switch taskType {
+	case agentlib.TaskTypeHealthcheck:
+		return healthcheck.NewAgent(healthcheck.NewNopStep()), nil
+	default:
+		return nil, errors.Errorf(ctx, "unknown task_type %q for agent-code; accepted: [%s]",
+			taskType, agentlib.TaskTypeHealthcheck)
+	}
 }
 
 // CreateDeliverer builds the Kafka-or-Noop deliverer used by the Kafka

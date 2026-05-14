@@ -1,8 +1,12 @@
 ---
-status: approved
+status: committing
 spec: [031-agent-repo-task-type-dispatch]
+summary: 'Added CreateAgentForTaskType to agent/code factory with healthcheck dispatch, updated main.go to use it, added Ginkgo/Gomega tests with 100% coverage for the new function, and added the combined CHANGELOG bullet under ## Unreleased.'
+container: agent-123-spec-031-agent-code-dispatch
+dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T13:00:00Z"
 queued: "2026-05-14T12:54:19Z"
+started: "2026-05-14T12:59:25Z"
 branch: dark-factory/agent-repo-task-type-dispatch
 ---
 
