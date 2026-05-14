@@ -1,11 +1,12 @@
 ---
-status: prompted
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-05-14T13:00:07Z"
 generating: "2026-05-14T13:00:08Z"
 prompted: "2026-05-14T13:04:00Z"
+verifying: "2026-05-14T13:16:29Z"
 branch: dark-factory/per-stage-probe-task-identity
 ---
 
