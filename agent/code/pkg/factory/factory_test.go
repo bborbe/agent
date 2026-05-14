@@ -14,31 +14,41 @@ import (
 	agentlib "github.com/bborbe/agent/lib"
 )
 
-var _ = Describe("CreateAgentForTaskType", func() {
-	var ctx context.Context
+var _ = Describe("CreateAgentProvider", func() {
+	var (
+		ctx      context.Context
+		provider agentlib.AgentProvider
+	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
+		provider = factory.CreateAgentProvider()
 	})
 
-	It("returns a non-nil agent for TaskTypeHealthcheck", func() {
-		agent, err := factory.CreateAgentForTaskType(ctx, agentlib.TaskTypeHealthcheck)
+	It("returns a non-nil provider", func() {
+		Expect(provider).NotTo(BeNil())
+	})
+
+	It("Get returns the liveness agent for TaskTypeHealthcheck", func() {
+		agent, err := provider.Get(ctx, agentlib.TaskTypeHealthcheck)
 		Expect(err).To(BeNil())
 		Expect(agent).NotTo(BeNil())
 	})
 
-	It("returns nil agent and error for an unsupported task type", func() {
-		agent, err := factory.CreateAgentForTaskType(ctx, agentlib.TaskType("bogus"))
-		Expect(err).NotTo(BeNil())
-		Expect(agent).To(BeNil())
-		Expect(err.Error()).To(ContainSubstring("unknown task_type"))
-		Expect(err.Error()).To(ContainSubstring("bogus"))
-	})
-
-	It("returns nil agent and error for the unknown default value", func() {
-		agent, err := factory.CreateAgentForTaskType(ctx, agentlib.TaskType("unknown"))
-		Expect(err).NotTo(BeNil())
-		Expect(agent).To(BeNil())
-		Expect(err.Error()).To(ContainSubstring("unknown task_type"))
+	Describe("Get with unknown task_type", func() {
+		DescribeTable("error shape",
+			func(taskType agentlib.TaskType, expectedSubstr string) {
+				agent, err := provider.Get(ctx, taskType)
+				Expect(agent).To(BeNil())
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("unknown task_type"))
+				Expect(err.Error()).To(ContainSubstring(expectedSubstr))
+				Expect(err.Error()).To(ContainSubstring("agent-code"))
+				Expect(err.Error()).To(ContainSubstring("[healthcheck]"))
+			},
+			Entry("literal code rejected", agentlib.TaskType("code"), `"code"`),
+			Entry("bogus value", agentlib.TaskType("bogus"), `"bogus"`),
+			Entry("empty value", agentlib.TaskType(""), `""`),
+		)
 	})
 })

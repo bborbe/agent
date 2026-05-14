@@ -1,7 +1,11 @@
 ---
-status: approved
+status: committing
+summary: 'Deleted CreateAgentForTaskType and CreateDeliverer from agent/code factory.go, added CreateAgentProvider (healthcheck-only, pure-Go), rewrote main.go Run to build deliverer inline and use provider.Get, rewrote factory_test.go as DescribeTable assertions, updated CHANGELOG.md under ## Unreleased.'
+container: agent-129-agent-code-provider
+dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T14:00:00Z"
 queued: "2026-05-14T14:14:13Z"
+started: "2026-05-14T14:20:59Z"
 branch: refactor/agent-code-provider
 ---
 

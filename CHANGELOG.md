@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.16
+
+- refactor(agent/code): factory.go is pure plumbing — `CreateAgentForTaskType` and `CreateDeliverer` removed; new `CreateAgentProvider` returns lib.AgentProvider (healthcheck-only binary); boot-time deliverer construction moved to main.go Run
+
 ## v0.62.15
 
 - refactor(agent/gemini): factory.go is pure plumbing — `CreateAgentForTaskType` and `CreateDeliverer` removed; new `CreateAgentProvider` returns lib.AgentProvider (healthcheck-only binary); boot-time deliverer construction moved to main.go Run

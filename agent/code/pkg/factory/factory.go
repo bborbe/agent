@@ -14,7 +14,6 @@ import (
 	"github.com/bborbe/errors"
 	libkafka "github.com/bborbe/kafka"
 	libtime "github.com/bborbe/time"
-	"github.com/golang/glog"
 
 	"github.com/bborbe/agent/agent/code/pkg/steps"
 	agentlib "github.com/bborbe/agent/lib"
@@ -77,55 +76,13 @@ func CreateAgent() *agentlib.Agent {
 	)
 }
 
-// CreateAgentForTaskType returns an agent wired for the given task type.
-// Currently only TaskTypeHealthcheck is supported; all other values return an error.
-func CreateAgentForTaskType(
-	ctx context.Context,
-	taskType agentlib.TaskType,
-) (*agentlib.Agent, error) {
-	switch taskType {
-	case agentlib.TaskTypeHealthcheck:
-		return healthcheck.NewAgent(healthcheck.NewNopStep()), nil
-	default:
-		return nil, errors.Errorf(ctx, "unknown task_type %q for agent-code; accepted: [%s]",
-			taskType, agentlib.TaskTypeHealthcheck)
-	}
-}
-
-// CreateDeliverer builds the Kafka-or-Noop deliverer used by the Kafka
-// entry point. Empty taskID means "no Kafka" — returns a noop deliverer
-// and an empty cleanup. Non-empty taskID requires non-empty brokers; the
-// returned cleanup closes the underlying SyncProducer (logged-and-ignored
-// on error).
-func CreateDeliverer(
-	ctx context.Context,
-	taskID agentlib.TaskIdentifier,
-	brokers libkafka.Brokers,
-	branch base.Branch,
-	originalContent string,
-) (agentlib.ResultDeliverer, func(), error) {
-	if taskID == "" {
-		glog.V(2).Infof("TASK_ID not set, skipping task result publishing")
-		return delivery.NewNoopResultDeliverer(), func() {}, nil
-	}
-	if len(brokers) == 0 {
-		return nil, nil, errors.Errorf(ctx, "KAFKA_BROKERS must be set when TASK_ID is set")
-	}
-	syncProducer, err := CreateSyncProducer(ctx, brokers)
-	if err != nil {
-		return nil, nil, errors.Wrap(ctx, err, "create sync producer failed")
-	}
-	deliverer := CreateKafkaResultDeliverer(
-		syncProducer,
-		branch,
-		taskID,
-		originalContent,
-		libtime.NewCurrentDateTime(),
-	)
-	cleanup := func() {
-		if err := syncProducer.Close(); err != nil {
-			glog.Warningf("close sync producer failed: %v", err)
-		}
-	}
-	return deliverer, cleanup, nil
+// CreateAgentProvider wires the per-task-type dispatch for agent-code.
+// Healthcheck-only binary, pure-Go (no LLM): TaskTypeHealthcheck routes to a
+// Nop liveness agent — reaching it proves binary booted, envconfig parsed,
+// Kafka client opened. Any other task_type hits the default-error branch.
+func CreateAgentProvider() agentlib.AgentProvider {
+	livenessAgent := healthcheck.NewAgent(healthcheck.NewNopStep())
+	return agentlib.NewAgentProvider("agent-code", map[agentlib.TaskType]*agentlib.Agent{
+		agentlib.TaskTypeHealthcheck: livenessAgent,
+	})
 }
