@@ -1,7 +1,11 @@
 ---
-status: draft
+status: executing
 spec: [031-agent-repo-task-type-dispatch]
+container: agent-120-spec-031-lib-healthcheck-package
+dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T13:00:00Z"
+queued: "2026-05-14T12:45:23Z"
+started: "2026-05-14T12:45:24Z"
 branch: dark-factory/agent-repo-task-type-dispatch
 ---
 
@@ -582,10 +586,13 @@ var _ = Describe("NewAgent", func() {
 
     DescribeTable("dispatches to the wrapped step for each phase",
         func(phase domain.TaskPhase) {
+            before := fakeStep.RunCallCount()
             result, err := agent.Run(ctx, phase, "# Task\n\ncontent\n", deliverer)
             Expect(err).To(BeNil())
             Expect(result).NotTo(BeNil())
             Expect(result.Status).To(Equal(agentlib.AgentStatusDone))
+            Expect(fakeStep.RunCallCount()).To(Equal(before+1),
+                "the same wrapped step must be reached for each phase — proves single-step is registered under all three phase names")
         },
         Entry("planning phase", domain.TaskPhase("planning")),
         Entry("in_progress phase", domain.TaskPhase("in_progress")),
@@ -593,7 +600,7 @@ var _ = Describe("NewAgent", func() {
     )
 
     It("invokes the step once per agent.Run call", func() {
-        _, _ = agent.Run(ctx, "planning", "# Task\n\ncontent\n", deliverer)
+        _, _ = agent.Run(ctx, domain.TaskPhase("planning"), "# Task\n\ncontent\n", deliverer)
         Expect(fakeStep.RunCallCount()).To(Equal(1))
     })
 })
@@ -712,6 +719,7 @@ Must exit 0. If any linter fails, run ONLY the failing target (e.g. `make lint`,
 - `ShouldRun` always returns `(true, nil)` for all three step types — no idempotency guard, healthchecks always run.
 - Step `Run` methods accept `_ *agentlib.Markdown` (ignored) — the healthcheck steps do not read or mutate the markdown body.
 - `NewAgent` registers the step under EXACTLY these three phase names in this order: `"planning"`, `"in_progress"`, `"ai_review"`. No other phases.
+- `Result.Message` is populated on `AgentStatusDone` by the Claude and Gemini steps (with the trimmed liveness reply text). This is INTENTIONAL — captures the liveness response for operator log/audit — and deliberately deviates from `lib/agent_step.go:54`'s "Required for Failed/NeedsInput" docstring. Document this in each step's GoDoc so future reviewers don't flag it.
 - `TaskTypeHealthcheck` constant is added immediately AFTER `TaskTypeOAuthProbe` in the `const(...)` block.
 - `TaskTypeOAuthProbe` GoDoc changes ONLY the trailing qualifier; the `// Deprecated:` prefix and ` use TaskTypeHealthcheck.` body are preserved.
 - Test files are in `package healthcheck_test`. The suite file (`healthcheck_suite_test.go`) owns the `TestHealthcheck` function — no other file in the package declares a `TestHealthcheck` function.

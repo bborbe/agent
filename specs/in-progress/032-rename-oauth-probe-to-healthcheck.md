@@ -1,10 +1,11 @@
 ---
-status: generating
+status: prompted
 tags:
     - dark-factory
     - spec
 approved: "2026-05-14T12:30:11Z"
 generating: "2026-05-14T12:39:03Z"
+prompted: "2026-05-14T12:45:09Z"
 branch: dark-factory/rename-oauth-probe-to-healthcheck
 ---
 
