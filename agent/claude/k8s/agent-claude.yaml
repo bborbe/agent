@@ -1,3 +1,7 @@
+# Agent pushes per-agent Prometheus metrics (agent_job_run_total{status}, agent_job_last_run_timestamp_seconds{status}, agent_job_duration_seconds) to PushGateway at Job end.
+# Envs (defaulted in main.go struct tags, no manifest change needed for cluster deploy):
+#   PUSHGATEWAY_URL  default "http://pushgateway:9090" — cluster-internal address resolves automatically.
+#   TASK_TYPE        default "unknown" — executor-side population is a follow-up; metrics carry task_type="unknown" until then.
 apiVersion: agent.benjamin-borbe.de/v1
 kind: Config
 metadata:
