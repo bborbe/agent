@@ -1,6 +1,7 @@
 ---
-status: executing
+status: committing
 spec: [031-agent-repo-task-type-dispatch]
+summary: Added CreateAgentForTaskType dispatch to agent/claude factory — routes healthcheck/oauth-probe to liveness agent and claude to 3-phase domain agent; updated main.go to use it; added Ginkgo test suite covering all four dispatch branches.
 container: agent-121-spec-031-agent-claude-dispatch
 dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T13:00:00Z"

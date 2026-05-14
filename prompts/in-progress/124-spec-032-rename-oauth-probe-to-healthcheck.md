@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [032-rename-oauth-probe-to-healthcheck]
 created: "2026-05-14T12:43:20Z"
+queued: "2026-05-14T12:55:25Z"
 branch: dark-factory/rename-oauth-probe-to-healthcheck
 ---
 
@@ -448,6 +449,56 @@ grep -n "oauth-probe" task/executor/k8s/apis/agent.benjamin-borbe.de/v1/types_te
 ```
 Expected: zero matches.
 
+## 10b. Clean up remaining `oauth-probe` references in tests and docs
+
+The final acceptance-criteria grep (step 14) covers all of `task/executor/` (excluding `CHANGELOG.md`). The following files contain `oauth-probe` references that previous steps did NOT touch. Each must be updated.
+
+**`task/executor/README.md` — 2 URL references**
+
+Replace every occurrence of `oauth-probe-trigger` with `healthcheck-trigger` (URLs only). The README explains how operators trigger the probe; the new route name reflects the rename.
+
+```bash
+grep -n "oauth-probe" task/executor/README.md
+```
+Expected after edit: zero matches.
+
+**`task/executor/pkg/result_publisher_test.go` — 2 fixture references**
+
+Read the file. The two occurrences (around lines 188 and 209) use `"oauth-probe"` as a test-fixture string asserting the type-mismatch failure message contains an unknown task type. The specific value is arbitrary for this test — replace `"oauth-probe"` with `"healthcheck"` in both spots. Tests still pass because they assert the SHAPE of the mismatch message, not the specific task-type string.
+
+```bash
+grep -n "oauth-probe" task/executor/pkg/result_publisher_test.go
+```
+Expected after edit: zero matches.
+
+**`task/executor/pkg/task_type_filter_test.go` — 8 fixture references**
+
+Read the file. These fixtures test `EffectiveTaskTypes` and `TaskTypeInSet` helpers using `"oauth-probe"` as an arbitrary valid task-type value. Replace every occurrence of `"oauth-probe"` with `"healthcheck"` in this file. Test semantics are unchanged — the helpers are task-type-agnostic.
+
+Use `Edit` with `replace_all: true` for the string `"oauth-probe"` → `"healthcheck"`.
+
+```bash
+grep -n "oauth-probe" task/executor/pkg/task_type_filter_test.go
+```
+Expected after edit: zero matches.
+
+**`task/executor/pkg/handler/task_event_handler_test.go` — 5 fixture references**
+
+Read the file. The fixtures at lines ~840, 851, 869, 880, 898 use `TaskTypes: []string{"oauth-probe"}` and `"task_type": "oauth-probe"` in test setups. Replace every occurrence of `"oauth-probe"` with `"healthcheck"` in this file.
+
+Use `Edit` with `replace_all: true` for the string `"oauth-probe"` → `"healthcheck"`.
+
+```bash
+grep -n "oauth-probe" task/executor/pkg/handler/task_event_handler_test.go
+```
+Expected after edit: zero matches.
+
+**`.update-logs/` directory**
+
+This is a local build-log directory containing prior tool output. It is gitignored / build-artifact-only and not part of the source tree. The final grep (step 14) MUST exclude it. The `task/executor/` parent is in scope but `.update-logs/` is noise.
+
+Verify the directory exists; if present, no edit needed — the grep in step 14 already excludes it via `--exclude-dir=.update-logs`.
+
 ## 11. Run `make generate` to regenerate counterfeiter mocks
 
 ```bash
@@ -502,13 +553,13 @@ Expected: ≥80% total coverage.
 
 ```bash
 # Zero oauth-probe occurrences in executor (excluding CHANGELOG)
-grep -ri 'oauth-probe\|OAuthProbe\|OAUTH_PROBE' task/executor/ --exclude=CHANGELOG.md
+grep -ri 'oauth-probe\|OAuthProbe\|OAUTH_PROBE' task/executor/ --exclude=CHANGELOG.md --exclude-dir=.update-logs
 ```
 Expected: zero matches.
 
 ```bash
 # Zero oauth-probe occurrences in k8s manifests dir
-grep -ri 'oauth-probe\|OAuthProbe\|OAUTH_PROBE' task/executor/k8s/
+grep -ri 'oauth-probe\|OAuthProbe\|OAUTH_PROBE' task/executor/k8s/ --exclude-dir=.update-logs
 ```
 Expected: zero matches.
 

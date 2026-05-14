@@ -111,7 +111,9 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 	}
 	defer cleanup()
 
-	agent := factory.CreateAgent(
+	agent, err := factory.CreateAgentForTaskType(
+		ctx,
+		agentlib.TaskType(a.TaskType),
 		a.ClaudeConfigDir,
 		a.AgentDir,
 		claudelib.ParseAllowedTools(a.AllowedToolsRaw),
@@ -119,6 +121,11 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		claudelib.ParseKeyValuePairs(a.ClaudeEnvRaw),
 		claudelib.ParseKeyValuePairs(a.EnvContextRaw),
 	)
+	if err != nil {
+		jobMetrics.RecordRun(agentlib.AgentStatusFailed)
+		jobMetrics.RecordDuration(time.Since(start))
+		return errors.Wrap(ctx, err, "create agent for task type")
+	}
 
 	result, err := agent.Run(ctx, a.Phase, a.TaskContent, deliverer)
 	if err != nil {

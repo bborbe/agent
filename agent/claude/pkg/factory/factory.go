@@ -21,6 +21,7 @@ import (
 	agentlib "github.com/bborbe/agent/lib"
 	claudelib "github.com/bborbe/agent/lib/claude"
 	delivery "github.com/bborbe/agent/lib/delivery"
+	healthcheck "github.com/bborbe/agent/lib/healthcheck"
 )
 
 const serviceName = "agent-claude"
@@ -113,6 +114,45 @@ func CreateAgent(
 		agentlib.NewPhase("in_progress", step),
 		agentlib.NewPhase("ai_review", step),
 	)
+}
+
+// CreateAgentForTaskType dispatches on taskType to select the appropriate
+// *agentlib.Agent implementation. TaskTypeClaude uses the full 3-phase domain
+// agent; TaskTypeHealthcheck and TaskTypeOAuthProbe use the lightweight
+// healthcheck agent. Any other value returns an error.
+func CreateAgentForTaskType(
+	ctx context.Context,
+	taskType agentlib.TaskType,
+	claudeConfigDir claudelib.ClaudeConfigDir,
+	agentDir claudelib.AgentDir,
+	allowedTools claudelib.AllowedTools,
+	model claudelib.ClaudeModel,
+	claudeEnv map[string]string,
+	envContext map[string]string,
+) (*agentlib.Agent, error) {
+	switch taskType {
+	case agentlib.TaskTypeClaude:
+		return CreateAgent(
+			claudeConfigDir,
+			agentDir,
+			allowedTools,
+			model,
+			claudeEnv,
+			envContext,
+		), nil
+	case agentlib.TaskTypeHealthcheck, agentlib.TaskTypeOAuthProbe:
+		runner := CreateClaudeRunner(claudeConfigDir, agentDir, allowedTools, model, claudeEnv)
+		return healthcheck.NewAgent(healthcheck.NewClaudeStep(runner)), nil
+	default:
+		return nil, errors.Errorf(
+			ctx,
+			"unknown task_type %q for agent-claude; accepted: [%s %s %s]",
+			taskType,
+			agentlib.TaskTypeClaude,
+			agentlib.TaskTypeHealthcheck,
+			agentlib.TaskTypeOAuthProbe,
+		)
+	}
 }
 
 // CreateDeliverer builds the Kafka-or-Noop deliverer used by the Kafka

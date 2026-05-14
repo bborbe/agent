@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.9
+
+- feat(agent/claude): add `CreateAgentForTaskType` dispatch function — routes `healthcheck`/`oauth-probe` to liveness agent, `claude` to 3-phase domain agent; update `main.go` to use it (spec 031)
+
 ## v0.62.8
 
 - feat(lib/healthcheck): shared liveness handler package — Claude/Gemini/Nop step flavors + NewAgent wrapper (spec 031)
