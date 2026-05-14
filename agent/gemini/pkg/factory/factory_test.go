@@ -14,31 +14,47 @@ import (
 	agentlib "github.com/bborbe/agent/lib"
 )
 
-var _ = Describe("CreateAgentForTaskType", func() {
-	var ctx context.Context
+var _ = Describe("CreateAgentProvider", func() {
+	var (
+		ctx      context.Context
+		provider agentlib.AgentProvider
+	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
+		// nil parser is safe — NewGeminiStep stores the parser without invoking it.
+		provider = factory.CreateAgentProvider(nil)
 	})
 
-	It("returns a non-nil agent for TaskTypeHealthcheck", func() {
-		agent, err := factory.CreateAgentForTaskType(ctx, agentlib.TaskTypeHealthcheck, nil)
+	It("returns a non-nil provider", func() {
+		Expect(provider).NotTo(BeNil())
+	})
+
+	It("Get returns the liveness agent for TaskTypeHealthcheck", func() {
+		agent, err := provider.Get(ctx, agentlib.TaskTypeHealthcheck)
 		Expect(err).To(BeNil())
 		Expect(agent).NotTo(BeNil())
 	})
 
-	It("returns nil agent and error for an unsupported task type", func() {
-		agent, err := factory.CreateAgentForTaskType(ctx, agentlib.TaskType("bogus"), nil)
-		Expect(err).NotTo(BeNil())
-		Expect(agent).To(BeNil())
-		Expect(err.Error()).To(ContainSubstring("unknown task_type"))
-		Expect(err.Error()).To(ContainSubstring("bogus"))
-	})
-
-	It("returns nil agent and error for the gemini literal string (not a known constant)", func() {
-		agent, err := factory.CreateAgentForTaskType(ctx, agentlib.TaskType("gemini"), nil)
-		Expect(err).NotTo(BeNil())
-		Expect(agent).To(BeNil())
-		Expect(err.Error()).To(ContainSubstring("unknown task_type"))
+	Describe("Get with unknown task_type", func() {
+		DescribeTable(
+			"error shape",
+			func(taskType agentlib.TaskType, expectedSubstr string) {
+				agent, err := provider.Get(ctx, taskType)
+				Expect(agent).To(BeNil())
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("unknown task_type"))
+				Expect(err.Error()).To(ContainSubstring(expectedSubstr))
+				Expect(err.Error()).To(ContainSubstring("agent-gemini"))
+				Expect(err.Error()).To(ContainSubstring("[healthcheck]"))
+			},
+			Entry(
+				"literal gemini rejected (no implicit domain type)",
+				agentlib.TaskType("gemini"),
+				`"gemini"`,
+			),
+			Entry("bogus value", agentlib.TaskType("bogus"), `"bogus"`),
+			Entry("empty value", agentlib.TaskType(""), `""`),
+		)
 	})
 })

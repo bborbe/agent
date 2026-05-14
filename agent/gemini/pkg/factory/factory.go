@@ -15,7 +15,6 @@ import (
 	"github.com/bborbe/errors"
 	libkafka "github.com/bborbe/kafka"
 	libtime "github.com/bborbe/time"
-	"github.com/golang/glog"
 
 	"github.com/bborbe/agent/agent/gemini/pkg/parser"
 	"github.com/bborbe/agent/agent/gemini/pkg/steps"
@@ -98,57 +97,12 @@ func CreateAgent(geminiParser agentlib.AIParser) *agentlib.Agent {
 	)
 }
 
-// CreateAgentForTaskType dispatches on taskType and returns the appropriate
-// agent for the agent-gemini binary. Only TaskTypeHealthcheck is accepted;
-// all other values return a wrapped error.
-func CreateAgentForTaskType(
-	ctx context.Context,
-	taskType agentlib.TaskType,
-	geminiParser agentlib.AIParser,
-) (*agentlib.Agent, error) {
-	switch taskType {
-	case agentlib.TaskTypeHealthcheck:
-		return healthcheck.NewAgent(healthcheck.NewGeminiStep(geminiParser)), nil
-	default:
-		return nil, errors.Errorf(ctx, "unknown task_type %q for agent-gemini; accepted: [%s]",
-			taskType, agentlib.TaskTypeHealthcheck)
-	}
-}
-
-// CreateDeliverer builds the Kafka-or-Noop deliverer used by the Kafka
-// entry point. Empty taskID means "no Kafka" — returns a noop deliverer
-// and an empty cleanup. Non-empty taskID requires non-empty brokers; the
-// returned cleanup closes the underlying SyncProducer (logged-and-ignored
-// on error).
-func CreateDeliverer(
-	ctx context.Context,
-	taskID agentlib.TaskIdentifier,
-	brokers libkafka.Brokers,
-	branch base.Branch,
-	originalContent string,
-) (agentlib.ResultDeliverer, func(), error) {
-	if taskID == "" {
-		glog.V(2).Infof("TASK_ID not set, skipping task result publishing")
-		return delivery.NewNoopResultDeliverer(), func() {}, nil
-	}
-	if len(brokers) == 0 {
-		return nil, nil, errors.Errorf(ctx, "KAFKA_BROKERS must be set when TASK_ID is set")
-	}
-	syncProducer, err := CreateSyncProducer(ctx, brokers)
-	if err != nil {
-		return nil, nil, errors.Wrap(ctx, err, "create sync producer failed")
-	}
-	deliverer := CreateKafkaResultDeliverer(
-		syncProducer,
-		branch,
-		taskID,
-		originalContent,
-		libtime.NewCurrentDateTime(),
-	)
-	cleanup := func() {
-		if err := syncProducer.Close(); err != nil {
-			glog.Warningf("close sync producer failed: %v", err)
-		}
-	}
-	return deliverer, cleanup, nil
+// CreateAgentProvider wires the per-task-type dispatch for agent-gemini.
+// Healthcheck-only binary: TaskTypeHealthcheck routes to the gemini liveness
+// agent; any other value hits the default-error branch of lib.AgentProvider.Get.
+func CreateAgentProvider(parser agentlib.AIParser) agentlib.AgentProvider {
+	livenessAgent := healthcheck.NewAgent(healthcheck.NewGeminiStep(parser))
+	return agentlib.NewAgentProvider("agent-gemini", map[agentlib.TaskType]*agentlib.Agent{
+		agentlib.TaskTypeHealthcheck: livenessAgent,
+	})
 }
