@@ -178,7 +178,7 @@ The library version is cut as a paired `vX.Y.Z` + `lib/vX.Y.Z` tag pair at the s
 - [ ] Each of `agent/claude/main.go`, `agent/code/main.go`, `agent/gemini/main.go` has its `application` struct extended with EXACTLY two new fields: `PushgatewayURL` (default `"http://pushgateway:9090"`) and `TaskType` (default `"unknown"`), plus a file-scope `const agentName` with the value `"claude-agent"`, `"code-agent"`, `"gemini-agent"` respectively.
 - [ ] At the top of each binary's `Run(ctx, _ libsentry.Client)` method, before existing logic, the binary constructs a `prometheus.NewRegistry()`, a `JobMetrics` against it via `libmetrics.NewJobMetrics`, and a `bborbemetrics.Pusher` configured with `Grouping("agent", agentName).Grouping("task_type", a.TaskType).Collector(registry)`, then defers `pusher.Push(ctx)` (logging warning on error, V(2) info on success). A wall-clock `start` is captured from `libtime.NewCurrentDateTime().Now()`.
 - [ ] Every `return` path inside each binary's `Run()` body — including all existing error returns and the success return — is preceded by a call to `metrics.RecordRun(status)` and `metrics.RecordDuration(time.Since(start))`. Existing-error paths use `AgentStatusFailed`. The success path reads `status` from the agent run result's `Status` field.
-- [ ] Build cleanliness: each binary's `go.mod` includes `github.com/bborbe/metrics` and `github.com/prometheus/client_golang` as direct deps, `go mod tidy` is clean, and `make precommit` is clean in `agent/claude/`, `agent/code/`, `agent/gemini/`.
+- [ ] Build cleanliness: each binary's `go.mod` includes `github.com/prometheus/client_golang` as a direct dep (the binary directly imports `prometheus.NewRegistry` and `push.New` for `Grouping` support). `github.com/bborbe/metrics` is NOT a direct dep of the binaries — it appears as `// indirect` because the binaries use the upstream `prometheus/client_golang/prometheus/push` package directly (which exposes `Grouping`; `bborbe/metrics.Pusher` does not). The lib alone keeps `bborbe/metrics` as a direct dep. `go mod tidy` is clean, and `make precommit` is clean in `agent/claude/`, `agent/code/`, `agent/gemini/`.
 
 ### Release
 
@@ -191,15 +191,16 @@ The library version is cut as a paired `vX.Y.Z` + `lib/vX.Y.Z` tag pair at the s
 
 **Binary wire-up:** no new scenario file. The wire-up is structurally identical across the three binaries; verification is per-binary `make precommit` plus a dev-cluster smoke after deploy.
 
-The dev PushGateway resolves at the in-cluster service `pushgateway.dev:9090` (verified via `kubectlquant -n dev get svc pushgateway`). Smoke steps:
+The dev PushGateway resolves at the in-cluster service `pushgateway.dev:9090` (verified via `kubectlquant -n dev get svc pushgateway`). Smoke steps for THIS spec (gates only `agent/claude` — see follow-up note below):
 
 1. Deploy `agent/claude` to dev via `/make-buca agent/claude dev`.
-2. Trigger one task at the claude agent (existing flow: create a task assigned to `claude-agent` in the dev vault, executor spawns the Job on Kafka task event).
-3. From any pod with cluster access (e.g. `kubectlquant -n dev exec` into a debug pod), or via the admin gateway: `curl -s http://pushgateway.dev:9090/metrics | grep agent_job_run_total` — expect at least one row with `agent="claude-agent"` and a non-zero counter for the executed status.
+2. Trigger one task at the claude agent (existing flow: oauth-probe trigger via `POST /admin/agent-task-executor/oauth-probe-trigger` creates a probe task with `task_type: oauth-probe`; the existing `agent-claude` Config CR routes it to the claude binary).
+3. Via the admin gateway: `curl -s https://dev.quant.benjamin-borbe.de/admin/pushgateway/metrics | grep claude-agent` — expect at least one row with `agent="claude-agent"` and a non-zero counter for the executed status.
 4. PromQL `time() - agent_job_last_run_timestamp_seconds{agent="claude-agent"}` returns a small number (seconds since last run).
-5. Repeat for `agent/code` and `agent/gemini`.
 
-End-to-end Grafana dashboard verification is a follow-up spec.
+**`agent/code` and `agent/gemini` smoke is deferred to a follow-up.** Both binaries are built, deployed, and structurally identical to `agent/claude` per the frozen wire-up pattern. BUT neither has a `Config CR` (no `k8s/agent-code.yaml` / `k8s/agent-gemini.yaml` exist), so the executor has no route for tasks to reach them, and they cannot be probed. Adding Config CRs is out-of-scope for THIS spec (which is about the lib + wire-up code only); it is captured as the follow-up "Create Config CRs for `agent-code` and `agent-gemini`". Once those land, the same probe-and-grep smoke applies to those two agents — but since the wire-up code is IDENTICAL and `agent/claude` exercises that wire-up end-to-end, the runtime contract is proved for the wire-up shape.
+
+End-to-end Grafana dashboard verification: not applicable — no Grafana deployed.
 
 ## Verification
 
@@ -233,8 +234,9 @@ git push origin master vX.Y.Z lib/vX.Y.Z
 Dev-cluster smoke (post-deploy, via `/make-buca`):
 
 ```
-curl -s http://pushgateway.dev:9090/metrics | grep agent_job_run_total
-# Expect rows for agent="claude-agent", agent="code-agent", agent="gemini-agent"
+# Smoke gated on agent/claude only — agent/code and agent/gemini Config CRs are a follow-up.
+curl -s https://dev.quant.benjamin-borbe.de/admin/pushgateway/metrics | grep 'agent="claude-agent"'
+# Expect at least one row of agent_job_run_total with a non-zero counter for the executed status.
 ```
 
 After the tags push, cross-repo consumer specs (maintainer, trading) can `go get github.com/bborbe/agent/lib@vX.Y.Z`.
