@@ -103,16 +103,18 @@ func (r *claudeRunner) buildCommand(
 			return nil, errors.Wrap(ctx, err, "resolve WorkingDirectory")
 		}
 		cmd.Dir = workDir
+		glog.V(2).Infof("cmd.Dir = %v", cmd.Dir)
 	}
 
 	cmd.Stdin = bytes.NewBufferString(prompt)
+	glog.V(3).Infof("cmd.Stdin = %v", prompt)
 
 	env, err := r.buildSubprocessEnv(ctx)
 	if err != nil {
 		return nil, errors.Wrap(ctx, err, "build subprocess env")
 	}
 	cmd.Env = env
-	glog.V(4).Infof("env %+v", cmd.Env)
+	glog.V(2).Infof("cmd.Env = %+v", cmd.Env)
 
 	return cmd, nil
 }
