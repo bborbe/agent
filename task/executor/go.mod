@@ -2,7 +2,9 @@ module github.com/bborbe/agent/task/executor
 
 go 1.26.3
 
-replace github.com/bborbe/agent/lib => ../../lib
+replace (
+	github.com/bborbe/agent/lib => ../../lib
+)
 
 require (
 	github.com/IBM/sarama v1.48.2

@@ -209,8 +209,8 @@ func taskTypeMismatchReason(task lib.Task, cfg *pkg.AgentConfiguration) string {
 	if len(effectiveTypes) == 0 {
 		return ""
 	}
-	taskType, _ := task.Frontmatter.String("task_type")
-	if pkg.TaskTypeInSet(taskType, effectiveTypes) {
+	taskType := task.Frontmatter.TaskType()
+	if pkg.TaskTypeInSet(string(taskType), effectiveTypes) {
 		return ""
 	}
 	if taskType == "" {

@@ -111,6 +111,7 @@ var _ = Describe("JobSpawner", func() {
 			Expect(envMap["BRANCH"]).To(Equal("develop"))
 			Expect(envMap["GEMINI_API_KEY"]).To(Equal("test-gemini-key"))
 			Expect(envMap["PHASE"]).To(Equal("planning"))
+			Expect(envMap["TASK_TYPE"]).To(Equal(""))
 		})
 
 		It(
@@ -644,6 +645,63 @@ var _ = Describe("JobSpawner", func() {
 			Expect(err).To(BeNil())
 			Expect(jobs.Items).To(HaveLen(1))
 			Expect(jobs.Items[0].Spec.Template.Spec.PriorityClassName).To(BeEmpty())
+		})
+
+		It("includes TASK_TYPE env var matching the frontmatter task_type value", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("healthcheck-task-id"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee":  "claude",
+					"phase":     "planning",
+					"task_type": "healthcheck",
+				},
+				Content: lib.TaskContent("run health probe"),
+			}
+			config := pkg.AgentConfiguration{
+				Assignee: "claude",
+				Image:    "claude-agent:latest",
+				Env:      map[string]string{},
+			}
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+
+			envMap := make(map[string]string)
+			for _, e := range jobs.Items[0].Spec.Template.Spec.Containers[0].Env {
+				envMap[e.Name] = e.Value
+			}
+			Expect(envMap["TASK_TYPE"]).To(Equal("healthcheck"))
+		})
+
+		It("sets TASK_TYPE to empty string when task_type is absent from frontmatter", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("no-type-task-id"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude",
+					"phase":    "planning",
+				},
+				Content: lib.TaskContent("work without task type"),
+			}
+			config := pkg.AgentConfiguration{
+				Assignee: "claude",
+				Image:    "claude-agent:latest",
+				Env:      map[string]string{},
+			}
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+
+			envMap := make(map[string]string)
+			for _, e := range jobs.Items[0].Spec.Template.Spec.Containers[0].Env {
+				envMap[e.Name] = e.Value
+			}
+			Expect(envMap["TASK_TYPE"]).To(Equal(""))
 		})
 
 		It("returns error on unexpected K8s error", func() {

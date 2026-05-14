@@ -280,6 +280,11 @@ func taskPhaseString(f lib.TaskFrontmatter) string {
 	return ""
 }
 
+// taskTypeString returns the string value of the task's task_type, or "" when absent.
+func taskTypeString(f lib.TaskFrontmatter) string {
+	return f.TaskType().String()
+}
+
 // jobNameFromTask returns the K8s Job name for a task: "{assignee}-{taskID8}-{YYYYMMDDHHMMSS}".
 // taskID8 is the first 8 chars of the task UUID, included to prevent name collisions
 // between concurrent spawns of different tasks sharing the same assignee and second.
@@ -315,6 +320,7 @@ func (s *jobSpawner) buildJobEnvBuilder(
 	envBuilder.Add("KAFKA_BROKERS", s.kafkaBrokers)
 	envBuilder.Add("BRANCH", s.branch)
 	envBuilder.Add("PHASE", taskPhaseString(task.Frontmatter))
+	envBuilder.Add("TASK_TYPE", taskTypeString(task.Frontmatter))
 	for key, value := range config.Env {
 		envBuilder.Add(key, value)
 	}

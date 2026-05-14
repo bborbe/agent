@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.7
+
+- feat(task/executor): inject TASK_TYPE env into every spawned Job from task frontmatter task_type field (spec 030)
+
 ## v0.62.6
 
 - feat(agent/claude): add `healthcheck` to `taskTypes` list alongside `claude` + `oauth-probe` — prepares for healthcheck dispatch (rename of `oauth-probe`); no behavior change yet (executor still routes both)

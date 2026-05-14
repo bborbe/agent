@@ -1,8 +1,12 @@
 ---
-status: approved
+status: committing
 spec: [030-executor-inject-task-type-env]
+summary: Injected TASK_TYPE env var into every spawned K8s Job by adding taskTypeString helper, wiring it into buildJobEnvBuilder after PHASE, switching taskTypeMismatchReason to the typed TaskType() accessor, adding TASK_TYPE assertions to existing and new spawner tests, and updating CHANGELOG.md.
+container: agent-119-spec-030-executor-inject
+dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T12:10:00Z"
 queued: "2026-05-14T12:14:15Z"
+started: "2026-05-14T12:16:44Z"
 branch: dark-factory/executor-inject-task-type-env
 ---
 
