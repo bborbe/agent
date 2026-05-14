@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [029-per-agent-job-metrics-package]
 summary: Created lib/metrics package with JobMetrics interface, NewJobMetrics constructor, BuildJobMetricsName helper, counterfeiter mock, and full test suite; make precommit exits 0 with 100% statement coverage
 container: agent-116-spec-029-lib-metrics
@@ -7,6 +7,7 @@ dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T10:00:00Z"
 queued: "2026-05-14T09:22:44Z"
 started: "2026-05-14T09:22:45Z"
+completed: "2026-05-14T09:27:50Z"
 branch: dark-factory/per-agent-job-metrics-package
 ---
 
