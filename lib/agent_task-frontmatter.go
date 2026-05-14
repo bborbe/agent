@@ -32,6 +32,13 @@ func (f TaskFrontmatter) Assignee() TaskAssignee {
 	return TaskAssignee(v)
 }
 
+// TaskType returns the task_type frontmatter field as a typed TaskType.
+// Returns TaskType("") when the field is absent or holds a non-string value.
+func (f TaskFrontmatter) TaskType() TaskType {
+	v, _ := f["task_type"].(string)
+	return TaskType(v)
+}
+
 // Stage returns the execution stage from the "stage" key.
 // Returns "prod" if the key is absent or empty.
 func (f TaskFrontmatter) Stage() string {

@@ -233,4 +233,24 @@ var _ = Describe("TaskFrontmatter", func() {
 			Expect(fm.CurrentJob()).To(Equal(""))
 		})
 	})
+
+	Describe("TaskType", func() {
+		It(
+			"returns the task_type value as TaskType when the key is present and is a string",
+			func() {
+				f := lib.TaskFrontmatter{"task_type": "claude"}
+				Expect(f.TaskType()).To(Equal(lib.TaskType("claude")))
+			},
+		)
+
+		It("returns TaskType(\"\") when the task_type key is absent", func() {
+			f := lib.TaskFrontmatter{}
+			Expect(f.TaskType()).To(Equal(lib.TaskType("")))
+		})
+
+		It("returns TaskType(\"\") when the task_type key holds a non-string value", func() {
+			f := lib.TaskFrontmatter{"task_type": 42}
+			Expect(f.TaskType()).To(Equal(lib.TaskType("")))
+		})
+	})
 })

@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## v0.62.6
 
 - feat(agent/claude): add `healthcheck` to `taskTypes` list alongside `claude` + `oauth-probe` — prepares for healthcheck dispatch (rename of `oauth-probe`); no behavior change yet (executor still routes both)
+- feat(lib): add TaskType named type with validation, well-known constants, and TaskFrontmatter.TaskType() accessor (spec 030)
 
 ## v0.62.5
 
