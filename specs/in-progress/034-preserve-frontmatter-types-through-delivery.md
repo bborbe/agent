@@ -1,11 +1,12 @@
 ---
-status: prompted
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-05-14T14:39:56Z"
 generating: "2026-05-14T14:39:57Z"
 prompted: "2026-05-14T14:45:56Z"
+verifying: "2026-05-14T15:12:21Z"
 branch: dark-factory/preserve-frontmatter-types-through-delivery
 ---
 
@@ -106,3 +107,18 @@ Manual round-trip check on a probe-style file confirms the unquoted-int line sur
 ## Do-Nothing Option
 
 If we don't fix this, probe runs continue to produce git merge conflicts on `trigger_count` and any other numeric frontmatter field on every cycle. Each conflict requires manual resolution in the vault. Trust in automated frontmatter updates erodes; on-call burden grows linearly with the number of recurring tasks that carry numeric counters. The do-nothing option is not acceptable because the conflict rate is already non-zero in production.
+
+## Verification Result
+
+**Verified:** 2026-05-14T15:28:35Z (HEAD 1883a12)
+**Binary:** /Users/bborbe/Documents/workspaces/go/bin/dark-factory (v0.156.1-1-g04f3863-dirty)
+**Scenario:** Code-state + test-state verification per spec AC 11 (no scenario file). Captured source/test state at HEAD, ran `make precommit` against the changed module.
+**Evidence:**
+- `lib/delivery/markdown.go:112` signature: `func ParseMarkdownFrontmatter(content string) (map[string]any, string)`; no `fmt` import; nil values omitted at L131.
+- `lib/delivery/markdown_test.go` L245-257 asserts `yaml.Marshal` of parsed `trigger_count: 0` contains `trigger_count: 0` and NOT `trigger_count: "0"` (AC 1).
+- `lib/delivery/markdown_test.go` L259-268 same for `spawn_notification: true` (AC 2). Tests cover int+float (L204), bool (L226), nil omitted (L196), string (L180), list (L188), nested map (L234) — AC 3,4,6,7.
+- `lib/delivery/result-deliverer.go:124` is the sole production caller; consumes `map[string]any` and copies into `agentlib.TaskFrontmatter` (also `map[string]any`) — no silent stringification (AC 5).
+- `cd lib && make precommit` → `ready to commit` (0 gosec, 0 trivy). `cd task/controller && make precommit` → `ready to commit`. Downstream agent/{claude,code,gemini} and task/executor have no import of the changed function (`grep -rn ParseMarkdownFrontmatter task/ agent/` → empty) (AC 8).
+- `CHANGELOG.md` L3-5 under `## v0.62.17` records the change (AC 9).
+- `git tag --points-at 48d1896` → `v0.62.17` AND `lib/v0.62.17` (AC 10).
+**Verdict:** PASS
