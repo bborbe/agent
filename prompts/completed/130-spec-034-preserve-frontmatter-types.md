@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [034-preserve-frontmatter-types-through-delivery]
 summary: Changed ParseMarkdownFrontmatter return type from map[string]string to map[string]any, removing fmt.Sprintf conversion to preserve native YAML types (int, float64, bool, slice, nested map), updated tests with type-native assertions and added round-trip tests for trigger_count and spawn_notification, and added CHANGELOG entry.
 container: agent-130-spec-034-preserve-frontmatter-types
@@ -7,6 +7,7 @@ dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T15:00:00Z"
 queued: "2026-05-14T15:06:03Z"
 started: "2026-05-14T15:06:05Z"
+completed: "2026-05-14T15:12:21Z"
 branch: dark-factory/preserve-frontmatter-types-through-delivery
 ---
 
