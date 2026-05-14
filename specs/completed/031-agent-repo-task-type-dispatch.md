@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-05-14T12:28:19Z"
 generating: "2026-05-14T12:28:19Z"
 prompted: "2026-05-14T12:39:03Z"
 verifying: "2026-05-14T12:49:02Z"
+completed: "2026-05-14T14:09:24Z"
 branch: dark-factory/agent-repo-task-type-dispatch
 ---
 
@@ -167,3 +168,19 @@ Prompts 2/3/4 are independent of each other and may be implemented in parallel a
 ## Do-Nothing Option
 
 If we skip this, every agent-repo binary keeps running its single hardcoded domain agent. The `agent-claude` Config CR's `taskTypes: [claude, oauth-probe, healthcheck]` declaration is a lie — both `oauth-probe` and `healthcheck` tasks reach the binary and silently run the full 3-phase domain prompt, burning Claude API minutes on a smoke check. Any future "I want a second behavior in this binary" feature is blocked on either forking the binary or doing this work then. The dispatch shape is also the gating prerequisite for the same work in trading-repo and maintainer-repo binaries (eight more binaries downstream). Not acceptable — the cost is one new small package, three two-line factory functions, three one-line main.go edits, and one new constant, against an indefinite tax on every future task-type-aware feature across all three repos.
+
+## Verification Result
+
+**Verified:** 2026-05-14T14:08:30Z (HEAD 78d2bda)
+**Binary:** /Users/bborbe/Documents/workspaces/go/bin/dark-factory (v0.156.1-1-g04f3863-dirty)
+**Scenario:** No runtime scenario per spec design ("No new scenario"); unit/structural verification per spec ## Verification block (make precommit × 4 dirs).
+**Evidence:**
+- `lib/healthcheck/` directory contains 9 files: agent + 3 step flavors + Ginkgo suite + 4 _test.go (per-symbol convention).
+- `lib/agent_task-type.go:65` defines `TaskTypeHealthcheck TaskType = "healthcheck"`; line 61 GoDoc on `TaskTypeOAuthProbe` reads `// Deprecated: use TaskTypeHealthcheck.` (no "once introduced" qualifier).
+- `agent/{claude,gemini,code}/pkg/factory/factory.go` each expose `CreateAgentForTaskType` with switch + default `errors.Errorf(ctx, "unknown task_type %q for agent-<name>; accepted: ...")`.
+- Factory Ginkgo suites: claude 4/4, gemini 3/3, code 3/3 passed; healthcheck suite 19/19 passed.
+- `make precommit` clean in lib/, agent/claude/, agent/gemini/, agent/code/ (all "ready to commit").
+- main.go entry points call `factory.CreateAgentForTaskType(...)`; error branch records `agentlib.AgentStatusFailed` + duration (claude:114-128, gemini:110-115, code:98-103). `cmd/run-task/main.go` unchanged (still calls `factory.CreateAgent(...)`).
+- CHANGELOG.md Unreleased entries on lines 19, 27, 28 (spec 031).
+- Runtime corroboration: `claude-agent-a7032bbc-20260514133234` healthcheck Job completed status=done in 6.27s; `agent_job_duration_seconds_count{agent="claude-agent",task_type="healthcheck"} = 1`.
+**Verdict:** PASS
