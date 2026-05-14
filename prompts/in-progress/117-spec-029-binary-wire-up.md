@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [029-per-agent-job-metrics-package]
 created: "2026-05-14T10:00:00Z"
+queued: "2026-05-14T09:22:44Z"
 branch: dark-factory/per-agent-job-metrics-package
 ---
 
@@ -235,29 +236,26 @@ For each of the three binaries:
 cd agent/claude
 go get github.com/prometheus/client_golang/prometheus
 go get github.com/prometheus/client_golang/prometheus/push
-go get github.com/bborbe/metrics
 go mod tidy
 
 cd ../code
 go get github.com/prometheus/client_golang/prometheus
 go get github.com/prometheus/client_golang/prometheus/push
-go get github.com/bborbe/metrics
 go mod tidy
 
 cd ../gemini
 go get github.com/prometheus/client_golang/prometheus
 go get github.com/prometheus/client_golang/prometheus/push
-go get github.com/bborbe/metrics
 go mod tidy
 ```
 
 Verify for each binary:
 ```bash
-grep "prometheus/client_golang\|bborbe/metrics" agent/claude/go.mod | grep -v indirect
-grep "prometheus/client_golang\|bborbe/metrics" agent/code/go.mod | grep -v indirect
-grep "prometheus/client_golang\|bborbe/metrics" agent/gemini/go.mod | grep -v indirect
+grep "prometheus/client_golang" agent/claude/go.mod | grep -v indirect
+grep "prometheus/client_golang" agent/code/go.mod | grep -v indirect
+grep "prometheus/client_golang" agent/gemini/go.mod | grep -v indirect
 ```
-Expected: two direct lines per binary.
+Expected: one direct line per binary (the `prometheus` and `push` sub-packages share the same module path). NOTE: `github.com/bborbe/metrics` is NOT a direct dep of these binaries — only `lib/go.mod` depends on it. The binaries use the raw `prometheus/client_golang/prometheus/push` API directly because `bborbe/metrics`' `Pusher` wrapper does not expose `Grouping`.
 
 ## 2. Update `agent/claude/main.go`
 
@@ -485,12 +483,21 @@ grep -n "^## Unreleased" CHANGELOG.md | head -3
 
 If it exists, append to it. If not, insert a new `## Unreleased` section immediately above the first `## v` header. Add:
 
-```markdown
-## Unreleased
+Prompt 1 (lib/metrics) owns the `feat(lib/metrics):` bullet under `## Unreleased`. This prompt OWNS the binary-wire-up bullet and ONLY appends it. Do NOT add or modify the lib bullet here.
 
-- feat(lib/metrics): add `lib/metrics` package exporting `JobMetrics` interface and `NewJobMetrics` constructor with three Prometheus collectors (`agent_job_run_total`, `agent_job_last_run_timestamp_seconds`, `agent_job_duration_seconds`); counter pre-initialized for `done`/`failed`/`needs_input`; `BuildJobMetricsName` helper for standardized PushGateway job names
+Append exactly ONE bullet to the existing `## Unreleased` section:
+
+```markdown
 - feat(agent/{claude,code,gemini}): wire `JobMetrics` into each binary's `Run()` — constructs a fresh registry + pusher at startup, defers `PushContext` for end-of-run metric delivery, records run outcome and duration at every return path; adds `PUSHGATEWAY_URL` (default `http://pushgateway:9090`) and `TASK_TYPE` (default `unknown`) env fields
 ```
+
+If `## Unreleased` does not exist (prompt 1 should have created it; if not, prompt 1 failed and this prompt's precondition gate caught it earlier), create the section AND add this bullet. Do NOT add a `feat(lib/metrics)` bullet — that is prompt 1's responsibility.
+
+Verify after the edit:
+```bash
+grep -A 10 "^## Unreleased" CHANGELOG.md
+```
+Expected: exactly one `## Unreleased` header, with the binary-wire-up bullet present. No duplicate `## Unreleased` headers anywhere in the file.
 
 ## 6. Run iterative tests and precommit
 
@@ -543,6 +550,7 @@ If the existing import has no alias (i.e., just `"github.com/bborbe/agent/lib"`)
 - `start` is a `time.Time` (from `libtime.NewCurrentDateTime().Now().Time()`, NOT directly `libtime.DateTime`).
 - `time.Since(start)` computes the duration. `metrics.RecordDuration(time.Since(start))` is the correct call.
 - Every return path (including infrastructure errors like create-deliverer and create-gemini-parser) records `AgentStatusFailed`. The success path reads `result.Status`.
+- **Recording call order is frozen:** `metrics.RecordRun(status)` MUST be called BEFORE `metrics.RecordDuration(time.Since(start))` at every return path. The status update is the primary signal; duration is secondary. Reversed order would still record both metrics, but the contract is: RecordRun first, RecordDuration second, no exceptions.
 - Error wrapping: `github.com/bborbe/errors` (already used in each binary) — never `fmt.Errorf`.
 - Do NOT commit — dark-factory handles git.
 - All existing tests must still pass.
@@ -571,7 +579,7 @@ Expected: both fields in each file.
 
 Verify metrics init is at the top of each Run():
 ```bash
-grep -n "prometheus.NewRegistry\|libmetrics.NewJobMetrics\|pusher.*push.New\|PushContext\|start.*Now.*Time" agent/claude/main.go agent/code/main.go agent/gemini/main.go
+grep -n "prometheus.NewRegistry\|libmetrics.NewJobMetrics\|push.New\|PushContext\|start.*Now.*Time" agent/claude/main.go agent/code/main.go agent/gemini/main.go
 ```
 Expected: each file has all five constructs.
 
@@ -594,11 +602,11 @@ Expected: 4.
 
 Verify direct deps in each binary's go.mod:
 ```bash
-grep "prometheus/client_golang\|bborbe/metrics" agent/claude/go.mod | grep -v indirect
-grep "prometheus/client_golang\|bborbe/metrics" agent/code/go.mod | grep -v indirect
-grep "prometheus/client_golang\|bborbe/metrics" agent/gemini/go.mod | grep -v indirect
+grep "prometheus/client_golang" agent/claude/go.mod | grep -v indirect
+grep "prometheus/client_golang" agent/code/go.mod | grep -v indirect
+grep "prometheus/client_golang" agent/gemini/go.mod | grep -v indirect
 ```
-Expected: two direct entries per file.
+Expected: one direct entry per file. `bborbe/metrics` is NOT expected as a direct dep here — only `lib/go.mod` depends on it.
 
 Verify CHANGELOG updated:
 ```bash

@@ -1,7 +1,12 @@
 ---
-status: draft
+status: committing
 spec: [029-per-agent-job-metrics-package]
+summary: Created lib/metrics package with JobMetrics interface, NewJobMetrics constructor, BuildJobMetricsName helper, counterfeiter mock, and full test suite; make precommit exits 0 with 100% statement coverage
+container: agent-116-spec-029-lib-metrics
+dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T10:00:00Z"
+queued: "2026-05-14T09:22:44Z"
+started: "2026-05-14T09:22:45Z"
 branch: dark-factory/per-agent-job-metrics-package
 ---
 
@@ -79,7 +84,7 @@ grep -rn "type Name\b" $(go env GOPATH)/pkg/mod/github.com/bborbe/metrics@*/ 2>/
 **Symbol verification — prometheus registry and testutil:**
 ```bash
 grep -n "func (r \*Registry) MustRegister" $(go env GOPATH)/pkg/mod/github.com/prometheus/client_golang@v1.23.2/prometheus/registry.go
-grep -n "func ToFloat64\|func CollectAndCount" $(go env GOPATH)/pkg/mod/github.com/prometheus/client_golang@v1.23.2/prometheus/testutil/testutil.go
+grep -n "func ToFloat64\|func GatherAndCount" $(go env GOPATH)/pkg/mod/github.com/prometheus/client_golang@v1.23.2/prometheus/testutil/testutil.go
 ```
 </context>
 
@@ -269,7 +274,7 @@ If `make generate` also regenerates other mocks in `lib/mocks/` — that is expe
 
 Package: `metrics_test`. License header required.
 
-The tests use `testutil.ToFloat64` and `testutil.CollectAndCount` from `github.com/prometheus/client_golang/prometheus/testutil`.
+The tests use `testutil.ToFloat64` and `testutil.GatherAndCount` from `github.com/prometheus/client_golang/prometheus/testutil`. NOTE: `testutil.CollectAndCount` takes a `prometheus.Collector` (which `*Registry` does NOT implement); `testutil.GatherAndCount` takes a `prometheus.Gatherer` (which `*Registry` DOES implement) and returns `(int, error)`. Use the `Gather` variant.
 For deterministic gauge values, inject a `libtime.CurrentDateTime` mock via `libtime.NewCurrentDateTime()` and call `SetNow(knownTime)`.
 
 **Imports:**
@@ -305,7 +310,9 @@ var _ = Describe("NewJobMetrics", func() {
 
     Context("collector registration", func() {
         It("registers exactly 3 metrics on the registry", func() {
-            Expect(testutil.CollectAndCount(registry)).To(Equal(3))
+            count, err := testutil.GatherAndCount(registry)
+            Expect(err).NotTo(HaveOccurred())
+            Expect(count).To(Equal(3))
         })
     })
 
@@ -454,9 +461,27 @@ cd lib && go test ./metrics/...
 Fix compile errors before continuing. Common issues:
 - `dto` import missing — add `dto "github.com/prometheus/client_model/go"` and ensure `client_model` is in `lib/go.mod`
 - `libtime.DateTime(fixedTime)` type conversion — `DateTime` is `type DateTime time.Time`, so `libtime.DateTime(fixedTime)` is the correct cast
-- `testutil.CollectAndCount(registry)` takes a `Collector`, not a `*Registry` — pass the registry directly (it implements `Gatherer` which works)
+- Use `testutil.GatherAndCount(registry)` — NOT `testutil.CollectAndCount`. The Collect variant requires a `prometheus.Collector`, which `*Registry` does NOT implement. The Gather variant takes a `prometheus.Gatherer` (which `*Registry` does) and returns `(int, error)`.
 
-## 8. Run final precommit in `lib/`
+## 8. Add CHANGELOG bullet for library
+
+Update root `CHANGELOG.md`. Ensure a `## Unreleased` section exists at the top (between the file header and the latest released version header). If one does not exist, create it. Then append exactly ONE bullet describing the new lib/metrics package:
+
+```
+## Unreleased
+
+- feat(lib/metrics): per-agent Prometheus PushGateway metrics package — `JobMetrics` interface with `agent_job_run_total` (CounterVec{status}), `agent_job_last_run_timestamp_seconds` (GaugeVec{status}), `agent_job_duration_seconds` (Histogram). Counter pre-initialized for `done`/`failed`/`needs_input`. Counterfeiter mock at `lib/metrics/mocks/job-metrics.go`.
+```
+
+If `## Unreleased` already exists with other bullets (e.g. from concurrent prompt work), append your bullet under it WITHOUT modifying existing bullets or section structure.
+
+Verify:
+```bash
+grep -A 5 "^## Unreleased" CHANGELOG.md
+```
+Expected: the new bullet present, no duplicate `## Unreleased` headers.
+
+## 9. Run final precommit in `lib/`
 
 ```bash
 cd lib && make precommit
@@ -477,7 +502,7 @@ If `make precommit` reports mock drift, re-run `make generate`, verify only `lib
 - The constructor follows the pure-factory rule: no I/O, no conditionals on arguments, no `context.Background()`.
 - Counterfeiter mock uses the explicit two-step form: `//go:generate` in `metrics_suite_test.go`, `//counterfeiter:generate` directive in `metrics.go`.
 - External test package: `package metrics_test`. No `package metrics` in test files.
-- No `task/executor/pkg/metrics/metrics.go` or any file outside `lib/metrics/` is modified by this prompt.
+- No `task/executor/pkg/metrics/metrics.go` or any file outside `lib/metrics/` and `CHANGELOG.md` is modified by this prompt.
 - Do NOT commit — dark-factory handles git.
 - Existing tests must still pass.
 - `cd lib && make precommit` must exit 0.
