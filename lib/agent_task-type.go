@@ -58,6 +58,9 @@ const (
 	TaskTypeTradeAnalysis TaskType = "trade-analysis"
 	// TaskTypeOAuthProbe is the task type for OAuth probe health-check jobs.
 	//
-	// Deprecated: use TaskTypeHealthcheck once introduced by the oauth-probe rename spec.
+	// Deprecated: use TaskTypeHealthcheck.
 	TaskTypeOAuthProbe TaskType = "oauth-probe"
+	// TaskTypeHealthcheck is the liveness task type for all agent binaries.
+	// Dispatches to the binary's corresponding healthcheck step in lib/healthcheck.
+	TaskTypeHealthcheck TaskType = "healthcheck"
 )

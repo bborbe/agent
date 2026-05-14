@@ -33,6 +33,7 @@ var _ = Describe("TaskType", func() {
 			Entry("hypothesis constant", lib.TaskTypeHypothesis),
 			Entry("trade-analysis constant", lib.TaskTypeTradeAnalysis),
 			Entry("oauth-probe constant", lib.TaskTypeOAuthProbe),
+			Entry("healthcheck constant", lib.TaskTypeHealthcheck),
 			Entry(
 				"63-character value",
 				lib.TaskType("a23456789012345678901234567890123456789012345678901234567890abc"),

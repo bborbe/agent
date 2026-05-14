@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.62.8
+
+- feat(lib/healthcheck): shared liveness handler package — Claude/Gemini/Nop step flavors + NewAgent wrapper (spec 031)
+- feat(lib): add TaskTypeHealthcheck constant; update TaskTypeOAuthProbe GoDoc (drop "once introduced" qualifier) (spec 031)
+
 ## v0.62.7
 
 - feat(task/executor): inject TASK_TYPE env into every spawned Job from task frontmatter task_type field (spec 030)
