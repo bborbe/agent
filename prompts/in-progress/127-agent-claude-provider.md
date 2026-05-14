@@ -1,5 +1,6 @@
 ---
-status: executing
+status: committing
+summary: 'Refactored agent/claude factory.go to pure plumbing: removed CreateAgentForTaskType and CreateDeliverer, split CreateAgent into CreateAgent+CreateAgentFromRunner, added CreateAgentProvider returning lib.AgentProvider, moved boot-time deliverer construction to main.go Run.'
 container: agent-127-agent-claude-provider
 dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T14:00:00Z"

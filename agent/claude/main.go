@@ -34,6 +34,7 @@ import (
 	"github.com/bborbe/agent/agent/claude/pkg/factory"
 	agentlib "github.com/bborbe/agent/lib"
 	claudelib "github.com/bborbe/agent/lib/claude"
+	delivery "github.com/bborbe/agent/lib/delivery"
 	libmetrics "github.com/bborbe/agent/lib/metrics"
 )
 
@@ -101,19 +102,31 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 
 	glog.V(2).Infof("agent-claude started phase=%s", a.Phase)
 
-	deliverer, cleanup, err := factory.CreateDeliverer(
-		ctx, a.TaskID, a.KafkaBrokers, a.Branch, a.TaskContent,
-	)
-	if err != nil {
-		jobMetrics.RecordRun(agentlib.AgentStatusFailed)
-		jobMetrics.RecordDuration(time.Since(start))
-		return errors.Wrap(ctx, err, "create deliverer")
+	deliverer := delivery.NewNoopResultDeliverer()
+	if a.TaskID != "" {
+		if len(a.KafkaBrokers) == 0 {
+			jobMetrics.RecordRun(agentlib.AgentStatusFailed)
+			jobMetrics.RecordDuration(time.Since(start))
+			return errors.Errorf(ctx, "KAFKA_BROKERS must be set when TASK_ID is set")
+		}
+		syncProducer, err := factory.CreateSyncProducer(ctx, a.KafkaBrokers)
+		if err != nil {
+			jobMetrics.RecordRun(agentlib.AgentStatusFailed)
+			jobMetrics.RecordDuration(time.Since(start))
+			return errors.Wrap(ctx, err, "create sync producer")
+		}
+		defer func() {
+			if err := syncProducer.Close(); err != nil {
+				glog.Warningf("close sync producer failed: %v", err)
+			}
+		}()
+		deliverer = factory.CreateKafkaResultDeliverer(
+			syncProducer, a.Branch, a.TaskID, a.TaskContent,
+			libtime.NewCurrentDateTime(),
+		)
 	}
-	defer cleanup()
 
-	agent, err := factory.CreateAgentForTaskType(
-		ctx,
-		agentlib.TaskType(a.TaskType),
+	provider := factory.CreateAgentProvider(
 		a.ClaudeConfigDir,
 		a.AgentDir,
 		claudelib.ParseAllowedTools(a.AllowedToolsRaw),
@@ -121,10 +134,11 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		claudelib.ParseKeyValuePairs(a.ClaudeEnvRaw),
 		claudelib.ParseKeyValuePairs(a.EnvContextRaw),
 	)
+	agent, err := provider.Get(ctx, agentlib.TaskType(a.TaskType))
 	if err != nil {
 		jobMetrics.RecordRun(agentlib.AgentStatusFailed)
 		jobMetrics.RecordDuration(time.Since(start))
-		return errors.Wrap(ctx, err, "create agent for task type")
+		return errors.Wrap(ctx, err, "select agent for task_type")
 	}
 
 	result, err := agent.Run(ctx, a.Phase, a.TaskContent, deliverer)

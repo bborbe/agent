@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.14
+
+- refactor(agent/claude): factory.go is pure plumbing — `CreateAgentForTaskType` and `CreateDeliverer` removed; new `CreateAgentProvider` returns lib.AgentProvider; boot-time deliverer construction moved to main.go Run per go-factory-pattern.md
+
 ## v0.62.13
 
 - feat(lib): add `AgentProvider` interface for task_type → *Agent dispatch — map-based provider with sorted-accepted-types error message; consumed by per-binary factory refactors that drop `CreateAgentForTaskType` switch statements (factory pattern compliance)

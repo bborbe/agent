@@ -15,7 +15,6 @@ import (
 	"github.com/bborbe/errors"
 	libkafka "github.com/bborbe/kafka"
 	libtime "github.com/bborbe/time"
-	"github.com/golang/glog"
 
 	"github.com/bborbe/agent/agent/claude/pkg/prompts"
 	agentlib "github.com/bborbe/agent/lib"
@@ -100,7 +99,19 @@ func CreateAgent(
 	claudeEnv map[string]string,
 	envContext map[string]string,
 ) *agentlib.Agent {
-	runner := CreateClaudeRunner(claudeConfigDir, agentDir, allowedTools, model, claudeEnv)
+	return CreateAgentFromRunner(
+		CreateClaudeRunner(claudeConfigDir, agentDir, allowedTools, model, claudeEnv),
+		envContext,
+	)
+}
+
+// CreateAgentFromRunner builds the 3-phase claude agent given a pre-constructed
+// ClaudeRunner. Used by CreateAgentProvider to share one runner across the
+// domain agent and the healthcheck-Claude liveness agent.
+func CreateAgentFromRunner(
+	runner claudelib.ClaudeRunner,
+	envContext map[string]string,
+) *agentlib.Agent {
 	step := claudelib.NewAgentStep(claudelib.AgentStepConfig{
 		Name:          "claude-task",
 		Runner:        runner,
@@ -116,79 +127,27 @@ func CreateAgent(
 	)
 }
 
-// CreateAgentForTaskType dispatches on taskType to select the appropriate
-// *agentlib.Agent implementation. TaskTypeClaude uses the full 3-phase domain
-// agent; TaskTypeHealthcheck and TaskTypeOAuthProbe use the lightweight
-// healthcheck agent. Any other value returns an error.
-func CreateAgentForTaskType(
-	ctx context.Context,
-	taskType agentlib.TaskType,
+// CreateAgentProvider wires the per-task-type dispatch table for agent-claude.
+// Returns lib.AgentProvider — main.go calls Get(ctx, taskType) to select the
+// appropriate *Agent. Pure plumbing; no conditional, no error.
+//
+// TaskTypeClaude routes to the existing 3-phase domain agent. TaskTypeHealthcheck
+// and TaskTypeOAuthProbe (transition alias) both route to the shared
+// healthcheck-Claude liveness agent, reusing the same ClaudeRunner.
+func CreateAgentProvider(
 	claudeConfigDir claudelib.ClaudeConfigDir,
 	agentDir claudelib.AgentDir,
 	allowedTools claudelib.AllowedTools,
 	model claudelib.ClaudeModel,
 	claudeEnv map[string]string,
 	envContext map[string]string,
-) (*agentlib.Agent, error) {
-	switch taskType {
-	case agentlib.TaskTypeClaude:
-		return CreateAgent(
-			claudeConfigDir,
-			agentDir,
-			allowedTools,
-			model,
-			claudeEnv,
-			envContext,
-		), nil
-	case agentlib.TaskTypeHealthcheck, agentlib.TaskTypeOAuthProbe:
-		runner := CreateClaudeRunner(claudeConfigDir, agentDir, allowedTools, model, claudeEnv)
-		return healthcheck.NewAgent(healthcheck.NewClaudeStep(runner)), nil
-	default:
-		return nil, errors.Errorf(
-			ctx,
-			"unknown task_type %q for agent-claude; accepted: [%s %s %s]",
-			taskType,
-			agentlib.TaskTypeClaude,
-			agentlib.TaskTypeHealthcheck,
-			agentlib.TaskTypeOAuthProbe,
-		)
-	}
-}
-
-// CreateDeliverer builds the Kafka-or-Noop deliverer used by the Kafka
-// entry point. Empty taskID means "no Kafka" — returns a noop deliverer
-// and an empty cleanup. Non-empty taskID requires non-empty brokers; the
-// returned cleanup closes the underlying SyncProducer (logged-and-ignored
-// on error).
-func CreateDeliverer(
-	ctx context.Context,
-	taskID agentlib.TaskIdentifier,
-	brokers libkafka.Brokers,
-	branch base.Branch,
-	originalContent string,
-) (agentlib.ResultDeliverer, func(), error) {
-	if taskID == "" {
-		glog.V(2).Infof("TASK_ID not set, skipping task result publishing")
-		return delivery.NewNoopResultDeliverer(), func() {}, nil
-	}
-	if len(brokers) == 0 {
-		return nil, nil, errors.Errorf(ctx, "KAFKA_BROKERS must be set when TASK_ID is set")
-	}
-	syncProducer, err := CreateSyncProducer(ctx, brokers)
-	if err != nil {
-		return nil, nil, errors.Wrap(ctx, err, "create sync producer failed")
-	}
-	deliverer := CreateKafkaResultDeliverer(
-		syncProducer,
-		branch,
-		taskID,
-		originalContent,
-		libtime.NewCurrentDateTime(),
-	)
-	cleanup := func() {
-		if err := syncProducer.Close(); err != nil {
-			glog.Warningf("close sync producer failed: %v", err)
-		}
-	}
-	return deliverer, cleanup, nil
+) agentlib.AgentProvider {
+	runner := CreateClaudeRunner(claudeConfigDir, agentDir, allowedTools, model, claudeEnv)
+	domainAgent := CreateAgentFromRunner(runner, envContext)
+	livenessAgent := healthcheck.NewAgent(healthcheck.NewClaudeStep(runner))
+	return agentlib.NewAgentProvider(serviceName, map[agentlib.TaskType]*agentlib.Agent{
+		agentlib.TaskTypeClaude:      domainAgent,
+		agentlib.TaskTypeHealthcheck: livenessAgent,
+		agentlib.TaskTypeOAuthProbe:  livenessAgent,
+	})
 }

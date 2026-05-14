@@ -15,72 +15,73 @@ import (
 	claudelib "github.com/bborbe/agent/lib/claude"
 )
 
-var _ = Describe("CreateAgentForTaskType", func() {
-	var ctx context.Context
+var _ = Describe("CreateAgentProvider", func() {
+	var (
+		ctx      context.Context
+		provider agentlib.AgentProvider
+	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
+		provider = factory.CreateAgentProvider(
+			claudelib.ClaudeConfigDir(""),
+			claudelib.AgentDir("agent"),
+			claudelib.AllowedTools{},
+			claudelib.ClaudeModel("sonnet"),
+			map[string]string{},
+			map[string]string{},
+		)
 	})
 
-	It("returns a non-nil agent for TaskTypeClaude", func() {
-		agent, err := factory.CreateAgentForTaskType(
-			ctx,
-			agentlib.TaskTypeClaude,
-			claudelib.ClaudeConfigDir(""),
-			claudelib.AgentDir(""),
-			nil,
-			claudelib.ClaudeModel(""),
-			nil,
-			nil,
-		)
+	It("returns a non-nil provider", func() {
+		Expect(provider).NotTo(BeNil())
+	})
+
+	It("Get returns the domain agent for TaskTypeClaude", func() {
+		agent, err := provider.Get(ctx, agentlib.TaskTypeClaude)
 		Expect(err).To(BeNil())
 		Expect(agent).NotTo(BeNil())
 	})
 
-	It("returns a non-nil agent for TaskTypeHealthcheck", func() {
-		agent, err := factory.CreateAgentForTaskType(
-			ctx,
-			agentlib.TaskTypeHealthcheck,
-			claudelib.ClaudeConfigDir(""),
-			claudelib.AgentDir(""),
-			nil,
-			claudelib.ClaudeModel(""),
-			nil,
-			nil,
-		)
+	It("Get returns the liveness agent for TaskTypeHealthcheck", func() {
+		agent, err := provider.Get(ctx, agentlib.TaskTypeHealthcheck)
 		Expect(err).To(BeNil())
 		Expect(agent).NotTo(BeNil())
 	})
 
-	It("returns a non-nil agent for TaskTypeOAuthProbe (alias to healthcheck)", func() {
-		agent, err := factory.CreateAgentForTaskType(
-			ctx,
-			agentlib.TaskTypeOAuthProbe,
-			claudelib.ClaudeConfigDir(""),
-			claudelib.AgentDir(""),
-			nil,
-			claudelib.ClaudeModel(""),
-			nil,
-			nil,
-		)
+	It("Get returns the SAME liveness agent for TaskTypeOAuthProbe (alias)", func() {
+		healthcheckAgent, err := provider.Get(ctx, agentlib.TaskTypeHealthcheck)
 		Expect(err).To(BeNil())
-		Expect(agent).NotTo(BeNil())
+		oauthProbeAgent, err := provider.Get(ctx, agentlib.TaskTypeOAuthProbe)
+		Expect(err).To(BeNil())
+		Expect(oauthProbeAgent).To(BeIdenticalTo(healthcheckAgent))
 	})
 
-	It("returns nil agent and error for an unsupported task type", func() {
-		agent, err := factory.CreateAgentForTaskType(
-			ctx,
-			agentlib.TaskType("bogus"),
-			claudelib.ClaudeConfigDir(""),
-			claudelib.AgentDir(""),
-			nil,
-			claudelib.ClaudeModel(""),
-			nil,
-			nil,
-		)
-		Expect(err).NotTo(BeNil())
-		Expect(agent).To(BeNil())
-		Expect(err.Error()).To(ContainSubstring("unknown task_type"))
-		Expect(err.Error()).To(ContainSubstring("bogus"))
+	Describe("Get with unknown task_type", func() {
+		var err error
+
+		BeforeEach(func() {
+			_, err = provider.Get(ctx, agentlib.TaskType("bogus"))
+		})
+
+		It("returns an error", func() {
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("error message contains the unknown task_type literal", func() {
+			Expect(err.Error()).To(ContainSubstring("unknown task_type"))
+		})
+
+		It("error message contains the offending value quoted", func() {
+			Expect(err.Error()).To(ContainSubstring(`"bogus"`))
+		})
+
+		It("error message contains the binary name", func() {
+			Expect(err.Error()).To(ContainSubstring("agent-claude"))
+		})
+
+		It("error message contains the sorted accepted-types list", func() {
+			Expect(err.Error()).To(ContainSubstring("[claude healthcheck oauth-probe]"))
+		})
 	})
 })
