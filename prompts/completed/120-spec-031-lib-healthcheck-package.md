@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [031-agent-repo-task-type-dispatch]
 summary: Created lib/healthcheck package with NewClaudeStep, NewGeminiStep, NewNopStep, NewAgent; added TaskTypeHealthcheck constant and updated TaskTypeOAuthProbe GoDoc in lib/agent_task-type.go; all tests pass with 100% coverage on the healthcheck package.
 container: agent-120-spec-031-lib-healthcheck-package
@@ -7,6 +7,7 @@ dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T13:00:00Z"
 queued: "2026-05-14T12:45:23Z"
 started: "2026-05-14T12:45:24Z"
+completed: "2026-05-14T12:49:02Z"
 branch: dark-factory/agent-repo-task-type-dispatch
 ---
 
