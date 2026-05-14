@@ -1,10 +1,11 @@
 ---
-status: generating
+status: prompted
 tags:
     - dark-factory
     - spec
 approved: "2026-05-14T08:58:05Z"
 generating: "2026-05-14T08:58:06Z"
+prompted: "2026-05-14T09:08:50Z"
 branch: dark-factory/per-agent-job-metrics-package
 ---
 
