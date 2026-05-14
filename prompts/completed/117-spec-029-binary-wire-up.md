@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [029-per-agent-job-metrics-package]
 summary: 'Wired JobMetrics into all three agent binaries (claude, code, gemini): added agentName constants, PushgatewayURL/TaskType struct fields, metrics init block at top of Run(), RecordRun/RecordDuration at every return path, promoted prometheus/client_golang to direct dep in all three go.mod files, and added CHANGELOG Unreleased entry.'
 container: agent-117-spec-029-binary-wire-up
@@ -7,6 +7,7 @@ dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-14T10:00:00Z"
 queued: "2026-05-14T09:22:44Z"
 started: "2026-05-14T09:27:52Z"
+completed: "2026-05-14T09:33:20Z"
 branch: dark-factory/per-agent-job-metrics-package
 ---
 
