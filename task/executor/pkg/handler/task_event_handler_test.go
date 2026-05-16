@@ -17,12 +17,14 @@ import (
 	"github.com/bborbe/vault-cli/pkg/domain"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	lib "github.com/bborbe/agent/lib"
 	agentv1 "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de/v1"
 	"github.com/bborbe/agent/task/executor/mocks"
 	pkg "github.com/bborbe/agent/task/executor/pkg"
 	"github.com/bborbe/agent/task/executor/pkg/handler"
+	"github.com/bborbe/agent/task/executor/pkg/metrics"
 )
 
 func TestHandler(t *testing.T) {
@@ -663,8 +665,10 @@ var _ = Describe("TaskEventHandler", func() {
 		)
 
 		It(
-			"spawns job when combined trigger matches event (Phases=[done], Statuses=[completed])",
+			"does not spawn when trigger includes done phase (terminal gate suppresses before allowlist)",
 			func() {
+				// done is a terminal phase — the gate fires before the allowlist check,
+				// so even a custom trigger that includes done cannot cause a spawn.
 				fakeSpawner.IsJobActiveReturns(false, nil)
 				fakeResolver.ResolveReturns(
 					pkg.AgentConfiguration{
@@ -687,7 +691,7 @@ var _ = Describe("TaskEventHandler", func() {
 				}
 				err := h.ConsumeMessage(ctx, buildMsg(task))
 				Expect(err).To(BeNil())
-				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
 			},
 		)
 
@@ -948,5 +952,196 @@ var _ = Describe("TaskEventHandler", func() {
 				Expect(reason).To(ContainSubstring("no task_type"))
 			},
 		)
+
+		Describe("terminal phase gate", func() {
+			// DescribeTable covers the 5 regression rows from spec 035.
+			// Rows 2 and 3 (terminal phases) use a custom trigger that includes
+			// human_review/done in its Phases — so WITHOUT the gate the second
+			// event would spawn (count > 0). The gate MUST fire to keep count=0.
+			DescribeTable("phase/status combinations",
+				func(
+					status string,
+					phase domain.TaskPhase,
+					customTriggerPhases domain.TaskPhases,
+					expectSpawn int,
+					expectSuppress float64,
+				) {
+					if len(customTriggerPhases) > 0 {
+						fakeResolver.ResolveReturns(
+							pkg.AgentConfiguration{
+								Assignee: "claude",
+								Image:    "my-image:latest",
+								Trigger: &agentv1.Trigger{
+									Phases:   customTriggerPhases,
+									Statuses: domain.TaskStatuses{domain.TaskStatusInProgress},
+								},
+							},
+							nil,
+						)
+					}
+					fakeSpawner.IsJobActiveReturns(false, nil)
+					fakeSpawner.SpawnJobReturns("job-1", nil)
+
+					before := testutil.ToFloat64(
+						metrics.TaskEventsTotal.WithLabelValues("spawn_suppressed_terminal_phase"),
+					)
+					task := lib.Task{
+						TaskIdentifier: lib.TaskIdentifier("tid-gate-table"),
+						Frontmatter: lib.TaskFrontmatter{
+							"status":   status,
+							"phase":    string(phase),
+							"assignee": "claude",
+						},
+					}
+					err := h.ConsumeMessage(ctx, buildMsg(task))
+					Expect(err).To(BeNil())
+					Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(expectSpawn))
+					after := testutil.ToFloat64(
+						metrics.TaskEventsTotal.WithLabelValues("spawn_suppressed_terminal_phase"),
+					)
+					Expect(after - before).To(Equal(expectSuppress))
+				},
+				Entry(
+					"status=in_progress phase=in_progress => spawn",
+					"in_progress",
+					domain.TaskPhaseInProgress,
+					domain.TaskPhases(nil),
+					1,
+					float64(0),
+				),
+				Entry(
+					"status=in_progress phase=human_review => no spawn",
+					// Custom trigger includes human_review — without the gate this would spawn.
+					"in_progress", domain.TaskPhaseHumanReview,
+					domain.TaskPhases{domain.TaskPhaseInProgress, domain.TaskPhaseHumanReview},
+					0, float64(1),
+				),
+				Entry(
+					"status=in_progress phase=done => no spawn",
+					// Custom trigger includes done — without the gate this would spawn.
+					"in_progress", domain.TaskPhaseDone,
+					domain.TaskPhases{domain.TaskPhaseInProgress, domain.TaskPhaseDone},
+					0, float64(1),
+				),
+				Entry(
+					"status=completed phase=in_progress => no spawn",
+					// Filtered by status check, not terminal gate.
+					"completed", domain.TaskPhaseInProgress, domain.TaskPhases(nil), 0, float64(0),
+				),
+			)
+
+			It("sequential events in_progress->human_review => exactly 1 spawn total", func() {
+				// Custom trigger includes human_review in its Phases.
+				// Without the terminal gate, the second event (phase=human_review)
+				// would also spawn because human_review IS in the trigger → total count=2.
+				// The gate MUST fire on the second event to keep count=1.
+				// If IsTerminal() is removed, this test fails on the Equal(1) assertion.
+				fakeResolver.ResolveReturns(
+					pkg.AgentConfiguration{
+						Assignee: "claude",
+						Image:    "my-image:latest",
+						Trigger: &agentv1.Trigger{
+							Phases: domain.TaskPhases{
+								domain.TaskPhaseInProgress,
+								domain.TaskPhaseHumanReview,
+							},
+							Statuses: domain.TaskStatuses{domain.TaskStatusInProgress},
+						},
+					},
+					nil,
+				)
+				fakeSpawner.IsJobActiveReturns(false, nil)
+				fakeSpawner.SpawnJobReturns("job-seq-1", nil)
+
+				// Event 1: phase=in_progress → spawns (legitimate spawn)
+				event1 := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("22fda7e7"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":   "in_progress",
+						"phase":    string(domain.TaskPhaseInProgress),
+						"assignee": "claude",
+					},
+				}
+				err := h.ConsumeMessage(ctx, buildMsg(event1))
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+
+				// Event 2: phase=human_review (terminal) → gate suppresses.
+				// The metric delta proves the gate fired, not the allowlist.
+				before := testutil.ToFloat64(
+					metrics.TaskEventsTotal.WithLabelValues("spawn_suppressed_terminal_phase"),
+				)
+				event2 := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("22fda7e7"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":   "in_progress",
+						"phase":    string(domain.TaskPhaseHumanReview),
+						"assignee": "claude",
+					},
+				}
+				err = h.ConsumeMessage(ctx, buildMsg(event2))
+				Expect(err).To(BeNil())
+				// Total spawn count must remain 1 — the terminal gate prevented the second spawn.
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+				after := testutil.ToFloat64(
+					metrics.TaskEventsTotal.WithLabelValues("spawn_suppressed_terminal_phase"),
+				)
+				Expect(after - before).To(Equal(float64(1)))
+			})
+
+			It(
+				"emits unknown_phase metric+log on enum drift (phase outside vault-cli v0.64.0 set)",
+				func() {
+					// Guards Desired Behavior #8 from spec 035: a phase value not in the
+					// knownPhases map increments the unknown_phase metric and falls through
+					// to the allowlist's skipped_phase path (no spawn).
+					before := testutil.ToFloat64(
+						metrics.TaskEventsTotal.WithLabelValues("unknown_phase"),
+					)
+					task := lib.Task{
+						TaskIdentifier: lib.TaskIdentifier("tid-unknown-phase-035"),
+						Frontmatter: lib.TaskFrontmatter{
+							"status":   "in_progress",
+							"phase":    "future_enum_value_not_in_v0.64.0",
+							"assignee": "claude",
+						},
+					}
+					err := h.ConsumeMessage(ctx, buildMsg(task))
+					Expect(err).To(BeNil())
+					Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+					after := testutil.ToFloat64(
+						metrics.TaskEventsTotal.WithLabelValues("unknown_phase"),
+					)
+					Expect(after - before).To(Equal(float64(1)))
+				},
+			)
+
+			It(
+				"does not emit spawn_suppressed on nil phase (parse-error / missing phase path)",
+				func() {
+					// Guards Failure Modes row 4 from spec 035: a task with missing/unparseable
+					// phase must NOT emit spawn_suppressed_terminal_phase — it takes the
+					// existing skipped_phase path.
+					before := testutil.ToFloat64(
+						metrics.TaskEventsTotal.WithLabelValues("spawn_suppressed_terminal_phase"),
+					)
+					task := lib.Task{
+						TaskIdentifier: lib.TaskIdentifier("tid-nil-phase-035"),
+						Frontmatter: lib.TaskFrontmatter{
+							"status":   "in_progress",
+							"assignee": "claude",
+							// phase intentionally absent → Phase() returns nil
+						},
+					}
+					err := h.ConsumeMessage(ctx, buildMsg(task))
+					Expect(err).To(BeNil())
+					Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+					after := testutil.ToFloat64(
+						metrics.TaskEventsTotal.WithLabelValues("spawn_suppressed_terminal_phase"),
+					)
+					Expect(after - before).To(Equal(float64(0)))
+				},
+			)
+		})
 	})
 })

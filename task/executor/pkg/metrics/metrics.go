@@ -37,4 +37,6 @@ func init() {
 	TaskEventsTotal.WithLabelValues("skipped_trigger_cap").Add(0)
 	TaskEventsTotal.WithLabelValues("error").Add(0)
 	TaskEventsTotal.WithLabelValues("type_mismatch").Add(0)
+	TaskEventsTotal.WithLabelValues("spawn_suppressed_terminal_phase").Add(0)
+	TaskEventsTotal.WithLabelValues("unknown_phase").Add(0)
 }

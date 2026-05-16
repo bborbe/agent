@@ -34,6 +34,46 @@ var defaultTriggerStatuses = domain.TaskStatuses{
 	domain.TaskStatusInProgress,
 }
 
+// terminalPhases is the set of phases that must never trigger a new spawn.
+// Extending this set requires a follow-up spec if vault-cli adds new terminal phases.
+var terminalPhases = map[domain.TaskPhase]struct{}{
+	domain.TaskPhaseHumanReview: {},
+	domain.TaskPhaseDone:        {},
+}
+
+// knownPhases contains all phase constants exported by vault-cli v0.64.0.
+// Values outside this set trigger enum-drift logging (event=unknown_phase).
+var knownPhases = map[domain.TaskPhase]struct{}{
+	domain.TaskPhaseTodo:        {},
+	domain.TaskPhasePlanning:    {},
+	domain.TaskPhaseInProgress:  {},
+	domain.TaskPhaseAIReview:    {},
+	domain.TaskPhaseHumanReview: {},
+	domain.TaskPhaseDone:        {},
+}
+
+// IsTerminal reports whether the given phase is in the terminal set.
+// Tasks at a terminal phase must not be re-spawned; operator intervention is required.
+func IsTerminal(phase domain.TaskPhase) bool {
+	_, ok := terminalPhases[phase]
+	return ok
+}
+
+// applyPhaseGate emits metrics/logs for terminal and unknown phases.
+// Returns true when the task must be skipped (terminal phase suppressed).
+func applyPhaseGate(task lib.Task, phase domain.TaskPhase) bool {
+	if IsTerminal(phase) {
+		glog.Infof("event=spawn_suppressed phase=%s task=%s", phase, task.TaskIdentifier)
+		metrics.TaskEventsTotal.WithLabelValues("spawn_suppressed_terminal_phase").Inc()
+		return true
+	}
+	if _, inKnown := knownPhases[phase]; !inKnown {
+		glog.Infof("event=unknown_phase phase=%s task=%s", phase, task.TaskIdentifier)
+		metrics.TaskEventsTotal.WithLabelValues("unknown_phase").Inc()
+	}
+	return false
+}
+
 //counterfeiter:generate -o ../../mocks/task_event_handler.go --fake-name FakeTaskEventHandler . TaskEventHandler
 
 // TaskEventHandler processes a single task event message from Kafka.
@@ -132,15 +172,20 @@ func (h *taskEventHandler) parseAndFilter(
 		return lib.Task{}, nil, true, nil
 	}
 
-	effectiveStatuses := effectiveTriggerStatuses(config)
-	if !effectiveStatuses.Contains(task.Frontmatter.Status()) {
-		glog.V(3).
-			Infof("skip task %s with status %s", task.TaskIdentifier, task.Frontmatter.Status())
+	if !effectiveTriggerStatuses(config).Contains(task.Frontmatter.Status()) {
+		glog.V(3).Infof(
+			"skip task %s with status %s", task.TaskIdentifier, task.Frontmatter.Status(),
+		)
 		metrics.TaskEventsTotal.WithLabelValues("skipped_status").Inc()
 		return lib.Task{}, nil, true, nil
 	}
 
 	phase := task.Frontmatter.Phase()
+
+	// terminal phases must not be spawned again — operator escalation required
+	if phase != nil && applyPhaseGate(task, *phase) {
+		return lib.Task{}, nil, true, nil
+	}
 	if phase == nil || !effectiveTriggerPhases(config).Contains(*phase) {
 		glog.V(3).Infof("skip task %s with phase %v", task.TaskIdentifier, phase)
 		metrics.TaskEventsTotal.WithLabelValues("skipped_phase").Inc()

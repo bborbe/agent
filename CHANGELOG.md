@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.18
+
+- fix(task/executor): add explicit terminal-phase gate in `parseAndFilter` — tasks with `phase ∈ {human_review, done}` are suppressed before the trigger-phase allowlist, emitting `event=spawn_suppressed` log and `spawn_suppressed_terminal_phase` metric; unknown phases emit `event=unknown_phase`; closes the 2026-05-16 incident where pod 2 dismissed pod 1's GitHub review on task 22fda7e7
+
 ## v0.62.17
 
 - fix(lib/delivery): `ParseMarkdownFrontmatter` now returns `map[string]any` preserving native YAML types (int, float64, bool, list, map) — eliminates git merge conflicts caused by one writer serializing `trigger_count: 0` (int) while another serialized `trigger_count: "0"` (quoted string)
