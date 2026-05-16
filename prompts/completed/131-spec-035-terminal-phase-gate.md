@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [035-bug-task-executor-respawns-on-terminal-phase]
 summary: Added explicit terminal-phase gate in parseAndFilter that suppresses tasks with phase ∈ {human_review, done} before the trigger-phase allowlist, with spawn_suppressed_terminal_phase metric, unknown_phase enum-drift detection, and 7 new Ginkgo tests covering all spec 035 regression rows.
 container: agent-131-spec-035-terminal-phase-gate
@@ -7,6 +7,7 @@ dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-16T15:10:00Z"
 queued: "2026-05-16T16:16:54Z"
 started: "2026-05-16T16:16:56Z"
+completed: "2026-05-16T16:26:27Z"
 branch: dark-factory/bug-task-executor-respawns-on-terminal-phase
 ---
 
