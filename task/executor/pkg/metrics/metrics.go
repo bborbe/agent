@@ -39,4 +39,5 @@ func init() {
 	TaskEventsTotal.WithLabelValues("type_mismatch").Add(0)
 	TaskEventsTotal.WithLabelValues("spawn_suppressed_terminal_phase").Add(0)
 	TaskEventsTotal.WithLabelValues("unknown_phase").Add(0)
+	TaskEventsTotal.WithLabelValues("respawn_grace_window").Add(0)
 }

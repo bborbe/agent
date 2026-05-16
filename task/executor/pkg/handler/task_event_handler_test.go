@@ -14,6 +14,8 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
+	libtime "github.com/bborbe/time"
+	libtimetest "github.com/bborbe/time/test"
 	"github.com/bborbe/vault-cli/pkg/domain"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -39,6 +41,7 @@ var _ = Describe("TaskEventHandler", func() {
 		fakeResolver        *mocks.FakeConfigResolver
 		fakeResultPublisher *mocks.FakeResultPublisher
 		taskStore           *pkg.TaskStore
+		currentDateTime     libtime.CurrentDateTime
 		h                   handler.TaskEventHandler
 	)
 
@@ -52,12 +55,14 @@ var _ = Describe("TaskEventHandler", func() {
 		)
 		fakeResultPublisher = &mocks.FakeResultPublisher{}
 		taskStore = pkg.NewTaskStore()
+		currentDateTime = libtime.NewCurrentDateTime()
 		h = handler.NewTaskEventHandler(
 			fakeSpawner,
 			base.Branch("prod"),
 			fakeResolver,
 			fakeResultPublisher,
 			taskStore,
+			currentDateTime,
 		)
 	})
 
@@ -535,6 +540,7 @@ var _ = Describe("TaskEventHandler", func() {
 				localResolver,
 				&mocks.FakeResultPublisher{},
 				pkg.NewTaskStore(),
+				libtime.NewCurrentDateTime(),
 			)
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("tid-stage-3"),
@@ -580,6 +586,7 @@ var _ = Describe("TaskEventHandler", func() {
 				localResolver,
 				&mocks.FakeResultPublisher{},
 				pkg.NewTaskStore(),
+				libtime.NewCurrentDateTime(),
 			)
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("tid-stage-4"),
@@ -1141,6 +1148,70 @@ var _ = Describe("TaskEventHandler", func() {
 					)
 					Expect(after - before).To(Equal(float64(0)))
 				},
+			)
+		})
+
+		Describe("grace window (spec 036)", func() {
+			BeforeEach(func() {
+				fakeSpawner.IsJobActiveReturns(false, nil)
+				fakeSpawner.SpawnJobReturns("job-grace-1", nil)
+			})
+
+			DescribeTable("grace-window decision matrix",
+				func(
+					currentJob string,
+					jobStartedAt string,
+					nowAt string,
+					expectSpawn int,
+					expectSuppress float64,
+				) {
+					currentDateTime.SetNow(libtimetest.ParseDateTime(nowAt))
+					fm := lib.TaskFrontmatter{
+						"status":   "in_progress",
+						"phase":    string(domain.TaskPhaseInProgress),
+						"assignee": "claude",
+					}
+					if currentJob != "" {
+						fm["current_job"] = currentJob
+					}
+					if jobStartedAt != "" {
+						fm["job_started_at"] = jobStartedAt
+					}
+					task := lib.Task{
+						TaskIdentifier: lib.TaskIdentifier("tid-grace-table"),
+						Frontmatter:    fm,
+					}
+					before := testutil.ToFloat64(
+						metrics.TaskEventsTotal.WithLabelValues("respawn_grace_window"),
+					)
+					err := h.ConsumeMessage(ctx, buildMsg(task))
+					Expect(err).To(BeNil())
+					Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(expectSpawn))
+					after := testutil.ToFloat64(
+						metrics.TaskEventsTotal.WithLabelValues("respawn_grace_window"),
+					)
+					Expect(after - before).To(Equal(expectSuppress))
+				},
+				Entry(
+					"current_job set, job inactive, within grace => suppress",
+					"pod-A", "2026-05-16T20:19:16Z", "2026-05-16T20:19:26Z", // T+10s
+					0, float64(1),
+				),
+				Entry(
+					"current_job set, job inactive, past grace => spawn",
+					"pod-A", "2026-05-16T20:19:16Z", "2026-05-16T20:24:26Z", // T+310s
+					1, float64(0),
+				),
+				Entry(
+					"current_job empty, job inactive => spawn (no grace check)",
+					"", "", "2026-05-16T20:19:26Z",
+					1, float64(0),
+				),
+				Entry(
+					"current_job set, job inactive, job_started_at absent (legacy) => spawn",
+					"pod-legacy", "", "2026-05-16T20:19:26Z",
+					1, float64(0),
+				),
 			)
 		})
 	})

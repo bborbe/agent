@@ -90,6 +90,7 @@ func CreateConsumer(
 		resolver,
 		resultPublisher,
 		taskStore,
+		currentDateTimeGetter,
 	)
 	topic := lib.TaskV1SchemaID.EventTopic(branch)
 	offsetManager := libkafka.NewSaramaOffsetManager(

@@ -9,10 +9,12 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
+	libtime "github.com/bborbe/time"
 	"github.com/bborbe/vault-cli/pkg/domain"
 	"github.com/golang/glog"
 
@@ -33,6 +35,11 @@ var defaultTriggerPhases = domain.TaskPhases{
 var defaultTriggerStatuses = domain.TaskStatuses{
 	domain.TaskStatusInProgress,
 }
+
+// defaultRespawnGracePeriod is the window after job_started_at during which the executor
+// suppresses respawn when the K8s Job is inactive but no terminal phase has been observed.
+// The window gives the agent's terminal-phase write time to propagate through the vault pipeline.
+const defaultRespawnGracePeriod = 300 * time.Second
 
 // terminalPhases is the set of phases that must never trigger a new spawn.
 // Extending this set requires a follow-up spec if vault-cli adds new terminal phases.
@@ -88,6 +95,7 @@ func NewTaskEventHandler(
 	resolver pkg.ConfigResolver,
 	resultPublisher pkg.ResultPublisher,
 	taskStore *pkg.TaskStore,
+	currentDateTime libtime.CurrentDateTimeGetter,
 ) TaskEventHandler {
 	return &taskEventHandler{
 		jobSpawner:      jobSpawner,
@@ -95,6 +103,7 @@ func NewTaskEventHandler(
 		resolver:        resolver,
 		resultPublisher: resultPublisher,
 		taskStore:       taskStore,
+		currentDateTime: currentDateTime,
 	}
 }
 
@@ -104,6 +113,7 @@ type taskEventHandler struct {
 	resolver        pkg.ConfigResolver
 	resultPublisher pkg.ResultPublisher
 	taskStore       *pkg.TaskStore
+	currentDateTime libtime.CurrentDateTimeGetter
 }
 
 func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.ConsumerMessage) error {
@@ -289,6 +299,58 @@ func effectiveTriggerStatuses(cfg *pkg.AgentConfiguration) domain.TaskStatuses {
 	return cfg.Trigger.Statuses
 }
 
+// checkActiveCurrentJob verifies whether spawn must be suppressed due to current_job state.
+// Returns (true, nil) when the spawn must be suppressed (job still active or inside grace window).
+// Returns (false, nil) when spawn may proceed. Returns (false, err) on unexpected errors.
+func (h *taskEventHandler) checkActiveCurrentJob(
+	ctx context.Context,
+	task lib.Task,
+	currentJob string,
+) (bool, error) {
+	active, err := h.jobSpawner.IsJobActive(ctx, task.TaskIdentifier)
+	if err != nil {
+		metrics.TaskEventsTotal.WithLabelValues("error").Inc()
+		return false, errors.Wrapf(
+			ctx,
+			err,
+			"check current_job active for task %s",
+			task.TaskIdentifier,
+		)
+	}
+	if active {
+		glog.V(3).Infof(
+			"skip task %s: current_job %s still active (from frontmatter)",
+			task.TaskIdentifier, currentJob,
+		)
+		metrics.TaskEventsTotal.WithLabelValues("skipped_active_job").Inc()
+		return true, nil
+	}
+	// Grace window: suppress respawn while the agent's terminal-phase write propagates.
+	// Treat missing or unparseable job_started_at as elapsed (preserves legacy-task behavior).
+	jobStartedAt, parseErr := task.Frontmatter.JobStartedAt()
+	if parseErr != nil {
+		glog.Warningf(
+			"task %s: failed to parse job_started_at: %v; treating grace period as elapsed",
+			task.TaskIdentifier, parseErr,
+		)
+	} else if !jobStartedAt.IsZero() {
+		elapsed := h.currentDateTime.Now().Time().Sub(jobStartedAt)
+		if elapsed < defaultRespawnGracePeriod {
+			glog.Infof(
+				"event=respawn_grace_window task=%s current_job=%s elapsed=%.0fs",
+				task.TaskIdentifier, currentJob, elapsed.Seconds(),
+			)
+			metrics.TaskEventsTotal.WithLabelValues("respawn_grace_window").Inc()
+			return true, nil
+		}
+	}
+	glog.V(2).Infof(
+		"task %s: current_job %s no longer active, proceeding to spawn",
+		task.TaskIdentifier, currentJob,
+	)
+	return false, nil
+}
+
 // spawnIfNeeded runs the active-job checks and spawns a K8s Job when appropriate.
 func (h *taskEventHandler) spawnIfNeeded(
 	ctx context.Context,
@@ -298,28 +360,13 @@ func (h *taskEventHandler) spawnIfNeeded(
 	// If current_job is set in frontmatter, a prior spawn notification was written
 	// to the task file. Verify the job is still active; if not, proceed to spawn.
 	if currentJob := task.Frontmatter.CurrentJob(); currentJob != "" {
-		active, err := h.jobSpawner.IsJobActive(ctx, task.TaskIdentifier)
+		suppress, err := h.checkActiveCurrentJob(ctx, task, currentJob)
 		if err != nil {
-			metrics.TaskEventsTotal.WithLabelValues("error").Inc()
-			return errors.Wrapf(
-				ctx,
-				err,
-				"check current_job active for task %s",
-				task.TaskIdentifier,
-			)
+			return err
 		}
-		if active {
-			glog.V(3).Infof(
-				"skip task %s: current_job %s still active (from frontmatter)",
-				task.TaskIdentifier, currentJob,
-			)
-			metrics.TaskEventsTotal.WithLabelValues("skipped_active_job").Inc()
+		if suppress {
 			return nil
 		}
-		glog.V(2).Infof(
-			"task %s: current_job %s no longer active, proceeding to spawn",
-			task.TaskIdentifier, currentJob,
-		)
 	}
 
 	active, err := h.jobSpawner.IsJobActive(ctx, task.TaskIdentifier)

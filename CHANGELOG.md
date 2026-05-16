@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.62.19
+
+- fix(task/executor): add grace-period gate in `spawnIfNeeded` — when `current_job` is set and the K8s Job is inactive, respawn is suppressed for 300s from `job_started_at` to allow the agent's terminal-phase write to propagate; emits `event=respawn_grace_window` log + metric; closes the duplicate-spawn race from 2026-05-16T20:25Z prod incident
+- fix(lib): add `JobStartedAt() (time.Time, error)` accessor to `TaskFrontmatter` to parse the `job_started_at` frontmatter field written by `PublishSpawnNotification`
+
 ## v0.62.18
 
 - fix(task/executor): add explicit terminal-phase gate in `parseAndFilter` — tasks with `phase ∈ {human_review, done}` are suppressed before the trigger-phase allowlist, emitting `event=spawn_suppressed` log and `spawn_suppressed_terminal_phase` metric; unknown phases emit `event=unknown_phase`; closes the 2026-05-16 incident where pod 2 dismissed pod 1's GitHub review on task 22fda7e7

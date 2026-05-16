@@ -6,6 +6,7 @@ package lib_test
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -231,6 +232,28 @@ var _ = Describe("TaskFrontmatter", func() {
 		It("returns empty string when key is empty string", func() {
 			fm := lib.TaskFrontmatter{"current_job": ""}
 			Expect(fm.CurrentJob()).To(Equal(""))
+		})
+	})
+
+	Describe("JobStartedAt", func() {
+		It("returns zero time and nil when field is absent", func() {
+			fm := lib.TaskFrontmatter{}
+			t, err := fm.JobStartedAt()
+			Expect(err).To(BeNil())
+			Expect(t.IsZero()).To(BeTrue())
+		})
+
+		It("returns parsed time when field holds a valid RFC3339 string", func() {
+			fm := lib.TaskFrontmatter{"job_started_at": "2026-05-16T20:19:16Z"}
+			t, err := fm.JobStartedAt()
+			Expect(err).To(BeNil())
+			Expect(t.UTC()).To(Equal(time.Date(2026, 5, 16, 20, 19, 16, 0, time.UTC)))
+		})
+
+		It("returns error when field holds an invalid string", func() {
+			fm := lib.TaskFrontmatter{"job_started_at": "not-a-time"}
+			_, err := fm.JobStartedAt()
+			Expect(err).NotTo(BeNil())
 		})
 	})
 

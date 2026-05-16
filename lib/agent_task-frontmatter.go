@@ -5,6 +5,8 @@
 package lib
 
 import (
+	"time"
+
 	"github.com/bborbe/vault-cli/pkg/domain"
 )
 
@@ -113,6 +115,21 @@ func (f TaskFrontmatter) SpawnNotification() bool {
 func (f TaskFrontmatter) CurrentJob() string {
 	v, _ := f["current_job"].(string)
 	return v
+}
+
+// JobStartedAt parses the job_started_at frontmatter field written by PublishSpawnNotification.
+// Returns (time.Time{}, nil) when the field is absent — callers treat zero time as "grace elapsed".
+// Returns (time.Time{}, err) when the field is present but unparseable.
+func (f TaskFrontmatter) JobStartedAt() (time.Time, error) {
+	v, _ := f["job_started_at"].(string)
+	if v == "" {
+		return time.Time{}, nil
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return t, nil
 }
 
 // String reads a string field by key. ok is false when the key is absent

@@ -198,6 +198,24 @@ In cases 3 and 4 the task is always materialized under its UUID path — the sys
 
 **UUID fallback is permanent contract, not a migration affordance.** Producers that bypass the sender's `Validate`-before-publish (e.g. anyone with Kafka write access publishing a raw command) will trigger the fallback; the WARN log is the alerting mechanism. The existing file at `tasks/{task_identifier}.md` (if any) is the idempotency record.
 
+## Executor respawn gates
+
+The executor applies two sequential gates before spawning a K8s Job for a task:
+
+**Gate 1 — Terminal-phase gate (spec 035):** runs in `parseAndFilter`. Tasks whose `phase ∈ {human_review, done}` are suppressed before the trigger-phase allowlist. Emits `event=spawn_suppressed phase=<phase>` log and `spawn_suppressed_terminal_phase` metric. This gate fires when the agent's terminal-phase write has already arrived at the executor.
+
+**Gate 2 — Grace-period gate (spec 036):** runs in `spawnIfNeeded`, inside the `current_job != "" && !active` branch. When the K8s Job has exited but no terminal phase has been observed yet, the executor suppresses respawn for `defaultRespawnGracePeriod` (300 seconds) from `job_started_at`. Emits `event=respawn_grace_window task=<id> current_job=<job> elapsed=<seconds>` log and `respawn_grace_window` metric. After the grace period, a genuinely crashed agent (no terminal write, no field cleared) is retried normally.
+
+**Why two gates:** Gate 1 fires when the write has propagated; Gate 2 fires during the propagation window. Together they close the duplicate-spawn race: a clean-exit agent triggers Gate 2 during the window, then Gate 1 once the write lands. A crashed agent triggers neither gate (it never writes a terminal phase) and is retried after Gate 2's grace period expires.
+
+**Diagnostic commands:**
+```bash
+# Suppressed by grace window (within 300s of spawn)
+kubectl logs <executor-pod> | grep respawn_grace_window
+# Suppressed by terminal gate (write already propagated)
+kubectl logs <executor-pod> | grep spawn_suppressed_terminal_phase
+```
+
 ## References
 
 - `lib/delivery/status.go` — `AgentStatus` enum
