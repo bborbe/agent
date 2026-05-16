@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [036-bug-executor-respawns-before-terminal-write]
 summary: Added 300s grace-period gate in spawnIfNeeded to suppress duplicate spawns when K8s Job exits before terminal-phase write propagates, plus JobStartedAt() accessor in lib, metric pre-initialisation, 4 DescribeTable tests, and docs/CHANGELOG updates; make precommit exits 0 in both lib/ and task/executor/
 container: agent-132-spec-036-respawn-grace-window
@@ -7,6 +7,7 @@ dark-factory-version: v0.156.1-1-g04f3863-dirty
 created: "2026-05-16T21:30:00Z"
 queued: "2026-05-16T21:27:47Z"
 started: "2026-05-16T21:27:49Z"
+completed: "2026-05-16T21:35:53Z"
 branch: dark-factory/bug-executor-respawns-before-terminal-write
 ---
 
