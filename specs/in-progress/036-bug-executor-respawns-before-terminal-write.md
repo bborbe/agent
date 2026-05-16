@@ -1,10 +1,11 @@
 ---
-status: generating
+status: prompted
 tags:
     - agent
     - spec
 approved: "2026-05-16T20:57:01Z"
 generating: "2026-05-16T20:57:02Z"
+prompted: "2026-05-16T21:02:52Z"
 branch: dark-factory/bug-executor-respawns-before-terminal-write
 ---
 
