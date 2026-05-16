@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-05-16T14:53:49Z"
 generating: "2026-05-16T14:53:49Z"
 prompted: "2026-05-16T15:00:19Z"
 verifying: "2026-05-16T16:26:27Z"
+completed: "2026-05-16T21:05:22Z"
 branch: dark-factory/bug-task-executor-respawns-on-terminal-phase
 ---
 
