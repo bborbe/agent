@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-05-14T14:39:56Z"
 generating: "2026-05-14T14:39:57Z"
 prompted: "2026-05-14T14:45:56Z"
 verifying: "2026-05-14T15:12:21Z"
+completed: "2026-05-16T20:14:42Z"
 branch: dark-factory/preserve-frontmatter-types-through-delivery
 ---
 
