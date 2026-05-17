@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [037-bug-executor-no-retry-after-grace-window-expiry]
 summary: 'Added deferred-respawn reconciliation loop (spec 037): grace-window suppressions now seed a deferredRespawns map; RunDeferredRespawnLoop polls every 30s and fires spawnIfNeeded once grace elapses; terminal-phase events clear deferred entries; startup seed recovers in-flight tasks from taskStore; respawn_after_grace_window metric and log line fire only on actual spawns; factory and main.go wired; 6 new tests covering all ACs; make precommit exits 0.'
 container: agent-exec-133-spec-037-deferred-respawn-after-grace-window
@@ -7,6 +7,7 @@ dark-factory-version: v0.162.0
 created: "2026-05-17T11:00:00Z"
 queued: "2026-05-17T11:03:38Z"
 started: "2026-05-17T11:03:40Z"
+completed: "2026-05-17T11:17:50Z"
 branch: dark-factory/bug-executor-no-retry-after-grace-window-expiry
 ---
 
