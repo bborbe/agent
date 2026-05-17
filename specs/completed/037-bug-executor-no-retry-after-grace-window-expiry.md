@@ -1,11 +1,13 @@
 ---
-status: prompted
+status: completed
 tags:
     - dark-factory
     - spec
 approved: "2026-05-17T10:17:26Z"
 generating: "2026-05-17T10:18:40Z"
 prompted: "2026-05-17T10:39:28Z"
+verifying: "2026-05-17T11:17:50Z"
+completed: "2026-05-17T13:45:14Z"
 branch: dark-factory/bug-executor-no-retry-after-grace-window-expiry
 ---
 
