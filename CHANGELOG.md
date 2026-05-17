@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.62.20
+
+- fix(task/executor): add deferred-respawn reconciliation loop — when `checkActiveCurrentJob` suppresses respawn inside the grace window, the task is queued for re-evaluation after `defaultRespawnGracePeriod`; `RunDeferredRespawnLoop` polls every 30s and calls `spawnIfNeeded` once grace elapses; emits `event=respawn_after_grace_window` log and `respawn_after_grace_window` metric; eliminates the "stuck forever" failure mode from 2026-05-17 (task `cbe79223`, PR #128 not reviewed for >2h)
+- fix(task/executor): terminal-phase Kafka events now remove any pending deferred-respawn entry for the same task, preventing a stale spawn after the task has transitioned to `human_review` or `done`
+
 ## v0.62.19
 
 - fix(task/executor): add grace-period gate in `spawnIfNeeded` — when `current_job` is set and the K8s Job is inactive, respawn is suppressed for 300s from `job_started_at` to allow the agent's terminal-phase write to propagate; emits `event=respawn_grace_window` log + metric; closes the duplicate-spawn race from 2026-05-16T20:25Z prod incident

@@ -216,6 +216,25 @@ kubectl logs <executor-pod> | grep respawn_grace_window
 kubectl logs <executor-pod> | grep spawn_suppressed_terminal_phase
 ```
 
+**Why suppression alone is insufficient (spec 037):**
+During mid-flow phase transitions (e.g. planning → in_progress), the task event triggered by the transition may arrive DURING the grace window and be suppressed. Because the agent only clears `current_job` on terminal writes, no further task events for this task are produced. The executor, being purely event-driven, would never re-check the task — leaving it permanently stuck at `phase=in_progress` with no second pod. Observed on 2026-05-17 (task `cbe79223-...`, PR #128 not reviewed for >2h).
+
+**Gate 3 — Deferred re-evaluation (spec 037):** runs in `evalDeferredRespawns`, called by `RunDeferredRespawnLoop` every 30 seconds. When Gate 2 suppresses a respawn, the task is stored in a `deferredRespawns` map with `retryAfter = job_started_at + defaultRespawnGracePeriod`. After the grace period expires, `evalDeferredRespawns` runs the same `spawnIfNeeded` predicate against the stored task state. If the predicate permits spawn (job inactive, trigger cap not hit, phase non-terminal), a new pod is spawned. Emits `event=respawn_after_grace_window task=<id> current_job=<job> elapsed=<seconds>` log and `respawn_after_grace_window` metric.
+
+**Deferred entry lifecycle:**
+- Created: when Gate 2 suppresses (task stored with `retryAfter`)
+- Cleared (early): when a terminal-phase Kafka event for the same task is processed (Gate 1 fires in `parseAndFilter`)
+- Cleared (normal): when the deferred eval runs and calls `spawnIfNeeded`
+- Bounded: R ≤ 60 s after grace expiry (poll interval 30 s + clock comparison overhead)
+- Restart behaviour: on executor startup, the deferred-respawn loop scans the in-memory `TaskStore` for tasks with `current_job` set and a non-terminal phase, and seeds the deferred map with `retryAfter = job_started_at + defaultRespawnGracePeriod`. The first eval runs immediately, so tasks whose grace has already elapsed at startup are picked up without waiting for a Kafka event. The wider out-of-process restart case (empty `TaskStore`) is bounded by the existing `job_watcher` informer re-list path described in spec 037 (option D)
+
+```bash
+# Deferred respawn fired (stuck task rescued by the deferred retry)
+kubectl logs <executor-pod> | grep respawn_after_grace_window
+# Suppressed by grace window (spec 036 suppression, within 300s of spawn)
+kubectl logs <executor-pod> | grep 'event=respawn_grace_window'
+```
+
 ## References
 
 - `lib/delivery/status.go` — `AgentStatus` enum

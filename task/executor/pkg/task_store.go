@@ -44,3 +44,15 @@ func (s *TaskStore) Delete(id lib.TaskIdentifier) {
 	defer s.mu.Unlock()
 	delete(s.tasks, id)
 }
+
+// Snapshot returns a shallow copy of the current task map for read-only iteration.
+// Safe to call concurrently with Store/Delete; the returned map is owned by the caller.
+func (s *TaskStore) Snapshot() map[lib.TaskIdentifier]lib.Task {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[lib.TaskIdentifier]lib.Task, len(s.tasks))
+	for k, v := range s.tasks {
+		out[k] = v
+	}
+	return out
+}

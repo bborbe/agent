@@ -22,6 +22,28 @@ type FakeTaskEventHandler struct {
 	consumeMessageReturnsOnCall map[int]struct {
 		result1 error
 	}
+	EvalDeferredRespawnsStub        func(context.Context) error
+	evalDeferredRespawnsMutex       sync.RWMutex
+	evalDeferredRespawnsArgsForCall []struct {
+		arg1 context.Context
+	}
+	evalDeferredRespawnsReturns struct {
+		result1 error
+	}
+	evalDeferredRespawnsReturnsOnCall map[int]struct {
+		result1 error
+	}
+	RunDeferredRespawnLoopStub        func(context.Context) error
+	runDeferredRespawnLoopMutex       sync.RWMutex
+	runDeferredRespawnLoopArgsForCall []struct {
+		arg1 context.Context
+	}
+	runDeferredRespawnLoopReturns struct {
+		result1 error
+	}
+	runDeferredRespawnLoopReturnsOnCall map[int]struct {
+		result1 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -84,6 +106,128 @@ func (fake *FakeTaskEventHandler) ConsumeMessageReturnsOnCall(i int, result1 err
 		})
 	}
 	fake.consumeMessageReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeTaskEventHandler) EvalDeferredRespawns(arg1 context.Context) error {
+	fake.evalDeferredRespawnsMutex.Lock()
+	ret, specificReturn := fake.evalDeferredRespawnsReturnsOnCall[len(fake.evalDeferredRespawnsArgsForCall)]
+	fake.evalDeferredRespawnsArgsForCall = append(fake.evalDeferredRespawnsArgsForCall, struct {
+		arg1 context.Context
+	}{arg1})
+	stub := fake.EvalDeferredRespawnsStub
+	fakeReturns := fake.evalDeferredRespawnsReturns
+	fake.recordInvocation("EvalDeferredRespawns", []interface{}{arg1})
+	fake.evalDeferredRespawnsMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeTaskEventHandler) EvalDeferredRespawnsCallCount() int {
+	fake.evalDeferredRespawnsMutex.RLock()
+	defer fake.evalDeferredRespawnsMutex.RUnlock()
+	return len(fake.evalDeferredRespawnsArgsForCall)
+}
+
+func (fake *FakeTaskEventHandler) EvalDeferredRespawnsCalls(stub func(context.Context) error) {
+	fake.evalDeferredRespawnsMutex.Lock()
+	defer fake.evalDeferredRespawnsMutex.Unlock()
+	fake.EvalDeferredRespawnsStub = stub
+}
+
+func (fake *FakeTaskEventHandler) EvalDeferredRespawnsArgsForCall(i int) context.Context {
+	fake.evalDeferredRespawnsMutex.RLock()
+	defer fake.evalDeferredRespawnsMutex.RUnlock()
+	argsForCall := fake.evalDeferredRespawnsArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeTaskEventHandler) EvalDeferredRespawnsReturns(result1 error) {
+	fake.evalDeferredRespawnsMutex.Lock()
+	defer fake.evalDeferredRespawnsMutex.Unlock()
+	fake.EvalDeferredRespawnsStub = nil
+	fake.evalDeferredRespawnsReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeTaskEventHandler) EvalDeferredRespawnsReturnsOnCall(i int, result1 error) {
+	fake.evalDeferredRespawnsMutex.Lock()
+	defer fake.evalDeferredRespawnsMutex.Unlock()
+	fake.EvalDeferredRespawnsStub = nil
+	if fake.evalDeferredRespawnsReturnsOnCall == nil {
+		fake.evalDeferredRespawnsReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.evalDeferredRespawnsReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeTaskEventHandler) RunDeferredRespawnLoop(arg1 context.Context) error {
+	fake.runDeferredRespawnLoopMutex.Lock()
+	ret, specificReturn := fake.runDeferredRespawnLoopReturnsOnCall[len(fake.runDeferredRespawnLoopArgsForCall)]
+	fake.runDeferredRespawnLoopArgsForCall = append(fake.runDeferredRespawnLoopArgsForCall, struct {
+		arg1 context.Context
+	}{arg1})
+	stub := fake.RunDeferredRespawnLoopStub
+	fakeReturns := fake.runDeferredRespawnLoopReturns
+	fake.recordInvocation("RunDeferredRespawnLoop", []interface{}{arg1})
+	fake.runDeferredRespawnLoopMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeTaskEventHandler) RunDeferredRespawnLoopCallCount() int {
+	fake.runDeferredRespawnLoopMutex.RLock()
+	defer fake.runDeferredRespawnLoopMutex.RUnlock()
+	return len(fake.runDeferredRespawnLoopArgsForCall)
+}
+
+func (fake *FakeTaskEventHandler) RunDeferredRespawnLoopCalls(stub func(context.Context) error) {
+	fake.runDeferredRespawnLoopMutex.Lock()
+	defer fake.runDeferredRespawnLoopMutex.Unlock()
+	fake.RunDeferredRespawnLoopStub = stub
+}
+
+func (fake *FakeTaskEventHandler) RunDeferredRespawnLoopArgsForCall(i int) context.Context {
+	fake.runDeferredRespawnLoopMutex.RLock()
+	defer fake.runDeferredRespawnLoopMutex.RUnlock()
+	argsForCall := fake.runDeferredRespawnLoopArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeTaskEventHandler) RunDeferredRespawnLoopReturns(result1 error) {
+	fake.runDeferredRespawnLoopMutex.Lock()
+	defer fake.runDeferredRespawnLoopMutex.Unlock()
+	fake.RunDeferredRespawnLoopStub = nil
+	fake.runDeferredRespawnLoopReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeTaskEventHandler) RunDeferredRespawnLoopReturnsOnCall(i int, result1 error) {
+	fake.runDeferredRespawnLoopMutex.Lock()
+	defer fake.runDeferredRespawnLoopMutex.Unlock()
+	fake.RunDeferredRespawnLoopStub = nil
+	if fake.runDeferredRespawnLoopReturnsOnCall == nil {
+		fake.runDeferredRespawnLoopReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.runDeferredRespawnLoopReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }

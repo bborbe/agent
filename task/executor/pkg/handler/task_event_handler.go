@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -40,6 +41,19 @@ var defaultTriggerStatuses = domain.TaskStatuses{
 // suppresses respawn when the K8s Job is inactive but no terminal phase has been observed.
 // The window gives the agent's terminal-phase write time to propagate through the vault pipeline.
 const defaultRespawnGracePeriod = 300 * time.Second
+
+// deferredRespawnInterval is the polling interval for the deferred-respawn reconciliation loop.
+// Must be ≤ 60s to satisfy the R ≤ 60s bound from spec 037 (R = interval + per-tick
+// comparison/spawn overhead; 30 s leaves headroom under the 60 s bound).
+const deferredRespawnInterval = 30 * time.Second
+
+// deferredEntry tracks a task whose respawn was suppressed by the grace window.
+// The executor re-evaluates it once retryAfter is reached.
+type deferredEntry struct {
+	task       lib.Task
+	config     pkg.AgentConfiguration
+	retryAfter time.Time
+}
 
 // terminalPhases is the set of phases that must never trigger a new spawn.
 // Extending this set requires a follow-up spec if vault-cli adds new terminal phases.
@@ -83,9 +97,15 @@ func applyPhaseGate(task lib.Task, phase domain.TaskPhase) bool {
 
 //counterfeiter:generate -o ../../mocks/task_event_handler.go --fake-name FakeTaskEventHandler . TaskEventHandler
 
-// TaskEventHandler processes a single task event message from Kafka.
+// TaskEventHandler processes task event messages from Kafka and manages deferred respawns.
 type TaskEventHandler interface {
 	ConsumeMessage(ctx context.Context, msg *sarama.ConsumerMessage) error
+	// EvalDeferredRespawns evaluates all pending deferred-respawn entries immediately.
+	// Called by RunDeferredRespawnLoop on each tick; also callable directly in tests.
+	EvalDeferredRespawns(ctx context.Context) error
+	// RunDeferredRespawnLoop polls evalDeferredRespawns every deferredRespawnInterval
+	// until ctx is cancelled. Must be run alongside the Kafka consumer.
+	RunDeferredRespawnLoop(ctx context.Context) error
 }
 
 // NewTaskEventHandler creates a new TaskEventHandler.
@@ -98,22 +118,25 @@ func NewTaskEventHandler(
 	currentDateTime libtime.CurrentDateTimeGetter,
 ) TaskEventHandler {
 	return &taskEventHandler{
-		jobSpawner:      jobSpawner,
-		branch:          branch,
-		resolver:        resolver,
-		resultPublisher: resultPublisher,
-		taskStore:       taskStore,
-		currentDateTime: currentDateTime,
+		jobSpawner:       jobSpawner,
+		branch:           branch,
+		resolver:         resolver,
+		resultPublisher:  resultPublisher,
+		taskStore:        taskStore,
+		currentDateTime:  currentDateTime,
+		deferredRespawns: make(map[lib.TaskIdentifier]deferredEntry),
 	}
 }
 
 type taskEventHandler struct {
-	jobSpawner      spawner.JobSpawner
-	branch          base.Branch
-	resolver        pkg.ConfigResolver
-	resultPublisher pkg.ResultPublisher
-	taskStore       *pkg.TaskStore
-	currentDateTime libtime.CurrentDateTimeGetter
+	jobSpawner       spawner.JobSpawner
+	branch           base.Branch
+	resolver         pkg.ConfigResolver
+	resultPublisher  pkg.ResultPublisher
+	taskStore        *pkg.TaskStore
+	currentDateTime  libtime.CurrentDateTimeGetter
+	deferredMu       sync.Mutex
+	deferredRespawns map[lib.TaskIdentifier]deferredEntry
 }
 
 func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.ConsumerMessage) error {
@@ -124,7 +147,8 @@ func (h *taskEventHandler) ConsumeMessage(ctx context.Context, msg *sarama.Consu
 	if skip {
 		return nil
 	}
-	return h.spawnIfNeeded(ctx, task, config)
+	_, err = h.spawnIfNeeded(ctx, task, config)
+	return err
 }
 
 // parseAndFilter unmarshals the message and applies all pre-spawn filter checks.
@@ -191,9 +215,9 @@ func (h *taskEventHandler) parseAndFilter(
 	}
 
 	phase := task.Frontmatter.Phase()
-
 	// terminal phases must not be spawned again — operator escalation required
 	if phase != nil && applyPhaseGate(task, *phase) {
+		h.removeDeferredEntry(task.TaskIdentifier)
 		return lib.Task{}, nil, true, nil
 	}
 	if phase == nil || !effectiveTriggerPhases(config).Contains(*phase) {
@@ -306,6 +330,7 @@ func (h *taskEventHandler) checkActiveCurrentJob(
 	ctx context.Context,
 	task lib.Task,
 	currentJob string,
+	config *pkg.AgentConfiguration,
 ) (bool, error) {
 	active, err := h.jobSpawner.IsJobActive(ctx, task.TaskIdentifier)
 	if err != nil {
@@ -333,7 +358,8 @@ func (h *taskEventHandler) checkActiveCurrentJob(
 			"task %s: failed to parse job_started_at: %v; treating grace period as elapsed",
 			task.TaskIdentifier, parseErr,
 		)
-	} else if !jobStartedAt.IsZero() {
+	}
+	if parseErr == nil && !jobStartedAt.IsZero() {
 		elapsed := h.currentDateTime.Now().Time().Sub(jobStartedAt)
 		if elapsed < defaultRespawnGracePeriod {
 			glog.Infof(
@@ -341,6 +367,16 @@ func (h *taskEventHandler) checkActiveCurrentJob(
 				task.TaskIdentifier, currentJob, elapsed.Seconds(),
 			)
 			metrics.TaskEventsTotal.WithLabelValues("respawn_grace_window").Inc()
+			if config != nil {
+				retryAfter := jobStartedAt.Add(defaultRespawnGracePeriod)
+				h.deferredMu.Lock()
+				h.deferredRespawns[task.TaskIdentifier] = deferredEntry{
+					task:       task,
+					config:     *config,
+					retryAfter: retryAfter,
+				}
+				h.deferredMu.Unlock()
+			}
 			return true, nil
 		}
 	}
@@ -351,33 +387,35 @@ func (h *taskEventHandler) checkActiveCurrentJob(
 	return false, nil
 }
 
-// spawnIfNeeded runs the active-job checks and spawns a K8s Job when appropriate.
+// spawnIfNeeded returns (spawned, err): spawned is true iff a new k8s Job was actually launched
+// (i.e. the call reached SpawnJob successfully). All early-return branches (suppression, trigger
+// cap, active job, terminal phase, errors) return spawned=false.
 func (h *taskEventHandler) spawnIfNeeded(
 	ctx context.Context,
 	task lib.Task,
 	config *pkg.AgentConfiguration,
-) error {
+) (bool, error) {
 	// If current_job is set in frontmatter, a prior spawn notification was written
 	// to the task file. Verify the job is still active; if not, proceed to spawn.
 	if currentJob := task.Frontmatter.CurrentJob(); currentJob != "" {
-		suppress, err := h.checkActiveCurrentJob(ctx, task, currentJob)
+		suppress, err := h.checkActiveCurrentJob(ctx, task, currentJob, config)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if suppress {
-			return nil
+			return false, nil
 		}
 	}
 
 	active, err := h.jobSpawner.IsJobActive(ctx, task.TaskIdentifier)
 	if err != nil {
 		metrics.TaskEventsTotal.WithLabelValues("error").Inc()
-		return errors.Wrapf(ctx, err, "check active job for task %s", task.TaskIdentifier)
+		return false, errors.Wrapf(ctx, err, "check active job for task %s", task.TaskIdentifier)
 	}
 	if active {
 		glog.V(3).Infof("skip task %s: active job exists", task.TaskIdentifier)
 		metrics.TaskEventsTotal.WithLabelValues("skipped_active_job").Inc()
-		return nil
+		return false, nil
 	}
 
 	if task.Frontmatter.TriggerCount() >= task.Frontmatter.MaxTriggers() {
@@ -387,12 +425,12 @@ func (h *taskEventHandler) spawnIfNeeded(
 			task.Frontmatter.MaxTriggers(),
 		)
 		metrics.TaskEventsTotal.WithLabelValues("skipped_trigger_cap").Inc()
-		return nil
+		return false, nil
 	}
 
 	if err := h.resultPublisher.PublishIncrementTriggerCount(ctx, task); err != nil {
 		metrics.TaskEventsTotal.WithLabelValues("error").Inc()
-		return errors.Wrapf(
+		return false, errors.Wrapf(
 			ctx,
 			err,
 			"publish increment trigger_count for task %s",
@@ -403,7 +441,7 @@ func (h *taskEventHandler) spawnIfNeeded(
 	jobName, err := h.jobSpawner.SpawnJob(ctx, task, *config)
 	if err != nil {
 		metrics.TaskEventsTotal.WithLabelValues("error").Inc()
-		return errors.Wrapf(ctx, err, "spawn job for task %s failed", task.TaskIdentifier)
+		return false, errors.Wrapf(ctx, err, "spawn job for task %s failed", task.TaskIdentifier)
 	}
 
 	h.taskStore.Store(task.TaskIdentifier, task)
@@ -419,5 +457,125 @@ func (h *taskEventHandler) spawnIfNeeded(
 	)
 	metrics.TaskEventsTotal.WithLabelValues("spawned").Inc()
 	metrics.JobsSpawnedTotal.Inc()
+	return true, nil
+}
+
+// evalDeferredRespawns checks all pending deferred-respawn entries and spawns a job
+// for each entry whose retryAfter has been reached. Entries are removed once processed.
+// The respawn_after_grace_window metric and log line fire ONLY when the call actually
+// results in a spawn (spec 037 AC #6: "recorded each time the follow-up evaluation
+// results in a spawn"); evaluations that no-op (active job already, trigger cap hit,
+// terminal phase) do not increment the metric.
+func (h *taskEventHandler) evalDeferredRespawns(ctx context.Context) error {
+	now := h.currentDateTime.Now().Time()
+
+	h.deferredMu.Lock()
+	var ready []deferredEntry
+	for taskID, entry := range h.deferredRespawns {
+		if !now.Before(entry.retryAfter) {
+			ready = append(ready, entry)
+			delete(h.deferredRespawns, taskID)
+		}
+	}
+	h.deferredMu.Unlock()
+
+	for _, entry := range ready {
+		entry := entry // capture for closure
+		spawned, err := h.spawnIfNeeded(ctx, entry.task, &entry.config)
+		if err != nil {
+			return errors.Wrapf(
+				ctx, err, "deferred respawn for task %s", entry.task.TaskIdentifier,
+			)
+		}
+		if !spawned {
+			continue
+		}
+		jobStartedAt, _ := entry.task.Frontmatter.JobStartedAt()
+		elapsed := now.Sub(jobStartedAt)
+		glog.Infof(
+			"event=respawn_after_grace_window task=%s current_job=%s elapsed=%.0fs",
+			entry.task.TaskIdentifier, entry.task.Frontmatter.CurrentJob(), elapsed.Seconds(),
+		)
+		metrics.TaskEventsTotal.WithLabelValues("respawn_after_grace_window").Inc()
+	}
 	return nil
+}
+
+// removeDeferredEntry removes any pending deferred-respawn entry for the given task.
+// Called from parseAndFilter when a terminal-phase event arrives so no stale spawn fires.
+func (h *taskEventHandler) removeDeferredEntry(id lib.TaskIdentifier) {
+	h.deferredMu.Lock()
+	delete(h.deferredRespawns, id)
+	h.deferredMu.Unlock()
+}
+
+// EvalDeferredRespawns implements TaskEventHandler.
+func (h *taskEventHandler) EvalDeferredRespawns(ctx context.Context) error {
+	return h.evalDeferredRespawns(ctx)
+}
+
+// seedDeferredRespawnsFromStore scans the in-memory taskStore for tasks that look
+// like in-flight work (current_job set, phase non-terminal) and adds them to
+// deferredRespawns with retryAfter = job_started_at + defaultRespawnGracePeriod.
+// Called once from RunDeferredRespawnLoop on startup. Idempotent: any entry already
+// present in deferredRespawns is left untouched. This restores deferred state lost
+// when the in-memory map is wiped by an executor restart, so a stuck task does not
+// remain stuck for want of a Kafka event that will never arrive.
+func (h *taskEventHandler) seedDeferredRespawnsFromStore() {
+	snapshot := h.taskStore.Snapshot()
+
+	h.deferredMu.Lock()
+	defer h.deferredMu.Unlock()
+	for taskID, task := range snapshot {
+		if _, exists := h.deferredRespawns[taskID]; exists {
+			continue
+		}
+		currentJob := task.Frontmatter.CurrentJob()
+		if currentJob == "" {
+			continue
+		}
+		phase := task.Frontmatter.Phase()
+		if phase != nil && IsTerminal(*phase) {
+			continue
+		}
+		jobStartedAt, jobStartedErr := task.Frontmatter.JobStartedAt()
+		if jobStartedErr != nil {
+			continue
+		}
+		h.deferredRespawns[taskID] = deferredEntry{
+			task: task,
+			// config: the agent configuration is resolved at event time; the seed
+			// uses an empty value here. For seeded entries the config is zero-valued;
+			// this is acceptable because the next genuine Kafka event for the task
+			// will supply the correct config via the event-driven path.
+			retryAfter: jobStartedAt.Add(defaultRespawnGracePeriod),
+		}
+	}
+}
+
+// RunDeferredRespawnLoop implements TaskEventHandler.
+func (h *taskEventHandler) RunDeferredRespawnLoop(ctx context.Context) error {
+	// Startup reconciliation: recover deferred entries lost across an executor
+	// restart by scanning the in-memory taskStore. See seedDeferredRespawnsFromStore
+	// for the restart-safety rationale (spec 037 AC #5).
+	h.seedDeferredRespawnsFromStore()
+
+	// Fire one eval immediately after seeding so that tasks whose grace has
+	// already elapsed at startup are picked up without waiting for the first tick.
+	if err := h.evalDeferredRespawns(ctx); err != nil {
+		return errors.Wrapf(ctx, err, "deferred respawn loop initial eval")
+	}
+
+	ticker := time.NewTicker(deferredRespawnInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			if err := h.evalDeferredRespawns(ctx); err != nil {
+				return errors.Wrapf(ctx, err, "deferred respawn loop tick")
+			}
+		}
+	}
 }

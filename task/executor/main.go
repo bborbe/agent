@@ -105,7 +105,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		healthcheckRunner,
 	)
 
-	consumer := factory.CreateConsumer(
+	consumer, taskEventHandler := factory.CreateConsumer(
 		saramaClient,
 		a.Branch,
 		kubeClient,
@@ -123,12 +123,9 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		func(ctx context.Context) error {
 			return connector.Listen(ctx, a.Namespace, resourceEventHandler)
 		},
-		func(ctx context.Context) error {
-			return consumer.Consume(ctx)
-		},
-		func(ctx context.Context) error {
-			return jobWatcher.Run(ctx)
-		},
+		consumer.Consume,
+		taskEventHandler.RunDeferredRespawnLoop,
+		jobWatcher.Run,
 		a.createHTTPServer(eventHandlerConfig, healthcheckRunner),
 		healthcheckCron.Run,
 	)

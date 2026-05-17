@@ -1151,6 +1151,225 @@ var _ = Describe("TaskEventHandler", func() {
 			)
 		})
 
+		Describe("EvalDeferredRespawns (spec 037)", func() {
+			const (
+				anchorTime      = "2026-05-17T09:34:00Z" // T+0 (pod 1 start)
+				insideGrace     = "2026-05-17T09:34:59Z" // T+59s (suppression event time)
+				graceExpiredM1  = "2026-05-17T09:38:59Z" // T+299s (1s before grace expiry)
+				graceExpiredR   = "2026-05-17T09:39:30Z" // T+330s (within R=60s)
+				graceExpiredMax = "2026-05-17T09:40:00Z" // T+360s (= grace + 60s)
+			)
+
+			buildGraceTask := func(phase domain.TaskPhase, triggerCount, maxTriggers int) lib.Task {
+				return lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("tid-deferred-037"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":         "in_progress",
+						"phase":          string(phase),
+						"assignee":       "claude",
+						"stage":          "prod",
+						"current_job":    "pr-reviewer-agent-cbe79223-20260517093325",
+						"job_started_at": anchorTime,
+						"trigger_count":  triggerCount,
+						"max_triggers":   maxTriggers,
+					},
+				}
+			}
+
+			BeforeEach(func() {
+				fakeSpawner.IsJobActiveReturns(false, nil)
+				fakeSpawner.SpawnJobReturns("job-deferred-1", nil)
+			})
+
+			It("deferred re-eval fires after grace expiry without a second Kafka event", func() {
+				// Step 1: suppression event arrives inside grace window — no spawn
+				currentDateTime.SetNow(libtimetest.ParseDateTime(insideGrace))
+				task := buildGraceTask(domain.TaskPhaseInProgress, 0, 3)
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+
+				// Step 2: no further Kafka event; advance clock to T+330s (within R=60s)
+				currentDateTime.SetNow(libtimetest.ParseDateTime(graceExpiredR))
+
+				before := testutil.ToFloat64(
+					metrics.TaskEventsTotal.WithLabelValues("respawn_after_grace_window"),
+				)
+				err = h.EvalDeferredRespawns(ctx)
+				Expect(err).To(BeNil())
+
+				// Deferred eval must have spawned once
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+				after := testutil.ToFloat64(
+					metrics.TaskEventsTotal.WithLabelValues("respawn_after_grace_window"),
+				)
+				Expect(after - before).To(Equal(float64(1)))
+			})
+
+			It("deferred re-eval bound: no spawn before grace+R, spawn at grace+60s", func() {
+				// Suppress inside grace window
+				currentDateTime.SetNow(libtimetest.ParseDateTime(insideGrace))
+				task := buildGraceTask(domain.TaskPhaseInProgress, 0, 3)
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+
+				// At grace-1s: evaluation fires but retryAfter not yet reached → no spawn
+				currentDateTime.SetNow(libtimetest.ParseDateTime(graceExpiredM1))
+				err = h.EvalDeferredRespawns(ctx)
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+
+				// At grace+60s: retryAfter reached → spawn
+				currentDateTime.SetNow(libtimetest.ParseDateTime(graceExpiredMax))
+				err = h.EvalDeferredRespawns(ctx)
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+			})
+
+			It(
+				"deferred re-eval is idempotent when an event-driven spawn occurs during grace",
+				func() {
+					// Step 1: suppress inside grace window → deferred entry created
+					currentDateTime.SetNow(libtimetest.ParseDateTime(insideGrace))
+					task := buildGraceTask(domain.TaskPhaseInProgress, 0, 3)
+					err := h.ConsumeMessage(ctx, buildMsg(task))
+					Expect(err).To(BeNil())
+					Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+
+					// Step 2: a fresh event-driven spawn occurs (new pod is now active)
+					fakeSpawner.IsJobActiveReturns(
+						true,
+						nil,
+					) // new pod active — simulates event-driven spawn
+
+					// Step 3: advance clock past grace and eval — deferred check finds active job → no duplicate
+					currentDateTime.SetNow(libtimetest.ParseDateTime(graceExpiredR))
+					before := testutil.ToFloat64(
+						metrics.TaskEventsTotal.WithLabelValues("respawn_after_grace_window"),
+					)
+					err = h.EvalDeferredRespawns(ctx)
+					Expect(err).To(BeNil())
+					// No duplicate spawn: active job suppresses it
+					Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+					after := testutil.ToFloat64(
+						metrics.TaskEventsTotal.WithLabelValues("respawn_after_grace_window"),
+					)
+					// Spec 037 AC #6: metric increments only when the eval results in a spawn.
+					// Here the deferred eval no-ops (active job), so the delta MUST be 0.
+					Expect(after - before).To(Equal(float64(0)))
+				},
+			)
+
+			It(
+				"startup seed: stuck task in taskStore is re-evaluated after restart (AC #5)",
+				func() {
+					// Simulate the post-restart state: a fresh handler with an empty
+					// deferredRespawns map but a taskStore that already holds the stuck task.
+					// The zero-value config stored by the seed is acceptable here because
+					// fakeSpawner does not inspect config fields.
+					stuck := buildGraceTask(domain.TaskPhaseInProgress, 0, 3)
+					restartStore := pkg.NewTaskStore()
+					restartStore.Store(stuck.TaskIdentifier, stuck)
+
+					freshHandler := handler.NewTaskEventHandler(
+						fakeSpawner,
+						base.Branch("prod"),
+						fakeResolver,
+						fakeResultPublisher,
+						restartStore,
+						currentDateTime,
+					)
+
+					// Clock is past grace expiry — simulating the executor coming back up
+					// long after the original suppression event.
+					currentDateTime.SetNow(libtimetest.ParseDateTime(graceExpiredMax))
+
+					before := fakeSpawner.SpawnJobCallCount()
+
+					// Drive only the startup path: run the loop in a short-lived context
+					// so the goroutine returns after the initial seed + immediate eval.
+					shortCtx, cancel := context.WithCancel(ctx)
+					done := make(chan error, 1)
+					go func() { done <- freshHandler.RunDeferredRespawnLoop(shortCtx) }()
+					// Allow the initial eval to run. The first eval runs synchronously
+					// before the ticker starts, so cancelling after the spawn is observed is safe.
+					Eventually(func() int {
+						return fakeSpawner.SpawnJobCallCount()
+					}).Should(BeNumerically(">=", before+1))
+					cancel()
+					Expect(<-done).To(BeNil())
+
+					// Exactly one spawn from the seeded entry.
+					Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(before + 1))
+				},
+			)
+
+			It("deferred re-eval respects trigger cap", func() {
+				// task with trigger_count == max_triggers — will hit skipped_trigger_cap in spawnIfNeeded
+				currentDateTime.SetNow(libtimetest.ParseDateTime(insideGrace))
+				task := buildGraceTask(domain.TaskPhaseInProgress, 3, 3)
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+
+				currentDateTime.SetNow(libtimetest.ParseDateTime(graceExpiredR))
+				beforeCap := testutil.ToFloat64(
+					metrics.TaskEventsTotal.WithLabelValues("skipped_trigger_cap"),
+				)
+				err = h.EvalDeferredRespawns(ctx)
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+				afterCap := testutil.ToFloat64(
+					metrics.TaskEventsTotal.WithLabelValues("skipped_trigger_cap"),
+				)
+				Expect(afterCap - beforeCap).To(Equal(float64(1)))
+			})
+
+			It("deferred re-eval entry is removed when a terminal-phase event arrives", func() {
+				// Step 1: suppress inside grace → deferred entry created
+				currentDateTime.SetNow(libtimetest.ParseDateTime(insideGrace))
+				task := buildGraceTask(domain.TaskPhaseInProgress, 0, 3)
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+
+				// Step 2: terminal-phase event arrives (spec 035 gate fires + removes deferred entry)
+				// Use a custom trigger that includes human_review in its Phases so WITHOUT the gate it would spawn.
+				fakeResolver.ResolveReturns(
+					pkg.AgentConfiguration{
+						Assignee: "claude",
+						Image:    "my-image:latest",
+						Trigger: &agentv1.Trigger{
+							Phases: domain.TaskPhases{
+								domain.TaskPhaseInProgress,
+								domain.TaskPhaseHumanReview,
+							},
+							Statuses: domain.TaskStatuses{domain.TaskStatusInProgress},
+						},
+					},
+					nil,
+				)
+				terminalTask := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("tid-deferred-037"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":   "in_progress",
+						"phase":    string(domain.TaskPhaseHumanReview),
+						"assignee": "claude",
+						"stage":    "prod",
+					},
+				}
+				err = h.ConsumeMessage(ctx, buildMsg(terminalTask))
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+
+				// Step 3: advance clock past grace and eval — entry was removed by step 2 → no spawn
+				currentDateTime.SetNow(libtimetest.ParseDateTime(graceExpiredR))
+				err = h.EvalDeferredRespawns(ctx)
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
+			})
+		})
+
 		Describe("grace window (spec 036)", func() {
 			BeforeEach(func() {
 				fakeSpawner.IsJobActiveReturns(false, nil)

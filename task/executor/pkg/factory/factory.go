@@ -64,7 +64,8 @@ func CreateConfigResolver(
 }
 
 // CreateConsumer wires together all components and returns a Kafka Consumer that
-// reads task events and spawns K8s Jobs for qualifying tasks.
+// reads task events and spawns K8s Jobs for qualifying tasks, along with the
+// TaskEventHandler so callers can wire RunDeferredRespawnLoop.
 func CreateConsumer(
 	saramaClient sarama.Client,
 	branch base.Branch,
@@ -76,7 +77,7 @@ func CreateConsumer(
 	currentDateTimeGetter libtime.CurrentDateTimeGetter,
 	resultPublisher pkg.ResultPublisher,
 	taskStore *pkg.TaskStore,
-) libkafka.Consumer {
+) (libkafka.Consumer, handler.TaskEventHandler) {
 	jobSpawner := spawner.NewJobSpawner(
 		kubeClient,
 		namespace,
@@ -106,7 +107,7 @@ func CreateConsumer(
 		taskEventHandler,
 		run.NewTrigger(),
 		logSamplerFactory,
-	)
+	), taskEventHandler
 }
 
 // CreateHealthcheckRunner creates the healthcheck runner shared between the cron path and the
