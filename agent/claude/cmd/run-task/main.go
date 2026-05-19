@@ -42,8 +42,10 @@ type application struct {
 	// Agent directory (contains .claude/ with CLAUDE.md and commands)
 	AgentDir claudelib.AgentDir `required:"false" arg:"agent-dir" env:"AGENT_DIR" usage:"Agent directory with .claude/ config" default:"agent"`
 
-	// Model selection
-	Model claudelib.ClaudeModel `required:"false" arg:"model" env:"MODEL" usage:"Claude model to use (sonnet, opus)" default:"sonnet"`
+	// Model selection. Reads from ANTHROPIC_MODEL — the same env var the claude CLI itself
+	// understands — so a single value drives both the `--model` flag and the env var seen
+	// by the spawned subprocess (the value is mirrored into claudeEnv below in Run()).
+	Model claudelib.ClaudeModel `required:"false" arg:"anthropic-model" env:"ANTHROPIC_MODEL" usage:"Model name; also exposed to the claude subprocess as ANTHROPIC_MODEL" default:"sonnet"`
 
 	// Allowed tools (comma-separated)
 	AllowedToolsRaw string `required:"false" arg:"allowed-tools" env:"ALLOWED_TOOLS" usage:"Comma-separated list of allowed tools"`
@@ -51,8 +53,16 @@ type application struct {
 	// Environment context passed to prompt (comma-separated KEY=VALUE pairs)
 	EnvContextRaw string `required:"false" arg:"env-context" env:"ENV_CONTEXT" usage:"Comma-separated KEY=VALUE pairs for prompt context"`
 
-	// Environment variables passed to Claude CLI process (comma-separated KEY=VALUE pairs)
+	// Environment variables passed to Claude CLI process (comma-separated KEY=VALUE pairs).
+	// Use this for ad-hoc / less-common env vars. The three load-bearing Anthropic provider
+	// vars below have dedicated arg slots so they don't have to be packed into this string.
 	ClaudeEnvRaw string `required:"false" arg:"claude-env" env:"CLAUDE_ENV" usage:"Comma-separated KEY=VALUE pairs for Claude CLI environment"`
+
+	// Anthropic-compatible provider routing. Set both together to route the claude CLI to
+	// an alt-provider (e.g. MiniMax via https://api.minimax.io/anthropic). If non-empty
+	// they override the same key in ClaudeEnvRaw. The model name comes from Model above.
+	AnthropicBaseURL   string `required:"false" arg:"anthropic-base-url"   env:"ANTHROPIC_BASE_URL"   usage:"Anthropic-compatible API base URL"`
+	AnthropicAuthToken string `required:"false" arg:"anthropic-auth-token" env:"ANTHROPIC_AUTH_TOKEN" usage:"Bearer token for ANTHROPIC_BASE_URL" display:"length"`
 
 	// Environment
 	Branch base.Branch `required:"true" arg:"branch" env:"BRANCH" usage:"branch" default:"dev"`
@@ -74,12 +84,26 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 
 	deliverer := factory.CreateFileResultDeliverer(a.TaskFilePath)
 
+	claudeEnv := claudelib.ParseKeyValuePairs(a.ClaudeEnvRaw)
+	if claudeEnv == nil {
+		claudeEnv = map[string]string{}
+	}
+	if a.AnthropicBaseURL != "" {
+		claudeEnv["ANTHROPIC_BASE_URL"] = a.AnthropicBaseURL
+	}
+	if a.AnthropicAuthToken != "" {
+		claudeEnv["ANTHROPIC_AUTH_TOKEN"] = a.AnthropicAuthToken
+	}
+	if a.Model != "" {
+		claudeEnv["ANTHROPIC_MODEL"] = string(a.Model)
+	}
+
 	agent := factory.CreateAgent(
 		a.ClaudeConfigDir,
 		a.AgentDir,
 		claudelib.ParseAllowedTools(a.AllowedToolsRaw),
 		a.Model,
-		claudelib.ParseKeyValuePairs(a.ClaudeEnvRaw),
+		claudeEnv,
 		claudelib.ParseKeyValuePairs(a.EnvContextRaw),
 	)
 
