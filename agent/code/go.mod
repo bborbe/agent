@@ -12,19 +12,19 @@ require (
 	github.com/bborbe/errors v1.5.13
 	github.com/bborbe/kafka v1.22.15
 	github.com/bborbe/sentry v1.9.17
-	github.com/bborbe/service v1.9.11
+	github.com/bborbe/service v1.10.0
 	github.com/bborbe/time v1.27.0
-	github.com/bborbe/vault-cli v0.64.0
+	github.com/bborbe/vault-cli v0.64.1
 	github.com/golang/glog v1.2.5
-	github.com/onsi/ginkgo/v2 v2.28.3
-	github.com/onsi/gomega v1.40.0
+	github.com/onsi/ginkgo/v2 v2.29.0
+	github.com/onsi/gomega v1.41.0
 	github.com/prometheus/client_golang v1.23.2
 )
 
 require (
 	github.com/IBM/sarama v1.48.1 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
-	github.com/bborbe/argument/v2 v2.12.21 // indirect
+	github.com/bborbe/argument/v2 v2.12.22 // indirect
 	github.com/bborbe/collection v1.20.12 // indirect
 	github.com/bborbe/http v1.26.12 // indirect
 	github.com/bborbe/k8s v1.14.1 // indirect
