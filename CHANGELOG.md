@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.22
+
+- test(agent/code,agent/gemini): add compile-only smoke test `cmd/run-task/main_test.go` to mirror the existing claude variant. Closes the gap where `agent/claude/cmd/run-task/` had a Ginkgo `TestSuite` but the code and gemini siblings had none.
+
 ## v0.62.21
 
 - feat(agent/claude): route claude CLI to Anthropic-compatible alt-provider via dedicated `AnthropicBaseURL`/`AnthropicAuthToken`/`AnthropicModel` fields on the application struct (mapped to `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`/`ANTHROPIC_MODEL` env vars). The renamed `AnthropicModel` field drives both the `--model` CLI flag and the `ANTHROPIC_MODEL` env var on the claude subprocess — single source of truth replaces the prior `MODEL`/`ANTHROPIC_MODEL` two-knob configuration. Applied to both Kafka entry point (`agent/claude/main.go`) and local CLI entry point (`agent/claude/cmd/run-task/main.go`).
