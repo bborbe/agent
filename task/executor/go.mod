@@ -7,7 +7,7 @@ replace (
 )
 
 require (
-	github.com/IBM/sarama v1.48.2
+	github.com/IBM/sarama v1.49.0
 	github.com/bborbe/agent/lib v0.0.0-20260329144024-36889d7c0620
 	github.com/bborbe/cqrs v0.5.1
 	github.com/bborbe/cron v1.8.17
@@ -22,12 +22,12 @@ require (
 	github.com/bborbe/service v1.10.0
 	github.com/bborbe/time v1.27.0
 	github.com/bborbe/validation v1.4.13
-	github.com/bborbe/vault-cli v0.64.0
+	github.com/bborbe/vault-cli v0.64.1
 	github.com/golang/glog v1.2.5
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/onsi/ginkgo/v2 v2.28.3
-	github.com/onsi/gomega v1.40.0
+	github.com/onsi/ginkgo/v2 v2.29.0
+	github.com/onsi/gomega v1.41.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	gopkg.in/yaml.v3 v3.0.1
