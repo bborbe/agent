@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.62.21
+
+- feat(agent/claude): route claude CLI to Anthropic-compatible alt-provider via dedicated `AnthropicBaseURL`/`AnthropicAuthToken`/`AnthropicModel` fields on the application struct (mapped to `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`/`ANTHROPIC_MODEL` env vars). The renamed `AnthropicModel` field drives both the `--model` CLI flag and the `ANTHROPIC_MODEL` env var on the claude subprocess — single source of truth replaces the prior `MODEL`/`ANTHROPIC_MODEL` two-knob configuration. Applied to both Kafka entry point (`agent/claude/main.go`) and local CLI entry point (`agent/claude/cmd/run-task/main.go`).
+- feat(agent/claude): `k8s/agent-claude.yaml` adds `ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic` + `ANTHROPIC_MODEL=MiniMax-M2.7-highspeed` to `spec.env`; `k8s/agent-claude-secret.yaml` adds `ANTHROPIC_AUTH_TOKEN` sourced from teamvault `MOPmQL`. Enables MiniMax routing for dev canary as part of `[[Switch Agent API Provider]]` work.
+- fix(go.mod): vulnerability fix
+- chore(go.mod): bump dependencies (multiple cycles)
+- chore(prompts/specs): update generated artifacts
+
 ## v0.62.20
 
 - fix(task/executor): add deferred-respawn reconciliation loop — when `checkActiveCurrentJob` suppresses respawn inside the grace window, the task is queued for re-evaluation after `defaultRespawnGracePeriod`; `RunDeferredRespawnLoop` polls every 30s and calls `spawnIfNeeded` once grace elapses; emits `event=respawn_after_grace_window` log and `respawn_after_grace_window` metric; eliminates the "stuck forever" failure mode from 2026-05-17 (task `cbe79223`, PR #128 not reviewed for >2h)
