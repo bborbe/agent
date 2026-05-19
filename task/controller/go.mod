@@ -8,12 +8,12 @@ replace (
 
 require (
 	github.com/bborbe/agent/lib v0.0.0-00010101000000-000000000000
-	github.com/bborbe/boltkv v1.12.6
+	github.com/bborbe/boltkv v1.14.0
 	github.com/bborbe/cqrs v0.5.1
 	github.com/bborbe/errors v1.5.13
 	github.com/bborbe/http v1.26.12
 	github.com/bborbe/kafka v1.22.15
-	github.com/bborbe/kv v1.19.8
+	github.com/bborbe/kv v1.21.1
 	github.com/bborbe/log v1.6.13
 	github.com/bborbe/metrics v0.5.3
 	github.com/bborbe/run v1.9.24
@@ -24,8 +24,8 @@ require (
 	github.com/golang/glog v1.2.5
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/onsi/ginkgo/v2 v2.28.3
-	github.com/onsi/gomega v1.40.0
+	github.com/onsi/ginkgo/v2 v2.29.0
+	github.com/onsi/gomega v1.41.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	go.etcd.io/bbolt v1.4.3
@@ -41,7 +41,7 @@ require (
 	github.com/bborbe/math v1.3.10 // indirect
 	github.com/bborbe/parse v1.10.12 // indirect
 	github.com/bborbe/strimzi v1.8.3 // indirect
-	github.com/bborbe/vault-cli v0.64.0 // indirect
+	github.com/bborbe/vault-cli v0.64.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
