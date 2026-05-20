@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [038-rename-task-status-phase-taxonomy]
 summary: Bumped vault-cli to v0.64.3 across all 6 modules, updated TaskFrontmatter.Phase()/Status() to normalize legacy values via NormalizeTaskPhase/NormalizeTaskStatus, fixed resolveNextPhase to use NormalizeTaskPhase (preventing 'in_progress' from failing canonical validation), updated executor defaultTriggerPhases/knownPhases to TaskPhaseExecution, replaced all TaskPhaseInProgress in executor test file with TaskPhaseExecution, updated Phase flag defaults and usage strings in agent/claude/gemini/code, and updated CRD Trigger doc comment.
 container: agent-exec-134-spec-038-dep-bump
@@ -7,9 +7,8 @@ dark-factory-version: v0.162.0
 created: "2026-05-20T17:00:00Z"
 queued: "2026-05-20T17:19:49Z"
 started: "2026-05-20T17:47:59Z"
-completed: "2026-05-20T17:26:35Z"
+completed: "2026-05-20T18:04:29Z"
 branch: dark-factory/rename-task-status-phase-taxonomy
-lastFailReason: 'validate completion report: completion report status: failed'
 ---
 
 <summary>
