@@ -1,8 +1,9 @@
 ---
-status: prompted
+status: verifying
 approved: "2026-05-20T16:37:02Z"
 generating: "2026-05-20T16:40:37Z"
 prompted: "2026-05-20T16:53:58Z"
+verifying: "2026-05-20T18:16:07Z"
 branch: dark-factory/rename-task-status-phase-taxonomy
 ---
 
@@ -97,3 +98,20 @@ Then sanity-check that the binary emits new canonical:
 go run ./ --help | grep -A1 'Agent phase'
 # Expected: "planning | execution | ai_review" appears in the usage string
 ```
+
+## Verification Result
+
+**Verified:** 2026-05-20T18:21:30Z (HEAD 1b57e2e)
+**Binary:** dark-factory v0.162.0 (installed)
+**Scenario:** Grep + test-suite walk across 6 modules (lib, task/controller, task/executor, agent/claude, agent/gemini, agent/code).
+**Evidence:**
+- `go list -m github.com/bborbe/vault-cli` returns `v0.64.3` in every module (6/6).
+- `grep -n 'default:"execution"' agent/claude/main.go agent/claude/cmd/run-task/main.go` → both files line 84/68; 0 lines with `default:"in_progress"`.
+- `grep -rn 'default:"in_progress"' agent/ task/ --include='main.go'` → 0 hits.
+- `grep -rn 'planning | in_progress | ai_review' ...` → 0 hits; 6 lines emit new `planning | execution | ai_review` usage.
+- `grep -rn 'default:"todo"' --include='*.go'` → 0 hits.
+- `task/executor/k8s/apis/agent.benjamin-borbe.de/v1/types.go:37` contains `execution` in the Trigger Phases doc comment.
+- `make precommit` exits 0 (`ready to commit`) in lib, task/controller, task/executor, agent/claude, agent/gemini, agent/code.
+- Alias round-trip tests: `task/controller/pkg/scanner/vault_scanner_test.go:670-684` (both phase + status aliases) and `task/controller/pkg/command/task_frontmatter_sequence_test.go:241-247` (phase alias).
+**Note:** Prompt 1 made an in-scope-adjacent extension to `lib/delivery/result-deliverer.go` to normalize on the write path; accepted by user.
+**Verdict:** PASS
