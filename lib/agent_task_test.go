@@ -8,6 +8,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/bborbe/vault-cli/pkg/domain"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -104,6 +105,25 @@ var _ = Describe("TaskFrontmatter", func() {
 		It("returns nil when phase value is not a string", func() {
 			fm := lib.TaskFrontmatter{"phase": 42}
 			Expect(fm.Phase()).To(BeNil())
+		})
+
+		It("normalizes legacy phase 'in_progress' to TaskPhaseExecution", func() {
+			fm := lib.TaskFrontmatter{"phase": "in_progress"}
+			p := fm.Phase()
+			Expect(p).NotTo(BeNil())
+			Expect(*p).To(Equal(domain.TaskPhaseExecution))
+		})
+
+		It("returns nil for absent phase (normalize path)", func() {
+			fm := lib.TaskFrontmatter{}
+			Expect(fm.Phase()).To(BeNil())
+		})
+	})
+
+	Describe("Status", func() {
+		It("normalizes legacy status 'todo' to TaskStatusNext", func() {
+			fm := lib.TaskFrontmatter{"status": "todo"}
+			Expect(fm.Status()).To(Equal(domain.TaskStatusNext))
 		})
 	})
 

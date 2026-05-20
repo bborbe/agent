@@ -34,7 +34,7 @@ type Config struct {
 }
 
 // Trigger declares the per-agent phase and status conditions under which the executor spawns a Job.
-// Absent or empty lists fall back to the default allow-list (phases: planning/in_progress/ai_review; statuses: in_progress).
+// Absent or empty lists fall back to the default allow-list (phases: planning/execution/ai_review; statuses: in_progress).
 type Trigger struct {
 	Phases   domain.TaskPhases   `json:"phases,omitempty"`
 	Statuses domain.TaskStatuses `json:"statuses,omitempty"`

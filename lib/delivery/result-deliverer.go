@@ -134,7 +134,7 @@ func (d *kafkaResultDeliverer) DeliverResult(
 	// via trigger_count / max_triggers, not a phase loop.
 	switch result.Status {
 	case agentlib.AgentStatusDone:
-		resolvedPhase := resolveNextPhase(ctx, d.taskID, result.NextPhase)
+		resolvedPhase := resolveNextPhase(d.taskID, result.NextPhase)
 		frontmatter["phase"] = resolvedPhase
 		// Only mark the task completed when the resolved phase is terminal (done).
 		// Requested transitions to planning/in_progress/ai_review/human_review keep
@@ -205,17 +205,16 @@ func (d *kafkaResultDeliverer) DeliverResult(
 // is logged with task-id context and also falls back to "done" — we never refuse
 // to write a result just because the agent requested a bogus phase.
 func resolveNextPhase(
-	ctx context.Context,
 	taskID agentlib.TaskIdentifier,
 	requested string,
 ) string {
 	if requested == "" {
 		return "done"
 	}
-	phase := domain.TaskPhase(requested)
-	if err := phase.Validate(ctx); err != nil {
-		glog.Warningf("task %s: ignoring invalid NextPhase %q: %v", taskID, requested, err)
+	canonical, ok := domain.NormalizeTaskPhase(requested)
+	if !ok {
+		glog.Warningf("task %s: ignoring invalid NextPhase %q: unknown phase", taskID, requested)
 		return "done"
 	}
-	return requested
+	return string(canonical)
 }

@@ -204,24 +204,27 @@ var _ = Describe("KafkaResultDeliverer", func() {
 		Expect(fm["status"]).To(Equal("completed"))
 	})
 
-	It("sets phase=in_progress when done result requests NextPhase=in_progress", func() {
-		generator.GenerateReturns(
-			"---\nstatus: in_progress\nphase: in_progress\n---\n\nBody.\n",
-			nil,
-		)
-		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
-			Status:    agentlib.AgentStatusDone,
-			NextPhase: "in_progress",
-		})
-		Expect(err).NotTo(HaveOccurred())
-		_, cmdObj := sender.SendCommandObjectArgsForCall(0)
-		frontmatter, ok := cmdObj.Command.Data["frontmatter"]
-		Expect(ok).To(BeTrue())
-		fm, ok := frontmatter.(map[string]interface{})
-		Expect(ok).To(BeTrue())
-		Expect(fm["phase"]).To(Equal("in_progress"))
-		Expect(fm["status"]).To(Equal("in_progress"))
-	})
+	It(
+		"sets phase=execution when done result requests NextPhase=in_progress (legacy alias normalized)",
+		func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: execution\n---\n\nBody.\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "in_progress",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+			Expect(ok).To(BeTrue())
+			fm, ok := frontmatter.(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["phase"]).To(Equal("execution"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+		},
+	)
 
 	It("sets phase=planning when done result requests NextPhase=planning", func() {
 		generator.GenerateReturns(
@@ -364,10 +367,10 @@ var _ = Describe("KafkaResultDeliverer", func() {
 	})
 
 	It(
-		"keeps status=in_progress when done result requests NextPhase=in_progress (live dev bug cde7365b)",
+		"keeps status=in_progress when done result requests NextPhase=in_progress (legacy alias normalized to execution)",
 		func() {
 			generator.GenerateReturns(
-				"---\nstatus: in_progress\nphase: in_progress\n---\n\nBody.\n\n## Plan\n\n[plan content]\n",
+				"---\nstatus: in_progress\nphase: execution\n---\n\nBody.\n\n## Plan\n\n[plan content]\n",
 				nil,
 			)
 			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
@@ -381,7 +384,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(ok).To(BeTrue())
 			fm, ok := frontmatter.(map[string]interface{})
 			Expect(ok).To(BeTrue())
-			Expect(fm["phase"]).To(Equal("in_progress"))
+			Expect(fm["phase"]).To(Equal("execution"))
 			Expect(fm["status"]).To(Equal("in_progress"))
 		},
 	)

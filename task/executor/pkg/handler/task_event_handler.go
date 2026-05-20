@@ -28,7 +28,7 @@ import (
 // defaultTriggerPhases is the fallback phase allow-list when the per-Config Trigger is absent or empty.
 var defaultTriggerPhases = domain.TaskPhases{
 	domain.TaskPhasePlanning,
-	domain.TaskPhaseInProgress,
+	domain.TaskPhaseExecution,
 	domain.TaskPhaseAIReview,
 }
 
@@ -62,12 +62,13 @@ var terminalPhases = map[domain.TaskPhase]struct{}{
 	domain.TaskPhaseDone:        {},
 }
 
-// knownPhases contains all phase constants exported by vault-cli v0.64.0.
+// knownPhases contains all phase constants exported by vault-cli v0.64.3.
 // Values outside this set trigger enum-drift logging (event=unknown_phase).
 var knownPhases = map[domain.TaskPhase]struct{}{
 	domain.TaskPhaseTodo:        {},
 	domain.TaskPhasePlanning:    {},
-	domain.TaskPhaseInProgress:  {},
+	domain.TaskPhaseExecution:   {}, // canonical (was TaskPhaseInProgress)
+	domain.TaskPhaseInProgress:  {}, // legacy alias — still a known phase string
 	domain.TaskPhaseAIReview:    {},
 	domain.TaskPhaseHumanReview: {},
 	domain.TaskPhaseDone:        {},

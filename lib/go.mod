@@ -11,7 +11,7 @@ require (
 	github.com/bborbe/metrics v0.5.3
 	github.com/bborbe/time v1.27.0
 	github.com/bborbe/validation v1.4.13
-	github.com/bborbe/vault-cli v0.64.1
+	github.com/bborbe/vault-cli v0.64.3
 	github.com/golang/glog v1.2.5
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.29.0

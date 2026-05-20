@@ -17,6 +17,9 @@ type TaskFrontmatter map[string]interface{}
 
 func (f TaskFrontmatter) Status() domain.TaskStatus {
 	v, _ := f["status"].(string)
+	if canonical, ok := domain.NormalizeTaskStatus(v); ok {
+		return canonical
+	}
 	return domain.TaskStatus(v)
 }
 
@@ -24,6 +27,9 @@ func (f TaskFrontmatter) Phase() *domain.TaskPhase {
 	v, ok := f["phase"].(string)
 	if !ok || v == "" {
 		return nil
+	}
+	if canonical, ok := domain.NormalizeTaskPhase(v); ok {
+		return &canonical
 	}
 	p := domain.TaskPhase(v)
 	return &p

@@ -89,7 +89,7 @@ var _ = Describe("TaskEventHandler", func() {
 			task := lib.Task{
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "in_progress",
-					"phase":    string(domain.TaskPhaseInProgress),
+					"phase":    string(domain.TaskPhaseExecution),
 					"assignee": "claude",
 				},
 			}
@@ -103,7 +103,7 @@ var _ = Describe("TaskEventHandler", func() {
 				TaskIdentifier: "tid-1",
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "todo",
-					"phase":    string(domain.TaskPhaseInProgress),
+					"phase":    string(domain.TaskPhaseExecution),
 					"assignee": "claude",
 				},
 			}
@@ -158,7 +158,7 @@ var _ = Describe("TaskEventHandler", func() {
 				TaskIdentifier: "tid-5",
 				Frontmatter: lib.TaskFrontmatter{
 					"status": "in_progress",
-					"phase":  string(domain.TaskPhaseInProgress),
+					"phase":  string(domain.TaskPhaseExecution),
 				},
 			}
 			err := h.ConsumeMessage(ctx, buildMsg(task))
@@ -175,7 +175,7 @@ var _ = Describe("TaskEventHandler", func() {
 				TaskIdentifier: "tid-6",
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "in_progress",
-					"phase":    string(domain.TaskPhaseInProgress),
+					"phase":    string(domain.TaskPhaseExecution),
 					"assignee": "unknown-agent",
 				},
 			}
@@ -190,7 +190,7 @@ var _ = Describe("TaskEventHandler", func() {
 				TaskIdentifier: "tid-6b",
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "in_progress",
-					"phase":    string(domain.TaskPhaseInProgress),
+					"phase":    string(domain.TaskPhaseExecution),
 					"assignee": "some-agent",
 				},
 			}
@@ -205,7 +205,7 @@ var _ = Describe("TaskEventHandler", func() {
 				TaskIdentifier: "tid-7",
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "in_progress",
-					"phase":    string(domain.TaskPhaseInProgress),
+					"phase":    string(domain.TaskPhaseExecution),
 					"assignee": "claude",
 				},
 			}
@@ -220,7 +220,7 @@ var _ = Describe("TaskEventHandler", func() {
 				TaskIdentifier: lib.TaskIdentifier("tid-8"),
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "in_progress",
-					"phase":    string(domain.TaskPhaseInProgress),
+					"phase":    string(domain.TaskPhaseExecution),
 					"assignee": "claude",
 				},
 				Content: lib.TaskContent("do the work"),
@@ -239,7 +239,7 @@ var _ = Describe("TaskEventHandler", func() {
 				TaskIdentifier: lib.TaskIdentifier("tid-9"),
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "in_progress",
-					"phase":    string(domain.TaskPhaseInProgress),
+					"phase":    string(domain.TaskPhaseExecution),
 					"assignee": "claude",
 				},
 			}
@@ -255,7 +255,7 @@ var _ = Describe("TaskEventHandler", func() {
 				TaskIdentifier: lib.TaskIdentifier("tid-10"),
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "in_progress",
-					"phase":    string(domain.TaskPhaseInProgress),
+					"phase":    string(domain.TaskPhaseExecution),
 					"assignee": "claude",
 				},
 			}
@@ -502,7 +502,7 @@ var _ = Describe("TaskEventHandler", func() {
 				TaskIdentifier: lib.TaskIdentifier("tid-stage-1"),
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "in_progress",
-					"phase":    string(domain.TaskPhaseInProgress),
+					"phase":    string(domain.TaskPhaseExecution),
 					"assignee": "claude",
 				},
 			}
@@ -516,7 +516,7 @@ var _ = Describe("TaskEventHandler", func() {
 				TaskIdentifier: lib.TaskIdentifier("tid-stage-2"),
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "in_progress",
-					"phase":    string(domain.TaskPhaseInProgress),
+					"phase":    string(domain.TaskPhaseExecution),
 					"assignee": "claude",
 					"stage":    "dev",
 				},
@@ -546,7 +546,7 @@ var _ = Describe("TaskEventHandler", func() {
 				TaskIdentifier: lib.TaskIdentifier("tid-stage-3"),
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "in_progress",
-					"phase":    string(domain.TaskPhaseInProgress),
+					"phase":    string(domain.TaskPhaseExecution),
 					"assignee": "claude",
 					"stage":    "dev",
 				},
@@ -592,7 +592,7 @@ var _ = Describe("TaskEventHandler", func() {
 				TaskIdentifier: lib.TaskIdentifier("tid-stage-4"),
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "in_progress",
-					"phase":    string(domain.TaskPhaseInProgress),
+					"phase":    string(domain.TaskPhaseExecution),
 					"assignee": "claude",
 				},
 			}
@@ -611,7 +611,7 @@ var _ = Describe("TaskEventHandler", func() {
 				TaskIdentifier: lib.TaskIdentifier("tid-trigger-1"),
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "in_progress",
-					"phase":    string(domain.TaskPhaseInProgress),
+					"phase":    string(domain.TaskPhaseExecution),
 					"assignee": "claude",
 				},
 			}
@@ -661,7 +661,7 @@ var _ = Describe("TaskEventHandler", func() {
 					TaskIdentifier: lib.TaskIdentifier("tid-trigger-3"),
 					Frontmatter: lib.TaskFrontmatter{
 						"status":   "completed",
-						"phase":    string(domain.TaskPhaseInProgress),
+						"phase":    string(domain.TaskPhaseExecution),
 						"assignee": "claude",
 					},
 				}
@@ -738,7 +738,7 @@ var _ = Describe("TaskEventHandler", func() {
 						Assignee: "claude",
 						Image:    "my-image:latest",
 						Trigger: &agentv1.Trigger{
-							Phases:   domain.TaskPhases{domain.TaskPhaseInProgress},
+							Phases:   domain.TaskPhases{domain.TaskPhaseExecution},
 							Statuses: domain.TaskStatuses{domain.TaskStatusCompleted},
 						},
 					},
@@ -748,7 +748,7 @@ var _ = Describe("TaskEventHandler", func() {
 					TaskIdentifier: lib.TaskIdentifier("tid-trigger-5"),
 					Frontmatter: lib.TaskFrontmatter{
 						"status":   "in_progress",
-						"phase":    string(domain.TaskPhaseInProgress),
+						"phase":    string(domain.TaskPhaseExecution),
 						"assignee": "claude",
 					},
 				}
@@ -776,7 +776,7 @@ var _ = Describe("TaskEventHandler", func() {
 					TaskIdentifier: lib.TaskIdentifier("tid-trigger-6"),
 					Frontmatter: lib.TaskFrontmatter{
 						"status":   "in_progress",
-						"phase":    string(domain.TaskPhaseInProgress),
+						"phase":    string(domain.TaskPhaseExecution),
 						"assignee": "claude",
 					},
 				}
@@ -800,7 +800,7 @@ var _ = Describe("TaskEventHandler", func() {
 				TaskIdentifier: lib.TaskIdentifier("tid-trigger-7"),
 				Frontmatter: lib.TaskFrontmatter{
 					"status":   "in_progress",
-					"phase":    string(domain.TaskPhaseInProgress),
+					"phase":    string(domain.TaskPhaseExecution),
 					"assignee": "claude",
 				},
 			}
@@ -1011,7 +1011,7 @@ var _ = Describe("TaskEventHandler", func() {
 				Entry(
 					"status=in_progress phase=in_progress => spawn",
 					"in_progress",
-					domain.TaskPhaseInProgress,
+					domain.TaskPhaseExecution,
 					domain.TaskPhases(nil),
 					1,
 					float64(0),
@@ -1020,20 +1020,20 @@ var _ = Describe("TaskEventHandler", func() {
 					"status=in_progress phase=human_review => no spawn",
 					// Custom trigger includes human_review — without the gate this would spawn.
 					"in_progress", domain.TaskPhaseHumanReview,
-					domain.TaskPhases{domain.TaskPhaseInProgress, domain.TaskPhaseHumanReview},
+					domain.TaskPhases{domain.TaskPhaseExecution, domain.TaskPhaseHumanReview},
 					0, float64(1),
 				),
 				Entry(
 					"status=in_progress phase=done => no spawn",
 					// Custom trigger includes done — without the gate this would spawn.
 					"in_progress", domain.TaskPhaseDone,
-					domain.TaskPhases{domain.TaskPhaseInProgress, domain.TaskPhaseDone},
+					domain.TaskPhases{domain.TaskPhaseExecution, domain.TaskPhaseDone},
 					0, float64(1),
 				),
 				Entry(
 					"status=completed phase=in_progress => no spawn",
 					// Filtered by status check, not terminal gate.
-					"completed", domain.TaskPhaseInProgress, domain.TaskPhases(nil), 0, float64(0),
+					"completed", domain.TaskPhaseExecution, domain.TaskPhases(nil), 0, float64(0),
 				),
 			)
 
@@ -1049,7 +1049,7 @@ var _ = Describe("TaskEventHandler", func() {
 						Image:    "my-image:latest",
 						Trigger: &agentv1.Trigger{
 							Phases: domain.TaskPhases{
-								domain.TaskPhaseInProgress,
+								domain.TaskPhaseExecution,
 								domain.TaskPhaseHumanReview,
 							},
 							Statuses: domain.TaskStatuses{domain.TaskStatusInProgress},
@@ -1065,7 +1065,7 @@ var _ = Describe("TaskEventHandler", func() {
 					TaskIdentifier: lib.TaskIdentifier("22fda7e7"),
 					Frontmatter: lib.TaskFrontmatter{
 						"status":   "in_progress",
-						"phase":    string(domain.TaskPhaseInProgress),
+						"phase":    string(domain.TaskPhaseExecution),
 						"assignee": "claude",
 					},
 				}
@@ -1184,7 +1184,7 @@ var _ = Describe("TaskEventHandler", func() {
 			It("deferred re-eval fires after grace expiry without a second Kafka event", func() {
 				// Step 1: suppression event arrives inside grace window — no spawn
 				currentDateTime.SetNow(libtimetest.ParseDateTime(insideGrace))
-				task := buildGraceTask(domain.TaskPhaseInProgress, 0, 3)
+				task := buildGraceTask(domain.TaskPhaseExecution, 0, 3)
 				err := h.ConsumeMessage(ctx, buildMsg(task))
 				Expect(err).To(BeNil())
 				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
@@ -1209,7 +1209,7 @@ var _ = Describe("TaskEventHandler", func() {
 			It("deferred re-eval bound: no spawn before grace+R, spawn at grace+60s", func() {
 				// Suppress inside grace window
 				currentDateTime.SetNow(libtimetest.ParseDateTime(insideGrace))
-				task := buildGraceTask(domain.TaskPhaseInProgress, 0, 3)
+				task := buildGraceTask(domain.TaskPhaseExecution, 0, 3)
 				err := h.ConsumeMessage(ctx, buildMsg(task))
 				Expect(err).To(BeNil())
 
@@ -1231,7 +1231,7 @@ var _ = Describe("TaskEventHandler", func() {
 				func() {
 					// Step 1: suppress inside grace window → deferred entry created
 					currentDateTime.SetNow(libtimetest.ParseDateTime(insideGrace))
-					task := buildGraceTask(domain.TaskPhaseInProgress, 0, 3)
+					task := buildGraceTask(domain.TaskPhaseExecution, 0, 3)
 					err := h.ConsumeMessage(ctx, buildMsg(task))
 					Expect(err).To(BeNil())
 					Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
@@ -1267,7 +1267,7 @@ var _ = Describe("TaskEventHandler", func() {
 					// deferredRespawns map but a taskStore that already holds the stuck task.
 					// The zero-value config stored by the seed is acceptable here because
 					// fakeSpawner does not inspect config fields.
-					stuck := buildGraceTask(domain.TaskPhaseInProgress, 0, 3)
+					stuck := buildGraceTask(domain.TaskPhaseExecution, 0, 3)
 					restartStore := pkg.NewTaskStore()
 					restartStore.Store(stuck.TaskIdentifier, stuck)
 
@@ -1307,7 +1307,7 @@ var _ = Describe("TaskEventHandler", func() {
 			It("deferred re-eval respects trigger cap", func() {
 				// task with trigger_count == max_triggers — will hit skipped_trigger_cap in spawnIfNeeded
 				currentDateTime.SetNow(libtimetest.ParseDateTime(insideGrace))
-				task := buildGraceTask(domain.TaskPhaseInProgress, 3, 3)
+				task := buildGraceTask(domain.TaskPhaseExecution, 3, 3)
 				err := h.ConsumeMessage(ctx, buildMsg(task))
 				Expect(err).To(BeNil())
 				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
@@ -1328,7 +1328,7 @@ var _ = Describe("TaskEventHandler", func() {
 			It("deferred re-eval entry is removed when a terminal-phase event arrives", func() {
 				// Step 1: suppress inside grace → deferred entry created
 				currentDateTime.SetNow(libtimetest.ParseDateTime(insideGrace))
-				task := buildGraceTask(domain.TaskPhaseInProgress, 0, 3)
+				task := buildGraceTask(domain.TaskPhaseExecution, 0, 3)
 				err := h.ConsumeMessage(ctx, buildMsg(task))
 				Expect(err).To(BeNil())
 				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(0))
@@ -1341,7 +1341,7 @@ var _ = Describe("TaskEventHandler", func() {
 						Image:    "my-image:latest",
 						Trigger: &agentv1.Trigger{
 							Phases: domain.TaskPhases{
-								domain.TaskPhaseInProgress,
+								domain.TaskPhaseExecution,
 								domain.TaskPhaseHumanReview,
 							},
 							Statuses: domain.TaskStatuses{domain.TaskStatusInProgress},
@@ -1387,7 +1387,7 @@ var _ = Describe("TaskEventHandler", func() {
 					currentDateTime.SetNow(libtimetest.ParseDateTime(nowAt))
 					fm := lib.TaskFrontmatter{
 						"status":   "in_progress",
-						"phase":    string(domain.TaskPhaseInProgress),
+						"phase":    string(domain.TaskPhaseExecution),
 						"assignee": "claude",
 					}
 					if currentJob != "" {

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.62.23
+
+- chore(deps): bump `github.com/bborbe/vault-cli` to v0.64.3 across lib, task/controller, task/executor, agent/claude, agent/gemini, agent/code — exposes `TaskStatusNext` and `TaskPhaseExecution` constants
+- refactor(lib): `TaskFrontmatter.Phase()` and `Status()` now call `NormalizeTaskPhase` / `NormalizeTaskStatus` so legacy phase `"in_progress"` and status `"todo"` transparently resolve to new canonical values on read
+- refactor(lib/delivery): `resolveNextPhase` now uses `NormalizeTaskPhase` so legacy `NextPhase="in_progress"` normalizes to `"execution"` instead of failing validation and falling back to `"done"`
+- refactor(task/executor): `defaultTriggerPhases` and `knownPhases` updated to reference `domain.TaskPhaseExecution` instead of `domain.TaskPhaseInProgress`
+- refactor(agent/claude): Phase flag default changed from `"in_progress"` to `"execution"`; usage string updated to `planning | execution | ai_review`
+
 ## v0.62.22
 
 - test(agent/code,agent/gemini): add compile-only smoke test `cmd/run-task/main_test.go` to mirror the existing claude variant. Closes the gap where `agent/claude/cmd/run-task/` had a Ginkgo `TestSuite` but the code and gemini siblings had none.
