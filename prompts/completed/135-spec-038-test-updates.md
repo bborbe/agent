@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [038-rename-task-status-phase-taxonomy]
 summary: Updated test inputs and assertions from legacy status 'todo' to 'next' and phase 'in_progress' to 'execution' across scanner, command, publisher, sync, and result packages in task/controller; added NormalizeTaskPhase and NormalizeTaskStatus alias roundtrip tests; all 6 modules pass make precommit.
 container: agent-exec-135-spec-038-test-updates
@@ -7,6 +7,7 @@ dark-factory-version: v0.162.0
 created: "2026-05-20T17:00:00Z"
 queued: "2026-05-20T17:19:53Z"
 started: "2026-05-20T18:04:32Z"
+completed: "2026-05-20T18:16:07Z"
 branch: dark-factory/rename-task-status-phase-taxonomy
 ---
 
