@@ -50,7 +50,7 @@ var _ = Describe("TaskPublisher", func() {
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("test-uuid-1234"),
 				Frontmatter: lib.TaskFrontmatter{
-					"status":   "todo",
+					"status":   "next",
 					"assignee": "user@example.com",
 				},
 				Content: lib.TaskContent("# Test"),

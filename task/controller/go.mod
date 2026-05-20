@@ -2,7 +2,9 @@ module github.com/bborbe/agent/task/controller
 
 go 1.26.3
 
-replace github.com/bborbe/agent/lib => ../../lib
+replace (
+	github.com/bborbe/agent/lib => ../../lib
+)
 
 require (
 	github.com/bborbe/agent/lib v0.0.0-00010101000000-000000000000
@@ -19,6 +21,7 @@ require (
 	github.com/bborbe/service v1.10.0
 	github.com/bborbe/time v1.27.0
 	github.com/bborbe/validation v1.4.13
+	github.com/bborbe/vault-cli v0.64.3
 	github.com/golang/glog v1.2.5
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
@@ -39,7 +42,6 @@ require (
 	github.com/bborbe/math v1.3.10 // indirect
 	github.com/bborbe/parse v1.10.12 // indirect
 	github.com/bborbe/strimzi v1.8.3 // indirect
-	github.com/bborbe/vault-cli v0.64.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

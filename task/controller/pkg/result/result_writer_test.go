@@ -657,17 +657,17 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				Expect(s).To(ContainSubstring("previous_assignee: claude"))
 			})
 
-			It("writes assignee: empty and preserves phase: in_progress at retry cap", func() {
+			It("writes assignee: empty and preserves phase: execution at retry cap", func() {
 				writeTaskFile(
 					"my-task.md",
-					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: in_progress\nretry_count: 3\nassignee: claude\n---\n## Result\nStatus: failed\n",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: execution\nretry_count: 3\nassignee: claude\n---\n## Result\nStatus: failed\n",
 				)
 				taskFile = lib.Task{
 					TaskIdentifier: identifier,
 					Frontmatter: lib.TaskFrontmatter{
 						"task_identifier": "test-task-uuid-1234",
 						"status":          "in_progress",
-						"phase":           "in_progress",
+						"phase":           "execution",
 						"retry_count":     3,
 						"assignee":        "claude",
 					},
@@ -676,7 +676,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
 				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
 				s := string(written)
-				Expect(s).To(ContainSubstring("phase: in_progress"))
+				Expect(s).To(ContainSubstring("phase: execution"))
 				Expect(s).NotTo(ContainSubstring("phase: human_review"))
 				Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
 				Expect(s).To(ContainSubstring("**Assignee:** claude"))
@@ -1078,17 +1078,17 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				Expect(s).To(ContainSubstring("previous_assignee: claude"))
 			})
 
-			It("writes assignee: empty and preserves phase: in_progress at trigger cap", func() {
+			It("writes assignee: empty and preserves phase: execution at trigger cap", func() {
 				writeTaskFile(
 					"my-task.md",
-					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: in_progress\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\n---\n## Result\nStatus: failed\n",
+					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: execution\ntrigger_count: 3\nmax_triggers: 3\nassignee: claude\n---\n## Result\nStatus: failed\n",
 				)
 				taskFile = lib.Task{
 					TaskIdentifier: identifier,
 					Frontmatter: lib.TaskFrontmatter{
 						"task_identifier": "test-task-uuid-1234",
 						"status":          "in_progress",
-						"phase":           "in_progress",
+						"phase":           "execution",
 						"trigger_count":   3,
 						"max_triggers":    3,
 						"assignee":        "claude",
@@ -1098,7 +1098,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
 				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
 				s := string(written)
-				Expect(s).To(ContainSubstring("phase: in_progress"))
+				Expect(s).To(ContainSubstring("phase: execution"))
 				Expect(s).NotTo(ContainSubstring("phase: human_review"))
 				Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
 				Expect(s).To(ContainSubstring("**Assignee:** claude"))

@@ -63,7 +63,7 @@ var _ = Describe("SyncLoop", func() {
 	It("calls PublishChanged for a changed task in scan result", func() {
 		task := lib.Task{
 			TaskIdentifier: lib.TaskIdentifier("test-uuid"),
-			Frontmatter:    lib.TaskFrontmatter{"status": "todo"},
+			Frontmatter:    lib.TaskFrontmatter{"status": "next"},
 			Content:        lib.TaskContent("# Test"),
 		}
 		fakePublisher.PublishChangedReturns(nil)

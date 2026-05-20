@@ -106,7 +106,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 					TaskIdentifier: lib.TaskIdentifier(""),
 					Frontmatter: lib.TaskFrontmatter{
 						"assignee": "claude",
-						"status":   "todo",
+						"status":   "next",
 					},
 				})
 				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
@@ -120,7 +120,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 				cmdObj := buildCmdObj(task.CreateCommand{
 					TaskIdentifier: lib.TaskIdentifier("my-task-id"),
 					Frontmatter: lib.TaskFrontmatter{
-						"status": "todo",
+						"status": "next",
 					},
 				})
 				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
@@ -161,7 +161,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 					Title:          "existing-task",
 					Frontmatter: lib.TaskFrontmatter{
 						"assignee": "claude",
-						"status":   "todo",
+						"status":   "next",
 					},
 				})
 				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
@@ -178,7 +178,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 					Title:          "New Task ABC",
 					Frontmatter: lib.TaskFrontmatter{
 						"assignee": "claude",
-						"status":   "todo",
+						"status":   "next",
 					},
 					Body: "This is the task body.\n",
 				})
@@ -210,7 +210,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 					Title:          "Error Task",
 					Frontmatter: lib.TaskFrontmatter{
 						"assignee": "claude",
-						"status":   "todo",
+						"status":   "next",
 					},
 				})
 				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
@@ -227,7 +227,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 					Title:          "My Feature Task",
 					Frontmatter: lib.TaskFrontmatter{
 						"assignee": "claude",
-						"status":   "todo",
+						"status":   "next",
 					},
 					Body: "Task description.\n",
 				})
@@ -248,7 +248,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 					Title:          "bad/title",
 					Frontmatter: lib.TaskFrontmatter{
 						"assignee": "claude",
-						"status":   "todo",
+						"status":   "next",
 					},
 				})
 				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
@@ -267,7 +267,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 					Title:          "",
 					Frontmatter: lib.TaskFrontmatter{
 						"assignee": "claude",
-						"status":   "todo",
+						"status":   "next",
 					},
 				})
 				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
@@ -293,7 +293,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 					Title:          "My Colliding Task",
 					Frontmatter: lib.TaskFrontmatter{
 						"assignee": "claude",
-						"status":   "todo",
+						"status":   "next",
 					},
 				})
 				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
@@ -326,7 +326,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 					Title:          "Existing Title",
 					Frontmatter: lib.TaskFrontmatter{
 						"assignee": "claude",
-						"status":   "todo",
+						"status":   "next",
 					},
 				})
 				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)

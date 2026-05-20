@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bborbe/vault-cli/pkg/domain"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"
@@ -360,14 +361,14 @@ var _ = Describe("VaultScanner", func() {
 		})
 
 		It("deduplicates a single repeated key, last value wins", func() {
-			input := "task_identifier: first\nstatus: todo\ntask_identifier: second\n"
+			input := "task_identifier: first\nstatus: next\ntask_identifier: second\n"
 			out, hasDup, err := deduplicateFrontmatter(ctx, input)
 			Expect(err).To(BeNil())
 			Expect(hasDup).To(BeTrue())
 			var result map[string]interface{}
 			Expect(yaml.Unmarshal([]byte(out), &result)).To(Succeed())
 			Expect(result["task_identifier"]).To(Equal("second"))
-			Expect(result["status"]).To(Equal("todo"))
+			Expect(result["status"]).To(Equal("next"))
 		})
 
 		It("deduplicates multiple repeated keys, last value wins each", func() {
@@ -663,5 +664,21 @@ var _ = Describe("VaultScanner", func() {
 			s.runCycle(ctx, results)
 			Consistently(results, 50*time.Millisecond).ShouldNot(Receive())
 		})
+	})
+})
+
+var _ = Describe("domain.NormalizeTaskPhase alias (spec 038)", func() {
+	It("normalizes legacy phase 'in_progress' to TaskPhaseExecution", func() {
+		canonical, ok := domain.NormalizeTaskPhase("in_progress")
+		Expect(ok).To(BeTrue())
+		Expect(canonical).To(Equal(domain.TaskPhaseExecution))
+	})
+})
+
+var _ = Describe("domain.NormalizeTaskStatus alias (spec 038)", func() {
+	It("normalizes legacy status 'todo' to TaskStatusNext", func() {
+		canonical, ok := domain.NormalizeTaskStatus("todo")
+		Expect(ok).To(BeTrue())
+		Expect(canonical).To(Equal(domain.TaskStatusNext))
 	})
 })

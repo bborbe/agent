@@ -12,6 +12,7 @@ import (
 
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/cqrs/cdb"
+	"github.com/bborbe/vault-cli/pkg/domain"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"
@@ -234,5 +235,13 @@ var _ = Describe("Frontmatter sequence integration", func() {
 			Expect(fm["trigger_count"]).To(BeNumerically("==", 1))
 			Expect(fm["status"]).To(Equal("in_progress"))
 		})
+	})
+})
+
+var _ = Describe("domain.NormalizeTaskPhase alias (spec 038)", func() {
+	It("normalizes legacy phase 'in_progress' to TaskPhaseExecution", func() {
+		canonical, ok := domain.NormalizeTaskPhase("in_progress")
+		Expect(ok).To(BeTrue())
+		Expect(canonical).To(Equal(domain.TaskPhaseExecution))
 	})
 })

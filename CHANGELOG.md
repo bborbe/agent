@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.62.24
+
+- test(task/controller): update test inputs and assertions from legacy status `"todo"` → `"next"` and phase `"in_progress"` → `"execution"` in scanner, command, publisher, sync, and result packages
+- test(task/controller): add alias roundtrip tests proving `NormalizeTaskPhase("in_progress")` → `TaskPhaseExecution` and `NormalizeTaskStatus("todo")` → `TaskStatusNext` in scanner and command packages
+
 ## v0.62.23
 
 - chore(deps): bump `github.com/bborbe/vault-cli` to v0.64.3 across lib, task/controller, task/executor, agent/claude, agent/gemini, agent/code — exposes `TaskStatusNext` and `TaskPhaseExecution` constants
