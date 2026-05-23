@@ -1,7 +1,11 @@
 ---
-status: approved
+status: completed
+container: agent-exec-136-bump-job-ttl-1800s-for-debug
+dark-factory-version: v0.169.0
 created: "2026-05-23T22:18:11Z"
 queued: "2026-05-23T22:18:11Z"
+started: "2026-05-23T22:21:47Z"
+completed: "2026-05-23T22:42:36Z"
 ---
 
 <summary>
