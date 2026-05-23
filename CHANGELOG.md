@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.25
+
+- chore(task/executor): bump spawned-Job `TTLSecondsAfterFinished` 600s → 1800s; completed pods + logs stay queryable for 30 min instead of 10, giving operators headroom for live debug
+
 ## v0.62.24
 
 - test(task/controller): update test inputs and assertions from legacy status `"todo"` → `"next"` and phase `"in_progress"` → `"execution"` in scanner, command, publisher, sync, and result packages
