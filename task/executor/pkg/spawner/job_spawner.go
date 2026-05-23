@@ -27,6 +27,11 @@ import (
 // can look it up. Must match the selector used in IsJobActive.
 const taskIDLabelKey = "agent.benjamin-borbe.de/task-id"
 
+// jobTTLSecondsAfterFinished controls how long completed Job pods survive
+// before Kubernetes' TTL controller garbage-collects them. 30 min gives
+// operators headroom to fetch logs after noticing an unexpected vault state.
+const jobTTLSecondsAfterFinished int32 = 1800
+
 //counterfeiter:generate -o ../../mocks/job_spawner.go --fake-name FakeJobSpawner . JobSpawner
 
 // JobSpawner creates a K8s Job for a task.
@@ -106,6 +111,7 @@ func (s *jobSpawner) SpawnJob(
 	jobBuilder.SetObjectMetaBuild(objectMetaBuilder)
 	jobBuilder.SetPodSpecBuilder(podSpecBuilder)
 	jobBuilder.SetBackoffLimit(0)
+	jobBuilder.SetTTLSecondsAfterFinished(jobTTLSecondsAfterFinished)
 	jobBuilder.SetApp("agent")
 	jobBuilder.SetComponent(string(task.TaskIdentifier))
 

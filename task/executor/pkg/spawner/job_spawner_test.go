@@ -86,7 +86,7 @@ var _ = Describe("JobSpawner", func() {
 			Expect(job.Spec.Template.Spec.RestartPolicy).To(Equal(corev1.RestartPolicyNever))
 
 			Expect(job.Spec.TTLSecondsAfterFinished).NotTo(BeNil())
-			Expect(*job.Spec.TTLSecondsAfterFinished).To(Equal(int32(600)))
+			Expect(*job.Spec.TTLSecondsAfterFinished).To(Equal(int32(1800)))
 
 			Expect(job.Spec.Template.Labels).To(HaveKeyWithValue("app", "agent"))
 			Expect(job.Spec.Template.Labels).To(HaveKey("component"))
