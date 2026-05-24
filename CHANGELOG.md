@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.28
+
+- docs: update `docs/task-flow-and-failure-semantics.md` to reflect spec-039 doctrine: `phase: human_review` is reserved for agent-emitted `Result.NextPhase` handoffs; controller-side failure paths leave phase unchanged and clear assignee instead
+
 ## v0.62.27
 
 - fix(lib/delivery): `applyStatusFrontmatter` no longer writes `phase: human_review` on `AgentStatusNeedsInput` or `AgentStatusFailed`; clears `assignee` and preserves existing phase instead

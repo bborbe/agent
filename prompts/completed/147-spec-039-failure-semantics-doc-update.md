@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [039-controller-stop-setting-human-review-on-failure]
+summary: 'Updated docs/task-flow-and-failure-semantics.md to reflect spec-039 doctrine: phase: human_review is reserved for agent-emitted Result.NextPhase handoffs; controller-side failure paths leave phase unchanged and clear assignee instead'
+container: agent-exec-147-spec-039-failure-semantics-doc-update
+dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-25T00:00:00Z"
 queued: "2026-05-24T23:20:15Z"
+started: "2026-05-24T23:28:00Z"
+completed: "2026-05-24T23:28:55Z"
 branch: dark-factory/controller-stop-setting-human-review-on-failure
 ---
 

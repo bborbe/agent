@@ -23,13 +23,13 @@ Related specs:
 | **Trigger counter** | `trigger_count` frontmatter field, incremented atomically by the controller on every spawn-trigger event via `IncrementFrontmatterCommand`. Counts spawn-trigger attempts independent of job outcome. |
 | **Max triggers** | `max_triggers` frontmatter field (default 3). When `trigger_count >= max_triggers`, the executor skips further spawns and the controller clears `assignee` to `""` — the lifecycle phase is left at the stage where the cap fired (spec 021). |
 | **Retry counter** | `retry_count` frontmatter field. Removed as of spec 016 — `PublishRetryCountBump` deleted from executor; `retry_count` still readable in existing task files but is no longer written. |
-| **Escalation** | Controller clears `assignee` to `""` on every escalation path (trigger cap, retry cap, `needs_input`) so the task surfaces in operator inbox. For `needs_input` the controller also sets `phase: human_review`. For cap escalations the lifecycle phase is left at the stage where the cap fired (`planning`, `in_progress`, or `ai_review`). Reference: spec 021. The controller also writes `previous_assignee: <name>` with the pre-clear agent name on every assignee-clear event, enabling operator queries by parked-by-agent without body parsing. The field persists across operator re-delegation. Reference: spec 027. |
+| **Escalation** | Controller clears `assignee` to `""` on every escalation path (trigger cap, retry cap, `needs_input`) so the task surfaces in operator inbox. For `needs_input` the lifecycle phase is left at whatever stage it held when the agent returned `needs_input` (spec 039) — only `assignee` is cleared. For cap escalations the lifecycle phase is left at the stage where the cap fired (`planning`, `in_progress`, or `ai_review`). Reference: spec 021. The controller also writes `previous_assignee: <name>` with the pre-clear agent name on every assignee-clear event, enabling operator queries by parked-by-agent without body parsing. The field persists across operator re-delegation. Reference: spec 027. |
 
 ## Inbox Signal (spec 021)
 
 `assignee == ""` is the single canonical signal for "task needs attention". Operator boards and tooling that surface unclaimed work should filter on `assignee`, not on `phase`.
 
-- `phase: human_review` means a human must do the actual work (agent emitted `needs_input`).
+- `phase: human_review` means a human must verify the agent's output (agent explicitly requested verification via `Result.NextPhase`). This phase is written only via the `AgentStatusDone` -> `resolveNextPhase` path. Controller-side failure paths (`needs_input`, `failed`, cap-exhaustion) leave phase unchanged and clear assignee instead (spec 039).
 - `phase: ai_review` / `in_progress` / `planning` with `assignee: ""` means an agent hit a cap; fix the underlying issue and re-delegate by setting `assignee` to an agent name.
 
 ## Status Taxonomy
@@ -89,7 +89,7 @@ case done:
     retry_count: unchanged
 case needs_input:
     status = in_progress
-    phase  = human_review       ← terminal, no retry
+    phase  = unchanged          ← lifecycle stage preserved; assignee cleared (spec 039/supersedes spec-021)
     retry_count: unchanged
 default (failed):
     status = in_progress
@@ -113,7 +113,7 @@ default (failed):
 ### Agent emits `needs_input` (spec 010)
 
 1. Task `phase: in_progress`, agent emits `needs_input` (e.g. zero trades in window).
-2. Controller writes `phase: human_review`, `retry_count: 0`, single `## Result` block.
+2. Controller clears `assignee`, leaves phase unchanged, renders `## Result` block (no `## Failure` since needs_input is not a crash). Controller does NOT write `phase: human_review` — that value is reserved for agent-emitted handoffs via `Result.NextPhase` (spec 039).
 3. Executor does not re-spawn (phase out of allowlist).
 4. Human edits task content, flips `phase: planning` or `in_progress` → cycle resumes with new params.
 
