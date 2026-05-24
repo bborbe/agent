@@ -1,7 +1,12 @@
 ---
-status: approved
+status: committing
+summary: Full code review of task/executor completed; 11 fix prompts generated for 4 Critical and 7 Important findings
+container: agent-exec-142-code-review-task-executor
+dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-24T09:26:08Z"
 queued: "2026-05-24T11:05:12Z"
+started: "2026-05-24T11:44:01Z"
+completed: "2026-05-24T11:49:46Z"
 ---
 
 <summary>

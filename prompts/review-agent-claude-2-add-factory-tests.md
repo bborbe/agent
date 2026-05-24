@@ -17,7 +17,7 @@ Add missing tests for BuildInstructions, CreateKafkaResultDeliverer, CreateFileR
 <context>
 Read `CLAUDE.md` for project conventions.
 Read `docs/dod.md` for Definition of Done.
-Read `go-testing-guide.md` in ~/.claude/plugins/marketplaces/coding/docs/ for Ginkgo/Gomega patterns.
+Read `/home/node/.claude/plugins/marketplaces/coding/docs/go-testing-guide.md` for Ginkgo/Gomega patterns.
 
 Files to read before making changes:
 - agent/claude/pkg/prompts/prompts.go — BuildInstructions at line 21-26

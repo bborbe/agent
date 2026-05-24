@@ -31,27 +31,31 @@ Files to read before making changes (read ALL first):
 </context>
 
 <requirements>
-<!-- 1. Create lib/claude/agent-step_test.go -->
-<!--    - Test NewAgentStep with valid config -->
-<!--    - Test Name returns "AgentStep" -->
-<!--    - Test ShouldRun: returns true always -->
-<!--    - Test Run: success path, error path (ClaudeRunner.Run error) -->
-<!--    - Use Counterfeiter mock for ClaudeRunner -->
-<!-- 2. Expand lib/claude/claude-runner_test.go -->
-<!--    - Test buildCommand: tool allowlist generation (branch at ~line 68) -->
-<!--    - Test appendTail: error case (branch at ~line 139) -->
-<!-- 3. Expand lib/claude/task-runner_test.go -->
-<!--    - Test deliver: error path (file write failure) -->
-<!--    - Test stepString: empty/whitespace steps (branch at ~line 169) -->
-<!-- 4. Create lib/claude/expand-tilde_test.go -->
-<!--    - Test expandTilde: ~ prefix (current 90%, missing ~ expansion) -->
-<!--    - Test ~/path expansion -->
-<!--    - Test ~user/path (should return unchanged) -->
-<!-- 5. Expand lib/claude/result-deliverer_test.go or create if needed -->
-<!--    - Test NewNoopResultDeliverer (0% currently) -->
-<!--    - Test NewKafkaResultDeliverer (0% currently) -->
-<!-- All tests: use Ginkgo/Gomega, Counterfeiter mocks (not manual mocks), external test package (_test suffix) -->
-<!-- Coverage target: ≥80% on new code; cover all branches for modified code -->
+1. Create `lib/claude/agent-step_test.go`:
+   - Test `NewAgentStep` with valid config
+   - Test `Name` returns `"AgentStep"`
+   - Test `ShouldRun`: returns `true` always
+   - Test `Run`: success path, error path (`ClaudeRunner.Run` error)
+   - Use Counterfeiter mock for `ClaudeRunner`
+
+2. Expand `lib/claude/claude-runner_test.go`:
+   - Test `buildCommand`: tool allowlist generation (branch at ~line 68)
+   - Test `appendTail`: error case (branch at ~line 139)
+
+3. Expand `lib/claude/task-runner_test.go`:
+   - Test `deliver`: error path (file write failure)
+   - Test `stepString`: empty/whitespace steps (branch at ~line 169)
+
+4. Create `lib/claude/expand-tilde_test.go`:
+   - Test `expandTilde`: `~` prefix (current 90%, missing `~` expansion)
+   - Test `~/path` expansion
+   - Test `~user/path` (should return unchanged)
+
+5. Expand `lib/claude/result-deliverer_test.go` or create if needed:
+   - Test `NewNoopResultDeliverer` (0% currently)
+   - Test `NewKafkaResultDeliverer` (0% currently)
+
+All tests: use Ginkgo/Gomega, Counterfeiter mocks (not manual mocks), external test package (`_test` suffix). Coverage target: ≥80% on new code; cover all branches for modified code.
 </requirements>
 
 <constraints>

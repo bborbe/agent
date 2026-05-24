@@ -25,20 +25,23 @@ Files to read before making changes (read ALL first):
 </context>
 
 <requirements>
-<!-- 1. Fix lib/agent_print-result.go:22 - fmt.Errorf instead of errors.Wrapf -->
-<!--    - PrintResult currently takes no context; add context.Context parameter -->
-<!--    - Replace fmt.Errorf("marshal result: %w", err) with errors.Wrapf(ctx, err, "marshal result") -->
-<!--    - Remove unused "fmt" import if no longer needed -->
-<!-- 2. Fix lib/command/task/create-command.go:54, 57 - bare return err -->
-<!--    - validateTitleEdges call: return errors.Wrap(ctx, err, "validate title edges") -->
-<!--    - validateTitleForbiddenChars call: return errors.Wrap(ctx, err, "validate title forbidden chars") -->
-<!--    - These are inside the closure returned by validateCreateTitle -->
-<!-- 3. Fix lib/claude/claude-plugin-installer.go:86, 111, 114 - bare return err -->
-<!--    - Line 86 (ensureOne → EnsureInstalled): return errors.Wrap(ctx, err, "ensure plugin installed: "+spec.Name) -->
-<!--    - Line 111 (runHard marketplace add): return errors.Wrap(ctx, err, "run marketplace add: "+spec.Marketplace) -->
-<!--    - Line 114 (runHard plugin install): return errors.Wrap(ctx, err, "run plugin install: "+spec.Name) -->
-<!-- 4. Verify all callers of PrintResult are updated to pass context -->
-<!--    - Search for PrintResult calls in lib/ and agent/ directories -->
+1. Fix `lib/agent_print-result.go:22` — `fmt.Errorf` instead of `errors.Wrapf`:
+   - `PrintResult` currently takes no context; add `context.Context` parameter
+   - Replace `fmt.Errorf("marshal result: %w", err)` with `errors.Wrapf(ctx, err, "marshal result")`
+   - Remove unused `"fmt"` import if no longer needed
+
+2. Fix `lib/command/task/create-command.go:54, 57` — bare `return err`:
+   - `validateTitleEdges` call: `return errors.Wrap(ctx, err, "validate title edges")`
+   - `validateTitleForbiddenChars` call: `return errors.Wrap(ctx, err, "validate title forbidden chars")`
+   - These are inside the closure returned by `validateCreateTitle`
+
+3. Fix `lib/claude/claude-plugin-installer.go:86, 111, 114` — bare `return err`:
+   - Line 86 (`ensureOne` → `EnsureInstalled`): `return errors.Wrap(ctx, err, "ensure plugin installed: "+spec.Name)`
+   - Line 111 (`runHard` marketplace add): `return errors.Wrap(ctx, err, "run marketplace add: "+spec.Marketplace)`
+   - Line 114 (`runHard` plugin install): `return errors.Wrap(ctx, err, "run plugin install: "+spec.Name)`
+
+4. Verify all callers of `PrintResult` are updated to pass context:
+   - Search for `PrintResult` calls in `lib/` and `agent/` directories
 </requirements>
 
 <constraints>

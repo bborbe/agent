@@ -36,36 +36,42 @@ Files to read before making changes (read ALL first):
 </context>
 
 <requirements>
-<!-- 1. Create lib/agent_agent_test.go -->
-<!--    - Test Agent.Run with valid phase transitions (planning, in_progress, ai_review) -->
-<!--    - Test Agent.Run with unsupported phase → returns error result with unsupportedPhase -->
-<!--    - Test validate failure path -->
-<!--    - Test findPhase when phase exists and when it doesn't -->
-<!--    - Use Counterfeiter mocks for ResultDeliverer -->
-<!-- 2. Create lib/agent_markdown_test.go -->
-<!--    - Test Marshal: yaml.Marshal error path -->
-<!--    - Test ParseMarkdown with valid/invalid frontmatter -->
-<!--    - Test FindSection, AddSection, ReplaceSection, InsertSection -->
-<!--    - Test splitMarkdownFrontmatter edge cases -->
-<!-- 3. Create lib/agent_runner_test.go -->
-<!--    - Test StepRunner.Run: normal step execution -->
-<!--    - Test StepRunner.Run: ctx.Done() triggers early exit -->
-<!--    - Test shouldExitStepRunner with various step results -->
-<!--    - Use Counterfeiter mocks for Step and ResultDeliverer -->
-<!-- 4. Create lib/agent_parser_test.go -->
-<!--    - Test ParseStep[T].Run with AIParser.Parse error path -->
-<!--    - Test ParseStep[T].ShouldRun -->
-<!-- 5. Create lib/agent_schema_test.go -->
-<!--    - Test ExtractSection and ExtractSectionMap -->
-<!--    - Test MarshalSectionTyped with json.MarshalIndent error -->
-<!-- 6. Create lib/agent_phase_test.go -->
-<!--    - Test NewPhase with valid name and step -->
-<!-- 7. Create lib/agent_task_test.go (or split into agent_task-identifier_test.go, agent_task-assignee_test.go) -->
-<!--    - Test TaskIdentifier String, Bytes, Contains, Ptr, Equal, Validate -->
-<!--    - Test TaskAssignee String, Validate -->
-<!--    - Test validation edge cases -->
-<!-- All tests: use Ginkgo/Gomega, Counterfeiter mocks (not manual mocks), external test package (_test suffix) -->
-<!-- Coverage target: ≥80% on new code -->
+1. Create `lib/agent_agent_test.go`:
+   - Test `Agent.Run` with valid phase transitions (`planning`, `in_progress`, `ai_review`)
+   - Test `Agent.Run` with unsupported phase → returns error result with `unsupportedPhase`
+   - Test validate failure path
+   - Test `findPhase` when phase exists and when it doesn't
+   - Use Counterfeiter mocks for `ResultDeliverer`
+
+2. Create `lib/agent_markdown_test.go`:
+   - Test `Marshal`: `yaml.Marshal` error path
+   - Test `ParseMarkdown` with valid/invalid frontmatter
+   - Test `FindSection`, `AddSection`, `ReplaceSection`, `InsertSection`
+   - Test `splitMarkdownFrontmatter` edge cases
+
+3. Create `lib/agent_runner_test.go`:
+   - Test `StepRunner.Run`: normal step execution
+   - Test `StepRunner.Run`: `ctx.Done()` triggers early exit
+   - Test `shouldExitStepRunner` with various step results
+   - Use Counterfeiter mocks for `Step` and `ResultDeliverer`
+
+4. Create `lib/agent_parser_test.go`:
+   - Test `ParseStep[T].Run` with `AIParser.Parse` error path
+   - Test `ParseStep[T].ShouldRun`
+
+5. Create `lib/agent_schema_test.go`:
+   - Test `ExtractSection` and `ExtractSectionMap`
+   - Test `MarshalSectionTyped` with `json.MarshalIndent` error
+
+6. Create `lib/agent_phase_test.go`:
+   - Test `NewPhase` with valid name and step
+
+7. Create `lib/agent_task_test.go` (or split into `agent_task-identifier_test.go`, `agent_task-assignee_test.go`):
+   - Test `TaskIdentifier` `String`, `Bytes`, `Contains`, `Ptr`, `Equal`, `Validate`
+   - Test `TaskAssignee` `String`, `Validate`
+   - Test validation edge cases
+
+All tests: use Ginkgo/Gomega, Counterfeiter mocks (not manual mocks), external test package (`_test` suffix). Coverage target: ≥80% on new code.
 </requirements>
 
 <constraints>

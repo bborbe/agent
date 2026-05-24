@@ -25,14 +25,15 @@ Files to read before making changes (read ALL first):
 </context>
 
 <requirements>
-<!-- 1. Fix lib/claude/claude-plugin-installer.go:80-90 - outer loop over specs -->
-<!--    - Add non-blocking select with ctx.Done() check at top of each iteration -->
-<!--    - Pattern: select { case <-ctx.Done(): return errors.Wrap(ctx, ctx.Err(), "context cancelled during EnsureInstalled"); default: } -->
-<!--    - The err from ensureOne is already wrapped by ensureOne itself -->
-<!-- 2. Fix lib/agent_runner.go:38-80 - StepRunner.Run step loop -->
-<!--    - Add select with ctx.Done() check at top of each for loop iteration -->
-<!--    - At the final return (line 80), add ctx.Err() check before returning lastResult -->
-<!--    - Pattern: if ctx.Err() != nil { return nil, ctx.Err() } before returning -->
+1. Fix `lib/claude/claude-plugin-installer.go` (~line 80-90) — outer loop over specs in `EnsureInstalled`:
+   - Add non-blocking select with `ctx.Done()` check at top of each iteration
+   - Pattern: `select { case <-ctx.Done(): return errors.Wrap(ctx, ctx.Err(), "context cancelled during EnsureInstalled"); default: }`
+   - The err from `ensureOne` is already wrapped by `ensureOne` itself
+
+2. Fix `lib/agent_runner.go` (~line 38-80) — `StepRunner.Run` step loop:
+   - Add select with `ctx.Done()` check at top of each `for` loop iteration
+   - At the final return (~line 80), add `ctx.Err()` check before returning `lastResult`
+   - Pattern: `if ctx.Err() != nil { return nil, ctx.Err() }` before returning
 </requirements>
 
 <constraints>
