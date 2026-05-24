@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [039-controller-stop-setting-human-review-on-failure]
 summary: 'Updated docs/controller-design.md to reflect spec-039 doctrine: controller no longer writes phase:human_review on failure/cap-exhaustion paths'
 container: agent-exec-146-spec-039-controller-design-doc-update
@@ -7,7 +7,7 @@ dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-25T00:00:00Z"
 queued: "2026-05-24T23:20:15Z"
 started: "2026-05-24T23:26:31Z"
-completed: "2026-05-24T23:27:46Z"
+completed: "2026-05-24T23:27:58Z"
 branch: dark-factory/controller-stop-setting-human-review-on-failure
 ---
 
