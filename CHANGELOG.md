@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.27
+
+- fix(lib/delivery): `applyStatusFrontmatter` no longer writes `phase: human_review` on `AgentStatusNeedsInput` or `AgentStatusFailed`; clears `assignee` and preserves existing phase instead
+
 ## v0.62.26
 
 - fix(task/controller): `IncrementFrontmatterExecutor` cap-escalation now clears `assignee` and preserves `phase` instead of setting `phase=human_review`
