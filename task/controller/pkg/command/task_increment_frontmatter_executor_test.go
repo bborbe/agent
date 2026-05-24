@@ -155,34 +155,95 @@ var _ = Describe("NewIncrementFrontmatterExecutor", func() {
 		})
 
 		Context("phase escalation at cap", func() {
-			It("sets phase=human_review when trigger_count reaches max_triggers", func() {
+			It(
+				"clears assignee and preserves phase when trigger_count reaches max_triggers",
+				func() {
+					taskFile := writeTaskFile(
+						"task.md",
+						"---\ntask_identifier: cap-test-uuid\ntrigger_count: 0\nmax_triggers: 2\n---\nbody\n",
+					)
+					// First increment: 0 -> 1, no escalation
+					cmd1 := buildCmdObj(task.IncrementFrontmatterCommand{
+						TaskIdentifier: lib.TaskIdentifier("cap-test-uuid"),
+						Field:          "trigger_count",
+						Delta:          1,
+					})
+					_, _, err := executor.HandleCommand(ctx, nil, cmd1)
+					Expect(err).NotTo(HaveOccurred())
+					fm := parseFrontmatter(taskFile)
+					Expect(fm["trigger_count"]).To(BeNumerically("==", 1))
+					Expect(fm["phase"]).To(BeNil())
+
+					// Second increment: 1 -> 2, escalation fires
+					cmd2 := buildCmdObj(task.IncrementFrontmatterCommand{
+						TaskIdentifier: lib.TaskIdentifier("cap-test-uuid"),
+						Field:          "trigger_count",
+						Delta:          1,
+					})
+					_, _, err = executor.HandleCommand(ctx, nil, cmd2)
+					Expect(err).NotTo(HaveOccurred())
+					fm = parseFrontmatter(taskFile)
+					Expect(fm["trigger_count"]).To(BeNumerically("==", 2))
+					Expect(fm["phase"]).NotTo(Equal("human_review"))
+					Expect(fm["assignee"]).To(BeEmpty())
+				},
+			)
+
+			It("preserves phase: planning when trigger_count reaches max_triggers", func() {
 				taskFile := writeTaskFile(
-					"task.md",
-					"---\ntask_identifier: cap-test-uuid\ntrigger_count: 0\nmax_triggers: 2\n---\nbody\n",
+					"cap-planning.md",
+					"---\ntask_identifier: cap-planning-uuid\ntrigger_count: 1\nmax_triggers: 2\nphase: planning\nassignee: some-agent\n---\nbody\n",
 				)
-				// First increment: 0 -> 1, no escalation
-				cmd1 := buildCmdObj(task.IncrementFrontmatterCommand{
-					TaskIdentifier: lib.TaskIdentifier("cap-test-uuid"),
+				cmd := buildCmdObj(task.IncrementFrontmatterCommand{
+					TaskIdentifier: lib.TaskIdentifier("cap-planning-uuid"),
 					Field:          "trigger_count",
 					Delta:          1,
 				})
-				_, _, err := executor.HandleCommand(ctx, nil, cmd1)
+				_, _, err := executor.HandleCommand(ctx, nil, cmd)
 				Expect(err).NotTo(HaveOccurred())
 				fm := parseFrontmatter(taskFile)
-				Expect(fm["trigger_count"]).To(BeNumerically("==", 1))
-				Expect(fm["phase"]).To(BeNil())
+				Expect(fm["trigger_count"]).To(BeNumerically("==", 2))
+				Expect(fm["phase"]).To(Equal("planning"))
+				Expect(fm["phase"]).NotTo(Equal("human_review"))
+				Expect(fm["assignee"]).To(BeEmpty())
+			})
 
-				// Second increment: 1 -> 2, escalation fires
-				cmd2 := buildCmdObj(task.IncrementFrontmatterCommand{
-					TaskIdentifier: lib.TaskIdentifier("cap-test-uuid"),
+			It("preserves phase: in_progress when trigger_count reaches max_triggers", func() {
+				taskFile := writeTaskFile(
+					"cap-in-progress.md",
+					"---\ntask_identifier: cap-in-progress-uuid\ntrigger_count: 1\nmax_triggers: 2\nphase: in_progress\nassignee: some-agent\n---\nbody\n",
+				)
+				cmd := buildCmdObj(task.IncrementFrontmatterCommand{
+					TaskIdentifier: lib.TaskIdentifier("cap-in-progress-uuid"),
 					Field:          "trigger_count",
 					Delta:          1,
 				})
-				_, _, err = executor.HandleCommand(ctx, nil, cmd2)
+				_, _, err := executor.HandleCommand(ctx, nil, cmd)
 				Expect(err).NotTo(HaveOccurred())
-				fm = parseFrontmatter(taskFile)
+				fm := parseFrontmatter(taskFile)
 				Expect(fm["trigger_count"]).To(BeNumerically("==", 2))
-				Expect(fm["phase"]).To(Equal("human_review"))
+				Expect(fm["phase"]).To(Equal("in_progress"))
+				Expect(fm["phase"]).NotTo(Equal("human_review"))
+				Expect(fm["assignee"]).To(BeEmpty())
+			})
+
+			It("preserves phase: ai_review when trigger_count reaches max_triggers", func() {
+				taskFile := writeTaskFile(
+					"cap-ai-review.md",
+					"---\ntask_identifier: cap-ai-review-uuid\ntrigger_count: 1\nmax_triggers: 2\nphase: ai_review\nassignee: some-agent\n---\nbody\n",
+				)
+				cmd := buildCmdObj(task.IncrementFrontmatterCommand{
+					TaskIdentifier: lib.TaskIdentifier("cap-ai-review-uuid"),
+					Field:          "trigger_count",
+					Delta:          1,
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmd)
+				Expect(err).NotTo(HaveOccurred())
+				fm := parseFrontmatter(taskFile)
+				Expect(fm["trigger_count"]).To(BeNumerically("==", 2))
+				Expect(fm["phase"]).To(Equal("ai_review"))
+				Expect(fm["phase"]).NotTo(Equal("human_review"))
+				Expect(fm["assignee"]).To(BeEmpty())
 			})
 		})
 

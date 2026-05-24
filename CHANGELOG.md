@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.26
+
+- fix(task/controller): `IncrementFrontmatterExecutor` cap-escalation now clears `assignee` and preserves `phase` instead of setting `phase=human_review`
+
 ## v0.62.25
 
 - chore(task/executor): bump spawned-Job `TTLSecondsAfterFinished` 600s → 1800s; completed pods + logs stay queryable for 30 min instead of 10, giving operators headroom for live debug
