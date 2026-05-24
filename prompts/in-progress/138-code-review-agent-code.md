@@ -1,6 +1,7 @@
 ---
-status: draft
+status: approved
 created: "2026-05-24T09:26:08Z"
+queued: "2026-05-24T11:05:12Z"
 ---
 
 <summary>
@@ -12,16 +13,16 @@ created: "2026-05-24T09:26:08Z"
 </summary>
 
 <objective>
-Run a full code review of agent/claude and generate a fix prompt for each Critical or Important finding.
+Run a full code review of agent/code and generate a fix prompt for each Critical or Important finding.
 </objective>
 
 <context>
 Read `CLAUDE.md` for project conventions.
 Read `docs/dod.md` for Definition of Done criteria.
 
-Read 3 recent completed prompts from the prompts completed directory (highest-numbered) to understand prompt style and XML tag structure.
+Read the 3 highest-numbered completed prompts in `prompts/completed/` (NNN- prefix) to understand prompt style and XML tag structure.
 
-Service directory: `agent/claude/`
+Service directory: `agent/code/`
 </context>
 
 <requirements>
@@ -32,7 +33,7 @@ Read `.dark-factory.yaml` to find `prompts.inboxDir` (default: `prompts`). Use t
 
 ## 2. Run Code Review
 
-Run `/coding:code-review full agent/claude` to get a comprehensive review with all specialist agents.
+Run `/coding:code-review full agent/code` to get a comprehensive review with all specialist agents.
 
 Collect the consolidated findings categorized as:
 - **Must Fix (Critical)** — will generate fix prompts
@@ -43,7 +44,7 @@ Collect the consolidated findings categorized as:
 
 For each Critical or Important finding (or group of related findings in the same file/package), write a prompt file to the prompts inbox directory.
 
-**Filename:** `review-agent-claude-<fix-description>.md`
+**Filename:** `review-agent-code-<fix-description>.md`
 
 Each fix prompt must follow this exact structure. HTML comments below are instructions for the generator — replace with concrete content; do NOT copy the instruction text into the output.
 
@@ -69,7 +70,7 @@ Read `docs/dod.md` for Definition of Done.
 
 Files to read before making changes (read ALL first):
 <!-- List 1-5 specific files. Repo-relative paths. Optional ~line N hint. -->
-<!-- Example: - agent/claude/pkg/session/runner.go (~line 142, function Run) -->
+<!-- Example: - agent/code/pkg/session/runner.go (~line 142, function Run) -->
 </context>
 
 <requirements>
@@ -80,14 +81,14 @@ Files to read before making changes (read ALL first):
 </requirements>
 
 <constraints>
-- Only change files in `agent/claude/`
+- Only change files in `agent/code/`
 - Do NOT commit — dark-factory handles git
 - Existing tests must still pass
 - Follow project conventions in `CLAUDE.md` and `docs/` — error wrapping with `github.com/bborbe/errors` (never `fmt.Errorf` or bare `return err`), context propagation, factory pattern, time injection
 </constraints>
 
 <verification>
-cd agent/claude && make precommit
+cd agent/code && make precommit
 </verification>
 ```
 
@@ -114,5 +115,5 @@ Print a summary of findings and generated prompt files.
 
 <verification>
 # This prompt only generates markdown files — no code changes, no build needed.
-ls prompts/review-agent-claude-*.md 2>/dev/null || echo "No findings — clean review"
+ls prompts/review-agent-code-*.md 2>/dev/null || echo "No findings — clean review"
 </verification>
