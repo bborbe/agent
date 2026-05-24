@@ -39,7 +39,7 @@ On agent-task-v1-request (operation: "update"):
   │     ├── read retry_count from merged frontmatter (set by executor at spawn time, spec 011)
   │     ├── if trigger_count >= max_triggers → clear assignee: "", preserve lifecycle phase, append ## Trigger Cap Escalation (once)
   │     ├── if retry_count >= max_retries   → clear assignee: "", preserve lifecycle phase, append ## Retry Escalation (once)
-  │     └── if agent emits needs_input (phase: human_review) → set phase: human_review, clear assignee: ""
+  │     └── if agent emits needs_input → clear assignee: "" (phase unchanged; spec-039 supersedes spec-021 for this row)
   ├── sanitize content (escape bare --- lines to prevent YAML corruption)
   ├── write frontmatter + content to file
   ├── git add + commit + push
@@ -56,7 +56,7 @@ Agent provides: {status: completed, phase: done}
 Merged result:  {assignee: backtest-agent, tags: [agent-task], task_identifier: xyz, status: completed, phase: done}
 ```
 
-## Assignee-Clear on Escalation (spec 021)
+## Assignee-Clear on Escalation (spec 021, refined by spec 039)
 
 Every escalation path writes `assignee: ""` so the task surfaces in operator inbox:
 
@@ -64,7 +64,7 @@ Every escalation path writes `assignee: ""` so the task surfaces in operator inb
 |---|---|---|
 | `trigger_count >= max_triggers` | unchanged (lifecycle stage preserved) | `""` |
 | `retry_count >= max_retries` | unchanged (lifecycle stage preserved) | `""` |
-| Agent emits `needs_input` | `human_review` | `""` |
+| Agent emits `needs_input` | unchanged (lifecycle stage preserved) | `""` |
 
 Once a task is parked (escalation section present, `assignee: ""`), repeated stale agent
 result publishes are idempotent: the escalation section is not duplicated, the lifecycle
@@ -94,7 +94,7 @@ On agent-task-v1-request (operation: "increment-frontmatter"):
   │     ├── newVal = currentVal + Delta
   │     ├── set Field = newVal
   │     ├── cap escalation: if Field == "trigger_count" AND newVal >= max_triggers
-  │     │     └── set phase = "human_review" in the same write
+  │     │     └── clear assignee in the same write (phase unchanged; spec-039 supersedes spec-021 for this row)
   │     ├── write updated file (under mutex)
   │     └── git commit + push (under mutex)
   └── increment FrontmatterCommandsTotal{operation, outcome}
