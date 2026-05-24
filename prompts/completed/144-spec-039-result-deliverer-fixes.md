@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [039-controller-stop-setting-human-review-on-failure]
 summary: 'Updated result-deliverer to clear assignee and preserve phase on AgentStatusNeedsInput/default branches instead of writing phase: human_review'
 container: agent-exec-144-spec-039-result-deliverer-fixes
@@ -7,7 +7,7 @@ dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-25T00:00:00Z"
 queued: "2026-05-24T23:20:15Z"
 started: "2026-05-24T23:22:02Z"
-completed: "2026-05-24T23:24:21Z"
+completed: "2026-05-24T23:24:34Z"
 branch: dark-factory/controller-stop-setting-human-review-on-failure
 ---
 
