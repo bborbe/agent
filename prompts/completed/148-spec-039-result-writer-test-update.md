@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [039-controller-stop-setting-human-review-on-failure]
 summary: 'Updated result_writer_test.go: rewrote needs_input test to post-spec-039 deliverer shape, added legitimate-handoff test, re-anchored two existing tests with new names/comments'
 container: agent-exec-148-spec-039-result-writer-test-update
@@ -7,7 +7,7 @@ dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-25T00:00:00Z"
 queued: "2026-05-24T23:20:15Z"
 started: "2026-05-24T23:28:59Z"
-completed: "2026-05-24T23:32:25Z"
+completed: "2026-05-24T23:32:38Z"
 branch: dark-factory/controller-stop-setting-human-review-on-failure
 ---
 
