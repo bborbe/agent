@@ -768,7 +768,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 
 		Context("needs_input result", func() {
 			It(
-				"does not increment retry_count when phase is human_review (needs_input path)",
+				"does not increment retry_count on Result.NextPhase=human_review handoff (legitimate handoff path)",
 				func() {
 					writeTaskFile(
 						"my-task.md",
@@ -788,9 +788,9 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 					s := string(written)
 					// retry_count must NOT be incremented
 					Expect(s).To(ContainSubstring("retry_count: 0"))
-					// phase must stay human_review — not overwritten by escalation logic
+					// Legitimate handoff: agent set Result.NextPhase=human_review; phase stays as merged.
 					Expect(s).To(ContainSubstring("phase: human_review"))
-					// no escalation section — needs_input is not an infra failure
+					// no escalation section — this is a Done+human_review handoff, not a retry/cap path.
 					Expect(s).NotTo(ContainSubstring("## Retry Escalation"))
 					Expect(s).To(ContainSubstring("No trades found"))
 					// assignee cleared — task surfaces in operator inbox
@@ -800,8 +800,10 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 			)
 
 			It(
-				"does not increment retry_count when phase is already human_review and retry_count > 0 (terminal guard)",
+				"does not increment retry_count on stale repeat publish to a task already parked at human_review (legitimate handoff stickiness)",
 				func() {
+					// Stale repeat publish path: task already parked at human_review from a prior Result.NextPhase handoff;
+					// this publish must not bump retry_count or duplicate sections.
 					writeTaskFile(
 						"my-task.md",
 						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: human_review\nassignee: claude\nretry_count: 2\n---\nPrevious body\n",
@@ -828,29 +830,71 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 				},
 			)
 
-			It("clears assignee when agent emits needs_input (phase: human_review)", func() {
-				writeTaskFile(
-					"my-task.md",
-					"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\nassignee: claude\n---\nOriginal body\n",
-				)
-				taskFile = lib.Task{
-					TaskIdentifier: identifier,
-					Frontmatter: lib.TaskFrontmatter{
-						"task_identifier": "test-task-uuid-1234",
-						"status":          "in_progress",
-						"phase":           "human_review",
-					},
-					Content: lib.TaskContent("Needs human input.\n"),
-				}
-				Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
-				written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
-				s := string(written)
-				Expect(s).To(ContainSubstring("phase: human_review"))
-				Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
-				Expect(s).NotTo(ContainSubstring("## Retry Escalation"))
-				Expect(s).NotTo(ContainSubstring("## Trigger Cap Escalation"))
-				Expect(s).To(ContainSubstring("previous_assignee: claude"))
-			})
+			It(
+				"preserves phase and keeps assignee cleared when deliverer published needs_input (post-spec-039 shape)",
+				func() {
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\nassignee: claude\n---\nOriginal body\n",
+					)
+					// Spec 039: the deliverer's needs_input branch publishes phase unchanged
+					// (lifecycle stage from the incoming frontmatter snapshot) and clears
+					// assignee to "" upstream. The result writer must preserve both.
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "ai_review",
+							"assignee":        "",
+						},
+						Content: lib.TaskContent("Needs human input.\n"),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					// Phase preserved from disk (ai_review), NOT overwritten to human_review.
+					Expect(s).To(ContainSubstring("phase: ai_review"))
+					Expect(s).NotTo(ContainSubstring("phase: human_review"))
+					// Assignee cleared (already "" from deliverer, writer merges it as-is).
+					Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
+					Expect(s).NotTo(ContainSubstring("## Retry Escalation"))
+					Expect(s).NotTo(ContainSubstring("## Trigger Cap Escalation"))
+					// previous_assignee is NOT set because phase is ai_review (not human_review),
+					// so the line-180 guard does not fire clearAssignee().
+					Expect(s).NotTo(ContainSubstring("previous_assignee:"))
+				},
+			)
+
+			It(
+				"clears assignee via line-180 guard when agent legitimately handed off via Result.NextPhase=human_review",
+				func() {
+					writeTaskFile(
+						"my-task.md",
+						"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\nassignee: claude\n---\nOriginal body\n",
+					)
+					// Legitimate handoff: agent returned Done + NextPhase=human_review.
+					// The deliverer resolveNextPhase wrote phase: human_review onto the
+					// result. The writer's line-180 guard must then clear assignee.
+					taskFile = lib.Task{
+						TaskIdentifier: identifier,
+						Frontmatter: lib.TaskFrontmatter{
+							"task_identifier": "test-task-uuid-1234",
+							"status":          "in_progress",
+							"phase":           "human_review",
+						},
+						Content: lib.TaskContent("Please verify the strategy output.\n"),
+					}
+					Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+					written, _ := os.ReadFile(filepath.Join(tmpDir, taskDir, "my-task.md"))
+					s := string(written)
+					Expect(s).To(ContainSubstring("phase: human_review"))
+					Expect(s).NotTo(ContainSubstring("\nassignee: claude"))
+					Expect(s).NotTo(ContainSubstring("## Retry Escalation"))
+					Expect(s).NotTo(ContainSubstring("## Trigger Cap Escalation"))
+					Expect(s).To(ContainSubstring("previous_assignee: claude"))
+				},
+			)
 		})
 
 		Context("trigger_count cap escalation", func() {
