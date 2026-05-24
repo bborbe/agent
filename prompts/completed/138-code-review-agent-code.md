@@ -1,12 +1,12 @@
 ---
-status: committing
+status: completed
 summary: 'Generated 3 fix prompts for agent/code: graceful shutdown context, factory pattern violation in CreateSyncProducer, and 0% test coverage on pkg/steps'
 container: agent-exec-138-code-review-agent-code
 dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-24T09:26:08Z"
 queued: "2026-05-24T11:05:12Z"
 started: "2026-05-24T11:19:02Z"
-completed: "2026-05-24T11:23:34Z"
+completed: "2026-05-24T11:23:47Z"
 ---
 
 <summary>
