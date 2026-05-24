@@ -1,7 +1,12 @@
 ---
-status: approved
+status: committing
+summary: 'Code review of agent/gemini generated 4 fix prompts for Important findings: context propagation in parser constructor, factory pattern violations, and test coverage gaps for parser and steps packages.'
+container: agent-exec-139-code-review-agent-gemini
+dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-24T09:26:08Z"
 queued: "2026-05-24T11:05:12Z"
+started: "2026-05-24T11:23:49Z"
+completed: "2026-05-24T11:27:44Z"
 ---
 
 <summary>
