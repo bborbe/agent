@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [039-controller-stop-setting-human-review-on-failure]
+summary: 'Added ## Unreleased section to CHANGELOG.md with fix(controller): and fix(lib/delivery): entries referencing spec-021; both make precommit targets pass and spec AC #9 grep audit finds zero write-side human_review assignments'
+container: agent-exec-149-spec-039-changelog-and-precommit
+dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-25T00:00:00Z"
 queued: "2026-05-24T23:20:15Z"
+started: "2026-05-24T23:32:40Z"
+completed: "2026-05-24T23:35:04Z"
 branch: dark-factory/controller-stop-setting-human-review-on-failure
 ---
 
