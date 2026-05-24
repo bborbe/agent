@@ -31,8 +31,8 @@ upload:
 .PHONY: clean
 clean:
 	docker rmi $(DOCKER_REGISTRY)/$(SERVICE):$(BRANCH) || true
-	docker image prune -f
-	docker builder prune --all -f
+	docker image prune -f || true
+	docker builder prune --all -f || true
 	rm -rf vendor
 
 .PHONY: apply
