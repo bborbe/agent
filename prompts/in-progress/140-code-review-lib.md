@@ -1,7 +1,12 @@
 ---
-status: approved
+status: committing
+summary: 'Code review of lib/ generated 4 fix prompts for Critical/Important findings: error handling (3 issues), context cancellation (2 issues), and test coverage (root at 24.7% and lib/claude at 76.6%)'
+container: agent-exec-140-code-review-lib
+dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-24T09:26:08Z"
 queued: "2026-05-24T11:05:12Z"
+started: "2026-05-24T11:27:59Z"
+completed: "2026-05-24T11:34:58Z"
 ---
 
 <summary>
