@@ -23,9 +23,13 @@ Files to read before making changes:
 </context>
 
 <requirements>
-### 1. Define CronScheduler interface in pkg/
+### 1. Verify libcron.NewExpressionCron's method set
 
-Create a new file or add to an existing file:
+Read `libcron.NewExpressionCron` (in `$GOPATH/pkg/mod/github.com/bborbe/cron@v*/`) and confirm its return type's `Run` method signature. If the signature is `Run(ctx context.Context) error`, proceed. If it differs (e.g., no-arg `Run() error`), adjust the interface below to match — DO NOT invent a signature that won't compile.
+
+### 2. Define CronScheduler interface in pkg/
+
+Create a new file (or add to an existing factory-types file):
 
 ```go
 // CronScheduler runs a cron expression on a schedule.
@@ -34,7 +38,9 @@ type CronScheduler interface {
 }
 ```
 
-### 2. Update CreateHealthcheckCron return type
+Confirm `libcron.NewExpressionCron(...)`'s return type implements this — go-vet-style assignment check.
+
+### 3. Update CreateHealthcheckCron return type
 
 ```go
 func CreateHealthcheckCron(
@@ -45,11 +51,11 @@ func CreateHealthcheckCron(
 }
 ```
 
-### 3. Update main.go to use CronScheduler interface
+### 4. Update main.go to use CronScheduler interface
 
 In main.go, change the variable type that receives the result of CreateHealthcheckCron to use the interface type.
 
-### 4. Run make build and make test
+### 5. Run make build and make test
 
 ```bash
 cd task/executor && make build && make test

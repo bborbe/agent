@@ -4,13 +4,14 @@ created: "2026-05-24T00:00:00Z"
 ---
 
 <summary>
-- Adds explicit HTTP server timeouts
-- Configures read, write, and idle timeouts
+- Verify `libhttp.NewServer` defaults match desired security posture (30s read/write, 60s idle, 1MB header)
+- If shorter timeouts wanted, pass `func(o *libhttp.ServerOptions)` to override
+- If defaults acceptable, document and close as no-op
 - Mitigates slowloris attacks and connection exhaustion
 </summary>
 
 <objective>
-The HTTP server in task/executor is created without explicit timeouts, making it vulnerable to slowloris attacks and connection exhaustion. After this change, the server has explicit read, write, and idle timeouts configured.
+Confirm HTTP server has sensible timeout configuration. The server is created via `libhttp.NewServer(addr, router)`, which already applies defaults (ReadTimeout 30s, WriteTimeout 30s, IdleTimeout 60s, MaxHeaderBytes 1MB). Verify these are sufficient; if not, override via an option function.
 </objective>
 
 <context>
@@ -18,33 +19,37 @@ Read `CLAUDE.md` for project conventions.
 Read `docs/dod.md` for Definition of Done.
 
 Files to read before making changes:
-- task/executor/main.go (~line 134, createHTTPServer function)
+- task/executor/main.go (~line 134, `createHTTPServer` function)
+- `github.com/bborbe/http` package source (in `$GOPATH/pkg/mod/github.com/bborbe/http@v*`) — `http_server.go`: `CreateServerOptions` defaults
 </context>
 
 <requirements>
-### 1. Check libhttp.NewServer API
+### 1. Read libhttp.NewServer source
 
-Verify what timeout options are available in the bborbe/http library. Look for options like WithReadTimeout, WithWriteTimeout, WithIdleTimeout.
+Confirm the default values applied by `CreateServerOptions` (ReadTimeout 30s, WriteTimeout 30s, IdleTimeout 60s, MaxHeaderBytes 1MB). Note: there are NO `libhttp.WithReadTimeout` / `WithWriteTimeout` / `WithIdleTimeout` helper functions — only the variadic `optionFns ...func(*ServerOptions)` signature.
 
-### 2. Update createHTTPServer to use timeouts
+### 2. Decide: are defaults sufficient?
 
-If the API supports options:
+If YES (likely for task/executor): add a comment near the `libhttp.NewServer(a.Listen, router)` call documenting that defaults are intentionally accepted, then exit. This prompt is a no-op.
+
+If NO: override with an option function, e.g.:
 ```go
-return libhttp.NewServer(
-    a.Listen,
-    router,
-    libhttp.WithReadTimeout(10*time.Second),
-    libhttp.WithWriteTimeout(30*time.Second),
-    libhttp.WithIdleTimeout(60*time.Second),
+return libhttp.NewServer(a.Listen, router,
+    func(o *libhttp.ServerOptions) {
+        o.ReadTimeout = 10 * time.Second
+        o.WriteTimeout = 30 * time.Second
+    },
 ).Run(ctx)
 ```
 
-If the API does not support options, investigate alternative approaches to set timeouts on the underlying http.Server.
+### 3. Do NOT use non-existent helpers
 
-### 3. Run make build
+Do NOT write `libhttp.WithReadTimeout(...)` — that function does not exist in `bborbe/http`. The only option pattern is the closure form above.
+
+### 4. Run make precommit
 
 ```bash
-cd task/executor && make build
+cd task/executor && make precommit
 ```
 </requirements>
 

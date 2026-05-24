@@ -23,33 +23,39 @@ Files to read before making changes:
 </context>
 
 <requirements>
-### 1. Update NewHealthcheckTriggerHandler signature
+### 1. Confirm libhttp.NewBackgroundRunHandler signature
 
-Remove the `ctx context.Context` parameter:
+`libhttp.NewBackgroundRunHandler(ctx context.Context, runFunc run.Func) http.Handler` REQUIRES a context. The signature cannot be changed without modifying `bborbe/http`. The fix must pass a non-cancelled context, NOT remove the ctx parameter.
+
+### 2. Update NewHealthcheckTriggerHandler
+
+Keep the ctx parameter on `NewHealthcheckTriggerHandler` but document that the caller MUST pass a context whose lifetime matches the HTTP server, not a transient goroutine context. Or, more robust: drop the caller's ctx and use `context.Background()` inside the factory:
 
 ```go
 func NewHealthcheckTriggerHandler(
     runner probe.HealthcheckRunner,
 ) http.Handler {
-    return libhttp.NewBackgroundRunHandler(runner.Run)
+    return libhttp.NewBackgroundRunHandler(context.Background(), runner.Run)
 }
 ```
 
-### 2. Update main.go call site
+The trigger should outlive any individual request and only stop when the process exits. `context.Background()` is appropriate here because graceful shutdown is handled by `libhttp.NewServer`'s built-in `Shutdown(ctx)` path.
 
-Remove the ctx argument from the NewHealthcheckTriggerHandler call in main.go around line 148:
+### 3. Update main.go call site
+
+Remove the ctx argument from the `NewHealthcheckTriggerHandler` call in `main.go` around line 148:
 
 ```go
 handler.NewHealthcheckTriggerHandler(runner)  // no ctx parameter
 ```
 
-### 3. Verify the change compiles
+### 4. Verify the change compiles
 
 ```bash
 cd task/executor && make build
 ```
 
-### 4. Run tests
+### 5. Run tests
 
 ```bash
 cd task/executor && make test
@@ -59,7 +65,8 @@ cd task/executor && make test
 <constraints>
 - Only change files in `task/executor/`
 - Do NOT commit — dark-factory handles git
-- Verify libhttp.NewBackgroundRunHandler accepts run.Func without ctx
+- DO NOT attempt to call `libhttp.NewBackgroundRunHandler` without ctx — that signature does not exist
+- The fix is to drop the caller's ctx and use `context.Background()` inside the factory
 </constraints>
 
 <verification>
