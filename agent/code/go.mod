@@ -2,7 +2,9 @@ module github.com/bborbe/agent/agent/code
 
 go 1.26.3
 
-replace github.com/bborbe/agent/lib => ../../lib
+replace (
+	github.com/bborbe/agent/lib => ../../lib
+)
 
 require (
 	github.com/bborbe/agent/lib v0.0.0
@@ -12,7 +14,7 @@ require (
 	github.com/bborbe/sentry v1.9.17
 	github.com/bborbe/service v1.10.0
 	github.com/bborbe/time v1.27.0
-	github.com/bborbe/vault-cli v0.64.3
+	github.com/bborbe/vault-cli v0.67.5
 	github.com/golang/glog v1.2.5
 	github.com/onsi/ginkgo/v2 v2.29.0
 	github.com/onsi/gomega v1.41.0

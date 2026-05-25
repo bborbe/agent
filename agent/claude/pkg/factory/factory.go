@@ -15,6 +15,7 @@ import (
 	"github.com/bborbe/errors"
 	libkafka "github.com/bborbe/kafka"
 	libtime "github.com/bborbe/time"
+	"github.com/bborbe/vault-cli/pkg/domain"
 
 	"github.com/bborbe/agent/agent/claude/pkg/prompts"
 	agentlib "github.com/bborbe/agent/lib"
@@ -122,7 +123,7 @@ func CreateAgentFromRunner(
 	})
 	return agentlib.NewAgent(
 		agentlib.NewPhase("planning", step),
-		agentlib.NewPhase("in_progress", step),
+		agentlib.NewPhase(domain.TaskPhaseExecution, step),
 		agentlib.NewPhase("ai_review", step),
 	)
 }
