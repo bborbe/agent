@@ -57,6 +57,7 @@ func NewResultPublisher(
 	}
 }
 
+// resultPublisher implements ResultPublisher by sending CQRS command objects to Kafka.
 type resultPublisher struct {
 	commandObjectSender cdb.CommandObjectSender
 	currentDateTime     libtime.CurrentDateTimeGetter

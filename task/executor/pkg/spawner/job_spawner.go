@@ -62,6 +62,7 @@ func NewJobSpawner(
 	}
 }
 
+// jobSpawner implements JobSpawner by creating batch/v1 Jobs via the K8s client.
 type jobSpawner struct {
 	kubeClient            kubernetes.Interface
 	namespace             k8s.Namespace

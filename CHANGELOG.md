@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.11
+
+- docs(task/executor): add GoDoc comments to jobSpawner, k8sConnector, and resultPublisher exported structs
+
 ## v0.63.10
 
 - fix(task/controller): add suiteConfig.Timeout to metrics/result/command Ginkgo suites; add missing suite setup (time.Local, format.TruncatedDiff, GinkgoConfiguration) to gitrestclient and main test suites; replace time.Now() with libtimetest.ParseDateTime in task_result_executor_test.go

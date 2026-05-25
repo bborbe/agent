@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added GoDoc comments to jobSpawner, k8sConnector, and resultPublisher structs in task/executor/pkg/
+container: agent-exec-163-review-task-executor-add-godoc-to-exported-types
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T21:00:25Z"
+started: "2026-05-25T22:30:16Z"
+completed: "2026-05-25T22:31:49Z"
 ---
 
 <summary>

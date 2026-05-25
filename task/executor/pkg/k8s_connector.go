@@ -48,6 +48,7 @@ func NewK8sConnector(config *rest.Config, crdBuilder CRDClientBuilder) K8sConnec
 	return &k8sConnector{config: config, crdBuilder: crdBuilder}
 }
 
+// k8sConnector implements K8sConnector using a REST config and a CRD client builder.
 type k8sConnector struct {
 	config     *rest.Config
 	crdBuilder CRDClientBuilder
