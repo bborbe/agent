@@ -1,14 +1,20 @@
 ---
-spec: ["040"]
-status: draft
+status: committing
+spec: [040-agent-lib-runs-all-phases-in-one-pod]
+summary: Added phase loop to Agent.Run with ctx-cancellation check between phases, created 9 Ginkgo tests covering all exit conditions, and added v0.63.0 CHANGELOG entry
+container: agent-exec-150-spec-040-agent-multi-phase-loop
+dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-25T00:00:00Z"
+queued: "2026-05-25T13:57:05Z"
+started: "2026-05-25T13:57:20Z"
+completed: "2026-05-25T14:00:40Z"
 ---
 
 <summary>
 - An agent configured with multiple phases now runs all of them inside one process on the happy path, instead of exiting after every phase and waiting for the executor to spawn a new pod.
 - The per-phase publish sequence is unchanged: every step still writes the task file and publishes its result before the loop advances, so crash recovery via persisted markdown still works.
 - The change is contained to `Agent.Run` — the inner `StepRunner` and `shouldExitStepRunner` are untouched.
-- Exit conditions are explicit: non-Done status, empty NextPhase, NextPhase equal to `"done"` or `"human_review"`, NextPhase not in this Agent's phase set, or ctx cancelled.
+- Exit conditions are explicit and total six: `result == nil`, non-Done status, empty NextPhase, NextPhase equal to `"done"` or `"human_review"`, NextPhase not in this Agent's phase set, plus the orthogonal ctx-cancelled check between iterations.
 - A new Ginkgo test exercises a 3-phase chain end-to-end and asserts the deliverer received the three publishes in order; additional tests cover ctx-cancel-between-phases, unknown NextPhase, and an empty-Steps middle phase.
 - The `CHANGELOG.md` gains a `## v0.63.0` section above `## v0.62.29` with a single `feat:` line naming the loop and the consequence ("one pod boot per agent on the happy path").
 </summary>
@@ -140,10 +146,12 @@ func (a *Agent) findPhase(name domain.TaskPhase) (Phase, bool)
 
    b. **Ctx-cancel between phases.** Build a 2-phase Agent A→B. Step A's `RunStub` (note: use `RunStub`, not `RunReturns`, so the cancel happens during/after step A): inside the stub, set the result to `Done + NextPhase: "B"` AND call `cancel()` on a cancellable context created via `context.WithCancel(context.Background())`. Step B uses default mock values (so if it ever runs, the test can detect it via `RunCallCount > 0`).
 
+      **This test asserts the between-iterations ctx check** added in requirement 3 (the new code paid for by this prompt) — NOT cancellation observed inside StepRunner during step A's Run. Step A's Run completes normally (its stub doesn't return ctx.Err); the loop then checks ctx.Err() before looking up phase B and bails out there.
+
       Assert:
       - `Agent.Run` returns a non-nil error.
       - `errors.Is(err, context.Canceled)` returns `true`.
-      - `stepB.RunCallCount() == 0` (the second phase never started).
+      - `stepB.RunCallCount() == 0` (the second phase never started — verifies the between-iterations check ran).
       - `deliverer.DeliverResultCallCount() == 1` (only step A's publish happened).
 
    c. **NextPhase outside this agent.** Build a 2-phase Agent A→B. Step B publishes `Done + NextPhase: "unknown-to-this-agent"`.
@@ -237,7 +245,6 @@ func (a *Agent) findPhase(name domain.TaskPhase) (Phase, bool)
 - Use `errors.Wrapf(ctx, err, "...")` from `github.com/bborbe/errors` for any new error wrapping. Do NOT use `fmt.Errorf` or stdlib `errors.New` for wrapping.
 - Tests live in `package lib_test`, not `package lib`. Use the existing mock fakes (`lib/mocks/`) — do NOT hand-roll new fakes.
 
-<!-- Open question for audit: the spec says "lib/v0.62.29..HEAD" but the most recent lib/ git tag observed at prompt-generation time is lib/v0.62.17, while CHANGELOG.md's top header is "## v0.62.29". The repo uses a single root-level CHANGELOG and auto-tags via the auto-committer, so the version numbers in CHANGELOG and the git tag set can be out of sync. This prompt anchors CHANGELOG insertion by regex (^## v[0-9]+\.[0-9]+\.[0-9]+), not by literal version number, which is the correct robust approach. The auditor should verify the regex insertion lands above whatever version is at the top at execution time. -->
 </constraints>
 
 <verification>

@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.0
+
+- feat(lib): `agentlib.Agent.Run` now loops over phases in one process — when a step publishes `Done + NextPhase` and that phase exists on the same Agent, the loop runs it in-process instead of returning. The pod only exits on terminal status, terminal NextPhase (`"done"`/`"human_review"`/empty/unknown-to-this-agent), or ctx cancel. Consequence: one pod boot per agent on the happy path; the executor's 300s respawn grace window now only fires on genuine crashes and cross-agent hops.
+
 ## v0.62.29
 
 - fix(controller): stop writing `phase: human_review` on `trigger_count` cap-exhaustion path in `task_increment_frontmatter_executor`; phase now reflects the lifecycle stage and only `assignee` is cleared (completes spec-021 escalation doctrine; spec-021 `needs_input` row superseded)
