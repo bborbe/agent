@@ -25,7 +25,7 @@ spec:
   trigger:
     phases:
       - planning
-      - in_progress
+      - execution
       - ai_review
     statuses:
       - in_progress
