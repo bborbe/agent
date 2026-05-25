@@ -22,13 +22,8 @@ var _ = Describe("CreateAgentProvider", func() {
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		provider = factory.CreateAgentProvider(
-			"agent",
-			"",
-			"",
-			map[string]string{},
-			map[string]string{},
-		)
+		runner := factory.CreatePiRunner("agent", "", "", map[string]string{})
+		provider = factory.CreateAgentProvider(runner, map[string]string{})
 	})
 
 	It("returns a non-nil provider", func() {

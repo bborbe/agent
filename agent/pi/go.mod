@@ -12,7 +12,7 @@ require (
 	github.com/bborbe/sentry v1.9.17
 	github.com/bborbe/service v1.10.0
 	github.com/bborbe/time v1.27.0
-	github.com/bborbe/vault-cli v0.64.3
+	github.com/bborbe/vault-cli v0.67.5
 	github.com/golang/glog v1.2.5
 	github.com/onsi/ginkgo/v2 v2.29.0
 	github.com/onsi/gomega v1.41.0
@@ -22,6 +22,7 @@ require (
 require (
 	github.com/IBM/sarama v1.48.1 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
+	github.com/bborbe/agent/agent/claude v0.0.0-20260525200034-4e22c40d81a4 // indirect
 	github.com/bborbe/argument/v2 v2.12.22 // indirect
 	github.com/bborbe/collection v1.20.12 // indirect
 	github.com/bborbe/http v1.26.12 // indirect

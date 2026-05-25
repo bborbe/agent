@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/push"
 
+	"github.com/bborbe/agent/agent/pi/pkg/envparse"
 	"github.com/bborbe/agent/agent/pi/pkg/factory"
 	agentlib "github.com/bborbe/agent/lib"
 	delivery "github.com/bborbe/agent/lib/delivery"
@@ -100,7 +101,7 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 			jobMetrics.RecordDuration(time.Since(start))
 			return errors.Errorf(ctx, "KAFKA_BROKERS must be set when TASK_ID is set")
 		}
-		syncProducer, err := factory.CreateSyncProducer(ctx, a.KafkaBrokers)
+		syncProducer, err := libkafka.NewSyncProducerWithName(ctx, a.KafkaBrokers, factory.ServiceName)
 		if err != nil {
 			jobMetrics.RecordRun(agentlib.AgentStatusFailed)
 			jobMetrics.RecordDuration(time.Since(start))
@@ -122,13 +123,8 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		piEnv["MINIMAX_API_KEY"] = a.ProviderAPIKey
 	}
 
-	provider := factory.CreateAgentProvider(
-		a.AgentDir,
-		a.AllowedTools,
-		a.Model,
-		piEnv,
-		factory.ParseKeyValuePairs(a.EnvContextRaw),
-	)
+	runner := factory.CreatePiRunner(a.AgentDir, a.AllowedTools, a.Model, piEnv)
+	provider := factory.CreateAgentProvider(runner, envparse.KeyValuePairs(a.EnvContextRaw))
 	agent, err := provider.Get(ctx, agentlib.TaskType(a.TaskType))
 	if err != nil {
 		jobMetrics.RecordRun(agentlib.AgentStatusFailed)

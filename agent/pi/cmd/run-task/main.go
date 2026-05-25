@@ -19,6 +19,7 @@ import (
 	"github.com/bborbe/service"
 	"github.com/bborbe/vault-cli/pkg/domain"
 
+	"github.com/bborbe/agent/agent/pi/pkg/envparse"
 	"github.com/bborbe/agent/agent/pi/pkg/factory"
 	agentlib "github.com/bborbe/agent/lib"
 )
@@ -72,13 +73,8 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		piEnv["MINIMAX_API_KEY"] = a.ProviderAPIKey
 	}
 
-	agent := factory.CreateAgent(
-		a.AgentDir,
-		a.AllowedTools,
-		a.Model,
-		piEnv,
-		factory.ParseKeyValuePairs(a.EnvContextRaw),
-	)
+	runner := factory.CreatePiRunner(a.AgentDir, a.AllowedTools, a.Model, piEnv)
+	agent := factory.CreateAgent(runner, envparse.KeyValuePairs(a.EnvContextRaw))
 
 	result, err := agent.Run(ctx, a.Phase, string(taskContent), deliverer)
 	if err != nil {
