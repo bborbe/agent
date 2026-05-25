@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added Ginkgo v2 test suite for agent/code/pkg/steps with 26 tests achieving 95.2% statement coverage, covering PlanStep, ExecuteStep, VerifyStep, and the compute helper
+container: agent-exec-176-review-agent-code-3-add-steps-tests
+dark-factory-version: v0.173.0
 created: "2026-05-24T12:00:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-25T23:30:10Z"
+completed: "2026-05-25T23:38:38Z"
 ---
 
 <summary>

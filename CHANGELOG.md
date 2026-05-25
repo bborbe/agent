@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.22
+
+- test(agent/code/pkg/steps): add Ginkgo v2 test suite with 26 tests covering PlanStep, ExecuteStep, VerifyStep, and the compute helper — 95.2% statement coverage
+
 ## v0.63.21
 
 - refactor(agent/code): simplify `CreateSyncProducer` factory to pure pass-through — accept agentName parameter, remove internal error wrapping, move error propagation to caller
