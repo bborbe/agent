@@ -175,9 +175,9 @@ func (r *resultWriter) applyRetryCounter(merged, existing lib.TaskFrontmatter, b
 	// operator inbox filter (assignee == "") would miss the task. Same bug class
 	// as prompt 075 (2026-04-24 applyTriggerCap precedent, task ba1bad61); spec 041
 	// fixes the 2026-05-25 prod incident (task bborbe-agent #3).
-	if phase, ok := merged["phase"].(string); ok && phase == "human_review" {
-		clearAssignee(merged)
-	}
+	// needs_input: agent explicitly requested human review — clear assignee so task surfaces in operator inbox.
+	// Routes through ClearAssigneeIfHumanReview (spec 042) so the partial-update executor shares the same chokepoint.
+	ClearAssigneeIfHumanReview(merged)
 
 	if merged.SpawnNotification() {
 		delete(merged, "spawn_notification")
@@ -240,6 +240,21 @@ func clearAssignee(merged lib.TaskFrontmatter) string {
 	}
 	merged["assignee"] = ""
 	return agentName
+}
+
+// ClearAssigneeIfHumanReview enforces the spec-039 / spec-042 doctrine:
+// when merged frontmatter has phase == "human_review", clear assignee via
+// clearAssignee (which captures the prior assignee into previous_assignee
+// if non-empty, then sets assignee to ""). Returns the prior assignee
+// name (empty string when no clear happened OR when the prior assignee
+// was already empty). This is the single chokepoint for the human_review
+// assignee-clear invariant; both the result writer and the partial-update
+// executor (spec 042) route through here.
+func ClearAssigneeIfHumanReview(merged lib.TaskFrontmatter) string {
+	if phase, ok := merged["phase"].(string); ok && phase == "human_review" {
+		return clearAssignee(merged)
+	}
+	return ""
 }
 
 // restoreExistingPhase writes the on-disk phase back into merged when the existing

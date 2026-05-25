@@ -134,13 +134,13 @@ var _ = Describe("NewUpdateFrontmatterExecutor", func() {
 				cmd := buildCmdObj(task.UpdateFrontmatterCommand{
 					TaskIdentifier: lib.TaskIdentifier("update-test-uuid"),
 					Updates: lib.TaskFrontmatter{
-						"phase": "human_review",
+						"phase": "done",
 					},
 				})
 				_, _, err := executor.HandleCommand(ctx, nil, cmd)
 				Expect(err).NotTo(HaveOccurred())
 				fm := parseFrontmatter(taskFile)
-				Expect(fm["phase"]).To(Equal("human_review"))
+				Expect(fm["phase"]).To(Equal("done"))
 				Expect(fm["status"]).To(Equal("in_progress"))
 				Expect(fm["assignee"]).To(Equal("claude"))
 			})
@@ -278,5 +278,131 @@ var _ = Describe("NewUpdateFrontmatterExecutor", func() {
 				Expect(string(content)).NotTo(ContainSubstring("## Failure"))
 			})
 		})
+
+		Context("spec 042: phase flip to human_review clears assignee", func() {
+			It(
+				"sets previous_assignee and clears assignee when Updates flips phase to human_review",
+				func() {
+					taskFile := writeTaskFile(
+						"task.md",
+						"---\ntask_identifier: spec-042-flip-uuid\nstatus: in_progress\nphase: planning\nassignee: pr-reviewer-agent\ncurrent_job: pr-reviewer-agent-e323cc47\n---\nbody\n",
+					)
+					cmd := buildCmdObj(task.UpdateFrontmatterCommand{
+						TaskIdentifier: lib.TaskIdentifier("spec-042-flip-uuid"),
+						Updates: lib.TaskFrontmatter{
+							"phase": "human_review",
+						},
+					})
+					_, _, err := executor.HandleCommand(ctx, nil, cmd)
+					Expect(err).NotTo(HaveOccurred())
+					fm := parseFrontmatter(taskFile)
+					Expect(fm["phase"]).To(Equal("human_review"))
+					Expect(fm["assignee"]).To(Equal(""))
+					Expect(fm["previous_assignee"]).To(Equal("pr-reviewer-agent"))
+					Expect(fm["current_job"]).To(Equal("pr-reviewer-agent-e323cc47"))
+					Expect(fm["status"]).To(Equal("in_progress"))
+				},
+			)
+		})
+
+		Context("spec 042: non-phase updates leave assignee untouched", func() {
+			It(
+				"does not clear assignee and does not add previous_assignee when Updates contains no phase key",
+				func() {
+					taskFile := writeTaskFile(
+						"task.md",
+						"---\ntask_identifier: spec-042-nonphase-uuid\nstatus: in_progress\nphase: in_progress\nassignee: backtest-agent\n---\nbody\n",
+					)
+					cmd := buildCmdObj(task.UpdateFrontmatterCommand{
+						TaskIdentifier: lib.TaskIdentifier("spec-042-nonphase-uuid"),
+						Updates: lib.TaskFrontmatter{
+							"progress": "50%",
+						},
+					})
+					_, _, err := executor.HandleCommand(ctx, nil, cmd)
+					Expect(err).NotTo(HaveOccurred())
+					fm := parseFrontmatter(taskFile)
+					Expect(fm["assignee"]).To(Equal("backtest-agent"))
+					Expect(fm["phase"]).To(Equal("in_progress"))
+					Expect(fm["progress"]).To(Equal("50%"))
+					_, hasPrev := fm["previous_assignee"]
+					Expect(hasPrev).To(BeFalse(), "non-phase update must not add previous_assignee")
+				},
+			)
+		})
+
+		Context("spec 042: idempotent re-clear on already-parked task", func() {
+			It(
+				"preserves previous_assignee on a parked task when Updates is a non-phase key with Body",
+				func() {
+					taskFile := writeTaskFile(
+						"task.md",
+						"---\ntask_identifier: spec-042-parked-uuid\nstatus: in_progress\nphase: human_review\nassignee: \"\"\nprevious_assignee: pr-reviewer-agent\n---\n## Result\n\nok\n",
+					)
+					cmd := buildCmdObj(task.UpdateFrontmatterCommand{
+						TaskIdentifier: lib.TaskIdentifier("spec-042-parked-uuid"),
+						Updates: lib.TaskFrontmatter{
+							"verdict": "fail",
+						},
+						Body: &task.BodySection{
+							Heading: "## Verdict",
+							Section: "## Verdict\n\n- **Result:** fail\n",
+						},
+					})
+					_, _, err := executor.HandleCommand(ctx, nil, cmd)
+					Expect(err).NotTo(HaveOccurred())
+					fm := parseFrontmatter(taskFile)
+					Expect(fm["phase"]).To(Equal("human_review"))
+					Expect(fm["assignee"]).To(Equal(""))
+					// previous_assignee must NOT be overwritten with empty string —
+					// clearAssignee only writes previous_assignee when current assignee is non-empty.
+					Expect(fm["previous_assignee"]).To(Equal("pr-reviewer-agent"))
+					Expect(fm["verdict"]).To(Equal("fail"))
+					content, err := os.ReadFile(taskFile) // #nosec G304 -- test helper
+					Expect(err).NotTo(HaveOccurred())
+					Expect(string(content)).To(ContainSubstring("## Verdict"))
+					Expect(string(content)).To(ContainSubstring("## Result"))
+				},
+			)
+		})
+
+		Context(
+			"spec 042: prod incident reproducer (phase: human_review + Body Verdict section)",
+			func() {
+				It(
+					"clears assignee, captures previous_assignee, and appends the ## Verdict body section in a single atomic write",
+					func() {
+						taskFile := writeTaskFile(
+							"task.md",
+							"---\ntask_identifier: spec-042-incident-uuid\nstatus: in_progress\nphase: planning\nassignee: pr-reviewer-agent\ncurrent_job: pr-reviewer-agent-e323cc47\n---\nbody\n",
+						)
+						verdictSection := "## Verdict\n\n- **Verdict:** fail\n- **Reason:** hallucination detected in PR diff\n"
+						cmd := buildCmdObj(task.UpdateFrontmatterCommand{
+							TaskIdentifier: lib.TaskIdentifier("spec-042-incident-uuid"),
+							Updates: lib.TaskFrontmatter{
+								"phase": "human_review",
+							},
+							Body: &task.BodySection{
+								Heading: "## Verdict",
+								Section: verdictSection,
+							},
+						})
+						_, _, err := executor.HandleCommand(ctx, nil, cmd)
+						Expect(err).NotTo(HaveOccurred())
+
+						fm := parseFrontmatter(taskFile)
+						Expect(fm["phase"]).To(Equal("human_review"))
+						Expect(fm["assignee"]).To(Equal(""))
+						Expect(fm["previous_assignee"]).To(Equal("pr-reviewer-agent"))
+
+						content, err := os.ReadFile(taskFile) // #nosec G304 -- test helper
+						Expect(err).NotTo(HaveOccurred())
+						body := string(content)
+						Expect(body).To(ContainSubstring("## Verdict"))
+						Expect(body).To(ContainSubstring("hallucination detected"))
+					},
+				)
+			},
+		)
 	})
 })

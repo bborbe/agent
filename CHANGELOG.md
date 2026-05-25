@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.63.14
+
+- feat(task/controller): add `ClearAssigneeIfHumanReview` shared helper in `result_writer.go` (spec 042) — centralizes the spec-039 doctrine (`phase: human_review` → `assignee: ""`) in a single exported function; routes through `clearAssignee` which captures prior assignee into `previous_assignee` if non-empty
+- feat(task/controller): wire `ClearAssigneeIfHumanReview` into `buildUpdateModifyFn` in partial-update executor (spec 042) — enforces the human_review assignee-clear doctrine inside the same atomic write that performs the frontmatter merge; no-op when the merge does not produce `phase: human_review`
+- feat(task/controller): replace inline `phase == "human_review"` guard in `applyRetryCounter` with `ClearAssigneeIfHumanReview` call — observable behavior unchanged; both the result writer and the partial-update executor now share the same chokepoint
+- test(task/controller): add four spec-042 Ginkgo tests covering: phase-flip to human_review clears assignee, non-phase updates preserve assignee, idempotent re-clear on already-parked tasks, combined frontmatter+body verdict path (live 2026-05-25 prod reproducer)
+
 ## v0.63.13
 
 - fix(controller): `resultWriter.applyRetryCounter` now runs the `phase == "human_review"` assignee-clear guard BEFORE the `spawn_notification` early return, so the spec 039 guard fires on the pr-reviewer agent's first post-spawn handoff. Previously the inherited `spawn_notification: true` on the merged frontmatter short-circuited the function before the guard ran, leaving `assignee: <agent>` on a task at `phase: human_review` and hiding it from the operator inbox filter. Live prod incident 2026-05-25 (~8h after the spec 039 deploy); second instance of the same bug class (precedent: 2026-04-24 `applyTriggerCap` reorder, prompt 075).

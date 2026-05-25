@@ -1,14 +1,14 @@
 ---
-status: executing
+status: completed
 spec: [042-update-frontmatter-executor-enforces-human-review-doctrine]
+summary: Add ClearAssigneeIfHumanReview shared helper, wire into partial-update executor, add four spec-042 tests
 container: agent-exec-168-spec-042-shared-helper-and-executor-guard
 dark-factory-version: v0.173.0
 created: "2026-05-26T00:00:00Z"
 queued: "2026-05-25T22:35:21Z"
 started: "2026-05-25T23:06:30Z"
-completed: "2026-05-25T22:54:00Z"
+completed: "2026-05-25T23:07:58Z"
 branch: dark-factory/update-frontmatter-executor-enforces-human-review-doctrine
-lastFailReason: 'validate completion report: completion report status: partial'
 cancelled: "2026-05-25T23:04:01Z"
 ---
 

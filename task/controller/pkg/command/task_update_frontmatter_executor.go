@@ -116,6 +116,10 @@ func buildUpdateModifyFn(
 		if bodySection != nil {
 			body = delivery.ReplaceOrAppendSection(body, bodySection.Heading, bodySection.Section)
 		}
+		// spec 042: enforce phase: human_review → assignee: "" doctrine on the
+		// merged frontmatter in the same atomic write. No-op when the merge
+		// does not produce phase: human_review.
+		result.ClearAssigneeIfHumanReview(fm)
 		return marshalFileContent(ctx, fm, body)
 	}
 }
