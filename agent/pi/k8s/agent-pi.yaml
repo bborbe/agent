@@ -20,7 +20,6 @@ spec:
   volumeMountPath: /home/pi/.pi
   env:
     ALLOWED_TOOLS: Read,Bash,Grep,Glob,Write,Edit
-    PROVIDER_BASE_URL: https://api.minimax.io/anthropic
     MODEL: MiniMax-M2.7-highspeed
   trigger:
     phases:

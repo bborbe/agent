@@ -42,8 +42,7 @@ type application struct {
 	EnvContextRaw string `required:"false" arg:"env-context" env:"ENV_CONTEXT" usage:"Comma-separated KEY=VALUE pairs for prompt context"`
 
 	// Provider routing.
-	ProviderBaseURL string `required:"false" arg:"provider-base-url" env:"PROVIDER_BASE_URL" usage:"Anthropic-compatible API base URL"`
-	ProviderAPIKey  string `required:"false" arg:"provider-api-key"  env:"PROVIDER_API_KEY"  usage:"Bearer token for provider"                                        display:"length"`
+	ProviderAPIKey string `required:"false" arg:"provider-api-key" env:"PROVIDER_API_KEY" usage:"MiniMax API key passed to pi CLI as MINIMAX_API_KEY" display:"length"`
 
 	// Model selection.
 	Model string `required:"false" arg:"model" env:"MODEL" usage:"Model name" default:"MiniMax-M2.7-highspeed"`
@@ -69,12 +68,7 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 	deliverer := factory.CreateFileResultDeliverer(a.TaskFilePath)
 
 	piEnv := map[string]string{}
-	if a.ProviderBaseURL != "" {
-		piEnv["ANTHROPIC_BASE_URL"] = a.ProviderBaseURL
-	}
 	if a.ProviderAPIKey != "" {
-		// pi uses MINIMAX_API_KEY for minimax provider, ANTHROPIC_API_KEY for anthropic.
-		// Default to MINIMAX_API_KEY since that's what the Makefile routes through.
 		piEnv["MINIMAX_API_KEY"] = a.ProviderAPIKey
 	}
 

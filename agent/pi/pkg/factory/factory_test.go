@@ -10,9 +10,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/bborbe/agent/agent/claude/pkg/factory"
+	"github.com/bborbe/agent/agent/pi/pkg/factory"
 	agentlib "github.com/bborbe/agent/lib"
-	claudelib "github.com/bborbe/agent/lib/claude"
 )
 
 var _ = Describe("CreateAgentProvider", func() {
@@ -24,10 +23,9 @@ var _ = Describe("CreateAgentProvider", func() {
 	BeforeEach(func() {
 		ctx = context.Background()
 		provider = factory.CreateAgentProvider(
-			claudelib.ClaudeConfigDir(""),
-			claudelib.AgentDir("agent"),
-			claudelib.AllowedTools{},
-			claudelib.ClaudeModel("sonnet"),
+			"agent",
+			"",
+			"",
 			map[string]string{},
 			map[string]string{},
 		)
@@ -68,7 +66,7 @@ var _ = Describe("CreateAgentProvider", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
-		It("error message contains the unknown task_type literal", func() {
+		It("error message contains the unknown task_type", func() {
 			Expect(err.Error()).To(ContainSubstring("unknown task_type"))
 		})
 
@@ -77,7 +75,7 @@ var _ = Describe("CreateAgentProvider", func() {
 		})
 
 		It("error message contains the binary name", func() {
-			Expect(err.Error()).To(ContainSubstring("agent-claude"))
+			Expect(err.Error()).To(ContainSubstring("agent-pi"))
 		})
 
 		It("error message contains the sorted accepted-types list", func() {

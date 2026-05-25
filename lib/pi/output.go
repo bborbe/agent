@@ -9,13 +9,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/bborbe/errors"
 )
 
 // PrintResult marshals a Result to JSON and prints to stdout.
 func PrintResult(ctx context.Context, result Result) error {
 	data, err := json.Marshal(result)
 	if err != nil {
-		return fmt.Errorf("marshal result: %w", err)
+		return errors.Wrap(ctx, err, "marshal result")
 	}
 	fmt.Println(string(data))
 	return nil

@@ -55,9 +55,8 @@ type application struct {
 	// Environment context passed to prompt (comma-separated KEY=VALUE pairs)
 	EnvContextRaw string `required:"false" arg:"env-context" env:"ENV_CONTEXT" usage:"Comma-separated KEY=VALUE pairs for prompt context"`
 
-	// Provider routing (Pi uses standard API key + base URL).
-	ProviderBaseURL string `required:"false" arg:"provider-base-url" env:"PROVIDER_BASE_URL" usage:"Anthropic-compatible API base URL"`
-	ProviderAPIKey  string `required:"false" arg:"provider-api-key"  env:"PROVIDER_API_KEY"  usage:"Bearer token for provider"                                        display:"length"`
+	// Provider routing.
+	ProviderAPIKey string `required:"false" arg:"provider-api-key" env:"PROVIDER_API_KEY" usage:"MiniMax API key passed to pi CLI as MINIMAX_API_KEY" display:"length"`
 
 	// Model selection.
 	Model string `required:"false" arg:"model" env:"MODEL" usage:"Model name" default:"MiniMax-M2.7-highspeed"`
@@ -119,11 +118,8 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 	}
 
 	piEnv := map[string]string{}
-	if a.ProviderBaseURL != "" {
-		piEnv["ANTHROPIC_BASE_URL"] = a.ProviderBaseURL
-	}
 	if a.ProviderAPIKey != "" {
-		piEnv["ANTHROPIC_AUTH_TOKEN"] = a.ProviderAPIKey
+		piEnv["MINIMAX_API_KEY"] = a.ProviderAPIKey
 	}
 
 	provider := factory.CreateAgentProvider(

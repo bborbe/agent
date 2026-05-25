@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/bborbe/errors"
+
 	agentlib "github.com/bborbe/agent/lib"
 )
 
@@ -42,7 +44,7 @@ func (s *piStep) ShouldRun(ctx context.Context, md *agentlib.Markdown) (bool, er
 func (s *piStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.Result, error) {
 	taskContent, err := md.Marshal(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("%s marshal task: %w", s.cfg.Name, err)
+		return nil, errors.Wrapf(ctx, err, "%s marshal task", s.cfg.Name)
 	}
 
 	prompt := BuildPrompt(s.cfg.Instructions, s.cfg.EnvContext, taskContent)
