@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Fixed security display tags (password for AnthropicAuthToken, length for SentryProxy), added GoDoc to agentName, added package doc to prompts, and fixed errors.Wrapf format string issue
+container: agent-exec-174-review-agent-claude-3-fix-docs-security
+dark-factory-version: v0.173.0
 created: "2026-05-24T11:10:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-25T23:27:38Z"
+completed: "2026-05-25T23:28:45Z"
 ---
 
 <summary>

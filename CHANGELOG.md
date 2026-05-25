@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.63.20
+
+- fix(agent/claude): use display:"password" for AnthropicAuthToken to fully mask credentials in process listings
+- fix(agent/claude): add display:"length" to SentryProxy to mask embedded credentials in proxy URLs
+- fix(agent/claude): add GoDoc comment to agentName constant
+- fix(agent/claude): add package documentation to prompts package
+- fix(agent/claude/cmd/run-task): use errors.Wrap with string concatenation instead of Wrapf with literal %s
+
 ## v0.63.19
 
 - test(agent/claude): add tests for BuildInstructions, CreateKafkaResultDeliverer, CreateFileResultDeliverer, and CreateAgent with ≥80% coverage
