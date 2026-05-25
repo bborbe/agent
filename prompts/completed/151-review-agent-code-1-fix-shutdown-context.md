@@ -1,6 +1,12 @@
 ---
-status: draft
+status: completed
+summary: Replaced context.Background() with signal.NotifyContext in agent/code main.go and cmd/run-task/main.go to enable graceful shutdown on SIGTERM/SIGINT
+container: agent-exec-151-review-agent-code-1-fix-shutdown-context
+dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-24T12:00:00Z"
+queued: "2026-05-25T21:00:25Z"
+started: "2026-05-25T21:00:30Z"
+completed: "2026-05-25T21:02:13Z"
 ---
 
 <summary>

@@ -12,6 +12,8 @@ package main
 import (
 	"context"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/bborbe/errors"
 	libsentry "github.com/bborbe/sentry"
@@ -23,8 +25,10 @@ import (
 )
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
 	app := &application{}
-	os.Exit(service.Main(context.Background(), app, &app.SentryDSN, &app.SentryProxy))
+	os.Exit(service.Main(ctx, app, &app.SentryDSN, &app.SentryProxy))
 }
 
 type application struct {

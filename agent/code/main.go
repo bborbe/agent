@@ -21,6 +21,8 @@ package main
 import (
 	"context"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/bborbe/cqrs/base"
@@ -43,8 +45,10 @@ import (
 const agentName = "code-agent"
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
 	app := &application{}
-	os.Exit(service.Main(context.Background(), app, &app.SentryDSN, &app.SentryProxy))
+	os.Exit(service.Main(ctx, app, &app.SentryDSN, &app.SentryProxy))
 }
 
 type application struct {
