@@ -73,23 +73,22 @@ var _ = Describe("Agent.Run", func() {
 		It("cancels between phases", func() {
 			deliverer := &mocks.AgentResultDeliverer{}
 
+			cancelCtx, cancel := context.WithCancel(context.Background())
+
 			stepA := &mocks.AgentStep{}
 			stepA.NameReturns("step-a")
 			stepA.ShouldRunReturns(true, nil)
+			// Cancel from inside the step so ordering is deterministic:
+			// the between-iterations ctx check runs after stepA returns and
+			// must see ctx.Err() != nil before invoking stepB.
 			stepA.RunStub = func(_ context.Context, _ *lib.Markdown) (*lib.Result, error) {
+				cancel()
 				return &lib.Result{Status: lib.AgentStatusDone, NextPhase: "B"}, nil
 			}
 
 			stepB := &mocks.AgentStep{}
 			stepB.NameReturns("step-b")
 			stepB.ShouldRunReturns(true, nil)
-
-			cancelCtx, cancel := context.WithCancel(context.Background())
-			// Cancel after step A but before the between-iterations check.
-			// We hook it into step A's stub via a separate goroutine.
-			go func() {
-				cancel()
-			}()
 
 			agent := lib.NewAgent(
 				lib.NewPhase(domain.TaskPhase("A"), stepA),
