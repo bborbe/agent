@@ -33,14 +33,14 @@ type Parser struct {
 }
 
 // New constructs a Parser that calls the Gemini API directly.
-func New(apiKey string, model string) (*Parser, error) {
-	client, err := genai.NewClient(context.Background(), &genai.ClientConfig{ //nolint:contextcheck
+func New(ctx context.Context, apiKey string, model string) (*Parser, error) {
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:  apiKey,
 		Backend: genai.BackendGeminiAPI,
 	})
 	if err != nil {
-		return nil, errors.Wrap( //nolint:contextcheck
-			context.Background(),
+		return nil, errors.Wrap(
+			ctx,
 			err,
 			"create genai client failed",
 		)

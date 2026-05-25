@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.2
+
+- fix(agent/gemini): pass context.Context to `parser.New` instead of using `context.Background()` internally; context is now propagated to the Gemini client and error wrapping, enabling proper cancellation and deadline handling
+
 ## v0.63.1
 
 - fix(agent/code): replace `context.Background()` with `signal.NotifyContext` in `main.go` and `cmd/run-task/main.go` entry points to enable graceful shutdown on SIGTERM/SIGINT signals

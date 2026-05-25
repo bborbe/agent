@@ -46,7 +46,7 @@ func CreateGeminiParser(
 	apiKey string,
 	model string,
 ) (agentlib.AIParser, error) {
-	p, err := parser.New(apiKey, model)
+	p, err := parser.New(ctx, apiKey, model)
 	if err != nil {
 		return nil, errors.Wrap(ctx, err, "create gemini parser failed")
 	}
