@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added tests for BuildInstructions, CreateKafkaResultDeliverer, CreateFileResultDeliverer, and CreateAgent in agent/claude with ≥80% coverage; fixed factory_suite_test.go GinkgoConfiguration; added //go:generate directive to main_test.go files; updated CHANGELOG.md
+container: agent-exec-173-review-agent-claude-2-add-factory-tests
+dark-factory-version: v0.173.0
 created: "2026-05-24T11:10:00Z"
 queued: "2026-05-25T22:23:08Z"
+started: "2026-05-25T23:25:26Z"
+completed: "2026-05-25T23:27:35Z"
 ---
 
 <summary>

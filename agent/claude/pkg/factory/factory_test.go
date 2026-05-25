@@ -101,3 +101,37 @@ var _ = Describe("CreateSyncProducer", func() {
 		Expect(err.Error()).To(ContainSubstring("create sync producer"))
 	})
 })
+
+var _ = Describe("CreateKafkaResultDeliverer", func() {
+	It("returns a non-nil ResultDeliverer", func() {
+		deliverer := factory.CreateKafkaResultDeliverer(
+			nil,
+			"",
+			"",
+			"",
+			nil,
+		)
+		Expect(deliverer).NotTo(BeNil())
+	})
+})
+
+var _ = Describe("CreateFileResultDeliverer", func() {
+	It("returns a non-nil ResultDeliverer", func() {
+		deliverer := factory.CreateFileResultDeliverer("/tmp/test-output.md")
+		Expect(deliverer).NotTo(BeNil())
+	})
+})
+
+var _ = Describe("CreateAgent", func() {
+	It("returns a non-nil *agentlib.Agent", func() {
+		agent := factory.CreateAgent(
+			"",
+			"",
+			nil,
+			"",
+			nil,
+			nil,
+		)
+		Expect(agent).NotTo(BeNil())
+	})
+})

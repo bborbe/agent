@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.63.19
+
+- test(agent/claude): add tests for BuildInstructions, CreateKafkaResultDeliverer, CreateFileResultDeliverer, and CreateAgent with ≥80% coverage
+- test(agent/claude): fix factory_suite_test.go GinkgoConfiguration with 60s timeout
+- test(agent/claude): add //go:generate counterfeiter directive to main_test.go files
+
 ## v0.63.18
 
 - refactor(agent/claude): simplify `CreateSyncProducer` factory to pure pass-through — removed internal error wrapping; error propagation now handled by caller in `main.go`
