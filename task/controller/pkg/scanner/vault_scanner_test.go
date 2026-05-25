@@ -2,7 +2,12 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package scanner
+package scanner_test
+
+// NOTE: testGitClient is a hand-written test double rather than a Counterfeiter
+// mock because importing the mocks package would create an import cycle:
+// mocks/ imports scanner for scanner.ScanResult, so scanner cannot import mocks.
+// This is a documented exception to the Counterfeiter-mocks rule.
 
 import (
 	"context"
@@ -16,6 +21,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"
+
+	"github.com/bborbe/agent/task/controller/pkg/scanner"
 )
 
 func extractFrontmatterStr(fileContent string) string {
@@ -31,9 +38,6 @@ func extractFrontmatterStr(fileContent string) string {
 	return rest[:idx]
 }
 
-// testGitClient is a simple test double for gitclient.GitClient.
-// We cannot use mocks.FakeGitClient here because mocks imports scanner (for ScanResult),
-// which would create an import cycle with the internal test package.
 type testGitClient struct {
 	path          string
 	pullErr       error
@@ -91,11 +95,11 @@ func mustInitGitRepo(dir string) {
 var _ = Describe("VaultScanner", func() {
 	var (
 		ctx     context.Context
-		s       *vaultScanner
+		s       scanner.VaultScanner
 		tmpDir  string
 		taskDir string
 		fakeGit *testGitClient
-		results chan ScanResult
+		results chan scanner.ScanResult
 	)
 
 	BeforeEach(func() {
@@ -108,16 +112,9 @@ var _ = Describe("VaultScanner", func() {
 		mustInitGitRepo(tmpDir)
 
 		fakeGit = &testGitClient{path: tmpDir}
-		results = make(chan ScanResult, 1)
+		results = make(chan scanner.ScanResult, 1)
 
-		s = &vaultScanner{
-			gitClient:    fakeGit,
-			taskDir:      taskDir,
-			pollInterval: time.Second,
-			hashes:       make(map[string]fileEntry),
-			trigger:      make(chan struct{}),
-			ops:          newLocalFileOps(tmpDir),
-		}
+		s = scanner.NewVaultScanner(fakeGit, taskDir, time.Second, make(chan struct{}))
 	})
 
 	AfterEach(func() {
@@ -134,8 +131,8 @@ var _ = Describe("VaultScanner", func() {
 				Expect(os.WriteFile(absPath, []byte(initialContent), 0600)).To(Succeed())
 
 				// First scan: parked (assignee empty), no task published, no reset
-				s.runCycle(ctx, results)
-				var r1 ScanResult
+				s.RunCycle(ctx, results)
+				var r1 scanner.ScanResult
 				Expect(results).To(Receive(&r1))
 				Expect(r1.Changed).To(BeEmpty())
 
@@ -144,8 +141,8 @@ var _ = Describe("VaultScanner", func() {
 				Expect(os.WriteFile(absPath, []byte(delegatedContent), 0600)).To(Succeed())
 
 				// Second scan: detects transition, writes reset, no task published yet (zero-hash sentinel)
-				s.runCycle(ctx, results)
-				var r2 ScanResult
+				s.RunCycle(ctx, results)
+				var r2 scanner.ScanResult
 				Expect(results).To(Receive(&r2))
 				Expect(r2.Changed).To(BeEmpty())
 
@@ -160,8 +157,8 @@ var _ = Describe("VaultScanner", func() {
 				Expect(fm["assignee"]).To(Equal("claude"))
 
 				// Third scan: reads reset file, publishes task with fresh counters
-				s.runCycle(ctx, results)
-				var r3 ScanResult
+				s.RunCycle(ctx, results)
+				var r3 scanner.ScanResult
 				Expect(results).To(Receive(&r3))
 				Expect(r3.Changed).To(HaveLen(1))
 				Expect(string(r3.Changed[0].Frontmatter.Assignee())).To(Equal("claude"))
@@ -179,7 +176,7 @@ var _ = Describe("VaultScanner", func() {
 				Expect(os.WriteFile(absPath, []byte(initialContent), 0600)).To(Succeed())
 
 				// First scan: task published with claudeA
-				s.runCycle(ctx, results)
+				s.RunCycle(ctx, results)
 				Expect(results).To(Receive())
 
 				// Operator changes to claudeB
@@ -187,8 +184,8 @@ var _ = Describe("VaultScanner", func() {
 				Expect(os.WriteFile(absPath, []byte(changedContent), 0600)).To(Succeed())
 
 				// Second scan: named → named, no reset, task published with new assignee
-				s.runCycle(ctx, results)
-				var r2 ScanResult
+				s.RunCycle(ctx, results)
+				var r2 scanner.ScanResult
 				Expect(results).To(Receive(&r2))
 				Expect(r2.Changed).To(HaveLen(1))
 
@@ -212,7 +209,7 @@ var _ = Describe("VaultScanner", func() {
 				Expect(os.WriteFile(absPath, []byte(initialContent), 0600)).To(Succeed())
 
 				// First scan: task published with claude
-				s.runCycle(ctx, results)
+				s.RunCycle(ctx, results)
 				Expect(results).To(Receive())
 
 				// Operator clears assignee
@@ -220,8 +217,8 @@ var _ = Describe("VaultScanner", func() {
 				Expect(os.WriteFile(absPath, []byte(clearedContent), 0600)).To(Succeed())
 
 				// Second scan: named → empty, no reset, task skipped (empty assignee)
-				s.runCycle(ctx, results)
-				var r2 ScanResult
+				s.RunCycle(ctx, results)
+				var r2 scanner.ScanResult
 				Expect(results).To(Receive(&r2))
 				Expect(r2.Changed).To(BeEmpty())
 
@@ -245,7 +242,7 @@ var _ = Describe("VaultScanner", func() {
 				Expect(os.WriteFile(absPath, []byte(initialContent), 0600)).To(Succeed())
 
 				// First scan: parked, no task
-				s.runCycle(ctx, results)
+				s.RunCycle(ctx, results)
 				Expect(results).To(Receive())
 
 				// Operator re-delegates
@@ -253,7 +250,7 @@ var _ = Describe("VaultScanner", func() {
 				Expect(os.WriteFile(absPath, []byte(delegatedContent), 0600)).To(Succeed())
 
 				// Second scan: detects transition, writes reset once
-				s.runCycle(ctx, results)
+				s.RunCycle(ctx, results)
 				Expect(results).To(Receive())
 
 				// Capture file state after first reset
@@ -267,7 +264,7 @@ var _ = Describe("VaultScanner", func() {
 
 				// Third scan: zero-hash sentinel forces re-process, but prevEntry.assignee = "claude"
 				// → no second transition detected → no second reset
-				s.runCycle(ctx, results)
+				s.RunCycle(ctx, results)
 				Expect(results).To(Receive())
 
 				// File content must be byte-identical to post-first-reset (no second write)
@@ -292,8 +289,8 @@ var _ = Describe("VaultScanner", func() {
 				Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
 				// First scan ever — prevEntry.taskIdentifier == "" (zero value)
-				s.runCycle(ctx, results)
-				var r1 ScanResult
+				s.RunCycle(ctx, results)
+				var r1 scanner.ScanResult
 				Expect(results).To(Receive(&r1))
 				Expect(r1.Changed).To(HaveLen(1))
 
@@ -315,8 +312,8 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "dup-key.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx, results)
-			var result ScanResult
+			s.RunCycle(ctx, results)
+			var result scanner.ScanResult
 			Expect(results).To(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
 			Expect(
@@ -329,8 +326,8 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "bad-status.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx, results)
-			var result ScanResult
+			s.RunCycle(ctx, results)
+			var result scanner.ScanResult
 			Expect(results).To(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
 			Expect(
@@ -343,18 +340,18 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "crlf-cycle.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx, results)
-			var result ScanResult
+			s.RunCycle(ctx, results)
+			var result scanner.ScanResult
 			Expect(results).To(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
 			Expect(string(result.Changed[0].Frontmatter.Assignee())).To(Equal("claude"))
 		})
 	})
 
-	Describe("deduplicateFrontmatter", func() {
+	Describe("DeduplicateFrontmatter", func() {
 		It("returns original YAML unchanged when no duplicates", func() {
 			input := "task_identifier: abc-123\nstatus: todo\nassignee: claude\n"
-			out, hasDup, err := deduplicateFrontmatter(ctx, input)
+			out, hasDup, err := scanner.DeduplicateFrontmatter(ctx, input)
 			Expect(err).To(BeNil())
 			Expect(hasDup).To(BeFalse())
 			Expect(out).To(Equal(input))
@@ -362,7 +359,7 @@ var _ = Describe("VaultScanner", func() {
 
 		It("deduplicates a single repeated key, last value wins", func() {
 			input := "task_identifier: first\nstatus: next\ntask_identifier: second\n"
-			out, hasDup, err := deduplicateFrontmatter(ctx, input)
+			out, hasDup, err := scanner.DeduplicateFrontmatter(ctx, input)
 			Expect(err).To(BeNil())
 			Expect(hasDup).To(BeTrue())
 			var result map[string]interface{}
@@ -373,7 +370,7 @@ var _ = Describe("VaultScanner", func() {
 
 		It("deduplicates multiple repeated keys, last value wins each", func() {
 			input := "task_identifier: first\nstatus: todo\ntask_identifier: second\nstatus: in_progress\n"
-			out, hasDup, err := deduplicateFrontmatter(ctx, input)
+			out, hasDup, err := scanner.DeduplicateFrontmatter(ctx, input)
 			Expect(err).To(BeNil())
 			Expect(hasDup).To(BeTrue())
 			var result map[string]interface{}
@@ -383,17 +380,17 @@ var _ = Describe("VaultScanner", func() {
 		})
 	})
 
-	Describe("injectTaskIdentifier", func() {
+	Describe("InjectTaskIdentifier", func() {
 		It("injects task_identifier with LF line endings", func() {
 			input := []byte("---\nstatus: todo\n---\n")
-			result, err := injectTaskIdentifier(context.Background(), input, "test-id")
+			result, err := scanner.InjectTaskIdentifier(context.Background(), input, "test-id")
 			Expect(err).To(BeNil())
 			Expect(string(result)).To(Equal("---\ntask_identifier: test-id\nstatus: todo\n---\n"))
 		})
 
 		It("injects task_identifier with CRLF line endings", func() {
 			input := []byte("---\r\nstatus: todo\r\n---\r\n")
-			result, err := injectTaskIdentifier(context.Background(), input, "test-id")
+			result, err := scanner.InjectTaskIdentifier(context.Background(), input, "test-id")
 			Expect(err).To(BeNil())
 			Expect(
 				string(result),
@@ -402,7 +399,7 @@ var _ = Describe("VaultScanner", func() {
 
 		It("returns error when content does not start with frontmatter delimiter", func() {
 			input := []byte("no frontmatter")
-			result, err := injectTaskIdentifier(context.Background(), input, "test-id")
+			result, err := scanner.InjectTaskIdentifier(context.Background(), input, "test-id")
 			Expect(err).NotTo(BeNil())
 			Expect(result).To(BeNil())
 		})
@@ -410,18 +407,18 @@ var _ = Describe("VaultScanner", func() {
 
 	Describe("NewVaultScanner", func() {
 		It("returns a non-nil VaultScanner", func() {
-			vs := NewVaultScanner(fakeGit, taskDir, time.Hour, nil)
+			vs := scanner.NewVaultScanner(fakeGit, taskDir, time.Hour, nil)
 			Expect(vs).NotTo(BeNil())
 		})
 	})
 
 	Describe("Run", func() {
 		It("returns nil when context is cancelled", func() {
-			vs := NewVaultScanner(fakeGit, taskDir, time.Hour, nil)
+			vs := scanner.NewVaultScanner(fakeGit, taskDir, time.Hour, nil)
 			runCtx, cancel := context.WithCancel(ctx)
 			done := make(chan error, 1)
 			go func() {
-				done <- vs.Run(runCtx, make(chan ScanResult, 1))
+				done <- vs.Run(runCtx, make(chan scanner.ScanResult, 1))
 			}()
 			cancel()
 			Eventually(done, 200*time.Millisecond).Should(Receive(BeNil()))
@@ -433,8 +430,8 @@ var _ = Describe("VaultScanner", func() {
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
 			trigger := make(chan struct{}, 1)
-			vs := NewVaultScanner(fakeGit, taskDir, time.Hour, trigger)
-			scanResults := make(chan ScanResult, 1)
+			vs := scanner.NewVaultScanner(fakeGit, taskDir, time.Hour, trigger)
+			scanResults := make(chan scanner.ScanResult, 1)
 			runCtx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
@@ -445,7 +442,7 @@ var _ = Describe("VaultScanner", func() {
 
 			trigger <- struct{}{}
 
-			var result ScanResult
+			var result scanner.ScanResult
 			Eventually(scanResults, time.Second).Should(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
 			Expect(
@@ -463,9 +460,9 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "new-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx, results)
+			s.RunCycle(ctx, results)
 
-			var result ScanResult
+			var result scanner.ScanResult
 			Expect(results).To(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
 			Expect(string(result.Changed[0].Frontmatter.Assignee())).To(Equal("claude"))
@@ -476,13 +473,13 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "stable-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx, results)
-			var first ScanResult
+			s.RunCycle(ctx, results)
+			var first scanner.ScanResult
 			Expect(results).To(Receive(&first))
 			Expect(first.Changed).To(HaveLen(1))
 
-			s.runCycle(ctx, results)
-			var second ScanResult
+			s.RunCycle(ctx, results)
+			var second scanner.ScanResult
 			Expect(results).To(Receive(&second))
 			Expect(second.Changed).To(BeEmpty())
 		})
@@ -492,14 +489,14 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "modified-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx, results)
+			s.RunCycle(ctx, results)
 			Expect(results).To(Receive())
 
 			updated := "---\ntask_identifier: 22222222-2222-4222-8222-222222222222\nstatus: in_progress\nassignee: claude\n---\n# Updated"
 			Expect(os.WriteFile(absPath, []byte(updated), 0600)).To(Succeed())
 
-			s.runCycle(ctx, results)
-			var result ScanResult
+			s.RunCycle(ctx, results)
+			var result scanner.ScanResult
 			Expect(results).To(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
 			Expect(string(result.Changed[0].Frontmatter.Status())).To(Equal("in_progress"))
@@ -507,14 +504,14 @@ var _ = Describe("VaultScanner", func() {
 
 		It("drops result when channel is already full", func() {
 			// Pre-fill the results channel (capacity 1)
-			results <- ScanResult{}
+			results <- scanner.ScanResult{}
 
 			content := "---\ntask_identifier: 11111111-1111-4111-8111-111111111113\nstatus: todo\nassignee: claude\n---\n# Task"
 			absPath := filepath.Join(tmpDir, taskDir, "drop-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
 			// runCycle should not block even though channel is full
-			s.runCycle(ctx, results)
+			s.RunCycle(ctx, results)
 			// drain the pre-filled result (not the one we just tried to send)
 			Expect(results).To(Receive())
 		})
@@ -526,7 +523,7 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "pull-fail.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx, results)
+			s.RunCycle(ctx, results)
 			Consistently(results, 50*time.Millisecond).ShouldNot(Receive())
 		})
 
@@ -535,13 +532,13 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "deleted-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx, results)
+			s.RunCycle(ctx, results)
 			Expect(results).To(Receive())
 
 			Expect(os.Remove(absPath)).To(Succeed())
 
-			s.runCycle(ctx, results)
-			var result ScanResult
+			s.RunCycle(ctx, results)
+			var result scanner.ScanResult
 			Expect(results).To(Receive(&result))
 			Expect(result.Deleted).To(HaveLen(1))
 			Expect(string(result.Deleted[0])).To(Equal("33333333-3333-4333-8333-333333333333"))
@@ -552,10 +549,10 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "no-uuid-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx, results)
+			s.RunCycle(ctx, results)
 
 			// Not published this cycle (write-back happened)
-			var result ScanResult
+			var result scanner.ScanResult
 			Expect(results).To(Receive(&result))
 			Expect(result.Changed).To(BeEmpty())
 
@@ -571,14 +568,14 @@ var _ = Describe("VaultScanner", func() {
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
 			// First cycle: injects UUID, does not publish
-			s.runCycle(ctx, results)
-			var first ScanResult
+			s.RunCycle(ctx, results)
+			var first scanner.ScanResult
 			Expect(results).To(Receive(&first))
 			Expect(first.Changed).To(BeEmpty())
 
 			// Second cycle: publishes with UUID
-			s.runCycle(ctx, results)
-			var second ScanResult
+			s.RunCycle(ctx, results)
+			var second scanner.ScanResult
 			Expect(results).To(Receive(&second))
 			Expect(second.Changed).To(HaveLen(1))
 			Expect(
@@ -592,8 +589,8 @@ var _ = Describe("VaultScanner", func() {
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
 			// First cycle: replaces non-UUID id, writes file, no task published
-			s.runCycle(ctx, results)
-			var first ScanResult
+			s.RunCycle(ctx, results)
+			var first scanner.ScanResult
 			Expect(results).To(Receive(&first))
 			Expect(first.Changed).To(BeEmpty())
 
@@ -604,8 +601,8 @@ var _ = Describe("VaultScanner", func() {
 			Expect(string(written)).NotTo(ContainSubstring("my-custom-id"))
 
 			// Second cycle: publishes with generated UUID
-			s.runCycle(ctx, results)
-			var second ScanResult
+			s.RunCycle(ctx, results)
+			var second scanner.ScanResult
 			Expect(results).To(Receive(&second))
 			Expect(second.Changed).To(HaveLen(1))
 			Expect(
@@ -623,8 +620,8 @@ var _ = Describe("VaultScanner", func() {
 			Expect(os.WriteFile(absPath2, []byte(content2), 0600)).To(Succeed())
 
 			// First cycle: first-seen keeps UUID, second gets replaced
-			s.runCycle(ctx, results)
-			var result ScanResult
+			s.RunCycle(ctx, results)
+			var result scanner.ScanResult
 			Expect(results).To(Receive(&result))
 			// One file published (the first-seen), one replaced (the duplicate)
 			Expect(result.Changed).To(HaveLen(1))
@@ -642,8 +639,8 @@ var _ = Describe("VaultScanner", func() {
 			absPath := filepath.Join(tmpDir, taskDir, "valid-uuid-task.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx, results)
-			var result ScanResult
+			s.RunCycle(ctx, results)
+			var result scanner.ScanResult
 			Expect(results).To(Receive(&result))
 			Expect(result.Changed).To(HaveLen(1))
 			Expect(string(result.Changed[0].TaskIdentifier)).To(Equal(validUUID))
@@ -654,14 +651,14 @@ var _ = Describe("VaultScanner", func() {
 			Expect(string(onDisk)).To(Equal(content))
 		})
 
-		It("CommitAndPush failure suppresses ScanResult", func() {
+		It("CommitAndPush failure suppresses scanner.ScanResult", func() {
 			fakeGit.commitPushErr = context.DeadlineExceeded
 
 			content := "---\nstatus: todo\nassignee: claude\n---\n# Task without UUID"
 			absPath := filepath.Join(tmpDir, taskDir, "no-uuid-task3.md")
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-			s.runCycle(ctx, results)
+			s.RunCycle(ctx, results)
 			Consistently(results, 50*time.Millisecond).ShouldNot(Receive())
 		})
 	})

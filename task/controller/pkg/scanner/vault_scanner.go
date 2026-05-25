@@ -32,6 +32,9 @@ type VaultScanner interface {
 	// Run starts the polling loop. Blocks until ctx is cancelled.
 	// Results are sent to the provided channel; the caller owns the channel.
 	Run(ctx context.Context, results chan<- ScanResult) error
+	// RunCycle executes a single scan cycle (git pull + file scan + optional commit/push).
+	// Exported for use in scanner_test package; prefer Run() in production.
+	RunCycle(ctx context.Context, results chan<- ScanResult)
 }
 
 type fileEntry struct {
@@ -138,14 +141,16 @@ func (v *vaultScanner) Run(ctx context.Context, results chan<- ScanResult) error
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			v.runCycle(ctx, results)
+			v.RunCycle(ctx, results)
 		case <-v.trigger:
-			v.runCycle(ctx, results)
+			v.RunCycle(ctx, results)
 		}
 	}
 }
 
-func (v *vaultScanner) runCycle(ctx context.Context, results chan<- ScanResult) {
+// RunCycle executes a single scan cycle (git pull + file scan + optional commit/push).
+// Exported for use in scanner_test package; prefer Run() in production.
+func (v *vaultScanner) RunCycle(ctx context.Context, results chan<- ScanResult) {
 	if err := v.gitClient.Pull(ctx); err != nil {
 		glog.Warningf("git pull failed: %v", err)
 		return
@@ -226,7 +231,7 @@ func (v *vaultScanner) processFile(
 		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, err)
 		return nil, "", false
 	}
-	dedupedYAML, hasDuplicates, dedupErr := deduplicateFrontmatter(ctx, fmYAML)
+	dedupedYAML, hasDuplicates, dedupErr := DeduplicateFrontmatter(ctx, fmYAML)
 	if dedupErr != nil {
 		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, dedupErr)
 		return nil, "", false
@@ -320,7 +325,7 @@ func (v *vaultScanner) injectAndStore(
 	currentAssignee lib.TaskAssignee,
 ) (*lib.Task, string, bool) {
 	id := uuid.New().String()
-	newContent, injectErr := injectTaskIdentifier(ctx, content, id)
+	newContent, injectErr := InjectTaskIdentifier(ctx, content, id)
 	if injectErr != nil {
 		glog.Warningf("skipping %s: failed to inject task_identifier: %v", relPath, injectErr)
 		return nil, "", false
@@ -405,7 +410,8 @@ func removeTaskIdentifier(content []byte) []byte {
 	return []byte(strings.Join(out, "\n"))
 }
 
-func injectTaskIdentifier(ctx context.Context, content []byte, id string) ([]byte, error) {
+// InjectTaskIdentifier injects a task_identifier into the frontmatter of content.
+func InjectTaskIdentifier(ctx context.Context, content []byte, id string) ([]byte, error) {
 	s := string(content)
 	if strings.HasPrefix(s, "---\r\n") {
 		return []byte("---\r\ntask_identifier: " + id + "\r\n" + s[5:]), nil
@@ -419,7 +425,8 @@ func injectTaskIdentifier(ctx context.Context, content []byte, id string) ([]byt
 	)
 }
 
-func deduplicateFrontmatter(ctx context.Context, fmYAML string) (string, bool, error) {
+// DeduplicateFrontmatter removes duplicate keys from YAML frontmatter, keeping the last value for each key.
+func DeduplicateFrontmatter(ctx context.Context, fmYAML string) (string, bool, error) {
 	var doc yaml.Node
 	if err := yaml.Unmarshal([]byte(fmYAML), &doc); err != nil {
 		return fmYAML, false, errors.Wrapf(ctx, err, "parse frontmatter for deduplication")

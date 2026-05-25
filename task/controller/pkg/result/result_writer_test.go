@@ -766,6 +766,60 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 			})
 		})
 
+		Context(
+			"spawn_notification + human_review handoff (spec 041 prod incident reproducer)",
+			func() {
+				It(
+					"clears assignee when merged frontmatter has spawn_notification:true + incoming phase:human_review, spec 041 reproducer",
+					func() {
+						// Reproducer for the 2026-05-25 prod incident (task bborbe-agent #3).
+						// On-disk file: executor's spawn-time UpdateFrontmatterCommand wrote
+						// spawn_notification: true onto the file. The agent's first post-spawn
+						// result publish carries Result.NextPhase: human_review via resolveNextPhase.
+						// mergeFrontmatter inherits spawn_notification: true from disk and merges in
+						// phase: human_review from the incoming frontmatter. Before the fix, the
+						// spawn_notification early return short-circuited before the human_review
+						// guard, leaving assignee: pr-reviewer-agent on disk and missing the
+						// operator inbox filter (assignee == "").
+						writeTaskFile(
+							"my-task.md",
+							"---\ntask_identifier: test-task-uuid-1234\nstatus: in_progress\nphase: ai_review\nassignee: pr-reviewer-agent\nspawn_notification: true\n---\n## Result\nStatus: running\n",
+						)
+						taskFile = lib.Task{
+							TaskIdentifier: identifier,
+							Frontmatter: lib.TaskFrontmatter{
+								"task_identifier": "test-task-uuid-1234",
+								"status":          "in_progress",
+								"phase":           "human_review",
+							},
+							Content: lib.TaskContent(
+								"## Result\nStatus: done\nNo trades found in the window.\n",
+							),
+						}
+						Expect(writer.WriteResult(ctx, taskFile)).To(Succeed())
+						written, readErr := os.ReadFile(
+							filepath.Join(tmpDir, taskDir, "my-task.md"),
+						)
+						Expect(readErr).NotTo(HaveOccurred())
+						s := string(written)
+						// phase: human_review preserved from incoming
+						Expect(s).To(ContainSubstring("phase: human_review"))
+						// assignee cleared so operator inbox filter surfaces the task
+						Expect(s).NotTo(ContainSubstring("\nassignee: pr-reviewer-agent"))
+						// previous_assignee populated by clearAssignee
+						Expect(s).To(ContainSubstring("previous_assignee: pr-reviewer-agent"))
+						// spawn_notification key consumed by the early-return branch
+						Expect(s).NotTo(ContainSubstring("spawn_notification"))
+						// no escalation sections — this is a legitimate handoff, not a cap path
+						Expect(s).NotTo(ContainSubstring("## Retry Escalation"))
+						Expect(s).NotTo(ContainSubstring("## Trigger Cap Escalation"))
+						// exactly one write
+						Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+					},
+				)
+			},
+		)
+
 		Context("needs_input result", func() {
 			It(
 				"does not increment retry_count on Result.NextPhase=human_review handoff (legitimate handoff path)",

@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Changed vault_scanner_test.go to package scanner_test (external test package), added RunCycle to VaultScanner interface, exported InjectTaskIdentifier and DeduplicateFrontmatter for test access, updated all type references
+container: agent-exec-161-review-task-controller-fix-scanner-test-package
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T21:00:25Z"
+started: "2026-05-25T22:20:56Z"
+completed: "2026-05-25T22:27:11Z"
 ---
 
 <summary>

@@ -21,6 +21,12 @@ type VaultScanner struct {
 	runReturnsOnCall map[int]struct {
 		result1 error
 	}
+	RunCycleStub        func(context.Context, chan<- scanner.ScanResult)
+	runCycleMutex       sync.RWMutex
+	runCycleArgsForCall []struct {
+		arg1 context.Context
+		arg2 chan<- scanner.ScanResult
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -85,6 +91,39 @@ func (fake *VaultScanner) RunReturnsOnCall(i int, result1 error) {
 	fake.runReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
+}
+
+func (fake *VaultScanner) RunCycle(arg1 context.Context, arg2 chan<- scanner.ScanResult) {
+	fake.runCycleMutex.Lock()
+	fake.runCycleArgsForCall = append(fake.runCycleArgsForCall, struct {
+		arg1 context.Context
+		arg2 chan<- scanner.ScanResult
+	}{arg1, arg2})
+	stub := fake.RunCycleStub
+	fake.recordInvocation("RunCycle", []interface{}{arg1, arg2})
+	fake.runCycleMutex.Unlock()
+	if stub != nil {
+		fake.RunCycleStub(arg1, arg2)
+	}
+}
+
+func (fake *VaultScanner) RunCycleCallCount() int {
+	fake.runCycleMutex.RLock()
+	defer fake.runCycleMutex.RUnlock()
+	return len(fake.runCycleArgsForCall)
+}
+
+func (fake *VaultScanner) RunCycleCalls(stub func(context.Context, chan<- scanner.ScanResult)) {
+	fake.runCycleMutex.Lock()
+	defer fake.runCycleMutex.Unlock()
+	fake.RunCycleStub = stub
+}
+
+func (fake *VaultScanner) RunCycleArgsForCall(i int) (context.Context, chan<- scanner.ScanResult) {
+	fake.runCycleMutex.RLock()
+	defer fake.runCycleMutex.RUnlock()
+	argsForCall := fake.runCycleArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *VaultScanner) Invocations() map[string][][]interface{} {

@@ -166,6 +166,19 @@ func (r *resultWriter) applyRetryCounter(merged, existing lib.TaskFrontmatter, b
 	triggerCount := merged.TriggerCount()
 	body = r.applyTriggerCap(merged, existing, triggerCount, body)
 
+	// human_review assignee-clear guard runs BEFORE the spawn_notification
+	// early return below. On a pr-reviewer agent's first post-spawn write, the merged
+	// frontmatter carries spawn_notification: true (inherited from the executor's
+	// spawn-time UpdateFrontmatterCommand) AND incoming phase: human_review (from
+	// Result.NextPhase via resolveNextPhase). If this guard were below the
+	// spawn_notification early return, clearAssignee would never fire and the
+	// operator inbox filter (assignee == "") would miss the task. Same bug class
+	// as prompt 075 (2026-04-24 applyTriggerCap precedent, task ba1bad61); spec 041
+	// fixes the 2026-05-25 prod incident (task bborbe-agent #3).
+	if phase, ok := merged["phase"].(string); ok && phase == "human_review" {
+		clearAssignee(merged)
+	}
+
 	if merged.SpawnNotification() {
 		delete(merged, "spawn_notification")
 		return body
@@ -175,11 +188,6 @@ func (r *resultWriter) applyRetryCounter(merged, existing lib.TaskFrontmatter, b
 	// at spawn time (spec 011). The writer only applies escalation.
 	retryCount := merged.RetryCount()
 	body = r.applyRetryCap(merged, existing, retryCount, body)
-
-	// needs_input: agent explicitly requested human review — clear assignee so task surfaces in operator inbox
-	if phase, ok := merged["phase"].(string); ok && phase == "human_review" {
-		clearAssignee(merged) // sets previous_assignee and clears assignee
-	}
 
 	return body
 }

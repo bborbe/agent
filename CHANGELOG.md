@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.63.9
+
+- refactor(task/controller): change `vault_scanner_test.go` to `package scanner_test` (external test package); add `RunCycle` to `VaultScanner` interface; export `InjectTaskIdentifier` and `DeduplicateFrontmatter` for test access
+- fix(task/controller): reorder `resultWriter.applyRetryCounter` to run `phase == "human_review"` guard BEFORE the `spawn_notification` early return; fixes live-observed regression where merged frontmatter with `spawn_notification: true` skipped the assignee-clear guard and left `assignee: pr-reviewer-agent` on a `human_review` task (spec 039 regression; 2026-05-25 prod incident; task bborbe-agent #3)
+
 ## v0.63.8
 
 - fix(task/controller): add context cancellation checks to `scanFiles` and `collectDeleted` loops in vault scanner
