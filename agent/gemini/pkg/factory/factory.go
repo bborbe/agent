@@ -15,6 +15,7 @@ import (
 	"github.com/bborbe/errors"
 	libkafka "github.com/bborbe/kafka"
 	libtime "github.com/bborbe/time"
+	"github.com/bborbe/vault-cli/pkg/domain"
 
 	"github.com/bborbe/agent/agent/gemini/pkg/parser"
 	"github.com/bborbe/agent/agent/gemini/pkg/steps"
@@ -90,9 +91,14 @@ func CreateAgent(geminiParser agentlib.AIParser) *agentlib.Agent {
 	return agentlib.NewAgent(
 		agentlib.NewPhase(
 			"planning",
-			agentlib.NewParseStep[steps.Plan]("parse-plan", geminiParser, "## Plan", "in_progress"),
+			agentlib.NewParseStep[steps.Plan](
+				"parse-plan",
+				geminiParser,
+				"## Plan",
+				string(domain.TaskPhaseExecution),
+			),
 		),
-		agentlib.NewPhase("in_progress", steps.NewExecuteStep()),
+		agentlib.NewPhase(domain.TaskPhaseExecution, steps.NewExecuteStep()),
 		agentlib.NewPhase("ai_review", steps.NewVerifyStep()),
 	)
 }

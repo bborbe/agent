@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/bborbe/errors"
+	"github.com/bborbe/vault-cli/pkg/domain"
 
 	agentlib "github.com/bborbe/agent/lib"
 )
@@ -78,7 +79,7 @@ func (s *PlanStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.Re
 
 	return &agentlib.Result{
 		Status:    agentlib.AgentStatusDone,
-		NextPhase: "in_progress",
+		NextPhase: string(domain.TaskPhaseExecution),
 	}, nil
 }
 
