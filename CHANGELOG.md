@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.13
+
+- fix(controller): `resultWriter.applyRetryCounter` now runs the `phase == "human_review"` assignee-clear guard BEFORE the `spawn_notification` early return, so the spec 039 guard fires on the pr-reviewer agent's first post-spawn handoff. Previously the inherited `spawn_notification: true` on the merged frontmatter short-circuited the function before the guard ran, leaving `assignee: <agent>` on a task at `phase: human_review` and hiding it from the operator inbox filter. Live prod incident 2026-05-25 (~8h after the spec 039 deploy); second instance of the same bug class (precedent: 2026-04-24 `applyTriggerCap` reorder, prompt 075).
+
 ## v0.63.12
 
 - fix(task/executor): pass context.Background() to NewHealthcheckTriggerHandler instead of caller's ctx; prevents premature context cancellation when HTTP server is still listening

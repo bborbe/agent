@@ -25,7 +25,9 @@ var _ = Describe("KeyValuePairs", func() {
 	})
 
 	It("trims whitespace around each pair", func() {
-		Expect(envparse.KeyValuePairs(" A=1 , B=2 ")).To(Equal(map[string]string{"A": "1", "B": "2"}))
+		Expect(
+			envparse.KeyValuePairs(" A=1 , B=2 "),
+		).To(Equal(map[string]string{"A": "1", "B": "2"}))
 	})
 
 	It("keeps the value verbatim when it contains '='", func() {

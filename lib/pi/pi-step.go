@@ -61,14 +61,23 @@ func (s *piStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.Resu
 			Message: fmt.Sprintf("%s pi run failed: %v", s.cfg.Name, runErr),
 		}, nil
 	}
-	glog.Infof("%s: pi runner returned %d bytes in %s", s.cfg.Name, len(result.Result), time.Since(runStart))
+	glog.Infof(
+		"%s: pi runner returned %d bytes in %s",
+		s.cfg.Name,
+		len(result.Result),
+		time.Since(runStart),
+	)
 
 	// Parse the JSON result from pi output.
 	jsonBlob, ok := extractLastJSONObject(result.Result)
 	if !ok {
 		return &agentlib.Result{
-			Status:  AgentStatusFailed,
-			Message: fmt.Sprintf("%s: no JSON result found in output: %.500s", s.cfg.Name, result.Result),
+			Status: AgentStatusFailed,
+			Message: fmt.Sprintf(
+				"%s: no JSON result found in output: %.500s",
+				s.cfg.Name,
+				result.Result,
+			),
 		}, nil
 	}
 
@@ -79,8 +88,13 @@ func (s *piStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.Resu
 	}
 	if err := json.Unmarshal([]byte(jsonBlob), &piResult); err != nil {
 		return &agentlib.Result{
-			Status:  AgentStatusFailed,
-			Message: fmt.Sprintf("%s: parse result failed: %v (raw: %.500s)", s.cfg.Name, err, result.Result),
+			Status: AgentStatusFailed,
+			Message: fmt.Sprintf(
+				"%s: parse result failed: %v (raw: %.500s)",
+				s.cfg.Name,
+				err,
+				result.Result,
+			),
 		}, nil
 	}
 

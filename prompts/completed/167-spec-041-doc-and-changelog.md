@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [041-spawn-notification-early-return-skips-human-review-guard]
+summary: 'Updated docs/controller-design.md with spec-041 invariant and added fix(controller): entry to CHANGELOG.md under ## Unreleased'
+container: agent-exec-167-spec-041-doc-and-changelog
+dark-factory-version: v0.173.0
 created: "2026-05-25T22:55:00Z"
 queued: "2026-05-25T22:35:21Z"
+started: "2026-05-25T22:41:04Z"
+completed: "2026-05-25T22:48:52Z"
 branch: dark-factory/spawn-notification-early-return-skips-human-review-guard
 ---
 

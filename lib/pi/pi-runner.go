@@ -62,7 +62,10 @@ func (r *piRunner) Run(ctx context.Context, prompt string) (*Result, error) {
 		} else {
 			tailMsg = "no stdout captured"
 		}
-		return nil, &RunError{Msg: "pi CLI failed: " + tailMsg + " | stderr: " + stderrBuf.String(), Err: err}
+		return nil, &RunError{
+			Msg: "pi CLI failed: " + tailMsg + " | stderr: " + stderrBuf.String(),
+			Err: err,
+		}
 	}
 
 	if resultText == "" {
@@ -139,14 +142,14 @@ func (r *piRunner) buildSubprocessEnv() []string {
 
 // piEvent represents a single event in the Pi stream-json output.
 type piEvent struct {
-	Type     string     `json:"type"`
-	Message  piMessage  `json:"message"`
+	Type     string      `json:"type"`
+	Message  piMessage   `json:"message"`
 	Messages []piMessage `json:"messages"`
 }
 
 type piMessage struct {
-	Role    string       `json:"role"`
-	Content []piContent  `json:"content"`
+	Role    string      `json:"role"`
+	Content []piContent `json:"content"`
 }
 
 type piContent struct {
@@ -171,7 +174,10 @@ func appendTail(tail []string, line []byte) []string {
 }
 
 // scanOutput reads stream-json lines from stdout, logs events, and returns the result text.
-func scanOutput(ctx context.Context, reader interface{ Read([]byte) (int, error) }) (string, []string) {
+func scanOutput(
+	ctx context.Context,
+	reader interface{ Read([]byte) (int, error) },
+) (string, []string) {
 	var resultText string
 	var tail []string
 	scanner := bufio.NewScanner(reader)

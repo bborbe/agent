@@ -2,7 +2,9 @@ module github.com/bborbe/agent/agent/pi
 
 go 1.26.3
 
-replace github.com/bborbe/agent/lib => ../../lib
+replace (
+	github.com/bborbe/agent/lib => ../../lib
+)
 
 require (
 	github.com/bborbe/agent/lib v0.62.3
@@ -22,7 +24,6 @@ require (
 require (
 	github.com/IBM/sarama v1.48.1 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/bborbe/agent/agent/claude v0.0.0-20260525200034-4e22c40d81a4 // indirect
 	github.com/bborbe/argument/v2 v2.12.22 // indirect
 	github.com/bborbe/collection v1.20.12 // indirect
 	github.com/bborbe/http v1.26.12 // indirect

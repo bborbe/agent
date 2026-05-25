@@ -56,7 +56,7 @@ Agent provides: {status: completed, phase: done}
 Merged result:  {assignee: backtest-agent, tags: [agent-task], task_identifier: xyz, status: completed, phase: done}
 ```
 
-## Assignee-Clear on Escalation (spec 021, refined by spec 039)
+## Assignee-Clear on Escalation (spec 021, refined by specs 039 and 041)
 
 Every escalation path writes `assignee: ""` so the task surfaces in operator inbox:
 
@@ -65,10 +65,21 @@ Every escalation path writes `assignee: ""` so the task surfaces in operator inb
 | `trigger_count >= max_triggers` | unchanged (lifecycle stage preserved) | `""` |
 | `retry_count >= max_retries` | unchanged (lifecycle stage preserved) | `""` |
 | Agent emits `needs_input` | unchanged (lifecycle stage preserved) | `""` |
+| Agent emits `Result.NextPhase: human_review` (legitimate handoff) | `human_review` (from `resolveNextPhase`) | `""` (guard fires regardless of `spawn_notification` state on merged frontmatter) |
 
 Once a task is parked (escalation section present, `assignee: ""`), repeated stale agent
 result publishes are idempotent: the escalation section is not duplicated, the lifecycle
 phase is restored from the on-disk value, and assignee stays empty.
+
+The `phase == "human_review"` assignee-clear guard in `resultWriter.applyRetryCounter`
+runs BEFORE the `spawn_notification` early return. This ordering is load-bearing: on
+a pr-reviewer agent's first post-spawn write, the merged frontmatter carries
+`spawn_notification: true` (inherited from the executor's spawn-time
+`UpdateFrontmatterCommand`) AND incoming `phase: human_review` (from
+`Result.NextPhase` via `resolveNextPhase`). The guard fires regardless of
+`spawn_notification` state — see spec 041 for the 2026-05-25 prod incident reproducer
+and prompt 075 for the same reorder pattern applied to `applyTriggerCap` on
+2026-04-24.
 
 ## Empty-to-Named Reset (spec 021)
 
