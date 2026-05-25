@@ -1,11 +1,13 @@
 ---
-status: executing
+status: committing
 spec: [041-spawn-notification-early-return-skips-human-review-guard]
+summary: Verified applyRetryCounter has human_review guard before spawn_notification early return; all 49 tests pass, make precommit exits 0
 container: agent-exec-166-spec-041-reorder-human-review-guard
 dark-factory-version: v0.173.0
 created: "2026-05-25T21:50:00Z"
 queued: "2026-05-25T22:35:21Z"
 started: "2026-05-25T22:38:37Z"
+completed: "2026-05-25T22:40:49Z"
 branch: dark-factory/spawn-notification-early-return-skips-human-review-guard
 ---
 
