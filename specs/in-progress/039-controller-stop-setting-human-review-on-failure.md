@@ -1,11 +1,12 @@
 ---
-status: prompted
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-05-24T23:01:12Z"
 generating: "2026-05-24T23:01:13Z"
 prompted: "2026-05-24T23:05:51Z"
+verifying: "2026-05-24T23:35:06Z"
 branch: dark-factory/controller-stop-setting-human-review-on-failure
 ---
 
@@ -201,3 +202,23 @@ It is reasonable to defer only if the operator inbox is not being relied on day-
 - `~/Documents/Obsidian/Personal/50 Knowledge Base/Agent Pipeline Concept.md` — doctrine canonical reference.
 - Sibling task: [[Capture gh auth setup-git stderr on pr-reviewer auth failure]] — surfaced the 2026-05-24 incident.
 - Superseded: [[Enforce trigger_count cap escalation sticky human_review in TaskResultExecutor]] — enforced the old (now wrong) doctrine.
+
+## Verification Result
+
+**Verified:** 2026-05-25T09:28:48Z (HEAD 377264b)
+**Binary:** installed `dark-factory` (spec lives in bborbe/agent, not dark-factory)
+**Scenario:** No scenario file (spec AC#16 self-attests unit-test-only verification). Walked all 16 ACs against repo state at HEAD.
+**Evidence:**
+- AC#9 grep audit: `grep -rn '"human_review"' task/controller/pkg/ lib/delivery/ --include='*.go' | grep -v _test.go` → only `task/controller/pkg/result/result_writer.go:180: if phase, ok := merged["phase"].(string); ok && phase == "human_review" {` (read-side guard)
+- AC#1-5: Ginkgo unit tests assert `phase` preserved (`planning`/`in_progress`/`ai_review`) and `NotTo(Equal("human_review"))` across increment executor, result-deliverer, content-generator
+- AC#6: `result-deliverer_test.go:274` `sets phase=human_review when done result requests NextPhase=human_review` — legitimate handoff preserved
+- AC#7-8: `result_writer_test.go:834-858` post-spec-039 needs_input shape (phase from disk preserved, NotTo human_review); legitimate handoff split off at line 870
+- AC#10: `docs/controller-design.md` lines 42, 67, 97 reflect new doctrine with spec-039 supersession note
+- AC#11: `docs/task-flow-and-failure-semantics.md:32` "written only via the AgentStatusDone -> resolveNextPhase path. Controller-side failure paths... leave phase unchanged"
+- AC#12: `CHANGELOG.md` v0.62.29 contains both `fix(controller):` and `fix(lib/delivery):` entries referencing spec-021 supersession
+- AC#13: `cd task/controller && make precommit` → `ready to commit` (fresh, 2026-05-25T09:28Z)
+- AC#14: `cd lib && make precommit` → `ready to commit` (fresh, 2026-05-25T09:28Z)
+- Releases tagged: v0.62.26, v0.62.27, v0.62.28, v0.62.29
+**Verdict:** PASS (with post-deploy TODO)
+
+**Post-deploy TODO (AC#15):** Live dev cluster verification — trigger a real PR-reviewer agent failure on dev (gh-auth reproducer or runbook "Create PR Review Agent Task" § Manual override), then confirm the resulting OpenClaw task frontmatter has `assignee: ""`, `phase` equal to the pre-failure lifecycle stage (NOT `human_review`), task body contains `## Failure` section, and operator-board inbox filter (`assignee == ""`) surfaces the task within one refresh. Capture file path + frontmatter snippet. This AC is operator-driven post-deploy of v0.62.29 to the dev cluster from `~/Documents/workspaces/agent-dev`; spec is being marked complete now on the strength of unit tests + grep audit + doc + changelog evidence per AC#16's "unit tests against existing fakes" attestation.
