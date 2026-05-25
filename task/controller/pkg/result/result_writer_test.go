@@ -46,7 +46,7 @@ var _ = Describe("ResultWriter", func() {
 		ctx        context.Context
 		tmpDir     string
 		taskDir    string
-		fakeGit    *mocks.FakeGitClient
+		fakeGit    *mocks.GitClient
 		fakeTime   *libtimemocks.CurrentDateTimeGetter
 		writer     result.ResultWriter
 		taskFile   lib.Task
@@ -62,7 +62,7 @@ var _ = Describe("ResultWriter", func() {
 		taskDir = "tasks"
 		Expect(os.MkdirAll(filepath.Join(tmpDir, taskDir), 0750)).To(Succeed())
 
-		fakeGit = &mocks.FakeGitClient{}
+		fakeGit = &mocks.GitClient{}
 		fakeGit.PathReturns(tmpDir)
 		fakeGit.ListFilesStub = func(_ context.Context, glob string) ([]string, error) {
 			matches, err := filepath.Glob(filepath.Join(tmpDir, glob))
@@ -1424,7 +1424,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 
 	Describe("FindTaskFilePath", func() {
 		It("calls gitClient.ListFiles + ReadFile with the expected glob and matched paths", func() {
-			fakeGC := &mocks.FakeGitClient{}
+			fakeGC := &mocks.GitClient{}
 			fakeGC.ListFilesReturns([]string{"tasks/a.md", "tasks/b.md"}, nil)
 			fakeGC.ReadFileReturnsOnCall(0, []byte("---\ntask_identifier: foo\n---\n"), nil)
 			fakeGC.ReadFileReturnsOnCall(1, []byte("---\ntask_identifier: bar\n---\n"), nil)
@@ -1439,7 +1439,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 		})
 
 		It("returns empty path when no file matches", func() {
-			fakeGC := &mocks.FakeGitClient{}
+			fakeGC := &mocks.GitClient{}
 			fakeGC.ListFilesReturns([]string{"tasks/a.md"}, nil)
 			fakeGC.ReadFileReturnsOnCall(0, []byte("---\ntask_identifier: other\n---\n"), nil)
 
@@ -1450,7 +1450,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 		})
 
 		It("skips files that fail to read", func() {
-			fakeGC := &mocks.FakeGitClient{}
+			fakeGC := &mocks.GitClient{}
 			fakeGC.ListFilesReturns([]string{"tasks/bad.md", "tasks/good.md"}, nil)
 			fakeGC.ReadFileReturnsOnCall(0, nil, errTest)
 			fakeGC.ReadFileReturnsOnCall(1, []byte("---\ntask_identifier: target\n---\n"), nil)
@@ -1461,7 +1461,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 		})
 
 		It("skips files with invalid frontmatter", func() {
-			fakeGC := &mocks.FakeGitClient{}
+			fakeGC := &mocks.GitClient{}
 			fakeGC.ListFilesReturns([]string{"tasks/bad.md", "tasks/good.md"}, nil)
 			fakeGC.ReadFileReturnsOnCall(0, []byte("no frontmatter here"), nil)
 			fakeGC.ReadFileReturnsOnCall(1, []byte("---\ntask_identifier: target\n---\n"), nil)
@@ -1472,7 +1472,7 @@ Run a backtest for strategy **capitalcom-backtest-BACKTEST** from 2026-04-10 to 
 		})
 
 		It("returns error when ListFiles fails", func() {
-			fakeGC := &mocks.FakeGitClient{}
+			fakeGC := &mocks.GitClient{}
 			fakeGC.ListFilesReturns(nil, errTest)
 
 			_, _, err := result.FindTaskFilePath(ctx, fakeGC, "tasks", "any")

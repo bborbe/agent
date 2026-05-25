@@ -21,7 +21,7 @@ import (
 	"github.com/bborbe/agent/task/controller/pkg/metrics"
 )
 
-//counterfeiter:generate -o ../../mocks/result_writer.go --fake-name FakeResultWriter . ResultWriter
+//counterfeiter:generate -o ../../mocks/result_writer.go --fake-name ResultWriter . ResultWriter
 
 // ResultWriter writes a Task back to the vault task file.
 type ResultWriter interface {

@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.6
+
+- refactor(task/controller): remove `Fake` prefix from all Counterfeiter `--fake-name` directives — mocks now named `SyncLoop`, `GitRestClient`, `GitClient`, `VaultScanner`, `TaskPublisher`, `ResultWriter`
+
 ## v0.63.5
 
 - fix(task/controller): pass context to `injectTaskIdentifier` in vault scanner instead of using `context.Background()`

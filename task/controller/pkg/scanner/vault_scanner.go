@@ -27,7 +27,7 @@ type ScanResult struct {
 	Deleted []lib.TaskIdentifier // task identifiers that were previously known but are now gone
 }
 
-//counterfeiter:generate -o ../../mocks/vault_scanner.go --fake-name FakeVaultScanner . VaultScanner
+//counterfeiter:generate -o ../../mocks/vault_scanner.go --fake-name VaultScanner . VaultScanner
 type VaultScanner interface {
 	// Run starts the polling loop. Blocks until ctx is cancelled.
 	// Results are sent to the provided channel; the caller owns the channel.

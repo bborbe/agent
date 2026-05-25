@@ -23,14 +23,14 @@ import (
 var _ = Describe("NewTaskResultExecutor", func() {
 	var (
 		ctx        context.Context
-		fakeWriter *mocks.FakeResultWriter
+		fakeWriter *mocks.ResultWriter
 		executor   cdb.CommandObjectExecutorTx
 		schemaID   cdb.SchemaID
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		fakeWriter = &mocks.FakeResultWriter{}
+		fakeWriter = &mocks.ResultWriter{}
 		executor = command.NewTaskResultExecutor(fakeWriter)
 		schemaID = cdb.SchemaID{
 			Group:   "agent",

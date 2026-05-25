@@ -9,7 +9,7 @@ import (
 	"github.com/bborbe/agent/task/controller/pkg/publisher"
 )
 
-type FakeTaskPublisher struct {
+type TaskPublisher struct {
 	PublishChangedStub        func(context.Context, lib.Task) error
 	publishChangedMutex       sync.RWMutex
 	publishChangedArgsForCall []struct {
@@ -38,7 +38,7 @@ type FakeTaskPublisher struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeTaskPublisher) PublishChanged(arg1 context.Context, arg2 lib.Task) error {
+func (fake *TaskPublisher) PublishChanged(arg1 context.Context, arg2 lib.Task) error {
 	fake.publishChangedMutex.Lock()
 	ret, specificReturn := fake.publishChangedReturnsOnCall[len(fake.publishChangedArgsForCall)]
 	fake.publishChangedArgsForCall = append(fake.publishChangedArgsForCall, struct {
@@ -58,26 +58,26 @@ func (fake *FakeTaskPublisher) PublishChanged(arg1 context.Context, arg2 lib.Tas
 	return fakeReturns.result1
 }
 
-func (fake *FakeTaskPublisher) PublishChangedCallCount() int {
+func (fake *TaskPublisher) PublishChangedCallCount() int {
 	fake.publishChangedMutex.RLock()
 	defer fake.publishChangedMutex.RUnlock()
 	return len(fake.publishChangedArgsForCall)
 }
 
-func (fake *FakeTaskPublisher) PublishChangedCalls(stub func(context.Context, lib.Task) error) {
+func (fake *TaskPublisher) PublishChangedCalls(stub func(context.Context, lib.Task) error) {
 	fake.publishChangedMutex.Lock()
 	defer fake.publishChangedMutex.Unlock()
 	fake.PublishChangedStub = stub
 }
 
-func (fake *FakeTaskPublisher) PublishChangedArgsForCall(i int) (context.Context, lib.Task) {
+func (fake *TaskPublisher) PublishChangedArgsForCall(i int) (context.Context, lib.Task) {
 	fake.publishChangedMutex.RLock()
 	defer fake.publishChangedMutex.RUnlock()
 	argsForCall := fake.publishChangedArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeTaskPublisher) PublishChangedReturns(result1 error) {
+func (fake *TaskPublisher) PublishChangedReturns(result1 error) {
 	fake.publishChangedMutex.Lock()
 	defer fake.publishChangedMutex.Unlock()
 	fake.PublishChangedStub = nil
@@ -86,7 +86,7 @@ func (fake *FakeTaskPublisher) PublishChangedReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeTaskPublisher) PublishChangedReturnsOnCall(i int, result1 error) {
+func (fake *TaskPublisher) PublishChangedReturnsOnCall(i int, result1 error) {
 	fake.publishChangedMutex.Lock()
 	defer fake.publishChangedMutex.Unlock()
 	fake.PublishChangedStub = nil
@@ -100,7 +100,7 @@ func (fake *FakeTaskPublisher) PublishChangedReturnsOnCall(i int, result1 error)
 	}{result1}
 }
 
-func (fake *FakeTaskPublisher) PublishDeleted(arg1 context.Context, arg2 lib.TaskIdentifier) error {
+func (fake *TaskPublisher) PublishDeleted(arg1 context.Context, arg2 lib.TaskIdentifier) error {
 	fake.publishDeletedMutex.Lock()
 	ret, specificReturn := fake.publishDeletedReturnsOnCall[len(fake.publishDeletedArgsForCall)]
 	fake.publishDeletedArgsForCall = append(fake.publishDeletedArgsForCall, struct {
@@ -120,26 +120,26 @@ func (fake *FakeTaskPublisher) PublishDeleted(arg1 context.Context, arg2 lib.Tas
 	return fakeReturns.result1
 }
 
-func (fake *FakeTaskPublisher) PublishDeletedCallCount() int {
+func (fake *TaskPublisher) PublishDeletedCallCount() int {
 	fake.publishDeletedMutex.RLock()
 	defer fake.publishDeletedMutex.RUnlock()
 	return len(fake.publishDeletedArgsForCall)
 }
 
-func (fake *FakeTaskPublisher) PublishDeletedCalls(stub func(context.Context, lib.TaskIdentifier) error) {
+func (fake *TaskPublisher) PublishDeletedCalls(stub func(context.Context, lib.TaskIdentifier) error) {
 	fake.publishDeletedMutex.Lock()
 	defer fake.publishDeletedMutex.Unlock()
 	fake.PublishDeletedStub = stub
 }
 
-func (fake *FakeTaskPublisher) PublishDeletedArgsForCall(i int) (context.Context, lib.TaskIdentifier) {
+func (fake *TaskPublisher) PublishDeletedArgsForCall(i int) (context.Context, lib.TaskIdentifier) {
 	fake.publishDeletedMutex.RLock()
 	defer fake.publishDeletedMutex.RUnlock()
 	argsForCall := fake.publishDeletedArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeTaskPublisher) PublishDeletedReturns(result1 error) {
+func (fake *TaskPublisher) PublishDeletedReturns(result1 error) {
 	fake.publishDeletedMutex.Lock()
 	defer fake.publishDeletedMutex.Unlock()
 	fake.PublishDeletedStub = nil
@@ -148,7 +148,7 @@ func (fake *FakeTaskPublisher) PublishDeletedReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeTaskPublisher) PublishDeletedReturnsOnCall(i int, result1 error) {
+func (fake *TaskPublisher) PublishDeletedReturnsOnCall(i int, result1 error) {
 	fake.publishDeletedMutex.Lock()
 	defer fake.publishDeletedMutex.Unlock()
 	fake.PublishDeletedStub = nil
@@ -162,7 +162,7 @@ func (fake *FakeTaskPublisher) PublishDeletedReturnsOnCall(i int, result1 error)
 	}{result1}
 }
 
-func (fake *FakeTaskPublisher) Invocations() map[string][][]interface{} {
+func (fake *TaskPublisher) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
@@ -172,7 +172,7 @@ func (fake *FakeTaskPublisher) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *FakeTaskPublisher) recordInvocation(key string, args []interface{}) {
+func (fake *TaskPublisher) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -184,4 +184,4 @@ func (fake *FakeTaskPublisher) recordInvocation(key string, args []interface{}) 
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ publisher.TaskPublisher = new(FakeTaskPublisher)
+var _ publisher.TaskPublisher = new(TaskPublisher)

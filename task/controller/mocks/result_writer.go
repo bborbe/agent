@@ -9,7 +9,7 @@ import (
 	"github.com/bborbe/agent/task/controller/pkg/result"
 )
 
-type FakeResultWriter struct {
+type ResultWriter struct {
 	WriteResultStub        func(context.Context, lib.Task) error
 	writeResultMutex       sync.RWMutex
 	writeResultArgsForCall []struct {
@@ -26,7 +26,7 @@ type FakeResultWriter struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeResultWriter) WriteResult(arg1 context.Context, arg2 lib.Task) error {
+func (fake *ResultWriter) WriteResult(arg1 context.Context, arg2 lib.Task) error {
 	fake.writeResultMutex.Lock()
 	ret, specificReturn := fake.writeResultReturnsOnCall[len(fake.writeResultArgsForCall)]
 	fake.writeResultArgsForCall = append(fake.writeResultArgsForCall, struct {
@@ -46,26 +46,26 @@ func (fake *FakeResultWriter) WriteResult(arg1 context.Context, arg2 lib.Task) e
 	return fakeReturns.result1
 }
 
-func (fake *FakeResultWriter) WriteResultCallCount() int {
+func (fake *ResultWriter) WriteResultCallCount() int {
 	fake.writeResultMutex.RLock()
 	defer fake.writeResultMutex.RUnlock()
 	return len(fake.writeResultArgsForCall)
 }
 
-func (fake *FakeResultWriter) WriteResultCalls(stub func(context.Context, lib.Task) error) {
+func (fake *ResultWriter) WriteResultCalls(stub func(context.Context, lib.Task) error) {
 	fake.writeResultMutex.Lock()
 	defer fake.writeResultMutex.Unlock()
 	fake.WriteResultStub = stub
 }
 
-func (fake *FakeResultWriter) WriteResultArgsForCall(i int) (context.Context, lib.Task) {
+func (fake *ResultWriter) WriteResultArgsForCall(i int) (context.Context, lib.Task) {
 	fake.writeResultMutex.RLock()
 	defer fake.writeResultMutex.RUnlock()
 	argsForCall := fake.writeResultArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeResultWriter) WriteResultReturns(result1 error) {
+func (fake *ResultWriter) WriteResultReturns(result1 error) {
 	fake.writeResultMutex.Lock()
 	defer fake.writeResultMutex.Unlock()
 	fake.WriteResultStub = nil
@@ -74,7 +74,7 @@ func (fake *FakeResultWriter) WriteResultReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeResultWriter) WriteResultReturnsOnCall(i int, result1 error) {
+func (fake *ResultWriter) WriteResultReturnsOnCall(i int, result1 error) {
 	fake.writeResultMutex.Lock()
 	defer fake.writeResultMutex.Unlock()
 	fake.WriteResultStub = nil
@@ -88,7 +88,7 @@ func (fake *FakeResultWriter) WriteResultReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeResultWriter) Invocations() map[string][][]interface{} {
+func (fake *ResultWriter) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
@@ -98,7 +98,7 @@ func (fake *FakeResultWriter) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *FakeResultWriter) recordInvocation(key string, args []interface{}) {
+func (fake *ResultWriter) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -110,4 +110,4 @@ func (fake *FakeResultWriter) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ result.ResultWriter = new(FakeResultWriter)
+var _ result.ResultWriter = new(ResultWriter)

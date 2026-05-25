@@ -27,7 +27,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 		ctx      context.Context
 		tmpDir   string
 		taskDir  string
-		fakeGit  *mocks.FakeGitClient
+		fakeGit  *mocks.GitClient
 		executor cdb.CommandObjectExecutorTx
 		schemaID cdb.SchemaID
 	)
@@ -41,7 +41,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 		taskDir = "tasks"
 		Expect(os.MkdirAll(filepath.Join(tmpDir, taskDir), 0750)).To(Succeed())
 
-		fakeGit = &mocks.FakeGitClient{}
+		fakeGit = &mocks.GitClient{}
 		fakeGit.PathReturns(tmpDir)
 		fakeGit.AtomicWriteAndCommitPushStub = func(
 			ctx context.Context,

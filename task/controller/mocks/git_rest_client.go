@@ -8,7 +8,7 @@ import (
 	"github.com/bborbe/agent/task/controller/pkg/gitrestclient"
 )
 
-type FakeGitRestClient struct {
+type GitRestClient struct {
 	DeleteStub        func(context.Context, string) error
 	deleteMutex       sync.RWMutex
 	deleteArgsForCall []struct {
@@ -79,7 +79,7 @@ type FakeGitRestClient struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeGitRestClient) Delete(arg1 context.Context, arg2 string) error {
+func (fake *GitRestClient) Delete(arg1 context.Context, arg2 string) error {
 	fake.deleteMutex.Lock()
 	ret, specificReturn := fake.deleteReturnsOnCall[len(fake.deleteArgsForCall)]
 	fake.deleteArgsForCall = append(fake.deleteArgsForCall, struct {
@@ -99,26 +99,26 @@ func (fake *FakeGitRestClient) Delete(arg1 context.Context, arg2 string) error {
 	return fakeReturns.result1
 }
 
-func (fake *FakeGitRestClient) DeleteCallCount() int {
+func (fake *GitRestClient) DeleteCallCount() int {
 	fake.deleteMutex.RLock()
 	defer fake.deleteMutex.RUnlock()
 	return len(fake.deleteArgsForCall)
 }
 
-func (fake *FakeGitRestClient) DeleteCalls(stub func(context.Context, string) error) {
+func (fake *GitRestClient) DeleteCalls(stub func(context.Context, string) error) {
 	fake.deleteMutex.Lock()
 	defer fake.deleteMutex.Unlock()
 	fake.DeleteStub = stub
 }
 
-func (fake *FakeGitRestClient) DeleteArgsForCall(i int) (context.Context, string) {
+func (fake *GitRestClient) DeleteArgsForCall(i int) (context.Context, string) {
 	fake.deleteMutex.RLock()
 	defer fake.deleteMutex.RUnlock()
 	argsForCall := fake.deleteArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeGitRestClient) DeleteReturns(result1 error) {
+func (fake *GitRestClient) DeleteReturns(result1 error) {
 	fake.deleteMutex.Lock()
 	defer fake.deleteMutex.Unlock()
 	fake.DeleteStub = nil
@@ -127,7 +127,7 @@ func (fake *FakeGitRestClient) DeleteReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeGitRestClient) DeleteReturnsOnCall(i int, result1 error) {
+func (fake *GitRestClient) DeleteReturnsOnCall(i int, result1 error) {
 	fake.deleteMutex.Lock()
 	defer fake.deleteMutex.Unlock()
 	fake.DeleteStub = nil
@@ -141,7 +141,7 @@ func (fake *FakeGitRestClient) DeleteReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeGitRestClient) Get(arg1 context.Context, arg2 string) ([]byte, error) {
+func (fake *GitRestClient) Get(arg1 context.Context, arg2 string) ([]byte, error) {
 	fake.getMutex.Lock()
 	ret, specificReturn := fake.getReturnsOnCall[len(fake.getArgsForCall)]
 	fake.getArgsForCall = append(fake.getArgsForCall, struct {
@@ -161,26 +161,26 @@ func (fake *FakeGitRestClient) Get(arg1 context.Context, arg2 string) ([]byte, e
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeGitRestClient) GetCallCount() int {
+func (fake *GitRestClient) GetCallCount() int {
 	fake.getMutex.RLock()
 	defer fake.getMutex.RUnlock()
 	return len(fake.getArgsForCall)
 }
 
-func (fake *FakeGitRestClient) GetCalls(stub func(context.Context, string) ([]byte, error)) {
+func (fake *GitRestClient) GetCalls(stub func(context.Context, string) ([]byte, error)) {
 	fake.getMutex.Lock()
 	defer fake.getMutex.Unlock()
 	fake.GetStub = stub
 }
 
-func (fake *FakeGitRestClient) GetArgsForCall(i int) (context.Context, string) {
+func (fake *GitRestClient) GetArgsForCall(i int) (context.Context, string) {
 	fake.getMutex.RLock()
 	defer fake.getMutex.RUnlock()
 	argsForCall := fake.getArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeGitRestClient) GetReturns(result1 []byte, result2 error) {
+func (fake *GitRestClient) GetReturns(result1 []byte, result2 error) {
 	fake.getMutex.Lock()
 	defer fake.getMutex.Unlock()
 	fake.GetStub = nil
@@ -190,7 +190,7 @@ func (fake *FakeGitRestClient) GetReturns(result1 []byte, result2 error) {
 	}{result1, result2}
 }
 
-func (fake *FakeGitRestClient) GetReturnsOnCall(i int, result1 []byte, result2 error) {
+func (fake *GitRestClient) GetReturnsOnCall(i int, result1 []byte, result2 error) {
 	fake.getMutex.Lock()
 	defer fake.getMutex.Unlock()
 	fake.GetStub = nil
@@ -206,7 +206,7 @@ func (fake *FakeGitRestClient) GetReturnsOnCall(i int, result1 []byte, result2 e
 	}{result1, result2}
 }
 
-func (fake *FakeGitRestClient) IsReady(arg1 context.Context) (bool, error) {
+func (fake *GitRestClient) IsReady(arg1 context.Context) (bool, error) {
 	fake.isReadyMutex.Lock()
 	ret, specificReturn := fake.isReadyReturnsOnCall[len(fake.isReadyArgsForCall)]
 	fake.isReadyArgsForCall = append(fake.isReadyArgsForCall, struct {
@@ -225,26 +225,26 @@ func (fake *FakeGitRestClient) IsReady(arg1 context.Context) (bool, error) {
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeGitRestClient) IsReadyCallCount() int {
+func (fake *GitRestClient) IsReadyCallCount() int {
 	fake.isReadyMutex.RLock()
 	defer fake.isReadyMutex.RUnlock()
 	return len(fake.isReadyArgsForCall)
 }
 
-func (fake *FakeGitRestClient) IsReadyCalls(stub func(context.Context) (bool, error)) {
+func (fake *GitRestClient) IsReadyCalls(stub func(context.Context) (bool, error)) {
 	fake.isReadyMutex.Lock()
 	defer fake.isReadyMutex.Unlock()
 	fake.IsReadyStub = stub
 }
 
-func (fake *FakeGitRestClient) IsReadyArgsForCall(i int) context.Context {
+func (fake *GitRestClient) IsReadyArgsForCall(i int) context.Context {
 	fake.isReadyMutex.RLock()
 	defer fake.isReadyMutex.RUnlock()
 	argsForCall := fake.isReadyArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeGitRestClient) IsReadyReturns(result1 bool, result2 error) {
+func (fake *GitRestClient) IsReadyReturns(result1 bool, result2 error) {
 	fake.isReadyMutex.Lock()
 	defer fake.isReadyMutex.Unlock()
 	fake.IsReadyStub = nil
@@ -254,7 +254,7 @@ func (fake *FakeGitRestClient) IsReadyReturns(result1 bool, result2 error) {
 	}{result1, result2}
 }
 
-func (fake *FakeGitRestClient) IsReadyReturnsOnCall(i int, result1 bool, result2 error) {
+func (fake *GitRestClient) IsReadyReturnsOnCall(i int, result1 bool, result2 error) {
 	fake.isReadyMutex.Lock()
 	defer fake.isReadyMutex.Unlock()
 	fake.IsReadyStub = nil
@@ -270,7 +270,7 @@ func (fake *FakeGitRestClient) IsReadyReturnsOnCall(i int, result1 bool, result2
 	}{result1, result2}
 }
 
-func (fake *FakeGitRestClient) List(arg1 context.Context, arg2 string) ([]string, error) {
+func (fake *GitRestClient) List(arg1 context.Context, arg2 string) ([]string, error) {
 	fake.listMutex.Lock()
 	ret, specificReturn := fake.listReturnsOnCall[len(fake.listArgsForCall)]
 	fake.listArgsForCall = append(fake.listArgsForCall, struct {
@@ -290,26 +290,26 @@ func (fake *FakeGitRestClient) List(arg1 context.Context, arg2 string) ([]string
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeGitRestClient) ListCallCount() int {
+func (fake *GitRestClient) ListCallCount() int {
 	fake.listMutex.RLock()
 	defer fake.listMutex.RUnlock()
 	return len(fake.listArgsForCall)
 }
 
-func (fake *FakeGitRestClient) ListCalls(stub func(context.Context, string) ([]string, error)) {
+func (fake *GitRestClient) ListCalls(stub func(context.Context, string) ([]string, error)) {
 	fake.listMutex.Lock()
 	defer fake.listMutex.Unlock()
 	fake.ListStub = stub
 }
 
-func (fake *FakeGitRestClient) ListArgsForCall(i int) (context.Context, string) {
+func (fake *GitRestClient) ListArgsForCall(i int) (context.Context, string) {
 	fake.listMutex.RLock()
 	defer fake.listMutex.RUnlock()
 	argsForCall := fake.listArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeGitRestClient) ListReturns(result1 []string, result2 error) {
+func (fake *GitRestClient) ListReturns(result1 []string, result2 error) {
 	fake.listMutex.Lock()
 	defer fake.listMutex.Unlock()
 	fake.ListStub = nil
@@ -319,7 +319,7 @@ func (fake *FakeGitRestClient) ListReturns(result1 []string, result2 error) {
 	}{result1, result2}
 }
 
-func (fake *FakeGitRestClient) ListReturnsOnCall(i int, result1 []string, result2 error) {
+func (fake *GitRestClient) ListReturnsOnCall(i int, result1 []string, result2 error) {
 	fake.listMutex.Lock()
 	defer fake.listMutex.Unlock()
 	fake.ListStub = nil
@@ -335,7 +335,7 @@ func (fake *FakeGitRestClient) ListReturnsOnCall(i int, result1 []string, result
 	}{result1, result2}
 }
 
-func (fake *FakeGitRestClient) Post(arg1 context.Context, arg2 string, arg3 []byte) error {
+func (fake *GitRestClient) Post(arg1 context.Context, arg2 string, arg3 []byte) error {
 	var arg3Copy []byte
 	if arg3 != nil {
 		arg3Copy = make([]byte, len(arg3))
@@ -361,26 +361,26 @@ func (fake *FakeGitRestClient) Post(arg1 context.Context, arg2 string, arg3 []by
 	return fakeReturns.result1
 }
 
-func (fake *FakeGitRestClient) PostCallCount() int {
+func (fake *GitRestClient) PostCallCount() int {
 	fake.postMutex.RLock()
 	defer fake.postMutex.RUnlock()
 	return len(fake.postArgsForCall)
 }
 
-func (fake *FakeGitRestClient) PostCalls(stub func(context.Context, string, []byte) error) {
+func (fake *GitRestClient) PostCalls(stub func(context.Context, string, []byte) error) {
 	fake.postMutex.Lock()
 	defer fake.postMutex.Unlock()
 	fake.PostStub = stub
 }
 
-func (fake *FakeGitRestClient) PostArgsForCall(i int) (context.Context, string, []byte) {
+func (fake *GitRestClient) PostArgsForCall(i int) (context.Context, string, []byte) {
 	fake.postMutex.RLock()
 	defer fake.postMutex.RUnlock()
 	argsForCall := fake.postArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
-func (fake *FakeGitRestClient) PostReturns(result1 error) {
+func (fake *GitRestClient) PostReturns(result1 error) {
 	fake.postMutex.Lock()
 	defer fake.postMutex.Unlock()
 	fake.PostStub = nil
@@ -389,7 +389,7 @@ func (fake *FakeGitRestClient) PostReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeGitRestClient) PostReturnsOnCall(i int, result1 error) {
+func (fake *GitRestClient) PostReturnsOnCall(i int, result1 error) {
 	fake.postMutex.Lock()
 	defer fake.postMutex.Unlock()
 	fake.PostStub = nil
@@ -403,7 +403,7 @@ func (fake *FakeGitRestClient) PostReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeGitRestClient) Invocations() map[string][][]interface{} {
+func (fake *GitRestClient) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
@@ -413,7 +413,7 @@ func (fake *FakeGitRestClient) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *FakeGitRestClient) recordInvocation(key string, args []interface{}) {
+func (fake *GitRestClient) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -425,4 +425,4 @@ func (fake *FakeGitRestClient) recordInvocation(key string, args []interface{}) 
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ gitrestclient.GitRestClient = new(FakeGitRestClient)
+var _ gitrestclient.GitRestClient = new(GitRestClient)

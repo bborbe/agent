@@ -8,7 +8,7 @@ import (
 	synca "github.com/bborbe/agent/task/controller/pkg/sync"
 )
 
-type FakeSyncLoop struct {
+type SyncLoop struct {
 	RunStub        func(context.Context) error
 	runMutex       sync.RWMutex
 	runArgsForCall []struct {
@@ -28,7 +28,7 @@ type FakeSyncLoop struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeSyncLoop) Run(arg1 context.Context) error {
+func (fake *SyncLoop) Run(arg1 context.Context) error {
 	fake.runMutex.Lock()
 	ret, specificReturn := fake.runReturnsOnCall[len(fake.runArgsForCall)]
 	fake.runArgsForCall = append(fake.runArgsForCall, struct {
@@ -47,26 +47,26 @@ func (fake *FakeSyncLoop) Run(arg1 context.Context) error {
 	return fakeReturns.result1
 }
 
-func (fake *FakeSyncLoop) RunCallCount() int {
+func (fake *SyncLoop) RunCallCount() int {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	return len(fake.runArgsForCall)
 }
 
-func (fake *FakeSyncLoop) RunCalls(stub func(context.Context) error) {
+func (fake *SyncLoop) RunCalls(stub func(context.Context) error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = stub
 }
 
-func (fake *FakeSyncLoop) RunArgsForCall(i int) context.Context {
+func (fake *SyncLoop) RunArgsForCall(i int) context.Context {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	argsForCall := fake.runArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeSyncLoop) RunReturns(result1 error) {
+func (fake *SyncLoop) RunReturns(result1 error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = nil
@@ -75,7 +75,7 @@ func (fake *FakeSyncLoop) RunReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeSyncLoop) RunReturnsOnCall(i int, result1 error) {
+func (fake *SyncLoop) RunReturnsOnCall(i int, result1 error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = nil
@@ -89,7 +89,7 @@ func (fake *FakeSyncLoop) RunReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeSyncLoop) Trigger() {
+func (fake *SyncLoop) Trigger() {
 	fake.triggerMutex.Lock()
 	fake.triggerArgsForCall = append(fake.triggerArgsForCall, struct {
 	}{})
@@ -101,19 +101,19 @@ func (fake *FakeSyncLoop) Trigger() {
 	}
 }
 
-func (fake *FakeSyncLoop) TriggerCallCount() int {
+func (fake *SyncLoop) TriggerCallCount() int {
 	fake.triggerMutex.RLock()
 	defer fake.triggerMutex.RUnlock()
 	return len(fake.triggerArgsForCall)
 }
 
-func (fake *FakeSyncLoop) TriggerCalls(stub func()) {
+func (fake *SyncLoop) TriggerCalls(stub func()) {
 	fake.triggerMutex.Lock()
 	defer fake.triggerMutex.Unlock()
 	fake.TriggerStub = stub
 }
 
-func (fake *FakeSyncLoop) Invocations() map[string][][]interface{} {
+func (fake *SyncLoop) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
@@ -123,7 +123,7 @@ func (fake *FakeSyncLoop) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *FakeSyncLoop) recordInvocation(key string, args []interface{}) {
+func (fake *SyncLoop) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -135,4 +135,4 @@ func (fake *FakeSyncLoop) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ synca.SyncLoop = new(FakeSyncLoop)
+var _ synca.SyncLoop = new(SyncLoop)

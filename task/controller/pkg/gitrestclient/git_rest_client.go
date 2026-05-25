@@ -19,7 +19,7 @@ import (
 	"github.com/bborbe/agent/task/controller/pkg/metrics"
 )
 
-//counterfeiter:generate -o ../../mocks/git_rest_client.go --fake-name FakeGitRestClient . GitRestClient
+//counterfeiter:generate -o ../../mocks/git_rest_client.go --fake-name GitRestClient . GitRestClient
 
 // GitRestClient is the HTTP client for git-rest's /api/v1/files REST API.
 // All paths are relative to the repo root (e.g. "tasks/foo.md").
@@ -263,7 +263,7 @@ func (g *gitRestClient) List(ctx context.Context, glob string) ([]string, error)
 	return paths, nil
 }
 
-//counterfeiter:generate -o ../../mocks/git_client.go --fake-name FakeGitClient . GitClient
+//counterfeiter:generate -o ../../mocks/git_client.go --fake-name GitClient . GitClient
 
 // GitClient is the interface for vault file operations used throughout the controller.
 type GitClient interface {

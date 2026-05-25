@@ -16,7 +16,7 @@ import (
 	"github.com/bborbe/agent/lib"
 )
 
-//counterfeiter:generate -o ../../mocks/task_publisher.go --fake-name FakeTaskPublisher . TaskPublisher
+//counterfeiter:generate -o ../../mocks/task_publisher.go --fake-name TaskPublisher . TaskPublisher
 
 // TaskPublisher publishes task change and deletion events to Kafka.
 type TaskPublisher interface {

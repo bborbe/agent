@@ -18,7 +18,7 @@ import (
 var _ = Describe("gitRestGitClientAdapter", func() {
 	var (
 		ctx        context.Context
-		fakeClient *mocks.FakeGitRestClient
+		fakeClient *mocks.GitRestClient
 		adapter    interface {
 			EnsureCloned(context.Context) error
 			Pull(context.Context) error
@@ -35,7 +35,7 @@ var _ = Describe("gitRestGitClientAdapter", func() {
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		fakeClient = &mocks.FakeGitRestClient{}
+		fakeClient = &mocks.GitRestClient{}
 		basePath = "/data/vault"
 		adapter = gitrestclient.NewGitClient(fakeClient, basePath)
 	})

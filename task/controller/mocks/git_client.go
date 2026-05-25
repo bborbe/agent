@@ -8,7 +8,7 @@ import (
 	"github.com/bborbe/agent/task/controller/pkg/gitrestclient"
 )
 
-type FakeGitClient struct {
+type GitClient struct {
 	AtomicReadModifyWriteAndCommitPushStub        func(context.Context, string, func(current []byte) ([]byte, error), string) error
 	atomicReadModifyWriteAndCommitPushMutex       sync.RWMutex
 	atomicReadModifyWriteAndCommitPushArgsForCall []struct {
@@ -126,7 +126,7 @@ type FakeGitClient struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPush(arg1 context.Context, arg2 string, arg3 func(current []byte) ([]byte, error), arg4 string) error {
+func (fake *GitClient) AtomicReadModifyWriteAndCommitPush(arg1 context.Context, arg2 string, arg3 func(current []byte) ([]byte, error), arg4 string) error {
 	fake.atomicReadModifyWriteAndCommitPushMutex.Lock()
 	ret, specificReturn := fake.atomicReadModifyWriteAndCommitPushReturnsOnCall[len(fake.atomicReadModifyWriteAndCommitPushArgsForCall)]
 	fake.atomicReadModifyWriteAndCommitPushArgsForCall = append(fake.atomicReadModifyWriteAndCommitPushArgsForCall, struct {
@@ -148,26 +148,26 @@ func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPush(arg1 context.Conte
 	return fakeReturns.result1
 }
 
-func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPushCallCount() int {
+func (fake *GitClient) AtomicReadModifyWriteAndCommitPushCallCount() int {
 	fake.atomicReadModifyWriteAndCommitPushMutex.RLock()
 	defer fake.atomicReadModifyWriteAndCommitPushMutex.RUnlock()
 	return len(fake.atomicReadModifyWriteAndCommitPushArgsForCall)
 }
 
-func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPushCalls(stub func(context.Context, string, func(current []byte) ([]byte, error), string) error) {
+func (fake *GitClient) AtomicReadModifyWriteAndCommitPushCalls(stub func(context.Context, string, func(current []byte) ([]byte, error), string) error) {
 	fake.atomicReadModifyWriteAndCommitPushMutex.Lock()
 	defer fake.atomicReadModifyWriteAndCommitPushMutex.Unlock()
 	fake.AtomicReadModifyWriteAndCommitPushStub = stub
 }
 
-func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPushArgsForCall(i int) (context.Context, string, func(current []byte) ([]byte, error), string) {
+func (fake *GitClient) AtomicReadModifyWriteAndCommitPushArgsForCall(i int) (context.Context, string, func(current []byte) ([]byte, error), string) {
 	fake.atomicReadModifyWriteAndCommitPushMutex.RLock()
 	defer fake.atomicReadModifyWriteAndCommitPushMutex.RUnlock()
 	argsForCall := fake.atomicReadModifyWriteAndCommitPushArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
 }
 
-func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPushReturns(result1 error) {
+func (fake *GitClient) AtomicReadModifyWriteAndCommitPushReturns(result1 error) {
 	fake.atomicReadModifyWriteAndCommitPushMutex.Lock()
 	defer fake.atomicReadModifyWriteAndCommitPushMutex.Unlock()
 	fake.AtomicReadModifyWriteAndCommitPushStub = nil
@@ -176,7 +176,7 @@ func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPushReturns(result1 err
 	}{result1}
 }
 
-func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPushReturnsOnCall(i int, result1 error) {
+func (fake *GitClient) AtomicReadModifyWriteAndCommitPushReturnsOnCall(i int, result1 error) {
 	fake.atomicReadModifyWriteAndCommitPushMutex.Lock()
 	defer fake.atomicReadModifyWriteAndCommitPushMutex.Unlock()
 	fake.AtomicReadModifyWriteAndCommitPushStub = nil
@@ -190,7 +190,7 @@ func (fake *FakeGitClient) AtomicReadModifyWriteAndCommitPushReturnsOnCall(i int
 	}{result1}
 }
 
-func (fake *FakeGitClient) AtomicWriteAndCommitPush(arg1 context.Context, arg2 string, arg3 []byte, arg4 string) error {
+func (fake *GitClient) AtomicWriteAndCommitPush(arg1 context.Context, arg2 string, arg3 []byte, arg4 string) error {
 	var arg3Copy []byte
 	if arg3 != nil {
 		arg3Copy = make([]byte, len(arg3))
@@ -217,26 +217,26 @@ func (fake *FakeGitClient) AtomicWriteAndCommitPush(arg1 context.Context, arg2 s
 	return fakeReturns.result1
 }
 
-func (fake *FakeGitClient) AtomicWriteAndCommitPushCallCount() int {
+func (fake *GitClient) AtomicWriteAndCommitPushCallCount() int {
 	fake.atomicWriteAndCommitPushMutex.RLock()
 	defer fake.atomicWriteAndCommitPushMutex.RUnlock()
 	return len(fake.atomicWriteAndCommitPushArgsForCall)
 }
 
-func (fake *FakeGitClient) AtomicWriteAndCommitPushCalls(stub func(context.Context, string, []byte, string) error) {
+func (fake *GitClient) AtomicWriteAndCommitPushCalls(stub func(context.Context, string, []byte, string) error) {
 	fake.atomicWriteAndCommitPushMutex.Lock()
 	defer fake.atomicWriteAndCommitPushMutex.Unlock()
 	fake.AtomicWriteAndCommitPushStub = stub
 }
 
-func (fake *FakeGitClient) AtomicWriteAndCommitPushArgsForCall(i int) (context.Context, string, []byte, string) {
+func (fake *GitClient) AtomicWriteAndCommitPushArgsForCall(i int) (context.Context, string, []byte, string) {
 	fake.atomicWriteAndCommitPushMutex.RLock()
 	defer fake.atomicWriteAndCommitPushMutex.RUnlock()
 	argsForCall := fake.atomicWriteAndCommitPushArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
 }
 
-func (fake *FakeGitClient) AtomicWriteAndCommitPushReturns(result1 error) {
+func (fake *GitClient) AtomicWriteAndCommitPushReturns(result1 error) {
 	fake.atomicWriteAndCommitPushMutex.Lock()
 	defer fake.atomicWriteAndCommitPushMutex.Unlock()
 	fake.AtomicWriteAndCommitPushStub = nil
@@ -245,7 +245,7 @@ func (fake *FakeGitClient) AtomicWriteAndCommitPushReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeGitClient) AtomicWriteAndCommitPushReturnsOnCall(i int, result1 error) {
+func (fake *GitClient) AtomicWriteAndCommitPushReturnsOnCall(i int, result1 error) {
 	fake.atomicWriteAndCommitPushMutex.Lock()
 	defer fake.atomicWriteAndCommitPushMutex.Unlock()
 	fake.AtomicWriteAndCommitPushStub = nil
@@ -259,7 +259,7 @@ func (fake *FakeGitClient) AtomicWriteAndCommitPushReturnsOnCall(i int, result1 
 	}{result1}
 }
 
-func (fake *FakeGitClient) CommitAndPush(arg1 context.Context, arg2 string) error {
+func (fake *GitClient) CommitAndPush(arg1 context.Context, arg2 string) error {
 	fake.commitAndPushMutex.Lock()
 	ret, specificReturn := fake.commitAndPushReturnsOnCall[len(fake.commitAndPushArgsForCall)]
 	fake.commitAndPushArgsForCall = append(fake.commitAndPushArgsForCall, struct {
@@ -279,26 +279,26 @@ func (fake *FakeGitClient) CommitAndPush(arg1 context.Context, arg2 string) erro
 	return fakeReturns.result1
 }
 
-func (fake *FakeGitClient) CommitAndPushCallCount() int {
+func (fake *GitClient) CommitAndPushCallCount() int {
 	fake.commitAndPushMutex.RLock()
 	defer fake.commitAndPushMutex.RUnlock()
 	return len(fake.commitAndPushArgsForCall)
 }
 
-func (fake *FakeGitClient) CommitAndPushCalls(stub func(context.Context, string) error) {
+func (fake *GitClient) CommitAndPushCalls(stub func(context.Context, string) error) {
 	fake.commitAndPushMutex.Lock()
 	defer fake.commitAndPushMutex.Unlock()
 	fake.CommitAndPushStub = stub
 }
 
-func (fake *FakeGitClient) CommitAndPushArgsForCall(i int) (context.Context, string) {
+func (fake *GitClient) CommitAndPushArgsForCall(i int) (context.Context, string) {
 	fake.commitAndPushMutex.RLock()
 	defer fake.commitAndPushMutex.RUnlock()
 	argsForCall := fake.commitAndPushArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeGitClient) CommitAndPushReturns(result1 error) {
+func (fake *GitClient) CommitAndPushReturns(result1 error) {
 	fake.commitAndPushMutex.Lock()
 	defer fake.commitAndPushMutex.Unlock()
 	fake.CommitAndPushStub = nil
@@ -307,7 +307,7 @@ func (fake *FakeGitClient) CommitAndPushReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeGitClient) CommitAndPushReturnsOnCall(i int, result1 error) {
+func (fake *GitClient) CommitAndPushReturnsOnCall(i int, result1 error) {
 	fake.commitAndPushMutex.Lock()
 	defer fake.commitAndPushMutex.Unlock()
 	fake.CommitAndPushStub = nil
@@ -321,7 +321,7 @@ func (fake *FakeGitClient) CommitAndPushReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeGitClient) EnsureCloned(arg1 context.Context) error {
+func (fake *GitClient) EnsureCloned(arg1 context.Context) error {
 	fake.ensureClonedMutex.Lock()
 	ret, specificReturn := fake.ensureClonedReturnsOnCall[len(fake.ensureClonedArgsForCall)]
 	fake.ensureClonedArgsForCall = append(fake.ensureClonedArgsForCall, struct {
@@ -340,26 +340,26 @@ func (fake *FakeGitClient) EnsureCloned(arg1 context.Context) error {
 	return fakeReturns.result1
 }
 
-func (fake *FakeGitClient) EnsureClonedCallCount() int {
+func (fake *GitClient) EnsureClonedCallCount() int {
 	fake.ensureClonedMutex.RLock()
 	defer fake.ensureClonedMutex.RUnlock()
 	return len(fake.ensureClonedArgsForCall)
 }
 
-func (fake *FakeGitClient) EnsureClonedCalls(stub func(context.Context) error) {
+func (fake *GitClient) EnsureClonedCalls(stub func(context.Context) error) {
 	fake.ensureClonedMutex.Lock()
 	defer fake.ensureClonedMutex.Unlock()
 	fake.EnsureClonedStub = stub
 }
 
-func (fake *FakeGitClient) EnsureClonedArgsForCall(i int) context.Context {
+func (fake *GitClient) EnsureClonedArgsForCall(i int) context.Context {
 	fake.ensureClonedMutex.RLock()
 	defer fake.ensureClonedMutex.RUnlock()
 	argsForCall := fake.ensureClonedArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeGitClient) EnsureClonedReturns(result1 error) {
+func (fake *GitClient) EnsureClonedReturns(result1 error) {
 	fake.ensureClonedMutex.Lock()
 	defer fake.ensureClonedMutex.Unlock()
 	fake.EnsureClonedStub = nil
@@ -368,7 +368,7 @@ func (fake *FakeGitClient) EnsureClonedReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeGitClient) EnsureClonedReturnsOnCall(i int, result1 error) {
+func (fake *GitClient) EnsureClonedReturnsOnCall(i int, result1 error) {
 	fake.ensureClonedMutex.Lock()
 	defer fake.ensureClonedMutex.Unlock()
 	fake.EnsureClonedStub = nil
@@ -382,7 +382,7 @@ func (fake *FakeGitClient) EnsureClonedReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeGitClient) ListFiles(arg1 context.Context, arg2 string) ([]string, error) {
+func (fake *GitClient) ListFiles(arg1 context.Context, arg2 string) ([]string, error) {
 	fake.listFilesMutex.Lock()
 	ret, specificReturn := fake.listFilesReturnsOnCall[len(fake.listFilesArgsForCall)]
 	fake.listFilesArgsForCall = append(fake.listFilesArgsForCall, struct {
@@ -402,26 +402,26 @@ func (fake *FakeGitClient) ListFiles(arg1 context.Context, arg2 string) ([]strin
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeGitClient) ListFilesCallCount() int {
+func (fake *GitClient) ListFilesCallCount() int {
 	fake.listFilesMutex.RLock()
 	defer fake.listFilesMutex.RUnlock()
 	return len(fake.listFilesArgsForCall)
 }
 
-func (fake *FakeGitClient) ListFilesCalls(stub func(context.Context, string) ([]string, error)) {
+func (fake *GitClient) ListFilesCalls(stub func(context.Context, string) ([]string, error)) {
 	fake.listFilesMutex.Lock()
 	defer fake.listFilesMutex.Unlock()
 	fake.ListFilesStub = stub
 }
 
-func (fake *FakeGitClient) ListFilesArgsForCall(i int) (context.Context, string) {
+func (fake *GitClient) ListFilesArgsForCall(i int) (context.Context, string) {
 	fake.listFilesMutex.RLock()
 	defer fake.listFilesMutex.RUnlock()
 	argsForCall := fake.listFilesArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeGitClient) ListFilesReturns(result1 []string, result2 error) {
+func (fake *GitClient) ListFilesReturns(result1 []string, result2 error) {
 	fake.listFilesMutex.Lock()
 	defer fake.listFilesMutex.Unlock()
 	fake.ListFilesStub = nil
@@ -431,7 +431,7 @@ func (fake *FakeGitClient) ListFilesReturns(result1 []string, result2 error) {
 	}{result1, result2}
 }
 
-func (fake *FakeGitClient) ListFilesReturnsOnCall(i int, result1 []string, result2 error) {
+func (fake *GitClient) ListFilesReturnsOnCall(i int, result1 []string, result2 error) {
 	fake.listFilesMutex.Lock()
 	defer fake.listFilesMutex.Unlock()
 	fake.ListFilesStub = nil
@@ -447,7 +447,7 @@ func (fake *FakeGitClient) ListFilesReturnsOnCall(i int, result1 []string, resul
 	}{result1, result2}
 }
 
-func (fake *FakeGitClient) Path() string {
+func (fake *GitClient) Path() string {
 	fake.pathMutex.Lock()
 	ret, specificReturn := fake.pathReturnsOnCall[len(fake.pathArgsForCall)]
 	fake.pathArgsForCall = append(fake.pathArgsForCall, struct {
@@ -465,19 +465,19 @@ func (fake *FakeGitClient) Path() string {
 	return fakeReturns.result1
 }
 
-func (fake *FakeGitClient) PathCallCount() int {
+func (fake *GitClient) PathCallCount() int {
 	fake.pathMutex.RLock()
 	defer fake.pathMutex.RUnlock()
 	return len(fake.pathArgsForCall)
 }
 
-func (fake *FakeGitClient) PathCalls(stub func() string) {
+func (fake *GitClient) PathCalls(stub func() string) {
 	fake.pathMutex.Lock()
 	defer fake.pathMutex.Unlock()
 	fake.PathStub = stub
 }
 
-func (fake *FakeGitClient) PathReturns(result1 string) {
+func (fake *GitClient) PathReturns(result1 string) {
 	fake.pathMutex.Lock()
 	defer fake.pathMutex.Unlock()
 	fake.PathStub = nil
@@ -486,7 +486,7 @@ func (fake *FakeGitClient) PathReturns(result1 string) {
 	}{result1}
 }
 
-func (fake *FakeGitClient) PathReturnsOnCall(i int, result1 string) {
+func (fake *GitClient) PathReturnsOnCall(i int, result1 string) {
 	fake.pathMutex.Lock()
 	defer fake.pathMutex.Unlock()
 	fake.PathStub = nil
@@ -500,7 +500,7 @@ func (fake *FakeGitClient) PathReturnsOnCall(i int, result1 string) {
 	}{result1}
 }
 
-func (fake *FakeGitClient) Pull(arg1 context.Context) error {
+func (fake *GitClient) Pull(arg1 context.Context) error {
 	fake.pullMutex.Lock()
 	ret, specificReturn := fake.pullReturnsOnCall[len(fake.pullArgsForCall)]
 	fake.pullArgsForCall = append(fake.pullArgsForCall, struct {
@@ -519,26 +519,26 @@ func (fake *FakeGitClient) Pull(arg1 context.Context) error {
 	return fakeReturns.result1
 }
 
-func (fake *FakeGitClient) PullCallCount() int {
+func (fake *GitClient) PullCallCount() int {
 	fake.pullMutex.RLock()
 	defer fake.pullMutex.RUnlock()
 	return len(fake.pullArgsForCall)
 }
 
-func (fake *FakeGitClient) PullCalls(stub func(context.Context) error) {
+func (fake *GitClient) PullCalls(stub func(context.Context) error) {
 	fake.pullMutex.Lock()
 	defer fake.pullMutex.Unlock()
 	fake.PullStub = stub
 }
 
-func (fake *FakeGitClient) PullArgsForCall(i int) context.Context {
+func (fake *GitClient) PullArgsForCall(i int) context.Context {
 	fake.pullMutex.RLock()
 	defer fake.pullMutex.RUnlock()
 	argsForCall := fake.pullArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeGitClient) PullReturns(result1 error) {
+func (fake *GitClient) PullReturns(result1 error) {
 	fake.pullMutex.Lock()
 	defer fake.pullMutex.Unlock()
 	fake.PullStub = nil
@@ -547,7 +547,7 @@ func (fake *FakeGitClient) PullReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeGitClient) PullReturnsOnCall(i int, result1 error) {
+func (fake *GitClient) PullReturnsOnCall(i int, result1 error) {
 	fake.pullMutex.Lock()
 	defer fake.pullMutex.Unlock()
 	fake.PullStub = nil
@@ -561,7 +561,7 @@ func (fake *FakeGitClient) PullReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeGitClient) ReadFile(arg1 context.Context, arg2 string) ([]byte, error) {
+func (fake *GitClient) ReadFile(arg1 context.Context, arg2 string) ([]byte, error) {
 	fake.readFileMutex.Lock()
 	ret, specificReturn := fake.readFileReturnsOnCall[len(fake.readFileArgsForCall)]
 	fake.readFileArgsForCall = append(fake.readFileArgsForCall, struct {
@@ -581,26 +581,26 @@ func (fake *FakeGitClient) ReadFile(arg1 context.Context, arg2 string) ([]byte, 
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeGitClient) ReadFileCallCount() int {
+func (fake *GitClient) ReadFileCallCount() int {
 	fake.readFileMutex.RLock()
 	defer fake.readFileMutex.RUnlock()
 	return len(fake.readFileArgsForCall)
 }
 
-func (fake *FakeGitClient) ReadFileCalls(stub func(context.Context, string) ([]byte, error)) {
+func (fake *GitClient) ReadFileCalls(stub func(context.Context, string) ([]byte, error)) {
 	fake.readFileMutex.Lock()
 	defer fake.readFileMutex.Unlock()
 	fake.ReadFileStub = stub
 }
 
-func (fake *FakeGitClient) ReadFileArgsForCall(i int) (context.Context, string) {
+func (fake *GitClient) ReadFileArgsForCall(i int) (context.Context, string) {
 	fake.readFileMutex.RLock()
 	defer fake.readFileMutex.RUnlock()
 	argsForCall := fake.readFileArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeGitClient) ReadFileReturns(result1 []byte, result2 error) {
+func (fake *GitClient) ReadFileReturns(result1 []byte, result2 error) {
 	fake.readFileMutex.Lock()
 	defer fake.readFileMutex.Unlock()
 	fake.ReadFileStub = nil
@@ -610,7 +610,7 @@ func (fake *FakeGitClient) ReadFileReturns(result1 []byte, result2 error) {
 	}{result1, result2}
 }
 
-func (fake *FakeGitClient) ReadFileReturnsOnCall(i int, result1 []byte, result2 error) {
+func (fake *GitClient) ReadFileReturnsOnCall(i int, result1 []byte, result2 error) {
 	fake.readFileMutex.Lock()
 	defer fake.readFileMutex.Unlock()
 	fake.ReadFileStub = nil
@@ -626,7 +626,7 @@ func (fake *FakeGitClient) ReadFileReturnsOnCall(i int, result1 []byte, result2 
 	}{result1, result2}
 }
 
-func (fake *FakeGitClient) WriteFile(arg1 context.Context, arg2 string, arg3 []byte) error {
+func (fake *GitClient) WriteFile(arg1 context.Context, arg2 string, arg3 []byte) error {
 	var arg3Copy []byte
 	if arg3 != nil {
 		arg3Copy = make([]byte, len(arg3))
@@ -652,26 +652,26 @@ func (fake *FakeGitClient) WriteFile(arg1 context.Context, arg2 string, arg3 []b
 	return fakeReturns.result1
 }
 
-func (fake *FakeGitClient) WriteFileCallCount() int {
+func (fake *GitClient) WriteFileCallCount() int {
 	fake.writeFileMutex.RLock()
 	defer fake.writeFileMutex.RUnlock()
 	return len(fake.writeFileArgsForCall)
 }
 
-func (fake *FakeGitClient) WriteFileCalls(stub func(context.Context, string, []byte) error) {
+func (fake *GitClient) WriteFileCalls(stub func(context.Context, string, []byte) error) {
 	fake.writeFileMutex.Lock()
 	defer fake.writeFileMutex.Unlock()
 	fake.WriteFileStub = stub
 }
 
-func (fake *FakeGitClient) WriteFileArgsForCall(i int) (context.Context, string, []byte) {
+func (fake *GitClient) WriteFileArgsForCall(i int) (context.Context, string, []byte) {
 	fake.writeFileMutex.RLock()
 	defer fake.writeFileMutex.RUnlock()
 	argsForCall := fake.writeFileArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
-func (fake *FakeGitClient) WriteFileReturns(result1 error) {
+func (fake *GitClient) WriteFileReturns(result1 error) {
 	fake.writeFileMutex.Lock()
 	defer fake.writeFileMutex.Unlock()
 	fake.WriteFileStub = nil
@@ -680,7 +680,7 @@ func (fake *FakeGitClient) WriteFileReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeGitClient) WriteFileReturnsOnCall(i int, result1 error) {
+func (fake *GitClient) WriteFileReturnsOnCall(i int, result1 error) {
 	fake.writeFileMutex.Lock()
 	defer fake.writeFileMutex.Unlock()
 	fake.WriteFileStub = nil
@@ -694,7 +694,7 @@ func (fake *FakeGitClient) WriteFileReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeGitClient) Invocations() map[string][][]interface{} {
+func (fake *GitClient) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
@@ -704,7 +704,7 @@ func (fake *FakeGitClient) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *FakeGitClient) recordInvocation(key string, args []interface{}) {
+func (fake *GitClient) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -716,4 +716,4 @@ func (fake *FakeGitClient) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ gitrestclient.GitClient = new(FakeGitClient)
+var _ gitrestclient.GitClient = new(GitClient)

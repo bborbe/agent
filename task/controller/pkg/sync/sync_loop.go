@@ -16,7 +16,7 @@ import (
 	"github.com/bborbe/agent/task/controller/pkg/scanner"
 )
 
-//counterfeiter:generate -o ../../mocks/sync_loop.go --fake-name FakeSyncLoop . SyncLoop
+//counterfeiter:generate -o ../../mocks/sync_loop.go --fake-name SyncLoop . SyncLoop
 
 // SyncLoop orchestrates scanning and publishing of task events.
 type SyncLoop interface {

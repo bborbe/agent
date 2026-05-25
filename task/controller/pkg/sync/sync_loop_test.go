@@ -22,8 +22,8 @@ var _ = Describe("SyncLoop", func() {
 	var (
 		ctx           context.Context
 		cancel        context.CancelFunc
-		fakeScanner   *mocks.FakeVaultScanner
-		fakePublisher *mocks.FakeTaskPublisher
+		fakeScanner   *mocks.VaultScanner
+		fakePublisher *mocks.TaskPublisher
 		resultsCh     chan scanner.ScanResult
 		syncLoop      pkgsync.SyncLoop
 		runErr        chan error
@@ -31,8 +31,8 @@ var _ = Describe("SyncLoop", func() {
 
 	BeforeEach(func() {
 		ctx, cancel = context.WithCancel(context.Background())
-		fakeScanner = &mocks.FakeVaultScanner{}
-		fakePublisher = &mocks.FakeTaskPublisher{}
+		fakeScanner = &mocks.VaultScanner{}
+		fakePublisher = &mocks.TaskPublisher{}
 		resultsCh = make(chan scanner.ScanResult, 10)
 		ch := resultsCh // capture by value to avoid race with next BeforeEach
 

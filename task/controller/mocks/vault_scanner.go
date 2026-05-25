@@ -8,7 +8,7 @@ import (
 	"github.com/bborbe/agent/task/controller/pkg/scanner"
 )
 
-type FakeVaultScanner struct {
+type VaultScanner struct {
 	RunStub        func(context.Context, chan<- scanner.ScanResult) error
 	runMutex       sync.RWMutex
 	runArgsForCall []struct {
@@ -25,7 +25,7 @@ type FakeVaultScanner struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeVaultScanner) Run(arg1 context.Context, arg2 chan<- scanner.ScanResult) error {
+func (fake *VaultScanner) Run(arg1 context.Context, arg2 chan<- scanner.ScanResult) error {
 	fake.runMutex.Lock()
 	ret, specificReturn := fake.runReturnsOnCall[len(fake.runArgsForCall)]
 	fake.runArgsForCall = append(fake.runArgsForCall, struct {
@@ -45,26 +45,26 @@ func (fake *FakeVaultScanner) Run(arg1 context.Context, arg2 chan<- scanner.Scan
 	return fakeReturns.result1
 }
 
-func (fake *FakeVaultScanner) RunCallCount() int {
+func (fake *VaultScanner) RunCallCount() int {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	return len(fake.runArgsForCall)
 }
 
-func (fake *FakeVaultScanner) RunCalls(stub func(context.Context, chan<- scanner.ScanResult) error) {
+func (fake *VaultScanner) RunCalls(stub func(context.Context, chan<- scanner.ScanResult) error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = stub
 }
 
-func (fake *FakeVaultScanner) RunArgsForCall(i int) (context.Context, chan<- scanner.ScanResult) {
+func (fake *VaultScanner) RunArgsForCall(i int) (context.Context, chan<- scanner.ScanResult) {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	argsForCall := fake.runArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeVaultScanner) RunReturns(result1 error) {
+func (fake *VaultScanner) RunReturns(result1 error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = nil
@@ -73,7 +73,7 @@ func (fake *FakeVaultScanner) RunReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeVaultScanner) RunReturnsOnCall(i int, result1 error) {
+func (fake *VaultScanner) RunReturnsOnCall(i int, result1 error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = nil
@@ -87,7 +87,7 @@ func (fake *FakeVaultScanner) RunReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeVaultScanner) Invocations() map[string][][]interface{} {
+func (fake *VaultScanner) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
@@ -97,7 +97,7 @@ func (fake *FakeVaultScanner) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *FakeVaultScanner) recordInvocation(key string, args []interface{}) {
+func (fake *VaultScanner) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -109,4 +109,4 @@ func (fake *FakeVaultScanner) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ scanner.VaultScanner = new(FakeVaultScanner)
+var _ scanner.VaultScanner = new(VaultScanner)
