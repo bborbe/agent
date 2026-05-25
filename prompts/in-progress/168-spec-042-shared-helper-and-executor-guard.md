@@ -1,9 +1,15 @@
 ---
-status: approved
+status: executing
 spec: [042-update-frontmatter-executor-enforces-human-review-doctrine]
+container: agent-exec-168-spec-042-shared-helper-and-executor-guard
+dark-factory-version: v0.173.0
 created: "2026-05-26T00:00:00Z"
 queued: "2026-05-25T22:35:21Z"
+started: "2026-05-25T23:06:30Z"
+completed: "2026-05-25T22:54:00Z"
 branch: dark-factory/update-frontmatter-executor-enforces-human-review-doctrine
+lastFailReason: 'validate completion report: completion report status: partial'
+cancelled: "2026-05-25T23:04:01Z"
 ---
 
 <summary>
@@ -287,7 +293,9 @@ Read these project files before editing:
 - Do NOT touch the `phase` allowlist in the executor (`allowedPhases`); the partial-update path was never gated by it and stays ungated (spec Constraint).
 - Do NOT commit — dark-factory handles git.
 - Follow project error-handling conventions (`errors.Wrapf(ctx, ...)` from `github.com/bborbe/errors`). This prompt introduces no new error paths.
-- Existing tests must still pass — do not delete, weaken, or rewrite any existing assertion. Specifically, the `Context("Body field appends a new section", ...)` test in `task_update_frontmatter_executor_test.go` currently asserts `fm["phase"] == "human_review"` on a write where the input frontmatter contains `assignee: ""` (no assignee key originally) — after the helper runs, behavior is unchanged because the on-disk assignee is absent → empty, so `clearAssignee` no-ops on `previous_assignee` and sets `assignee: ""` (which was the implicit state already). If that test starts asserting `assignee` shape, update its expectations explicitly rather than weakening them.
+- Existing tests must still pass after the change. General rule: do not delete, weaken, or rewrite assertions that remain valid under the new doctrine.
+- **EXCEPTION: tests that encode pre-spec-042 behavior MUST be updated to match the new doctrine.** Spec 042 changes observable behavior of `UpdateFrontmatterCommand{Updates: {"phase": "human_review"}}` — pre-spec-042 the executor preserved `assignee`; post-spec-042 the executor clears it via the helper. Any existing assertion that encodes the pre-spec-042 expectation (e.g. asserts `assignee` is preserved when `phase: human_review` is written) MUST be updated to the post-spec-042 expectation (`assignee: ""`, `previous_assignee: <prior>`). Known case: the `only named keys change` test in `task_update_frontmatter_executor_test.go` (around lines 129-147) asserts `fm["assignee"] == "claude"` after a `phase: human_review` update — update its `assignee` assertion from `"claude"` to `""` and add a `previous_assignee == "claude"` assertion. This is REQUIRED by AC#1, not optional.
+- Context for the `Context("Body field appends a new section", ...)` test in the same file: it asserts `fm["phase"] == "human_review"` on a write where the input frontmatter has NO `assignee` key originally. After the helper runs, `clearAssignee` no-ops on `previous_assignee` (no prior value) and sets `assignee: ""`. The existing `phase` assertion holds; add a sanity assertion for the new `assignee` shape if helpful, but the existing test's intent is unchanged.
 </constraints>
 
 <verification>
