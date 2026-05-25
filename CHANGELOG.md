@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.21
+
+- refactor(agent/code): simplify `CreateSyncProducer` factory to pure pass-through — accept agentName parameter, remove internal error wrapping, move error propagation to caller
+
 ## v0.63.20
 
 - fix(agent/claude): use display:"password" for AnthropicAuthToken to fully mask credentials in process listings

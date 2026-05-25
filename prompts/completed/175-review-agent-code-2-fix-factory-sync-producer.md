@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Refactored CreateSyncProducer to pure pass-through, moved error wrapping to caller in main.go
+container: agent-exec-175-review-agent-code-2-fix-factory-sync-producer
+dark-factory-version: v0.173.0
 created: "2026-05-24T12:00:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-25T23:28:48Z"
+completed: "2026-05-25T23:30:06Z"
 ---
 
 <summary>

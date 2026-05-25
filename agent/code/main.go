@@ -97,7 +97,7 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 			jobMetrics.RecordDuration(time.Since(start))
 			return errors.Errorf(ctx, "KAFKA_BROKERS must be set when TASK_ID is set")
 		}
-		syncProducer, err := factory.CreateSyncProducer(ctx, a.KafkaBrokers)
+		syncProducer, err := factory.CreateSyncProducer(ctx, a.KafkaBrokers, agentName)
 		if err != nil {
 			jobMetrics.RecordRun(agentlib.AgentStatusFailed)
 			jobMetrics.RecordDuration(time.Since(start))
