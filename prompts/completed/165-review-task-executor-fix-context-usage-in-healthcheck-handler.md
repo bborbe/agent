@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Removed ctx parameter from NewHealthcheckTriggerHandler; handler now uses context.Background() internally to prevent premature context cancellation when HTTP server is still listening
+container: agent-exec-165-review-task-executor-fix-context-usage-in-healthcheck-handler
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T21:00:25Z"
+started: "2026-05-25T22:35:39Z"
+completed: "2026-05-25T22:38:34Z"
 ---
 
 <summary>

@@ -16,9 +16,12 @@ import (
 // NewHealthcheckTriggerHandler returns an HTTP handler that fires the healthcheck runner
 // once per invocation with fire-and-forget + single-flight semantics.
 // Concurrent invocations collapse into one in-flight run (second request is silently dropped).
+//
+// The handler uses context.Background() for its internal operations so it is not
+// affected by the caller's context cancellation. The handler only stops when the
+// HTTP server shuts down.
 func NewHealthcheckTriggerHandler(
-	ctx context.Context,
 	runner probe.HealthcheckRunner,
 ) http.Handler {
-	return libhttp.NewBackgroundRunHandler(ctx, runner.Run)
+	return libhttp.NewBackgroundRunHandler(context.Background(), runner.Run)
 }

@@ -19,15 +19,13 @@ import (
 
 var _ = Describe("HealthcheckTriggerHandler", func() {
 	var (
-		ctx        context.Context
 		fakeRunner *mocks.FakeHealthcheckRunner
 		h          http.Handler
 	)
 
 	BeforeEach(func() {
-		ctx = context.Background()
 		fakeRunner = new(mocks.FakeHealthcheckRunner)
-		h = handler.NewHealthcheckTriggerHandler(ctx, fakeRunner)
+		h = handler.NewHealthcheckTriggerHandler(fakeRunner)
 	})
 
 	Context("POST request", func() {

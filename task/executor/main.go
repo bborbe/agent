@@ -145,7 +145,7 @@ func (a *application) createHTTPServer(
 
 		router.Path("/agents").Handler(handler.NewAgentsHandler(configProvider))
 		router.Path("/healthcheck-trigger").Handler(
-			handler.NewHealthcheckTriggerHandler(ctx, runner),
+			handler.NewHealthcheckTriggerHandler(runner),
 		)
 
 		glog.V(2).Infof("starting http server listen on %s", a.Listen)

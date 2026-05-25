@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.12
+
+- fix(task/executor): pass context.Background() to NewHealthcheckTriggerHandler instead of caller's ctx; prevents premature context cancellation when HTTP server is still listening
+
 ## v0.63.11
 
 - docs(task/executor): add GoDoc comments to jobSpawner, k8sConnector, and resultPublisher exported structs
