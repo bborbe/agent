@@ -82,6 +82,12 @@ func (i *pluginInstaller) EnsureInstalled(ctx context.Context, specs []PluginSpe
 		return nil
 	}
 	for _, spec := range specs {
+		select {
+		case <-ctx.Done():
+			return errors.Wrap(ctx, ctx.Err(), "context cancelled during EnsureInstalled")
+		default:
+		}
+
 		if err := i.ensureOne(ctx, spec); err != nil {
 			return err
 		}

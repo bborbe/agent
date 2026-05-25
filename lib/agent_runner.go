@@ -39,6 +39,12 @@ func (r *StepRunner) Run(ctx context.Context, md *Markdown) (*Result, error) {
 	var lastResult *Result
 
 	for _, s := range r.steps {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
 		shouldRun, err := s.ShouldRun(ctx, md)
 		if err != nil {
 			return nil, errors.Wrapf(ctx, err, "step %q ShouldRun", s.Name())
@@ -77,6 +83,9 @@ func (r *StepRunner) Run(ctx context.Context, md *Markdown) (*Result, error) {
 		}
 	}
 
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	return lastResult, nil
 }
 

@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added context cancellation checks to EnsureInstalled loop in claude-plugin-installer.go and StepRunner.Run loop in agent_runner.go
+container: agent-exec-153-review-lib-add-context-cancellation-checks
+dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T21:00:25Z"
+started: "2026-05-25T21:10:00Z"
+completed: "2026-05-25T21:15:37Z"
 ---
 
 <summary>

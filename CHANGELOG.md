@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.3
+
+- fix(lib): add non-blocking `ctx.Done()` select checks to long-running loops in `StepRunner.Run` and `EnsureInstalled` to enable graceful shutdown on context cancellation
+
 ## v0.63.2
 
 - fix(agent/gemini): pass context.Context to `parser.New` instead of using `context.Background()` internally; context is now propagated to the Gemini client and error wrapping, enabling proper cancellation and deadline handling
