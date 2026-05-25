@@ -56,16 +56,19 @@ Agent provides: {status: completed, phase: done}
 Merged result:  {assignee: backtest-agent, tags: [agent-task], task_identifier: xyz, status: completed, phase: done}
 ```
 
-## Assignee-Clear on Escalation (spec 021, refined by specs 039 and 041)
+## Assignee-Clear on Escalation (spec 021, refined by spec 039, completed by spec 042)
 
-Every escalation path writes `assignee: ""` so the task surfaces in operator inbox:
+Every escalation path writes `assignee: ""` so the task surfaces in operator inbox.
+All four rows route through the single chokepoint `result.ClearAssigneeIfHumanReview`
+(for `human_review` paths) or `result.clearAssignee` (for cap paths) in
+`task/controller/pkg/result/result_writer.go`:
 
-| Escalation trigger | `phase` written | `assignee` written |
-|---|---|---|
-| `trigger_count >= max_triggers` | unchanged (lifecycle stage preserved) | `""` |
-| `retry_count >= max_retries` | unchanged (lifecycle stage preserved) | `""` |
-| Agent emits `needs_input` | unchanged (lifecycle stage preserved) | `""` |
-| Agent emits `Result.NextPhase: human_review` (legitimate handoff) | `human_review` (from `resolveNextPhase`) | `""` (guard fires regardless of `spawn_notification` state on merged frontmatter) |
+| Escalation trigger | `phase` written | `assignee` written | Enforcement point |
+|---|---|---|---|
+| `trigger_count >= max_triggers` | unchanged (lifecycle stage preserved) | `""` | `applyTriggerCap` → `clearAssignee` |
+| `retry_count >= max_retries` | unchanged (lifecycle stage preserved) | `""` | `applyRetryCap` → `clearAssignee` |
+| Agent emits `Result.NextPhase: human_review` (legitimate handoff) | `human_review` (from `resolveNextPhase`) | `""` | `applyRetryCounter` → `ClearAssigneeIfHumanReview` |
+| Agent emits `UpdateFrontmatterCommand` with merged `phase: human_review` (spec 042) | `human_review` | `""` | `buildUpdateModifyFn` → `ClearAssigneeIfHumanReview` |
 
 Once a task is parked (escalation section present, `assignee: ""`), repeated stale agent
 result publishes are idempotent: the escalation section is not duplicated, the lifecycle
@@ -128,6 +131,8 @@ On agent-task-v1-request (operation: "update-frontmatter"):
   │     ├── read current file bytes (under mutex)
   │     ├── parse existing frontmatter
   │     ├── merge only the keys in Updates (all other keys unchanged)
+  │     ├── if Body section provided → append/replace section in body (spec 016)
+  │     ├── if merged phase == "human_review" → result.ClearAssigneeIfHumanReview clears assignee in the same write (spec 042)
   │     ├── write updated file (under mutex)
   │     └── git commit + push (under mutex)
   └── increment FrontmatterCommandsTotal{operation, outcome}

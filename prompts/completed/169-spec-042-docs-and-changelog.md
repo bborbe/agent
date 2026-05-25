@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [042-update-frontmatter-executor-enforces-human-review-doctrine]
+summary: Documented spec 042 partial-update human_review doctrine in controller-design.md, task-flow-and-failure-semantics.md, and CHANGELOG.md
+container: agent-exec-169-spec-042-docs-and-changelog
+dark-factory-version: v0.173.0
 created: "2026-05-26T00:00:00Z"
 queued: "2026-05-25T22:35:21Z"
+started: "2026-05-25T23:08:02Z"
+completed: "2026-05-25T23:10:05Z"
 branch: dark-factory/update-frontmatter-executor-enforces-human-review-doctrine
 ---
 

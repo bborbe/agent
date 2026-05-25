@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.15
+
+- fix(task/controller): partial-update executor now enforces `phase: human_review` → `assignee: ""` doctrine via shared helper `result.ClearAssigneeIfHumanReview`. Closes the sixth `human_review` write site missed by spec 039 (predecessor); fixes the 2026-05-25 prod incident where pr-reviewer-agent emitted `UpdateFrontmatterCommand{Updates: {"phase": "human_review"}}` on PR #3 and the task landed with `assignee: pr-reviewer-agent` still set, bypassing the operator inbox filter.
+
 ## v0.63.14
 
 - feat(task/controller): add `ClearAssigneeIfHumanReview` shared helper in `result_writer.go` (spec 042) — centralizes the spec-039 doctrine (`phase: human_review` → `assignee: ""`) in a single exported function; routes through `clearAssignee` which captures prior assignee into `previous_assignee` if non-empty

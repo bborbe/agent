@@ -185,6 +185,8 @@ Only the listed frontmatter keys are written; all other keys — including `trig
 | `PublishFailure` | `update-frontmatter` | `status`, `phase`, `current_job` |
 | `PublishTypeMismatchFailure` | `update-frontmatter` | `status`, `phase` (`ai_review`), `assignee` (`""`), `current_job` |
 
+**Partial-update doctrine guard (spec 042):** Every `update-frontmatter` command — regardless of which publisher emits it OR whether the agent emits it directly via the SDK — flows through `buildUpdateModifyFn` in `task/controller/pkg/command/task_update_frontmatter_executor.go`. That function applies the merge, optionally appends a body section, then calls `result.ClearAssigneeIfHumanReview` on the merged frontmatter before marshaling. If the merge produces `phase: human_review`, assignee is cleared to `""` and `previous_assignee` captures the prior value — in the same atomic write that performs the merge. This closes the sixth write site identified after spec 039's prod deploy (the 2026-05-25 pr-reviewer-agent incident on PR #3): no non-test code path in `task/controller/pkg/` or `lib/delivery/` can persist `phase: human_review` while leaving a non-empty `assignee` in the same atomic write.
+
 ## Create-Task Path Resolution (spec-019)
 
 When the controller processes a `create-task` command it resolves the vault path as follows:
