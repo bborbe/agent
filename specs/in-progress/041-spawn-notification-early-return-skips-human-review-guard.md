@@ -1,10 +1,11 @@
 ---
-status: approved
+status: prompted
 tags:
     - dark-factory
     - spec
 approved: "2026-05-25T21:44:39Z"
 generating: "2026-05-25T21:44:40Z"
+prompted: "2026-05-25T21:51:06Z"
 branch: dark-factory/spawn-notification-early-return-skips-human-review-guard
 ---
 

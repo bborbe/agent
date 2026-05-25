@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added context cancellation checks to scanFiles and collectDeleted loops in vault_scanner.go
+container: agent-exec-160-review-task-controller-fix-scanfiles-ctx-cancellation
+dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T21:00:25Z"
+started: "2026-05-25T21:49:00Z"
+completed: "2026-05-25T21:51:17Z"
 ---
 
 <summary>

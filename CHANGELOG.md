@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.8
+
+- fix(task/controller): add context cancellation checks to `scanFiles` and `collectDeleted` loops in vault scanner
+
 ## v0.63.7
 
 - fix(task/controller): rename metric `agent_task_controller_frontmatter_commands_total` to `agent_controller_frontmatter_commands_total`

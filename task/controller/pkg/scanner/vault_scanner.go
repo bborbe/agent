@@ -182,6 +182,11 @@ func (v *vaultScanner) scanFiles(
 	var written []string
 	writeError := false
 	for _, relPath := range paths {
+		select {
+		case <-ctx.Done():
+			return nil, nil, nil, false
+		default:
+		}
 		seen[relPath] = struct{}{}
 		task, wrote, werr := v.processFile(ctx, relPath)
 		if werr {
@@ -194,7 +199,11 @@ func (v *vaultScanner) scanFiles(
 			changed = append(changed, *task)
 		}
 	}
-	return changed, v.collectDeleted(seen), written, writeError
+	deleted, err := v.collectDeleted(ctx, seen)
+	if err != nil {
+		glog.V(4).Infof("collectDeleted: %v", err)
+	}
+	return changed, deleted, written, writeError
 }
 
 // processFile handles a single .md file during a scan cycle.
@@ -361,15 +370,23 @@ func (v *vaultScanner) writeCounterReset(
 	return relPath, false
 }
 
-func (v *vaultScanner) collectDeleted(seen map[string]struct{}) []lib.TaskIdentifier {
+func (v *vaultScanner) collectDeleted(
+	ctx context.Context,
+	seen map[string]struct{},
+) ([]lib.TaskIdentifier, error) {
 	var deleted []lib.TaskIdentifier
 	for relPath, entry := range v.hashes {
+		select {
+		case <-ctx.Done():
+			return deleted, errors.Wrap(ctx, ctx.Err(), "collectDeleted cancelled")
+		default:
+		}
 		if _, ok := seen[relPath]; !ok {
 			deleted = append(deleted, entry.taskIdentifier)
 			delete(v.hashes, relPath)
 		}
 	}
-	return deleted
+	return deleted, nil
 }
 
 // removeTaskIdentifier removes any existing task_identifier line(s) from the
