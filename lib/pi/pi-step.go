@@ -51,17 +51,17 @@ func (s *piStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.Resu
 
 	prompt := BuildPrompt(s.cfg.Instructions, s.cfg.EnvContext, taskContent)
 
-	glog.V(2).Infof("%s: invoking pi runner (prompt=%d bytes)", s.cfg.Name, len(prompt))
+	glog.Infof("%s: invoking pi runner (prompt=%d bytes)", s.cfg.Name, len(prompt))
 	runStart := time.Now()
 	result, runErr := s.cfg.Runner.Run(ctx, prompt)
 	if runErr != nil {
-		glog.V(2).Infof("%s: pi runner failed after %s: %v", s.cfg.Name, time.Since(runStart), runErr)
+		glog.Infof("%s: pi runner failed after %s: %v", s.cfg.Name, time.Since(runStart), runErr)
 		return &agentlib.Result{
 			Status:  AgentStatusFailed,
 			Message: fmt.Sprintf("%s pi run failed: %v", s.cfg.Name, runErr),
 		}, nil
 	}
-	glog.V(2).Infof("%s: pi runner returned %d bytes in %s", s.cfg.Name, len(result.Result), time.Since(runStart))
+	glog.Infof("%s: pi runner returned %d bytes in %s", s.cfg.Name, len(result.Result), time.Since(runStart))
 
 	// Parse the JSON result from pi output.
 	jsonBlob, ok := extractLastJSONObject(result.Result)

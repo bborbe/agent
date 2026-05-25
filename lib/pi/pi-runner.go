@@ -80,6 +80,9 @@ type RunError struct {
 
 func (e *RunError) Error() string { return e.Msg }
 
+// Unwrap exposes the underlying cause so callers can use errors.Is/As.
+func (e *RunError) Unwrap() error { return e.Err }
+
 func (r *piRunner) buildCommand(ctx context.Context, prompt string) *exec.Cmd {
 	args := []string{
 		"--print",
