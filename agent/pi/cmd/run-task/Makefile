@@ -20,12 +20,10 @@ generate-dummy-task:
 	@echo 'assignee: pi-agent' >> $(TASK_FILE)
 	@echo '---' >> $(TASK_FILE)
 	@echo '' >> $(TASK_FILE)
-	@echo 'Report which language model is processing this task. Return a JSON object with these exact fields:' >> $(TASK_FILE)
+	@echo 'Compute 2 + 2. Return ONLY a JSON object, no prose around it:' >> $(TASK_FILE)
 	@echo '' >> $(TASK_FILE)
 	@echo '- `status`: "done"' >> $(TASK_FILE)
-	@echo '- `message`: one sentence identifying the model + provider' >> $(TASK_FILE)
-	@echo '' >> $(TASK_FILE)
-	@echo 'Return ONLY the JSON object, no prose around it.' >> $(TASK_FILE)
+	@echo '- `message`: "the answer is N"' >> $(TASK_FILE)
 	@echo "generated $(TASK_FILE)"
 
 run-dummy-task: $(TASK_FILE)
