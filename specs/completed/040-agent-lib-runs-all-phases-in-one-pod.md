@@ -1,10 +1,12 @@
 ---
-status: prompted
+status: completed
 tags:
     - dark-factory
     - spec
 approved: "2026-05-25T12:48:35Z"
 prompted: "2026-05-25T13:21:00Z"
+verifying: "2026-05-25T14:01:53Z"
+completed: "2026-05-25T15:44:13Z"
 branch: dark-factory/agent-lib-runs-all-phases-in-one-pod
 ---
 
@@ -140,3 +142,18 @@ Expected: `make precommit` exits 0. The `git diff` on `agent_runner.go` produces
 ## Do-Nothing Option
 
 If we don't do this: every multi-phase agent (pr-reviewer today, every future agent with a planning/execution/review shape) keeps paying 5 min × (N-1) grace windows on the happy path. For the 3-phase pr-reviewer that is 10 min of wall-clock added on top of ~3 min of actual work, every PR review. The bug-fix verification loop on this very repo runs against pr-reviewer-agent output, so the slowness compounds during incident response: every fix-and-retest cycle costs 15 min minimum before the operator knows whether the fix worked. Status quo is acceptable only if multi-phase agents are accepted as a rarely-used edge case, which contradicts the parent goal ([[Build Generic Claude Agent]]) that explicitly targets multi-phase agents as the default shape going forward. Reject do-nothing.
+
+## Verification Result
+
+**Verified:** 2026-05-25T15:22:10Z (HEAD 7131c40)
+**Binary:** /Users/bborbe/Documents/workspaces/go/bin/dark-factory (v0.171.1-3-gd94f1fa)
+**Scenario:** None — lib-internal change; ACs verified directly against repo + Ginkgo tests.
+**Evidence:**
+- AC1: `lib/agent_agent.go:74` shows `for {` inside `Agent.Run` with the 7 exit conditions in the preceding comment block (Status != Done, NextPhase empty/`"done"`/`"human_review"`, findPhase miss, ctx cancel, nil result).
+- AC2/AC3: `git diff lib/v0.62.17 lib/v0.63.0 -- lib/agent_runner.go` returns empty (exit 0). Prior release tag was v0.62.17, not the v0.62.29 the spec text references.
+- AC4: `git diff lib/v0.62.17 lib/v0.63.0 -- lib/agent_agent.go | grep '^[-+]func (a \*Agent) Run'` returns no output — signature unchanged.
+- AC5/6/7: `lib/agent_agent_test.go` lines 27, 73, 107 contain `It("runs A then B then C in one call")`, `It("cancels between phases")`, `It("stops when NextPhase is unknown to this agent")`; AC5's body asserts 3 delivers with NextPhase B/C/done and nil err.
+- AC8: `cd lib && make precommit` → "ready to commit" (exit 0).
+- AC9: `git tag --list 'lib/v0.63.0'` → `lib/v0.63.0` (tag created since prior verification run).
+- AC10: `CHANGELOG.md` line 3 `## v0.63.0`, line 7 `## v0.62.29` (3 < 7); line 5 starts with `- feat(lib):` and names "one pod boot per agent on the happy path".
+**Verdict:** PASS
