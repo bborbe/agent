@@ -1,5 +1,5 @@
 ---
-status: committing
+status: completed
 spec: [040-agent-lib-runs-all-phases-in-one-pod]
 summary: Added phase loop to Agent.Run with ctx-cancellation check between phases, created 9 Ginkgo tests covering all exit conditions, and added v0.63.0 CHANGELOG entry
 container: agent-exec-150-spec-040-agent-multi-phase-loop
@@ -7,7 +7,7 @@ dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-25T00:00:00Z"
 queued: "2026-05-25T13:57:05Z"
 started: "2026-05-25T13:57:20Z"
-completed: "2026-05-25T14:00:40Z"
+completed: "2026-05-25T14:00:52Z"
 ---
 
 <summary>
