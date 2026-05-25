@@ -51,10 +51,10 @@ func validateCreateTitle(title string) validation.HasValidation {
 			)
 		}
 		if err := validateTitleEdges(ctx, title); err != nil {
-			return err
+			return errors.Wrap(ctx, err, "validate title edges")
 		}
 		if err := validateTitleForbiddenChars(ctx, title); err != nil {
-			return err
+			return errors.Wrap(ctx, err, "validate title forbidden chars")
 		}
 		return validateTitleWindowsReserved(ctx, title)
 	})

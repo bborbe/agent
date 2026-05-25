@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.63.4
+
+- fix(lib): replace `fmt.Errorf` with `errors.Wrapf` in `PrintResult` and add context parameter
+- fix(lib/command/task): wrap bare `return err` in title validation closures with context
+- fix(lib/claude): wrap bare `return err` in `EnsureInstalled` and `ensureOne` with context
+
 ## v0.63.3
 
 - fix(lib): add non-blocking `ctx.Done()` select checks to long-running loops in `StepRunner.Run` and `EnsureInstalled` to enable graceful shutdown on context cancellation

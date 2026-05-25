@@ -89,7 +89,7 @@ func (i *pluginInstaller) EnsureInstalled(ctx context.Context, specs []PluginSpe
 		}
 
 		if err := i.ensureOne(ctx, spec); err != nil {
-			return err
+			return errors.Wrap(ctx, err, "ensure plugin installed: "+spec.Name)
 		}
 	}
 	return nil
@@ -114,10 +114,10 @@ func (i *pluginInstaller) ensureOne(ctx context.Context, spec PluginSpec) error 
 
 	if !installed {
 		if err := i.runHard(ctx, "claude", "plugin", "marketplace", "add", spec.Marketplace); err != nil {
-			return err
+			return errors.Wrap(ctx, err, "run marketplace add: "+spec.Marketplace)
 		}
 		if err := i.runHard(ctx, "claude", "plugin", "install", spec.Name); err != nil {
-			return err
+			return errors.Wrap(ctx, err, "run plugin install: "+spec.Name)
 		}
 		return nil
 	}
