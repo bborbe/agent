@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/bborbe/errors"
+	"github.com/bborbe/vault-cli/pkg/domain"
 
 	agentlib "github.com/bborbe/agent/lib"
 )
@@ -72,13 +73,13 @@ func (s *PlanStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.Re
 	plan := Plan{Operation: op, A: a, B: b}
 	section, err := agentlib.MarshalSectionTyped(ctx, "## Plan", plan)
 	if err != nil {
-		return nil, errors.Wrapf(ctx, err, "marshal plan")
+		return nil, errors.Wrap(ctx, err, "marshal plan")
 	}
 	md.ReplaceSection(section)
 
 	return &agentlib.Result{
 		Status:    agentlib.AgentStatusDone,
-		NextPhase: "in_progress",
+		NextPhase: string(domain.TaskPhaseExecution),
 	}, nil
 }
 
@@ -112,7 +113,7 @@ func (s *ExecuteStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib
 	result := Result{Operation: plan.Operation, Value: value}
 	section, err := agentlib.MarshalSectionTyped(ctx, "## Result", result)
 	if err != nil {
-		return nil, errors.Wrapf(ctx, err, "marshal result")
+		return nil, errors.Wrap(ctx, err, "marshal result")
 	}
 	md.ReplaceSection(section)
 
@@ -163,7 +164,7 @@ func (s *VerifyStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.
 
 	section, err := agentlib.MarshalSectionTyped(ctx, "## Review", review)
 	if err != nil {
-		return nil, errors.Wrapf(ctx, err, "marshal review")
+		return nil, errors.Wrap(ctx, err, "marshal review")
 	}
 	md.ReplaceSection(section)
 

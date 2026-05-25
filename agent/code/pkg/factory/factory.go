@@ -14,6 +14,7 @@ import (
 	"github.com/bborbe/errors"
 	libkafka "github.com/bborbe/kafka"
 	libtime "github.com/bborbe/time"
+	"github.com/bborbe/vault-cli/pkg/domain"
 
 	"github.com/bborbe/agent/agent/code/pkg/steps"
 	agentlib "github.com/bborbe/agent/lib"
@@ -71,7 +72,7 @@ func CreateFileResultDeliverer(filePath string) agentlib.ResultDeliverer {
 func CreateAgent() *agentlib.Agent {
 	return agentlib.NewAgent(
 		agentlib.NewPhase("planning", steps.NewPlanStep()),
-		agentlib.NewPhase("in_progress", steps.NewExecuteStep()),
+		agentlib.NewPhase(domain.TaskPhaseExecution, steps.NewExecuteStep()),
 		agentlib.NewPhase("ai_review", steps.NewVerifyStep()),
 	)
 }
