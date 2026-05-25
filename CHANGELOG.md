@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.17
+
+- fix(task/executor): handle JSON encode errors in `AgentsHandler.ServeHTTP` — return HTTP 500 when client disconnects mid-write instead of silently returning HTTP 200 with partial JSON
+
 ## v0.63.16
 
 - feat(task/executor): add `ImagePullSecret` field to `AgentConfiguration` — allows the image pull secret name to be configured via the Config CR instead of being hardcoded to `docker`

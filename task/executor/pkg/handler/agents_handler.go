@@ -55,5 +55,7 @@ func (h *agentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(entries); err != nil {
 		glog.Warningf("encode agent configs: %v", err)
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
 	}
 }

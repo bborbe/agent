@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Fixed JSON encode error handling in AgentsHandler.ServeHTTP - now returns HTTP 500 when client disconnects mid-write. Added test coverage for all handler paths.
+container: agent-exec-171-review-task-executor-fix-json-encode-error
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T21:00:25Z"
+started: "2026-05-25T23:12:29Z"
+completed: "2026-05-25T23:22:51Z"
 ---
 
 <summary>
