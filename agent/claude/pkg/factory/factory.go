@@ -12,7 +12,6 @@ import (
 	"context"
 
 	"github.com/bborbe/cqrs/base"
-	"github.com/bborbe/errors"
 	libkafka "github.com/bborbe/kafka"
 	libtime "github.com/bborbe/time"
 	"github.com/bborbe/vault-cli/pkg/domain"
@@ -49,11 +48,7 @@ func CreateSyncProducer(
 	ctx context.Context,
 	brokers libkafka.Brokers,
 ) (libkafka.SyncProducer, error) {
-	producer, err := libkafka.NewSyncProducerWithName(ctx, brokers, serviceName)
-	if err != nil {
-		return nil, errors.Wrap(ctx, err, "create sync producer failed")
-	}
-	return producer, nil
+	return libkafka.NewSyncProducerWithName(ctx, brokers, serviceName)
 }
 
 // CreateKafkaResultDeliverer creates a ResultDeliverer that publishes task

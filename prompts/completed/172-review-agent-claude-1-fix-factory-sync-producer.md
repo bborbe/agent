@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Refactored CreateSyncProducer to pure pass-through; removed error wrapping from factory and added error-path test
+container: agent-exec-172-review-agent-claude-1-fix-factory-sync-producer
+dark-factory-version: v0.173.0
 created: "2026-05-24T11:10:00Z"
 queued: "2026-05-25T22:23:08Z"
+started: "2026-05-25T23:22:54Z"
+completed: "2026-05-25T23:25:23Z"
 ---
 
 <summary>

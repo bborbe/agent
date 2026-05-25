@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.18
+
+- refactor(agent/claude): simplify `CreateSyncProducer` factory to pure pass-through — removed internal error wrapping; error propagation now handled by caller in `main.go`
+
 ## v0.63.17
 
 - fix(task/executor): handle JSON encode errors in `AgentsHandler.ServeHTTP` — return HTTP 500 when client disconnects mid-write instead of silently returning HTTP 200 with partial JSON

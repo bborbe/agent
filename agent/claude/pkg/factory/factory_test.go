@@ -7,6 +7,7 @@ package factory_test
 import (
 	"context"
 
+	libkafka "github.com/bborbe/kafka"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -83,5 +84,20 @@ var _ = Describe("CreateAgentProvider", func() {
 		It("error message contains the sorted accepted-types list", func() {
 			Expect(err.Error()).To(ContainSubstring("[claude healthcheck oauth-probe]"))
 		})
+	})
+})
+
+var _ = Describe("CreateSyncProducer", func() {
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	It("returns an error when broker is unreachable", func() {
+		producer, err := factory.CreateSyncProducer(ctx, libkafka.Brokers{})
+		Expect(producer).To(BeNil())
+		Expect(err).NotTo(BeNil())
+		Expect(err.Error()).To(ContainSubstring("create sync producer"))
 	})
 })
