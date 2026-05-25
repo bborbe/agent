@@ -149,6 +149,8 @@ func (a *application) createHTTPServer(
 		)
 
 		glog.V(2).Infof("starting http server listen on %s", a.Listen)
+		// Using libhttp defaults: ReadTimeout=30s, WriteTimeout=30s, IdleTimeout=60s,
+		// ReadHeaderTimeout=10s, MaxHeaderBytes=1MB — appropriate for task-executor API.
 		return libhttp.NewServer(
 			a.Listen,
 			router,

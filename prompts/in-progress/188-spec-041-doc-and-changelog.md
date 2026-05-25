@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [041-spawn-notification-early-return-skips-human-review-guard]
 created: "2026-05-25T22:55:00Z"
+queued: "2026-05-25T22:35:21Z"
 branch: dark-factory/spawn-notification-early-return-skips-human-review-guard
 ---
 
@@ -24,7 +25,7 @@ Read these guides before starting:
 
 Read these project files before editing:
 - `docs/controller-design.md` — focus on the section `## Assignee-Clear on Escalation (spec 021, refined by spec 039)` (around line 59). This section was last updated by prompt 146 (spec-039 doctrine sync). The table and the trailing paragraph are the edit targets.
-- `CHANGELOG.md` — the top is `## v0.63.6` (the most recent release tag). Add a new `## Unreleased` section ABOVE the latest version section if no `## Unreleased` heading exists yet; otherwise prepend the new entry under the existing `## Unreleased`.
+- `CHANGELOG.md` — the latest version section is at the top of the file (currently `## v0.63.8`, but anchor by the first `## v` heading rather than the literal version number — releases land continuously). Add a new `## Unreleased` section ABOVE the latest version section if no `## Unreleased` heading exists yet; otherwise prepend the new entry under the existing `## Unreleased`.
 
 Read the spec for evidence shape and constraints:
 - `specs/in-progress/041-spawn-notification-early-return-skips-human-review-guard.md` — Acceptance Criteria AC#8 (doc update) and AC#9 (CHANGELOG entry) define the exact evidence the verifier will grep for.
@@ -81,7 +82,7 @@ Read the spec for evidence shape and constraints:
 
 2. **Add a CHANGELOG entry to `CHANGELOG.md`** under an `## Unreleased` heading.
 
-   Locate the top of the file. The current top is `## v0.63.6`. If no `## Unreleased` heading exists between the `# Changelog` line and `## v0.63.6`, add one. Then add a single entry:
+   Anchor the insertion point: find the first line matching `^## v[0-9]+\.[0-9]+\.[0-9]+` (the most recent versioned release section — at the time of writing this is `## v0.63.8`, but it may have advanced). If a `## Unreleased` heading does NOT yet exist between `# Changelog` and that first versioned section, insert one BETWEEN them (one blank line above and below the new heading). Then add a single entry below the `## Unreleased` heading:
 
    ```
    ## Unreleased
@@ -128,7 +129,7 @@ Read the spec for evidence shape and constraints:
 - Do NOT modify any test file — this prompt is documentation-only.
 - Do NOT create new doc files, ADRs, or runbooks. The spec's AC#12 ("No new scenario test") and the doctrine-update style established by spec 039 (prompt 146) both require in-place edits to the existing doc.
 - Do NOT bump the version in `CHANGELOG.md`. The entry goes under `## Unreleased`; the release process owns version bumps.
-- Do NOT remove the existing `## v0.63.6` or any later version sections.
+- Do NOT remove any existing `## v<X.Y.Z>` versioned release section.
 - Do NOT add Claude attribution (no "Generated with Claude", no "Co-Authored-By") anywhere.
 - Do NOT commit — dark-factory handles git.
 </constraints>

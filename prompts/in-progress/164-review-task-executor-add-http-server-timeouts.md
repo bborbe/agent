@@ -1,7 +1,12 @@
 ---
-status: approved
+status: committing
+summary: Verified libhttp.NewServer defaults (ReadTimeout=30s, WriteTimeout=30s, IdleTimeout=60s, ReadHeaderTimeout=10s, MaxHeaderBytes=1MB) are appropriate for task-executor HTTP API; added comment documenting intentional acceptance of defaults
+container: agent-exec-164-review-task-executor-add-http-server-timeouts
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T21:00:25Z"
+started: "2026-05-25T22:31:53Z"
+completed: "2026-05-25T22:35:24Z"
 ---
 
 <summary>

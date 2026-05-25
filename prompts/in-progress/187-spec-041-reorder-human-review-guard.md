@@ -1,7 +1,8 @@
 ---
-status: pending
+status: approved
 spec: [041-spawn-notification-early-return-skips-human-review-guard]
 created: "2026-05-25T21:50:00Z"
+queued: "2026-05-25T22:35:21Z"
 branch: dark-factory/spawn-notification-early-return-skips-human-review-guard
 ---
 

@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [042-update-frontmatter-executor-enforces-human-review-doctrine]
 created: "2026-05-26T00:00:00Z"
+queued: "2026-05-25T22:35:21Z"
 branch: dark-factory/update-frontmatter-executor-enforces-human-review-doctrine
 ---
 
