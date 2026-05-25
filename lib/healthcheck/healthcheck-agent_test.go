@@ -48,7 +48,7 @@ var _ = Describe("NewAgent", func() {
 				"the same wrapped step must be reached for each phase — proves single-step is registered under all three phase names")
 		},
 		Entry("planning phase", domain.TaskPhase("planning")),
-		Entry("in_progress phase", domain.TaskPhase("in_progress")),
+		Entry("execution phase", domain.TaskPhase("execution")),
 		Entry("ai_review phase", domain.TaskPhase("ai_review")),
 	)
 
