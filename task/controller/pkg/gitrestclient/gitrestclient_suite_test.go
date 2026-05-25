@@ -8,12 +8,18 @@ package gitrestclient_test
 
 import (
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
 )
 
 func TestGitrestclient(t *testing.T) {
+	time.Local = time.UTC
+	format.TruncatedDiff = false
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Gitrestclient Suite")
+	suiteConfig, reporterConfig := GinkgoConfiguration()
+	suiteConfig.Timeout = 60 * time.Second
+	RunSpecs(t, "Gitrestclient Suite", suiteConfig, reporterConfig)
 }

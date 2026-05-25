@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.10
+
+- fix(task/controller): add suiteConfig.Timeout to metrics/result/command Ginkgo suites; add missing suite setup (time.Local, format.TruncatedDiff, GinkgoConfiguration) to gitrestclient and main test suites; replace time.Now() with libtimetest.ParseDateTime in task_result_executor_test.go
+
 ## v0.63.9
 
 - refactor(task/controller): change `vault_scanner_test.go` to `package scanner_test` (external test package); add `RunCycle` to `VaultScanner` interface; export `InjectTaskIdentifier` and `DeduplicateFrontmatter` for test access

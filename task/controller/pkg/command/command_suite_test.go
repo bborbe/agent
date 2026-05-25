@@ -19,5 +19,7 @@ func TestCommand(t *testing.T) {
 	time.Local = time.UTC
 	format.TruncatedDiff = false
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Command Suite")
+	suiteConfig, reporterConfig := GinkgoConfiguration()
+	suiteConfig.Timeout = 60 * time.Second
+	RunSpecs(t, "Command Suite", suiteConfig, reporterConfig)
 }

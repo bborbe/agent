@@ -10,6 +10,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
 	"github.com/onsi/gomega/gexec"
 )
 
@@ -23,6 +24,8 @@ var _ = Describe("Main", func() {
 
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6@v6.12.2 -generate
 func TestSuite(t *testing.T) {
+	time.Local = time.UTC
+	format.TruncatedDiff = false
 	RegisterFailHandler(Fail)
 	suiteConfig, reporterConfig := GinkgoConfiguration()
 	suiteConfig.Timeout = 60 * time.Second

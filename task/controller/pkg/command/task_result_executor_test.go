@@ -7,11 +7,10 @@ package command_test
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/cqrs/cdb"
-	libtime "github.com/bborbe/time"
+	libtimetest "github.com/bborbe/time/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -66,7 +65,7 @@ var _ = Describe("NewTaskResultExecutor", func() {
 
 		Context("valid command", func() {
 			It("calls WriteResult once with correct Task", func() {
-				now := libtime.DateTime(time.Now())
+				now := libtimetest.ParseDateTime("2026-01-15T10:00:00Z")
 				task := lib.Task{
 					Object: base.Object[base.Identifier]{
 						Identifier: base.Identifier("event-uuid-test"),
@@ -136,7 +135,7 @@ var _ = Describe("NewTaskResultExecutor", func() {
 
 		Context("WriteResult returns error", func() {
 			It("returns the error wrapped", func() {
-				now := libtime.DateTime(time.Now())
+				now := libtimetest.ParseDateTime("2026-01-15T10:00:00Z")
 				task := lib.Task{
 					Object: base.Object[base.Identifier]{
 						Identifier: base.Identifier("event-uuid-error"),

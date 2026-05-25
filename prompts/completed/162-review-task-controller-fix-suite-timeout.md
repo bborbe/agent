@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added suiteConfig.Timeout to metrics/result/command Ginkgo suites; added missing time.Local, format.TruncatedDiff, GinkgoConfiguration setup to gitrestclient and main test suites; replaced time.Now() with libtimetest.ParseDateTime fixed time in task_result_executor_test.go
+container: agent-exec-162-review-task-controller-fix-suite-timeout
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T21:00:25Z"
+started: "2026-05-25T22:27:29Z"
+completed: "2026-05-25T22:30:13Z"
 ---
 
 <summary>
