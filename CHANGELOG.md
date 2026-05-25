@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.63.7
+
+- fix(task/controller): rename metric `agent_task_controller_frontmatter_commands_total` to `agent_controller_frontmatter_commands_total`
+- fix(task/controller): rename metric `controller_gitrest_calls_total` to `agent_controller_git_rest_calls_total`
+
 ## v0.63.6
 
 - refactor(task/controller): remove `Fake` prefix from all Counterfeiter `--fake-name` directives — mocks now named `SyncLoop`, `GitRestClient`, `GitClient`, `VaultScanner`, `TaskPublisher`, `ResultWriter`

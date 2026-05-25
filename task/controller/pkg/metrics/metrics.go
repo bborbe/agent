@@ -59,7 +59,7 @@ var ConflictResolutionsTotal = promauto.NewCounterVec(
 // outcome ("success" | "error" | "not_found").
 var FrontmatterCommandsTotal = promauto.NewCounterVec(
 	prometheus.CounterOpts{
-		Name: "agent_task_controller_frontmatter_commands_total",
+		Name: "agent_controller_frontmatter_commands_total",
 		Help: "Total number of atomic frontmatter commands processed, by operation and outcome.",
 	},
 	[]string{"operation", "outcome"},
@@ -68,7 +68,7 @@ var FrontmatterCommandsTotal = promauto.NewCounterVec(
 // GitRestCallsTotal counts git-rest HTTP API calls by operation and outcome.
 var GitRestCallsTotal = promauto.NewCounterVec(
 	prometheus.CounterOpts{
-		Name: "controller_gitrest_calls_total",
+		Name: "agent_controller_git_rest_calls_total",
 		Help: "Total number of git-rest HTTP API calls by operation and outcome.",
 	},
 	[]string{"op", "status"},

@@ -1,10 +1,12 @@
 ---
-status: executing
+status: completed
+summary: Fixed inconsistent Prometheus metric name prefixes in task/controller metrics
 container: agent-exec-159-review-task-controller-fix-metric-names
 dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T21:00:25Z"
 started: "2026-05-25T21:47:04Z"
+completed: "2026-05-25T21:48:58Z"
 ---
 
 <summary>
