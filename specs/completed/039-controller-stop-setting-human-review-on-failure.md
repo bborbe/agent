@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-05-24T23:01:12Z"
 generating: "2026-05-24T23:01:13Z"
 prompted: "2026-05-24T23:05:51Z"
 verifying: "2026-05-24T23:35:06Z"
+completed: "2026-05-25T09:29:36Z"
 branch: dark-factory/controller-stop-setting-human-review-on-failure
 ---
 
