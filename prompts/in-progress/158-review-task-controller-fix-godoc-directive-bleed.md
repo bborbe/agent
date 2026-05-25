@@ -1,7 +1,12 @@
 ---
-status: approved
+status: committing
+summary: Verified blank lines exist between counterfeiter directives and GoDoc comments in all three files
+container: agent-exec-158-review-task-controller-fix-godoc-directive-bleed
+dark-factory-version: v0.171.1-3-gd94f1fa
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T21:00:25Z"
+started: "2026-05-25T21:43:08Z"
+completed: "2026-05-25T21:47:03Z"
 ---
 
 <summary>

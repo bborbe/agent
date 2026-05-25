@@ -1,8 +1,11 @@
 ---
+status: approved
 tags:
-  - dark-factory
-  - spec
-status: draft
+    - dark-factory
+    - spec
+approved: "2026-05-25T21:44:39Z"
+generating: "2026-05-25T21:44:40Z"
+branch: dark-factory/spawn-notification-early-return-skips-human-review-guard
 ---
 
 ## Summary
