@@ -145,9 +145,9 @@ var _ = Describe("KafkaResultDeliverer", func() {
 		Expect(fm["status"]).To(Equal("completed"))
 	})
 
-	It("publishes failed result with phase=human_review", func() {
+	It("publishes failed result with phase unchanged from incoming and assignee cleared", func() {
 		generator.GenerateReturns(
-			"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
+			"---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
 			nil,
 		)
 		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
@@ -161,29 +161,36 @@ var _ = Describe("KafkaResultDeliverer", func() {
 		Expect(ok).To(BeTrue())
 		fm, ok := frontmatter.(map[string]interface{})
 		Expect(ok).To(BeTrue())
-		Expect(fm["phase"]).To(Equal("human_review"))
+		Expect(fm["phase"]).To(Equal("planning"))
+		Expect(fm["phase"]).NotTo(Equal("human_review"))
 		Expect(fm["status"]).To(Equal("in_progress"))
+		Expect(fm["assignee"]).To(Equal(""))
 	})
 
-	It("publishes needs_input result with phase=human_review", func() {
-		generator.GenerateReturns(
-			"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n\n## Result\n\nneeds more info\n",
-			nil,
-		)
-		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
-			Status:  agentlib.AgentStatusNeedsInput,
-			Message: "no date range in task",
-		})
-		Expect(err).NotTo(HaveOccurred())
-		Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
-		_, cmdObj := sender.SendCommandObjectArgsForCall(0)
-		frontmatter, ok := cmdObj.Command.Data["frontmatter"]
-		Expect(ok).To(BeTrue())
-		fm, ok := frontmatter.(map[string]interface{})
-		Expect(ok).To(BeTrue())
-		Expect(fm["phase"]).To(Equal("human_review"))
-		Expect(fm["status"]).To(Equal("in_progress"))
-	})
+	It(
+		"publishes needs_input result with phase unchanged from incoming and assignee cleared",
+		func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n\n## Result\n\nneeds more info\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusNeedsInput,
+				Message: "no date range in task",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+			Expect(ok).To(BeTrue())
+			fm, ok := frontmatter.(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["phase"]).To(Equal("planning"))
+			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["assignee"]).To(Equal(""))
+		},
+	)
 
 	It("sets phase=done when done result has empty NextPhase", func() {
 		generator.GenerateReturns(
@@ -442,10 +449,10 @@ var _ = Describe("KafkaResultDeliverer", func() {
 	})
 
 	It(
-		"sets phase=human_review when needs_input result requests NextPhase=done (NextPhase ignored)",
+		"preserves phase from incoming content and clears assignee when needs_input result requests NextPhase=done (NextPhase ignored)",
 		func() {
 			generator.GenerateReturns(
-				"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n",
+				"---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n",
 				nil,
 			)
 			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
@@ -459,8 +466,94 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(ok).To(BeTrue())
 			fm, ok := frontmatter.(map[string]interface{})
 			Expect(ok).To(BeTrue())
-			Expect(fm["phase"]).To(Equal("human_review"))
+			Expect(fm["phase"]).To(Equal("planning"))
+			Expect(fm["phase"]).NotTo(Equal("human_review"))
 			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["assignee"]).To(Equal(""))
 		},
 	)
+
+	Context("AgentStatusNeedsInput with incoming phase: in_progress", func() {
+		It("preserves phase: in_progress and clears assignee", func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: in_progress\n---\n\nBody.\n\n## Result\n\nneeds more info\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusNeedsInput,
+				Message: "needs info",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["phase"]).To(Equal("in_progress"))
+			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["assignee"]).To(Equal(""))
+		})
+	})
+
+	Context("AgentStatusNeedsInput with incoming phase: ai_review", func() {
+		It("preserves phase: ai_review and clears assignee", func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: ai_review\n---\n\nBody.\n\n## Result\n\nneeds more info\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusNeedsInput,
+				Message: "needs info",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["phase"]).To(Equal("ai_review"))
+			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["assignee"]).To(Equal(""))
+		})
+	})
+
+	Context("AgentStatusFailed with incoming phase: in_progress", func() {
+		It("preserves phase: in_progress and clears assignee", func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: in_progress\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusFailed,
+				Message: "task runner failed: timeout",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["phase"]).To(Equal("in_progress"))
+			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["assignee"]).To(Equal(""))
+		})
+	})
+
+	Context("AgentStatusFailed with incoming phase: ai_review", func() {
+		It("preserves phase: ai_review and clears assignee", func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: ai_review\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusFailed,
+				Message: "task runner failed: timeout",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["phase"]).To(Equal("ai_review"))
+			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["assignee"]).To(Equal(""))
+		})
+	})
 })

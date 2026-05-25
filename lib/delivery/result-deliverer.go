@@ -128,10 +128,13 @@ func (d *kafkaResultDeliverer) DeliverResult(
 		frontmatter[k] = v
 	}
 
-	// Set status/phase from result.Status directly. The content generator may not
+	// Set status/assignee from result.Status directly. The content generator may not
 	// have frontmatter to update (TASK_CONTENT is body-only), so we set it explicitly.
-	// Failed tasks route to human_review — retry is the controller's responsibility
-	// via trigger_count / max_triggers, not a phase loop.
+	// Failed and needs_input results clear assignee (operator inbox surfaces empty-assignee
+	// tasks) and leave phase unchanged. Only the AgentStatusDone branch may write
+	// phase: human_review, and only when the agent itself requested it via Result.NextPhase.
+	// Retry of failed tasks is the controller's responsibility via trigger_count /
+	// max_triggers, not a phase loop.
 	switch result.Status {
 	case agentlib.AgentStatusDone:
 		resolvedPhase := resolveNextPhase(d.taskID, result.NextPhase)
@@ -147,7 +150,8 @@ func (d *kafkaResultDeliverer) DeliverResult(
 		}
 	case agentlib.AgentStatusNeedsInput:
 		frontmatter["status"] = "in_progress"
-		frontmatter["phase"] = "human_review"
+		frontmatter["assignee"] = ""
+		// phase is preserved from incoming frontmatter (already copied from fmMap above)
 	case agentlib.AgentStatusInProgress:
 		// Step-level progress save: keep status: in_progress, preserve phase from incoming
 		// task frontmatter (already copied from fmMap above). NextPhase ignored on this status —
@@ -160,7 +164,8 @@ func (d *kafkaResultDeliverer) DeliverResult(
 		// phase intentionally not modified — preserves incoming phase
 	default:
 		frontmatter["status"] = "in_progress"
-		frontmatter["phase"] = "human_review"
+		frontmatter["assignee"] = ""
+		// phase is preserved from incoming frontmatter (already copied from fmMap above)
 	}
 
 	now := d.currentDateTime.Now()

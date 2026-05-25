@@ -2,9 +2,7 @@ module github.com/bborbe/agent/task/executor
 
 go 1.26.3
 
-replace (
-	github.com/bborbe/agent/lib => ../../lib
-)
+replace github.com/bborbe/agent/lib => ../../lib
 
 require (
 	github.com/IBM/sarama v1.49.0
@@ -42,7 +40,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/bborbe/argument/v2 v2.12.22 // indirect
 	github.com/bborbe/collection v1.20.12 // indirect
-	github.com/bborbe/kv v1.19.8 // indirect
+	github.com/bborbe/kv v1.21.1 // indirect
 	github.com/bborbe/math v1.3.10 // indirect
 	github.com/bborbe/parse v1.10.12 // indirect
 	github.com/bborbe/strimzi v1.8.3 // indirect

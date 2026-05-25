@@ -55,9 +55,11 @@ func applyStatusFrontmatter(content string, status agentlib.AgentStatus) string 
 		content = SetFrontmatterField(content, "phase", "done")
 	case agentlib.AgentStatusNeedsInput:
 		// task-level failure: agent ran cleanly but task is impossible/underspecified.
-		// Route straight to human_review — retrying a semantically-wrong task wastes compute.
+		// Clear assignee so the task surfaces in the operator inbox; preserve phase from
+		// existing content — phase: human_review is reserved for Result.NextPhase handoffs.
 		content = SetFrontmatterField(content, "status", "in_progress")
-		content = SetFrontmatterField(content, "phase", "human_review")
+		content = SetFrontmatterField(content, "assignee", "")
+		// phase is preserved from existing content — do NOT set to human_review
 	case agentlib.AgentStatusInProgress:
 		// Step-level progress save: keep status: in_progress, preserve phase from incoming task.
 		// Multi-step phase handlers use this to commit ## Plan / ## Result / etc. mid-phase
@@ -65,11 +67,13 @@ func applyStatusFrontmatter(content string, status agentlib.AgentStatus) string 
 		content = SetFrontmatterField(content, "status", "in_progress")
 		// phase intentionally not modified — preserves the agent's current phase for in-place save
 	default:
-		// Agent returned status: failed (or unknown). Route to human_review immediately —
-		// retry is the controller's job via trigger_count / max_triggers, not a phase loop.
+		// Agent returned status: failed (or unknown). Clear assignee so the task
+		// surfaces in the operator inbox; preserve phase from existing content. Retry
+		// is the controller's job via trigger_count / max_triggers, not a phase loop.
 		// The ## Failure body section carries the reason for the human reviewer.
 		content = SetFrontmatterField(content, "status", "in_progress")
-		content = SetFrontmatterField(content, "phase", "human_review")
+		content = SetFrontmatterField(content, "assignee", "")
+		// phase is preserved from existing content — do NOT set to human_review
 	}
 	return content
 }

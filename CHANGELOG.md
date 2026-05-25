@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.62.29
+
+- fix(controller): stop writing `phase: human_review` on `trigger_count` cap-exhaustion path in `task_increment_frontmatter_executor`; phase now reflects the lifecycle stage and only `assignee` is cleared (completes spec-021 escalation doctrine; spec-021 `needs_input` row superseded)
+- fix(lib/delivery): stop writing `phase: human_review` on `AgentStatusNeedsInput` and `AgentStatusFailed`/default branches in `result-deliverer` and `content-generator`; phase now reflects the lifecycle stage and only `assignee` is cleared (completes spec-021 escalation doctrine)
+
+## v0.62.28
+
+- docs: update `docs/task-flow-and-failure-semantics.md` to reflect spec-039 doctrine: `phase: human_review` is reserved for agent-emitted `Result.NextPhase` handoffs; controller-side failure paths leave phase unchanged and clear assignee instead
+
+## v0.62.27
+
+- fix(lib/delivery): `applyStatusFrontmatter` no longer writes `phase: human_review` on `AgentStatusNeedsInput` or `AgentStatusFailed`; clears `assignee` and preserves existing phase instead
+
+## v0.62.26
+
+- fix(task/controller): `IncrementFrontmatterExecutor` cap-escalation now clears `assignee` and preserves `phase` instead of setting `phase=human_review`
+
 ## v0.62.25
 
 - chore(task/executor): bump spawned-Job `TTLSecondsAfterFinished` 600s → 1800s; completed pods + logs stay queryable for 30 min instead of 10, giving operators headroom for live debug

@@ -24,10 +24,12 @@ require (
 require (
 	github.com/IBM/sarama v1.48.1 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
+	github.com/bborbe/boltkv v1.14.0 // indirect
 	github.com/bborbe/http v1.26.12 // indirect
 	github.com/bborbe/k8s v1.14.1 // indirect
-	github.com/bborbe/kv v1.19.8 // indirect
+	github.com/bborbe/kv v1.21.1 // indirect
 	github.com/bborbe/math v1.3.10 // indirect
+	github.com/bborbe/memorykv v1.6.0 // indirect
 	github.com/bborbe/parse v1.10.12 // indirect
 	github.com/bborbe/run v1.9.24 // indirect
 	github.com/bborbe/sentry v1.9.17 // indirect

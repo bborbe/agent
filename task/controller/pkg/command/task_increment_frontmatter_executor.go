@@ -28,7 +28,7 @@ const IncrementFrontmatterCommandOperation base.CommandOperation = task.Incremen
 
 // NewIncrementFrontmatterExecutor creates a cdb.CommandObjectExecutorTx that atomically
 // reads the task file, increments the named frontmatter field by delta, and commits.
-// If trigger_count reaches max_triggers the phase is escalated to human_review in the same write.
+// If trigger_count reaches max_triggers the assignee is cleared and phase is preserved in the same write.
 func NewIncrementFrontmatterExecutor(
 	gitClient gitclient.GitClient,
 	taskDir string,
@@ -110,7 +110,7 @@ func buildIncrementModifyFn(
 		newVal := currentVal + cmd.Delta
 		fm[cmd.Field] = newVal
 		if cmd.Field == "trigger_count" && newVal >= fm.MaxTriggers() {
-			fm["phase"] = "human_review"
+			fm["assignee"] = ""
 		}
 		return marshalFileContent(ctx, fm, body)
 	}

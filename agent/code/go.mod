@@ -2,9 +2,7 @@ module github.com/bborbe/agent/agent/code
 
 go 1.26.3
 
-replace (
-	github.com/bborbe/agent/lib => ../../lib
-)
+replace github.com/bborbe/agent/lib => ../../lib
 
 require (
 	github.com/bborbe/agent/lib v0.0.0
@@ -28,7 +26,7 @@ require (
 	github.com/bborbe/collection v1.20.12 // indirect
 	github.com/bborbe/http v1.26.12 // indirect
 	github.com/bborbe/k8s v1.14.1 // indirect
-	github.com/bborbe/kv v1.19.8 // indirect
+	github.com/bborbe/kv v1.21.1 // indirect
 	github.com/bborbe/log v1.6.13 // indirect
 	github.com/bborbe/math v1.3.10 // indirect
 	github.com/bborbe/metrics v0.5.3 // indirect

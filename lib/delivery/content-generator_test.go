@@ -41,51 +41,71 @@ var _ = Describe("FallbackContentGenerator", func() {
 		})
 
 		It(
-			"sets status=in_progress and phase=human_review for failed result with ## Failure section",
+			"sets status=in_progress, clears assignee, preserves phase for failed result with ## Failure section",
 			func() {
-				original := "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Task\n\nRun a backtest.\n"
+				original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\nassignee: some-agent\n---\n\n## Task\n\nRun a backtest.\n"
 				generated, err := generator.Generate(ctx, original, agentlib.AgentResultInfo{
 					Status:  agentlib.AgentStatusFailed,
 					Message: "claude CLI failed: exit status 1",
 				})
 				Expect(err).NotTo(HaveOccurred())
-				Expect(generated).To(ContainSubstring("status: in_progress"))
-				Expect(generated).To(ContainSubstring("phase: human_review"))
-				Expect(generated).NotTo(ContainSubstring("phase: ai_review"))
-				Expect(generated).To(ContainSubstring("## Failure"))
-				Expect(generated).To(ContainSubstring("claude CLI failed: exit status 1"))
-				Expect(generated).To(ContainSubstring("```\n"))
-				Expect(generated).NotTo(ContainSubstring("## Result"))
+				fm, body := delivery.ParseMarkdownFrontmatter(generated)
+				Expect(fm["status"]).To(Equal("in_progress"))
+				Expect(fm["phase"]).To(Equal("planning"))
+				Expect(fm["phase"]).NotTo(Equal("human_review"))
+				// SetFrontmatterField emits `assignee: ` (key, colon, space, empty value, newline).
+				// ParseMarkdownFrontmatter's underlying yaml.Unmarshal decodes that key with no
+				// scalar into a Go nil; ParseMarkdownFrontmatter then omits nil values from the
+				// returned map. So an "empty assignee" surfaces as a missing key in fm.
+				_, assigneePresent := fm["assignee"]
+				Expect(
+					assigneePresent,
+				).To(BeFalse(), "assignee should be cleared (parsed as missing key when empty)")
+				Expect(body).To(ContainSubstring("## Failure"))
+				Expect(body).To(ContainSubstring("claude CLI failed: exit status 1"))
+				Expect(body).NotTo(ContainSubstring("## Result"))
 			},
 		)
 
 		It(
-			"keeps status=in_progress, phase=human_review, ## Result section for needs_input",
+			"clears assignee and preserves phase for needs_input result, keeps ## Result section",
 			func() {
-				original := "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Task\n\nRun a backtest.\n"
+				original := "---\ntitle: My Task\nstatus: in_progress\nphase: ai_review\nassignee: some-agent\n---\n\n## Task\n\nRun a backtest.\n"
 				generated, err := generator.Generate(ctx, original, agentlib.AgentResultInfo{
 					Status:  agentlib.AgentStatusNeedsInput,
 					Message: "no date range in task",
 				})
 				Expect(err).NotTo(HaveOccurred())
-				Expect(generated).To(ContainSubstring("status: in_progress"))
-				Expect(generated).To(ContainSubstring("phase: human_review"))
-				Expect(generated).To(ContainSubstring("## Result"))
-				Expect(generated).NotTo(ContainSubstring("## Failure"))
+				fm, body := delivery.ParseMarkdownFrontmatter(generated)
+				Expect(fm["status"]).To(Equal("in_progress"))
+				Expect(fm["phase"]).To(Equal("ai_review"))
+				Expect(fm["phase"]).NotTo(Equal("human_review"))
+				_, assigneePresent := fm["assignee"]
+				Expect(assigneePresent).To(BeFalse(), "assignee should be cleared")
+				Expect(body).To(ContainSubstring("## Result"))
+				Expect(body).NotTo(ContainSubstring("## Failure"))
 			},
 		)
 
-		It("sets status=in_progress and phase=human_review for needs_input result", func() {
-			original := "---\ntitle: My Task\n---\n\n## Task\n\nRun a backtest.\n"
-			result := agentlib.AgentResultInfo{
-				Status:  agentlib.AgentStatusNeedsInput,
-				Message: "missing strategy",
-			}
-			generated, err := generator.Generate(ctx, original, result)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(generated).To(ContainSubstring("status: in_progress"))
-			Expect(generated).To(ContainSubstring("phase: human_review"))
-		})
+		It(
+			"clears assignee and preserves phase for needs_input result with no initial phase",
+			func() {
+				original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\nassignee: some-agent\n---\n\n## Task\n\nRun a backtest.\n"
+				result := agentlib.AgentResultInfo{
+					Status:  agentlib.AgentStatusNeedsInput,
+					Message: "missing strategy",
+				}
+				generated, err := generator.Generate(ctx, original, result)
+				Expect(err).NotTo(HaveOccurred())
+				fm, body := delivery.ParseMarkdownFrontmatter(generated)
+				Expect(fm["status"]).To(Equal("in_progress"))
+				Expect(fm["phase"]).To(Equal("planning"))
+				Expect(fm["phase"]).NotTo(Equal("human_review"))
+				_, assigneePresent := fm["assignee"]
+				Expect(assigneePresent).To(BeFalse(), "assignee should be cleared")
+				Expect(body).NotTo(ContainSubstring("## Failure"))
+			},
+		)
 	})
 
 	Context("with empty original content", func() {
@@ -264,7 +284,7 @@ var _ = Describe("PassthroughContentGenerator", func() {
 		func() {
 			result := agentlib.AgentResultInfo{
 				Status:  agentlib.AgentStatusFailed,
-				Output:  "---\nstatus: in_progress\n---\nBody.\n",
+				Output:  "---\nstatus: in_progress\nphase: planning\nassignee: some-agent\n---\nBody.\n",
 				Message: "pr-plan claude run failed: claude CLI failed: exit status 1",
 			}
 			generated, err := generator.Generate(ctx, "", result)
@@ -274,8 +294,12 @@ var _ = Describe("PassthroughContentGenerator", func() {
 				generated,
 			).To(ContainSubstring("pr-plan claude run failed: claude CLI failed: exit status 1"))
 			Expect(generated).To(ContainSubstring("```\n"))
-			Expect(generated).To(ContainSubstring("phase: human_review"))
-			Expect(generated).To(ContainSubstring("status: in_progress"))
+			fm, _ := delivery.ParseMarkdownFrontmatter(generated)
+			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["phase"]).To(Equal("planning"))
+			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			_, assigneePresent := fm["assignee"]
+			Expect(assigneePresent).To(BeFalse(), "assignee should be cleared")
 		},
 	)
 
