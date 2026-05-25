@@ -104,92 +104,105 @@ func toAgentStatus(s string) agentlib.AgentStatus {
 // It first tries ```json code blocks, then falls back to a single-line
 // or multi-line JSON object scan.
 func extractLastJSONObject(text string) (string, bool) {
-	// Try ```json code block extraction first
-	if jsonStr := extractFromCodeBlock(text); jsonStr != "" {
-		var check struct{ Status string }
-		if json.Unmarshal([]byte(jsonStr), &check) == nil {
-			return jsonStr, true
-		}
+	if jsonStr := extractFromCodeBlock(text); jsonStr != "" && validateStatusJSON(jsonStr) {
+		return jsonStr, true
 	}
 
-	// Try direct JSON parse of the full text (handles single-line JSON)
+	if trimmed := tryTrimmedJSON(text); trimmed != "" {
+		return trimmed, true
+	}
+
+	return tryMultilineJSON(strings.Split(text, "\n"))
+}
+
+// tryTrimmedJSON returns the trimmed text if it's a valid JSON object with a Status field.
+func tryTrimmedJSON(text string) string {
 	trimmed := strings.TrimSpace(text)
-	if strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}") {
-		var check struct{ Status string }
-		if json.Unmarshal([]byte(trimmed), &check) == nil {
-			return trimmed, true
-		}
+	if !strings.HasPrefix(trimmed, "{") || !strings.HasSuffix(trimmed, "}") {
+		return ""
 	}
+	if !validateStatusJSON(trimmed) {
+		return ""
+	}
+	return trimmed
+}
 
-	// Multi-line: find last { opening on its own line, scan to matching }
-	lines := strings.Split(text, "\n")
+// tryMultilineJSON scans lines in reverse for the last opening brace on its own line,
+// then scans forward to the matching closing brace.
+func tryMultilineJSON(lines []string) (string, bool) {
+	start, ok := findOpeningBrace(lines)
+	if !ok {
+		return "", false
+	}
+	return matchJSONBlock(lines, start)
+}
+
+// findOpeningBrace returns the index of the last line that starts a JSON object.
+// Recognizes both "{" alone and "{" without a ":" (e.g., "{foo").
+func findOpeningBrace(lines []string) (int, bool) {
 	for i := len(lines) - 1; i >= 0; i-- {
 		line := strings.TrimSpace(lines[i])
-		// Look for a line that is exactly "{"
 		if line == "{" {
-			// Found start, now find the closing }
-			start := i
-			depth := 0
-			for end := start; end < len(lines); end++ {
-				l := strings.TrimSpace(lines[end])
-				if l == "{" {
-					depth++
-				} else if l == "}" {
-					depth--
-					if depth == 0 {
-						objStr := strings.Join(lines[start:end+1], "\n")
-						var r struct{ Status string }
-						if json.Unmarshal([]byte(objStr), &r) == nil {
-							return objStr, true
-						}
-						break
-					}
-				}
-			}
-			break
+			return i, true
 		}
-		// Also handle single-char lines that are part of JSON
-		if (strings.HasPrefix(line, "{") && !strings.Contains(line, ":")) ||
-			(strings.HasSuffix(line, "}") && !strings.Contains(line, ",")) {
-			// Found a lone { or } on a line
-			if strings.HasPrefix(line, "{") {
-				start := i
-				depth := 0
-				for end := start; end < len(lines); end++ {
-					l := strings.TrimSpace(lines[end])
-					if l == "{" {
-						depth++
-					} else if l == "}" {
-						depth--
-						if depth == 0 {
-							objStr := strings.Join(lines[start:end+1], "\n")
-							var r struct{ Status string }
-							if json.Unmarshal([]byte(objStr), &r) == nil {
-								return objStr, true
-							}
-							break
-						}
-					}
+		if isLooseOpenBrace(line) {
+			return i, true
+		}
+		if isLooseCloseBrace(line) {
+			return 0, false
+		}
+	}
+	return 0, false
+}
+
+func isLooseOpenBrace(line string) bool {
+	return strings.HasPrefix(line, "{") && !strings.Contains(line, ":")
+}
+
+func isLooseCloseBrace(line string) bool {
+	return strings.HasSuffix(line, "}") && !strings.Contains(line, ",")
+}
+
+// matchJSONBlock scans lines from start forward for the matching closing brace
+// and returns the joined JSON string if it parses with a Status field.
+func matchJSONBlock(lines []string, start int) (string, bool) {
+	depth := 0
+	for end := start; end < len(lines); end++ {
+		l := strings.TrimSpace(lines[end])
+		switch l {
+		case "{":
+			depth++
+		case "}":
+			depth--
+			if depth == 0 {
+				objStr := strings.Join(lines[start:end+1], "\n")
+				if validateStatusJSON(objStr) {
+					return objStr, true
 				}
+				return "", false
 			}
-			break
 		}
 	}
 	return "", false
 }
 
+// validateStatusJSON returns true if s parses as a JSON object containing a Status field.
+func validateStatusJSON(s string) bool {
+	var check struct{ Status string }
+	return json.Unmarshal([]byte(s), &check) == nil
+}
+
 // extractFromCodeBlock extracts JSON from the last ```json ... ``` block in text.
 func extractFromCodeBlock(text string) string {
-	start := strings.Index(text, "```json")
-	if start < 0 {
+	_, afterOpenFence, found := strings.Cut(text, "```json")
+	if !found {
 		return ""
 	}
-	afterCodeFence := text[start+6:]
-	endIdx := strings.Index(afterCodeFence, "```")
-	if endIdx < 0 {
+	body, _, found := strings.Cut(afterOpenFence, "```")
+	if !found {
 		return ""
 	}
-	codeContent := strings.TrimSpace(afterCodeFence[:endIdx])
+	codeContent := strings.TrimSpace(body)
 
 	// The content might be a JSON string literal (with escaped newlines/quotes)
 	if strings.HasPrefix(codeContent, "\"") {

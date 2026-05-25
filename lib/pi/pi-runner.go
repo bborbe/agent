@@ -39,10 +39,7 @@ type piRunner struct {
 }
 
 func (r *piRunner) Run(ctx context.Context, prompt string) (*Result, error) {
-	cmd, err := r.buildCommand(ctx, prompt)
-	if err != nil {
-		return nil, err
-	}
+	cmd := r.buildCommand(ctx, prompt)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -83,7 +80,7 @@ type RunError struct {
 
 func (e *RunError) Error() string { return e.Msg }
 
-func (r *piRunner) buildCommand(ctx context.Context, prompt string) (*exec.Cmd, error) {
+func (r *piRunner) buildCommand(ctx context.Context, prompt string) *exec.Cmd {
 	args := []string{
 		"--print",
 		"--mode", "json",
@@ -98,7 +95,6 @@ func (r *piRunner) buildCommand(ctx context.Context, prompt string) (*exec.Cmd, 
 		args = append(args, "--model", r.config.Model)
 	}
 
-	// pi --print expects the prompt as a positional argument, not via stdin.
 	args = append(args, prompt)
 
 	cmd := exec.CommandContext(ctx, "pi", args...)
@@ -108,7 +104,7 @@ func (r *piRunner) buildCommand(ctx context.Context, prompt string) (*exec.Cmd, 
 
 	glog.V(4).Infof("spawning pi: pi %v\n  env: %v", args, env)
 
-	return cmd, nil
+	return cmd
 }
 
 func (r *piRunner) buildSubprocessEnv() []string {
@@ -193,32 +189,45 @@ func scanOutput(ctx context.Context, reader interface{ Read([]byte) (int, error)
 			continue
 		}
 
-		// Extract result from agent_end messages.
-		if event.Type == "agent_end" && len(event.Messages) > 0 {
-			// Find last assistant message.
-			for i := len(event.Messages) - 1; i >= 0; i-- {
-				msg := event.Messages[i]
-				if msg.Role == "assistant" {
-					for j := len(msg.Content) - 1; j >= 0; j-- {
-						if msg.Content[j].Type == "text" && msg.Content[j].Text != "" {
-							resultText = msg.Content[j].Text
-							break
-						}
-					}
-					break
-				}
-			}
-		}
-
-		// Also capture text deltas from message_update for streaming.
-		if event.Type == "message_update" {
-			for _, c := range event.Message.Content {
-				if c.Type == "text" && c.Text != "" {
-					// Keep last text content seen.
-					resultText = c.Text
-				}
-			}
+		if text := extractEventText(event); text != "" {
+			resultText = text
 		}
 	}
 	return resultText, tail
+}
+
+// extractEventText returns text from a piEvent, or empty string if none.
+// Handles both agent_end (last assistant message's last text content) and
+// message_update (any text content delta) event types.
+func extractEventText(event piEvent) string {
+	switch event.Type {
+	case "agent_end":
+		return lastAssistantText(event.Messages)
+	case "message_update":
+		return lastTextContent(event.Message.Content)
+	}
+	return ""
+}
+
+// lastAssistantText scans messages in reverse for the last assistant message,
+// then returns its last non-empty text content.
+func lastAssistantText(messages []piMessage) string {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role != "assistant" {
+			continue
+		}
+		return lastTextContent(messages[i].Content)
+	}
+	return ""
+}
+
+// lastTextContent returns the last non-empty text from content blocks.
+func lastTextContent(content []piContent) string {
+	var result string
+	for _, c := range content {
+		if c.Type == "text" && c.Text != "" {
+			result = c.Text
+		}
+	}
+	return result
 }
