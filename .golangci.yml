@@ -91,6 +91,9 @@ linters:
           - dupl
         path: "command/task/.*-sender\\.go$"
       - linters:
+          - dupl
+        path: "healthcheck/healthcheck-.*-step\\.go$"
+      - linters:
           - unparam
         path: "_test\\.go$"
 
