@@ -1,8 +1,11 @@
 ---
-status: approved
+status: executing
 spec: [041-spawn-notification-early-return-skips-human-review-guard]
+container: agent-exec-166-spec-041-reorder-human-review-guard
+dark-factory-version: v0.173.0
 created: "2026-05-25T21:50:00Z"
 queued: "2026-05-25T22:35:21Z"
+started: "2026-05-25T22:38:37Z"
 branch: dark-factory/spawn-notification-early-return-skips-human-review-guard
 ---
 
