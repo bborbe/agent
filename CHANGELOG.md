@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.16
+
+- feat(task/executor): add `ImagePullSecret` field to `AgentConfiguration` — allows the image pull secret name to be configured via the Config CR instead of being hardcoded to `docker`
+
 ## v0.63.15
 
 - fix(task/controller): partial-update executor now enforces `phase: human_review` → `assignee: ""` doctrine via shared helper `result.ClearAssigneeIfHumanReview`. Closes the sixth `human_review` write site missed by spec 039 (predecessor); fixes the 2026-05-25 prod incident where pr-reviewer-agent emitted `UpdateFrontmatterCommand{Updates: {"phase": "human_review"}}` on PR #3 and the task landed with `assignee: pr-reviewer-agent` still set, bypassing the operator inbox filter.

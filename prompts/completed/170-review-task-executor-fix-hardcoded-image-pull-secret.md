@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added configurable ImagePullSecret field to AgentConfiguration with 'docker' default fallback
+container: agent-exec-170-review-task-executor-fix-hardcoded-image-pull-secret
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T21:00:25Z"
+started: "2026-05-25T23:10:08Z"
+completed: "2026-05-25T23:12:25Z"
 ---
 
 <summary>

@@ -204,6 +204,7 @@ func configSpecSchema() apiextensionsv1.JSONSchemaProps {
 				Type:    "string",
 				Pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
 			},
+			"imagePullSecret": {Type: "string"},
 			"trigger": {
 				Type: "object",
 				Properties: map[string]apiextensionsv1.JSONSchemaProps{

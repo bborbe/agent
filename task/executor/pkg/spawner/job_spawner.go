@@ -102,7 +102,11 @@ func (s *jobSpawner) SpawnJob(
 
 	podSpecBuilder.SetContainersBuilder(containersBuilder)
 	podSpecBuilder.SetRestartPolicy(corev1.RestartPolicyNever)
-	podSpecBuilder.SetImagePullSecrets([]string{"docker"})
+	secretName := "docker"
+	if config.ImagePullSecret != "" {
+		secretName = config.ImagePullSecret
+	}
+	podSpecBuilder.SetImagePullSecrets([]string{secretName})
 
 	objectMetaBuilder := k8s.NewObjectMetaBuilder()
 	objectMetaBuilder.SetName(k8s.Name(jobName))

@@ -38,6 +38,9 @@ type AgentConfiguration struct {
 	Resources *agentv1.AgentResources
 	// PriorityClassName is the Kubernetes PriorityClass name to stamp onto spawned Job PodTemplates.
 	PriorityClassName string
+	// ImagePullSecret is the name of the K8s Secret used for image pulls.
+	// Empty uses the cluster default (typically "docker").
+	ImagePullSecret string
 	// Trigger declares the per-agent phase and status conditions under which the executor spawns a Job.
 	Trigger *agentv1.Trigger
 }
@@ -72,6 +75,7 @@ func (a AgentConfigurations) TaggedConfigurations(branch string) AgentConfigurat
 			SecretName:        c.SecretName,
 			Resources:         c.Resources.DeepCopy(),
 			PriorityClassName: c.PriorityClassName,
+			ImagePullSecret:   c.ImagePullSecret,
 			Trigger:           c.Trigger,
 		}
 	}

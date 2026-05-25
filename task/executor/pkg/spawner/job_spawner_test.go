@@ -481,6 +481,56 @@ var _ = Describe("JobSpawner", func() {
 			Expect(container.EnvFrom[0].SecretRef.Name).To(Equal("agent-backtest"))
 		})
 
+		It("uses custom ImagePullSecret when set", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("abc-custom-pull-secret"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude",
+				},
+			}
+			config := pkg.AgentConfiguration{
+				Assignee:        "claude",
+				Image:           "my-image:latest",
+				Env:             map[string]string{},
+				ImagePullSecret: "my-custom-secret",
+			}
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+
+			Expect(jobs.Items[0].Spec.Template.Spec.ImagePullSecrets).To(HaveLen(1))
+			Expect(
+				jobs.Items[0].Spec.Template.Spec.ImagePullSecrets[0].Name,
+			).To(Equal("my-custom-secret"))
+		})
+
+		It("defaults to 'docker' when ImagePullSecret is empty", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("abc-default-pull-secret"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude",
+				},
+			}
+			config := pkg.AgentConfiguration{
+				Assignee:        "claude",
+				Image:           "my-image:latest",
+				Env:             map[string]string{},
+				ImagePullSecret: "",
+			}
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+
+			Expect(jobs.Items[0].Spec.Template.Spec.ImagePullSecrets).To(HaveLen(1))
+			Expect(jobs.Items[0].Spec.Template.Spec.ImagePullSecrets[0].Name).To(Equal("docker"))
+		})
+
 		It("has no envFrom when SecretName is empty", func() {
 			task := lib.Task{
 				TaskIdentifier: lib.TaskIdentifier("abc-no-secret"),
