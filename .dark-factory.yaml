@@ -5,6 +5,7 @@ autoRelease: true
 maxContainers: 8
 preflightCommand: "true"
 preflightInterval: "8h"
+disableAutoGeneratePrompts: true
 env:
   GOPATH: /home/node/go
   GOCACHE: /home/node/.cache/go-build
