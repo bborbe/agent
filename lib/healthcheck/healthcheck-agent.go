@@ -9,12 +9,13 @@ import (
 )
 
 // NewAgent wraps any Step in a phase-agnostic *agentlib.Agent.
-// The step is registered under all three phase names so the healthcheck
-// task succeeds regardless of which PHASE env the executor injects.
+// The step is registered under all three canonical phase names so the
+// healthcheck task succeeds regardless of which PHASE env the executor
+// injects (planning, execution, ai_review per CLAUDE.md doctrine).
 func NewAgent(step agentlib.Step) *agentlib.Agent {
 	return agentlib.NewAgent(
 		agentlib.NewPhase("planning", step),
-		agentlib.NewPhase("in_progress", step),
+		agentlib.NewPhase("execution", step),
 		agentlib.NewPhase("ai_review", step),
 	)
 }
