@@ -311,7 +311,7 @@ func (v *vaultScanner) injectAndStore(
 	currentAssignee lib.TaskAssignee,
 ) (*lib.Task, string, bool) {
 	id := uuid.New().String()
-	newContent, injectErr := injectTaskIdentifier(content, id)
+	newContent, injectErr := injectTaskIdentifier(ctx, content, id)
 	if injectErr != nil {
 		glog.Warningf("skipping %s: failed to inject task_identifier: %v", relPath, injectErr)
 		return nil, "", false
@@ -388,7 +388,7 @@ func removeTaskIdentifier(content []byte) []byte {
 	return []byte(strings.Join(out, "\n"))
 }
 
-func injectTaskIdentifier(content []byte, id string) ([]byte, error) {
+func injectTaskIdentifier(ctx context.Context, content []byte, id string) ([]byte, error) {
 	s := string(content)
 	if strings.HasPrefix(s, "---\r\n") {
 		return []byte("---\r\ntask_identifier: " + id + "\r\n" + s[5:]), nil
@@ -397,7 +397,7 @@ func injectTaskIdentifier(content []byte, id string) ([]byte, error) {
 		return []byte("---\ntask_identifier: " + id + "\n" + s[4:]), nil
 	}
 	return nil, errors.Errorf(
-		context.Background(),
+		ctx,
 		"content does not start with frontmatter delimiter",
 	)
 }

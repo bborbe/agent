@@ -386,14 +386,14 @@ var _ = Describe("VaultScanner", func() {
 	Describe("injectTaskIdentifier", func() {
 		It("injects task_identifier with LF line endings", func() {
 			input := []byte("---\nstatus: todo\n---\n")
-			result, err := injectTaskIdentifier(input, "test-id")
+			result, err := injectTaskIdentifier(context.Background(), input, "test-id")
 			Expect(err).To(BeNil())
 			Expect(string(result)).To(Equal("---\ntask_identifier: test-id\nstatus: todo\n---\n"))
 		})
 
 		It("injects task_identifier with CRLF line endings", func() {
 			input := []byte("---\r\nstatus: todo\r\n---\r\n")
-			result, err := injectTaskIdentifier(input, "test-id")
+			result, err := injectTaskIdentifier(context.Background(), input, "test-id")
 			Expect(err).To(BeNil())
 			Expect(
 				string(result),
@@ -402,7 +402,7 @@ var _ = Describe("VaultScanner", func() {
 
 		It("returns error when content does not start with frontmatter delimiter", func() {
 			input := []byte("no frontmatter")
-			result, err := injectTaskIdentifier(input, "test-id")
+			result, err := injectTaskIdentifier(context.Background(), input, "test-id")
 			Expect(err).NotTo(BeNil())
 			Expect(result).To(BeNil())
 		})

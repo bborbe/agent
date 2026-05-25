@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.5
+
+- fix(task/controller): pass context to `injectTaskIdentifier` in vault scanner instead of using `context.Background()`
+
 ## v0.63.4
 
 - fix(lib): replace `fmt.Errorf` with `errors.Wrapf` in `PrintResult` and add context parameter
