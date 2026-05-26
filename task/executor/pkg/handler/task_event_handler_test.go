@@ -1304,6 +1304,77 @@ var _ = Describe("TaskEventHandler", func() {
 				},
 			)
 
+			It(
+				"RunDeferredRespawnLoop returns error when initial evalDeferredRespawns fails",
+				func() {
+					// Seed a task into the store so seedDeferredRespawnsFromStore picks it up.
+					// Set clock to graceExpiredR so the entry is immediately ready for eval.
+					stuck := buildGraceTask(domain.TaskPhaseExecution, 0, 3)
+					restartStore := pkg.NewTaskStore()
+					restartStore.Store(stuck.TaskIdentifier, stuck)
+
+					fakeResultPublisher.PublishIncrementTriggerCountReturns(
+						errors.Errorf(ctx, "publish failed"),
+					)
+
+					freshHandler := handler.NewTaskEventHandler(
+						fakeSpawner,
+						base.Branch("prod"),
+						fakeResolver,
+						fakeResultPublisher,
+						restartStore,
+						currentDateTime,
+					)
+
+					currentDateTime.SetNow(libtimetest.ParseDateTime(graceExpiredR))
+
+					done := make(chan error, 1)
+					go func() { done <- freshHandler.RunDeferredRespawnLoop(ctx) }()
+					err := <-done
+					Expect(err).NotTo(BeNil())
+					Expect(err.Error()).To(ContainSubstring("publish failed"))
+				},
+			)
+
+			It(
+				"RunDeferredRespawnLoop returns error when evalDeferredRespawns fails on ticker tick",
+				func() {
+					// Add two entries via ConsumeMessage at insideGrace (retryAfter = graceExpiredR).
+					// The ConsumeMessage calls also trigger evalDeferredRespawns, but at insideGrace
+					// the entries are not yet ready, so those evals succeed with nothing to do.
+					// When RunDeferredRespawnLoop runs, seedDeferredRespawnsFromStore re-adds the
+					// entries (they're still in taskStore). The initial eval finds nothing ready.
+					// The first ticker tick at graceExpiredR finds both entries ready and processes
+					// them. We configure PublishIncrementTriggerCount to error on its second
+					// call (first was during ConsumeMessage, second is during the tick eval).
+					currentDateTime.SetNow(libtimetest.ParseDateTime(insideGrace))
+
+					taskA := buildGraceTask(domain.TaskPhaseExecution, 0, 3)
+					taskA.TaskIdentifier = lib.TaskIdentifier("tid-deferred-tick-a")
+					taskB := buildGraceTask(domain.TaskPhaseExecution, 0, 3)
+					taskB.TaskIdentifier = lib.TaskIdentifier("tid-deferred-tick-b")
+
+					err := h.ConsumeMessage(ctx, buildMsg(taskA))
+					Expect(err).To(BeNil())
+					err = h.ConsumeMessage(ctx, buildMsg(taskB))
+					Expect(err).To(BeNil())
+
+					fakeResultPublisher.PublishIncrementTriggerCountReturnsOnCall(
+						1,
+						errors.Errorf(ctx, "tick eval failed"),
+					)
+
+					// Advance clock to graceExpiredR so entries are ready when ticker fires.
+					currentDateTime.SetNow(libtimetest.ParseDateTime(graceExpiredR))
+
+					done := make(chan error, 1)
+					go func() { done <- h.RunDeferredRespawnLoop(ctx) }()
+					err = <-done
+					Expect(err).NotTo(BeNil())
+					Expect(err.Error()).To(ContainSubstring("tick eval failed"))
+				},
+			)
+
 			It("deferred re-eval respects trigger cap", func() {
 				// task with trigger_count == max_triggers — will hit skipped_trigger_cap in spawnIfNeeded
 				currentDateTime.SetNow(libtimetest.ParseDateTime(insideGrace))

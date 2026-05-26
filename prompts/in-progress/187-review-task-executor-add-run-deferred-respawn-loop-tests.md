@@ -1,7 +1,12 @@
 ---
-status: approved
+status: committing
+summary: Added error path tests for RunDeferredRespawnLoop covering initial eval failure and ticker tick eval failure
+container: agent-exec-187-review-task-executor-add-run-deferred-respawn-loop-tests
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-26T07:09:20Z"
+completed: "2026-05-26T07:15:25Z"
 ---
 
 <summary>
