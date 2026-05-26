@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-05-25T22:05:10Z"
 generating: "2026-05-25T22:05:10Z"
 prompted: "2026-05-25T22:11:43Z"
 verifying: "2026-05-25T23:10:07Z"
+completed: "2026-05-26T15:37:18Z"
 branch: dark-factory/update-frontmatter-executor-enforces-human-review-doctrine
 ---
 
