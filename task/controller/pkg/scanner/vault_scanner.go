@@ -9,7 +9,6 @@ import (
 	"crypto/sha256"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/bborbe/errors"
@@ -299,22 +298,6 @@ func (v *vaultScanner) processFile(
 	}, "", false
 }
 
-// isValidUUID returns true if s can be parsed as a valid UUID.
-func isValidUUID(s string) bool {
-	_, err := uuid.Parse(s)
-	return err == nil
-}
-
-// isIdentifierUnique returns true if no other file in v.hashes uses the same task identifier.
-func (v *vaultScanner) isIdentifierUnique(id string, relPath string) bool {
-	for path, entry := range v.hashes {
-		if path != relPath && string(entry.taskIdentifier) == id {
-			return false
-		}
-	}
-	return true
-}
-
 // injectAndStore generates a UUID, writes it into the file via ops.writeFile,
 // and records a sentinel hash entry with the file's current assignee.
 // Returns (nil task, writtenRelPath, writeError).
@@ -392,118 +375,4 @@ func (v *vaultScanner) collectDeleted(
 		}
 	}
 	return deleted, nil
-}
-
-// removeTaskIdentifier removes any existing task_identifier line(s) from the
-// frontmatter so that injectAndStore can safely prepend a fresh value.
-func removeTaskIdentifier(content []byte) []byte {
-	s := string(content)
-	const prefix = "task_identifier:"
-	var out []string
-	for _, line := range strings.Split(s, "\n") {
-		trimmed := strings.TrimRight(line, "\r")
-		if strings.HasPrefix(trimmed, prefix) {
-			continue
-		}
-		out = append(out, line)
-	}
-	return []byte(strings.Join(out, "\n"))
-}
-
-// InjectTaskIdentifier injects a task_identifier into the frontmatter of content.
-func InjectTaskIdentifier(ctx context.Context, content []byte, id string) ([]byte, error) {
-	s := string(content)
-	if strings.HasPrefix(s, "---\r\n") {
-		return []byte("---\r\ntask_identifier: " + id + "\r\n" + s[5:]), nil
-	}
-	if strings.HasPrefix(s, "---\n") {
-		return []byte("---\ntask_identifier: " + id + "\n" + s[4:]), nil
-	}
-	return nil, errors.Errorf(
-		ctx,
-		"content does not start with frontmatter delimiter",
-	)
-}
-
-// DeduplicateFrontmatter removes duplicate keys from YAML frontmatter, keeping the last value for each key.
-func DeduplicateFrontmatter(ctx context.Context, fmYAML string) (string, bool, error) {
-	var doc yaml.Node
-	if err := yaml.Unmarshal([]byte(fmYAML), &doc); err != nil {
-		return fmYAML, false, errors.Wrapf(ctx, err, "parse frontmatter for deduplication")
-	}
-	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
-		return fmYAML, false, nil
-	}
-	mappingNode := doc.Content[0]
-	if mappingNode.Kind != yaml.MappingNode {
-		return fmYAML, false, nil
-	}
-	seen := make(map[string]int)
-	var newContent []*yaml.Node
-	hasDuplicates := false
-	for i := 0; i+1 < len(mappingNode.Content); i += 2 {
-		keyNode := mappingNode.Content[i]
-		valNode := mappingNode.Content[i+1]
-		key := keyNode.Value
-		if idx, ok := seen[key]; ok {
-			hasDuplicates = true
-			newContent[idx+1] = valNode
-		} else {
-			seen[key] = len(newContent)
-			newContent = append(newContent, keyNode, valNode)
-		}
-	}
-	if !hasDuplicates {
-		return fmYAML, false, nil
-	}
-	mappingNode.Content = newContent
-	out, err := yaml.Marshal(mappingNode)
-	if err != nil {
-		return fmYAML, false, errors.Wrapf(ctx, err, "re-marshal deduplicated frontmatter")
-	}
-	return string(out), true, nil
-}
-
-func extractFrontmatter(ctx context.Context, content []byte) (string, error) {
-	s := string(content)
-	const delim = "---"
-	if !strings.HasPrefix(s, delim) {
-		return "", errors.Errorf(ctx, "no frontmatter delimiter found")
-	}
-	rest := strings.TrimPrefix(s, delim)
-	if strings.HasPrefix(rest, "\r\n") {
-		rest = rest[2:]
-	} else if strings.HasPrefix(rest, "\n") {
-		rest = rest[1:]
-	}
-	idx := strings.Index(rest, "\n---")
-	if idx == -1 {
-		return "", errors.Errorf(ctx, "frontmatter not closed")
-	}
-	return rest[:idx], nil
-}
-
-func extractBody(content []byte) string {
-	s := string(content)
-	const delim = "---"
-	if !strings.HasPrefix(s, delim) {
-		return s
-	}
-	rest := strings.TrimPrefix(s, delim)
-	if strings.HasPrefix(rest, "\r\n") {
-		rest = rest[2:]
-	} else if strings.HasPrefix(rest, "\n") {
-		rest = rest[1:]
-	}
-	idx := strings.Index(rest, "\n---")
-	if idx == -1 {
-		return s
-	}
-	after := rest[idx+4:] // skip "\n---"
-	if strings.HasPrefix(after, "\r\n") {
-		after = after[2:]
-	} else if strings.HasPrefix(after, "\n") {
-		after = after[1:]
-	}
-	return after
 }

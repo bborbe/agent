@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.63.35
+
+- refactor(task/controller): extract frontmatter and task-identifier helpers from vault_scanner.go into dedicated files in pkg/scanner/
+
 ## v0.63.34
 
 - fix(task/controller): eliminate write-after-read race in result writer by switching to AtomicReadModifyWriteAndCommitPush, ensuring concurrent partial updates are not clobbered

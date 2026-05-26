@@ -1,10 +1,12 @@
 ---
-status: executing
+status: completed
+summary: Extracted frontmatter and task-identifier helpers from vault_scanner.go into dedicated files, reducing it from 509 to 379 lines
 container: agent-exec-192-review-task-controller-fix-vault-scanner-srp
 dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-26T11:51:18Z"
 started: "2026-05-26T11:51:20Z"
+completed: "2026-05-26T11:53:41Z"
 ---
 
 <summary>
