@@ -14,6 +14,7 @@ import (
 
 	"github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/task/controller/mocks"
+	"github.com/bborbe/agent/task/controller/pkg/metrics"
 	"github.com/bborbe/agent/task/controller/pkg/scanner"
 	pkgsync "github.com/bborbe/agent/task/controller/pkg/sync"
 )
@@ -47,7 +48,12 @@ var _ = Describe("SyncLoop", func() {
 			}
 		}
 
-		syncLoop = pkgsync.NewSyncLoop(fakeScanner, fakePublisher, make(chan struct{}, 1))
+		syncLoop = pkgsync.NewSyncLoop(
+			fakeScanner,
+			fakePublisher,
+			make(chan struct{}, 1),
+			metrics.New(),
+		)
 		runErr = make(chan error, 1)
 		sl := syncLoop
 		errCh := runErr

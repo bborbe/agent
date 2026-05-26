@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/bborbe/agent/task/controller/pkg/gitrestclient"
+	"github.com/bborbe/agent/task/controller/pkg/metrics"
 )
 
 // zeroBackoff returns 0 duration so retry tests run instantly.
@@ -106,7 +107,7 @@ var _ = Describe("GitRestClient", func() {
 					w.WriteHeader(http.StatusOK)
 				}),
 			)
-			c := gitrestclient.NewGitRestClient(server.URL, "", "")
+			c := gitrestclient.NewGitRestClient(server.URL, "", "", metrics.New())
 			Expect(c).NotTo(BeNil())
 			ready, err := c.IsReady(ctx)
 			Expect(err).To(BeNil())
@@ -442,7 +443,12 @@ var _ = Describe("GitRestClient", func() {
 						_, _ = w.Write([]byte("body"))
 					}),
 				)
-				client = gitrestclient.NewGitRestClient(server.URL, "test-secret", "test-caller")
+				client = gitrestclient.NewGitRestClient(
+					server.URL,
+					"test-secret",
+					"test-caller",
+					metrics.New(),
+				)
 			})
 
 			It("sends both auth headers", func() {
@@ -591,7 +597,7 @@ var _ = Describe("GitRestClient", func() {
 						_, _ = w.Write([]byte("body"))
 					}),
 				)
-				client = gitrestclient.NewGitRestClient(server.URL, "", "")
+				client = gitrestclient.NewGitRestClient(server.URL, "", "", metrics.New())
 			})
 
 			It("sends no auth headers when secret is empty", func() {

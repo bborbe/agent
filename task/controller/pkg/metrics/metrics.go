@@ -9,6 +9,64 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
+//counterfeiter:generate -o ../../mocks/metrics.go --fake-name Metrics . Metrics
+
+// Metrics defines the interface for accessing Prometheus metrics.
+// Use this interface in business logic packages to enable mock injection in tests.
+type Metrics interface {
+	ScanCyclesTotal(outcome string) prometheus.Counter
+	TasksPublishedTotal(outcome string) prometheus.Counter
+	ResultsWrittenTotal(outcome string) prometheus.Counter
+	GitPushTotal(outcome string) prometheus.Counter
+	ConflictResolutionsTotal() prometheus.Counter
+	FrontmatterCommandsTotal(operation, outcome string) prometheus.Counter
+	GitRestCallsTotal(operation, status string) prometheus.Counter
+	KafkaConsumePausedTotal() prometheus.Counter
+}
+
+// defaultMetrics implements Metrics using promauto-registered counters.
+type defaultMetrics struct{}
+
+var _ Metrics = &defaultMetrics{}
+
+// New returns a new default Metrics implementation.
+func New() Metrics {
+	return &defaultMetrics{}
+}
+
+func (m *defaultMetrics) ScanCyclesTotal(outcome string) prometheus.Counter {
+	return ScanCyclesTotal.WithLabelValues(outcome)
+}
+
+func (m *defaultMetrics) TasksPublishedTotal(outcome string) prometheus.Counter {
+	return TasksPublishedTotal.WithLabelValues(outcome)
+}
+
+func (m *defaultMetrics) ResultsWrittenTotal(outcome string) prometheus.Counter {
+	return ResultsWrittenTotal.WithLabelValues(outcome)
+}
+
+func (m *defaultMetrics) GitPushTotal(outcome string) prometheus.Counter {
+	return GitPushTotal.WithLabelValues(outcome)
+}
+
+func (m *defaultMetrics) ConflictResolutionsTotal() prometheus.Counter {
+	return ConflictResolutionsTotal.WithLabelValues()
+}
+
+func (m *defaultMetrics) FrontmatterCommandsTotal(operation, outcome string) prometheus.Counter {
+	return FrontmatterCommandsTotal.WithLabelValues(operation, outcome)
+}
+
+func (m *defaultMetrics) GitRestCallsTotal(operation, status string) prometheus.Counter {
+	return GitRestCallsTotal.WithLabelValues(operation, status)
+}
+
+func (m *defaultMetrics) KafkaConsumePausedTotal() prometheus.Counter {
+	return KafkaConsumePausedTotal
+}
+
 // ScanCyclesTotal counts scan cycle completions by result.
 var ScanCyclesTotal = promauto.NewCounterVec(
 	prometheus.CounterOpts{

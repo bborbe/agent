@@ -30,6 +30,7 @@ import (
 	lib "github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/task/controller/pkg/factory"
 	"github.com/bborbe/agent/task/controller/pkg/gitrestclient"
+	"github.com/bborbe/agent/task/controller/pkg/metrics"
 	"github.com/bborbe/agent/task/controller/pkg/publisher"
 	"github.com/bborbe/agent/task/controller/pkg/result"
 	"github.com/bborbe/agent/task/controller/pkg/scanner"
@@ -69,7 +70,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		return errors.Errorf(ctx, "GIT_REST_URL is required")
 	}
 	restClient := gitrestclient.NewGitRestClient(
-		a.GitRestURL, a.GatewaySecret, "agent-task-controller",
+		a.GitRestURL, a.GatewaySecret, "agent-task-controller", metrics.New(),
 	)
 	gitClient := gitrestclient.NewGitClient(restClient, vaultLocalPath)
 	if err := gitClient.EnsureCloned(ctx); err != nil {
@@ -99,6 +100,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		scanner.NewGitRestVaultScanner(gitClient, a.TaskDir, a.PollInterval, trigger),
 		publisher.NewTaskPublisher(eventObjectSender, lib.TaskV1SchemaID, currentDateTime),
 		trigger,
+		metrics.New(),
 	)
 
 	var boltOptions []boltkv.ChangeOptions

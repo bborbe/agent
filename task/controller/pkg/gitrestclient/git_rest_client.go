@@ -43,13 +43,23 @@ type GitRestClient interface {
 // When gatewaySecret is empty, no auth headers are sent (backward-compat with auth-disabled git-rest).
 // gatewayInitiator is the caller identity logged by git-rest on auth failure;
 // pass a stable, human-readable value (e.g. "agent-task-controller").
-func NewGitRestClient(baseURL, gatewaySecret, gatewayInitiator string) GitRestClient {
-	return newGitRestClientWithBackoff(baseURL, gatewaySecret, gatewayInitiator, exponentialBackoff)
+func NewGitRestClient(
+	baseURL, gatewaySecret, gatewayInitiator string,
+	metrics metrics.Metrics,
+) GitRestClient {
+	return newGitRestClientWithBackoff(
+		baseURL,
+		gatewaySecret,
+		gatewayInitiator,
+		exponentialBackoff,
+		metrics,
+	)
 }
 
 func newGitRestClientWithBackoff(
 	baseURL, gatewaySecret, gatewayInitiator string,
 	backoff func(attempt int) time.Duration,
+	metrics metrics.Metrics,
 ) GitRestClient {
 	return &gitRestClient{
 		baseURL:          strings.TrimRight(baseURL, "/"),
@@ -57,6 +67,7 @@ func newGitRestClientWithBackoff(
 		backoff:          backoff,
 		gatewaySecret:    gatewaySecret,
 		gatewayInitiator: gatewayInitiator,
+		metrics:          metrics,
 	}
 }
 
@@ -72,6 +83,7 @@ type gitRestClient struct {
 	backoff          func(attempt int) time.Duration
 	gatewaySecret    string
 	gatewayInitiator string
+	metrics          metrics.Metrics
 }
 
 // setAuthHeaders sets the gateway-secret auth headers on req when the secret is configured.
@@ -94,30 +106,30 @@ func (g *gitRestClient) Get(ctx context.Context, relPath string) ([]byte, error)
 	reqURL := g.baseURL + "/api/v1/files/" + relPath
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		metrics.GitRestCallsTotal.WithLabelValues("get", "error").Inc()
+		g.metrics.GitRestCallsTotal("get", "error").Inc()
 		return nil, errors.Wrapf(ctx, err, "create GET request for %s", relPath)
 	}
 	g.setAuthHeaders(req)
 	resp, err := g.httpClient.Do(req)
 	if err != nil {
-		metrics.GitRestCallsTotal.WithLabelValues("get", "error").Inc()
+		g.metrics.GitRestCallsTotal("get", "error").Inc()
 		return nil, errors.Wrapf(ctx, err, "GET %s", relPath)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		metrics.GitRestCallsTotal.WithLabelValues("get", "error").Inc()
+		g.metrics.GitRestCallsTotal("get", "error").Inc()
 		return nil, errors.Wrapf(ctx, err, "read GET response body for %s", relPath)
 	}
 	if resp.StatusCode != http.StatusOK {
-		metrics.GitRestCallsTotal.WithLabelValues("get", "error").Inc()
+		g.metrics.GitRestCallsTotal("get", "error").Inc()
 		preview := string(body)
 		if len(preview) > 100 {
 			preview = preview[:100]
 		}
 		return nil, errors.Errorf(ctx, "GET %s returned %d: %s", relPath, resp.StatusCode, preview)
 	}
-	metrics.GitRestCallsTotal.WithLabelValues("get", "success").Inc()
+	g.metrics.GitRestCallsTotal("get", "success").Inc()
 	return body, nil
 }
 
@@ -127,7 +139,7 @@ func (g *gitRestClient) Post(ctx context.Context, relPath string, content []byte
 	var lastErr error
 	for attempt := 0; attempt < 5; attempt++ {
 		if attempt > 0 {
-			metrics.KafkaConsumePausedTotal.Inc()
+			g.metrics.KafkaConsumePausedTotal().Inc()
 			backoff := g.backoff(attempt)
 			select {
 			case <-ctx.Done():
@@ -142,7 +154,7 @@ func (g *gitRestClient) Post(ctx context.Context, relPath string, content []byte
 			bytes.NewReader(content),
 		)
 		if err != nil {
-			metrics.GitRestCallsTotal.WithLabelValues("post", "error").Inc()
+			g.metrics.GitRestCallsTotal("post", "error").Inc()
 			lastErr = errors.Wrapf(ctx, err, "create POST request for %s", relPath)
 			continue
 		}
@@ -150,17 +162,17 @@ func (g *gitRestClient) Post(ctx context.Context, relPath string, content []byte
 		g.setAuthHeaders(req)
 		resp, err := g.httpClient.Do(req)
 		if err != nil {
-			metrics.GitRestCallsTotal.WithLabelValues("post", "error").Inc()
+			g.metrics.GitRestCallsTotal("post", "error").Inc()
 			lastErr = errors.Wrapf(ctx, err, "POST %s attempt %d", relPath, attempt+1)
 			continue
 		}
 		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			metrics.GitRestCallsTotal.WithLabelValues("post", "success").Inc()
+			g.metrics.GitRestCallsTotal("post", "success").Inc()
 			return nil
 		}
-		metrics.GitRestCallsTotal.WithLabelValues("post", "error").Inc()
+		g.metrics.GitRestCallsTotal("post", "error").Inc()
 		lastErr = errors.Errorf(
 			ctx,
 			"POST %s attempt %d returned %d",
@@ -178,7 +190,7 @@ func (g *gitRestClient) Delete(ctx context.Context, relPath string) error {
 	var lastErr error
 	for attempt := 0; attempt < 5; attempt++ {
 		if attempt > 0 {
-			metrics.KafkaConsumePausedTotal.Inc()
+			g.metrics.KafkaConsumePausedTotal().Inc()
 			backoff := g.backoff(attempt)
 			select {
 			case <-ctx.Done():
@@ -188,24 +200,24 @@ func (g *gitRestClient) Delete(ctx context.Context, relPath string) error {
 		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, reqURL, nil)
 		if err != nil {
-			metrics.GitRestCallsTotal.WithLabelValues("delete", "error").Inc()
+			g.metrics.GitRestCallsTotal("delete", "error").Inc()
 			lastErr = errors.Wrapf(ctx, err, "create DELETE request for %s", relPath)
 			continue
 		}
 		g.setAuthHeaders(req)
 		resp, err := g.httpClient.Do(req)
 		if err != nil {
-			metrics.GitRestCallsTotal.WithLabelValues("delete", "error").Inc()
+			g.metrics.GitRestCallsTotal("delete", "error").Inc()
 			lastErr = errors.Wrapf(ctx, err, "DELETE %s attempt %d", relPath, attempt+1)
 			continue
 		}
 		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			metrics.GitRestCallsTotal.WithLabelValues("delete", "success").Inc()
+			g.metrics.GitRestCallsTotal("delete", "success").Inc()
 			return nil
 		}
-		metrics.GitRestCallsTotal.WithLabelValues("delete", "error").Inc()
+		g.metrics.GitRestCallsTotal("delete", "error").Inc()
 		lastErr = errors.Errorf(
 			ctx,
 			"DELETE %s attempt %d returned %d",
@@ -222,7 +234,7 @@ func (g *gitRestClient) List(ctx context.Context, glob string) ([]string, error)
 	reqURL := g.baseURL + "/api/v1/files/"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		metrics.GitRestCallsTotal.WithLabelValues("list", "error").Inc()
+		g.metrics.GitRestCallsTotal("list", "error").Inc()
 		return nil, errors.Wrapf(ctx, err, "create LIST request for glob %s", glob)
 	}
 	q := url.Values{}
@@ -231,17 +243,17 @@ func (g *gitRestClient) List(ctx context.Context, glob string) ([]string, error)
 	g.setAuthHeaders(req)
 	resp, err := g.httpClient.Do(req)
 	if err != nil {
-		metrics.GitRestCallsTotal.WithLabelValues("list", "error").Inc()
+		g.metrics.GitRestCallsTotal("list", "error").Inc()
 		return nil, errors.Wrapf(ctx, err, "LIST glob %s", glob)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		metrics.GitRestCallsTotal.WithLabelValues("list", "error").Inc()
+		g.metrics.GitRestCallsTotal("list", "error").Inc()
 		return nil, errors.Wrapf(ctx, err, "read LIST response body for glob %s", glob)
 	}
 	if resp.StatusCode != http.StatusOK {
-		metrics.GitRestCallsTotal.WithLabelValues("list", "error").Inc()
+		g.metrics.GitRestCallsTotal("list", "error").Inc()
 		preview := string(body)
 		if len(preview) > 100 {
 			preview = preview[:100]
@@ -256,10 +268,10 @@ func (g *gitRestClient) List(ctx context.Context, glob string) ([]string, error)
 	}
 	var paths []string
 	if err := json.Unmarshal(body, &paths); err != nil {
-		metrics.GitRestCallsTotal.WithLabelValues("list", "error").Inc()
+		g.metrics.GitRestCallsTotal("list", "error").Inc()
 		return nil, errors.Wrapf(ctx, err, "parse LIST response for glob %s", glob)
 	}
-	metrics.GitRestCallsTotal.WithLabelValues("list", "success").Inc()
+	g.metrics.GitRestCallsTotal("list", "success").Inc()
 	return paths, nil
 }
 
@@ -314,25 +326,25 @@ func (g *gitRestClient) IsReady(ctx context.Context) (bool, error) {
 	reqURL := g.baseURL + "/readiness"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		metrics.GitRestCallsTotal.WithLabelValues("readiness", "error").Inc()
+		g.metrics.GitRestCallsTotal("readiness", "error").Inc()
 		return false, errors.Wrapf(ctx, err, "create readiness request")
 	}
 	resp, err := g.httpClient.Do(req)
 	if err != nil {
-		metrics.GitRestCallsTotal.WithLabelValues("readiness", "error").Inc()
+		g.metrics.GitRestCallsTotal("readiness", "error").Inc()
 		return false, errors.Wrapf(ctx, err, "readiness check")
 	}
 	_, _ = io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
 	switch resp.StatusCode {
 	case http.StatusOK:
-		metrics.GitRestCallsTotal.WithLabelValues("readiness", "success").Inc()
+		g.metrics.GitRestCallsTotal("readiness", "success").Inc()
 		return true, nil
 	case http.StatusServiceUnavailable:
-		metrics.GitRestCallsTotal.WithLabelValues("readiness", "success").Inc()
+		g.metrics.GitRestCallsTotal("readiness", "success").Inc()
 		return false, nil
 	default:
-		metrics.GitRestCallsTotal.WithLabelValues("readiness", "error").Inc()
+		g.metrics.GitRestCallsTotal("readiness", "error").Inc()
 		return false, errors.Errorf(ctx, "readiness returned unexpected status %d", resp.StatusCode)
 	}
 }

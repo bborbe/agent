@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added Metrics interface to pkg/metrics/metrics.go with defaultMetrics implementation, updated git_rest_client.go and sync_loop.go to accept Metrics via constructor injection, generated Counterfeiter mock, all tests and precommit pass.
+container: agent-exec-182-review-task-controller-fix-missing-metrics-interface
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-26T05:58:56Z"
+completed: "2026-05-26T06:06:33Z"
 ---
 
 <summary>

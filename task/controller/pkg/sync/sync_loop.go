@@ -29,11 +29,13 @@ func NewSyncLoop(
 	scanner scanner.VaultScanner,
 	publisher publisher.TaskPublisher,
 	trigger chan struct{},
+	metrics metrics.Metrics,
 ) SyncLoop {
 	return &syncLoop{
 		scanner:   scanner,
 		publisher: publisher,
 		trigger:   trigger,
+		metrics:   metrics,
 	}
 }
 
@@ -41,6 +43,7 @@ type syncLoop struct {
 	scanner   scanner.VaultScanner
 	publisher publisher.TaskPublisher
 	trigger   chan struct{}
+	metrics   metrics.Metrics
 }
 
 // Trigger requests an immediate scan cycle. Non-blocking: if a trigger is already pending, it is a no-op.
@@ -79,24 +82,24 @@ func (s *syncLoop) processResult(ctx context.Context, result scanner.ScanResult)
 			"scan cycle: %d changed, %d deleted",
 			len(result.Changed), len(result.Deleted),
 		)
-		metrics.ScanCyclesTotal.WithLabelValues("changes").Inc()
+		s.metrics.ScanCyclesTotal("changes").Inc()
 	} else {
 		glog.V(3).Infof("scan cycle: no changes")
-		metrics.ScanCyclesTotal.WithLabelValues("no_changes").Inc()
+		s.metrics.ScanCyclesTotal("no_changes").Inc()
 	}
 	for _, task := range result.Changed {
 		glog.V(3).Infof("publishing changed task %s", task.TaskIdentifier)
 		if err := s.publisher.PublishChanged(ctx, task); err != nil {
 			return errors.Wrapf(ctx, err, "publish changed task %s", task.TaskIdentifier)
 		}
-		metrics.TasksPublishedTotal.WithLabelValues("changed").Inc()
+		s.metrics.TasksPublishedTotal("changed").Inc()
 	}
 	for _, id := range result.Deleted {
 		glog.V(3).Infof("publishing deleted task %s", id)
 		if err := s.publisher.PublishDeleted(ctx, id); err != nil {
 			return errors.Wrapf(ctx, err, "publish deleted task %s", id)
 		}
-		metrics.TasksPublishedTotal.WithLabelValues("deleted").Inc()
+		s.metrics.TasksPublishedTotal("deleted").Inc()
 	}
 	return nil
 }
