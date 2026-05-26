@@ -91,6 +91,37 @@ var _ = Describe("BuildResultSection", func() {
 	})
 })
 
+var _ = Describe("NewNoopResultDeliverer", func() {
+	var (
+		ctx       context.Context
+		deliverer claude.ResultDeliverer[claude.AgentResult]
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		deliverer = claude.NewNoopResultDeliverer()
+	})
+
+	It("returns a non-nil deliverer", func() {
+		Expect(deliverer).NotTo(BeNil())
+	})
+
+	It("DeliverResult returns nil (noop)", func() {
+		err := deliverer.DeliverResult(ctx, claude.AgentResult{
+			Status: claude.AgentStatusDone,
+		})
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("DeliverResult returns nil even for failed status (noop)", func() {
+		err := deliverer.DeliverResult(ctx, claude.AgentResult{
+			Status:  claude.AgentStatusFailed,
+			Message: "something went wrong",
+		})
+		Expect(err).NotTo(HaveOccurred())
+	})
+})
+
 var _ = Describe("resultDelivererAdapter", func() {
 	var (
 		ctx         context.Context

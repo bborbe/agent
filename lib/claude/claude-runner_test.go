@@ -279,3 +279,99 @@ exit 0
 		})
 	})
 })
+
+var _ = Describe("claudeRunner AllowedTools buildCommand branch", func() {
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	writeShim := func(body string) {
+		shimDir := GinkgoT().TempDir()
+		shimPath := filepath.Join(shimDir, "claude")
+		script := "#!/bin/sh\n" + body
+		err := os.WriteFile(shimPath, []byte(script), 0755) //nolint:gosec
+		Expect(err).NotTo(HaveOccurred())
+		originalPath := os.Getenv("PATH")
+		DeferCleanup(func() {
+			Expect(os.Setenv("PATH", originalPath)).To(Succeed())
+		})
+		Expect(os.Setenv("PATH", shimDir+":"+originalPath)).To(Succeed())
+	}
+
+	Context("with AllowedTools configured (buildCommand --allowedTools branch)", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo "{\"type\":\"result\",\"result\":\"Args: $@\"}"
+exit 0`,
+			)
+		})
+
+		It("passes --allowedTools flag with the tool list", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+				AllowedTools: claude.ParseAllowedTools("Read,Write,Bash"),
+			}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Result).To(ContainSubstring("--allowedTools"))
+			Expect(result.Result).To(ContainSubstring("Read,Write,Bash"))
+		})
+	})
+
+	Context("with Model configured (buildCommand --model branch)", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo "{\"type\":\"result\",\"result\":\"Args: $@\"}"
+exit 0`,
+			)
+		})
+
+		It("passes --model flag with the model name", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+				Model: claude.OpusClaudeModel,
+			}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Result).To(ContainSubstring("--model"))
+			Expect(result.Result).To(ContainSubstring("opus"))
+		})
+	})
+
+	Context("with both AllowedTools and Model configured", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo "{\"type\":\"result\",\"result\":\"Args: $@\"}"
+exit 0`,
+			)
+		})
+
+		It("passes both --allowedTools and --model flags", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+				AllowedTools: claude.ParseAllowedTools("Read"),
+				Model:        claude.SonnetClaudeModel,
+			}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Result).To(ContainSubstring("--allowedTools"))
+			Expect(result.Result).To(ContainSubstring("--model"))
+		})
+	})
+
+	Context("with WorkingDirectory configured (buildCommand cmd.Dir branch)", func() {
+		var workDir string
+
+		BeforeEach(func() {
+			workDir = GinkgoT().TempDir()
+			writeShim(
+				`echo "{\"type\":\"result\",\"result\":\"PWD=$PWD\"}"
+exit 0`,
+			)
+		})
+
+		It("sets cmd.Dir to the working directory", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+				WorkingDirectory: claude.AgentDir(workDir),
+			}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Result).To(ContainSubstring("PWD=" + workDir))
+		})
+	})
+})

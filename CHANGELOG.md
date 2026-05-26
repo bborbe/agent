@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.63.25
+
+- test(lib/claude): add test coverage for NewAgentStep, NewNoopResultDeliverer, deliver error path, stepString with escaped chars, buildCommand with AllowedTools/Model/WorkingDirectory flags — overall coverage 76.6% → 85.1%
+
 ## v0.63.24
 
 - refactor(agent/gemini): remove `CreateSyncProducer` and `CreateGeminiParser` factory functions — moved error-producing logic to call sites in `main.go` and `cmd/run-task/main.go`

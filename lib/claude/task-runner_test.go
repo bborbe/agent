@@ -174,4 +174,53 @@ var _ = Describe("TaskRunner", func() {
 			Expect(result.Message).To(Equal("result with }curly{ inside"))
 		})
 	})
+
+	Context("when deliverer returns error (deliver error path)", func() {
+		BeforeEach(func() {
+			runner.RunReturns(&claude.ClaudeResult{
+				Result: `{"status":"done","message":"task complete"}`,
+			}, nil)
+			deliverer.DeliverResultReturns(errors.New("delivery failed"))
+		})
+
+		It("still returns result with no run error (deliver swallows error)", func() {
+			Expect(runErr).To(BeNil())
+			Expect(result).NotTo(BeNil())
+			Expect(result.Status).To(Equal(claude.AgentStatusDone))
+		})
+
+		It("calls deliverer with the result", func() {
+			Expect(deliverer.DeliverResultCallCount()).To(Equal(1))
+		})
+	})
+
+	Context("when result contains escaped characters in JSON string (stepString branch)", func() {
+		BeforeEach(func() {
+			runner.RunReturns(&claude.ClaudeResult{
+				Result: `{"status":"done","message":"He said \"hello\""}`,
+			}, nil)
+		})
+
+		It("correctly parses JSON with escaped quotes", func() {
+			Expect(runErr).To(BeNil())
+			Expect(result).NotTo(BeNil())
+			Expect(result.Status).To(Equal(claude.AgentStatusDone))
+			Expect(result.Message).To(Equal(`He said "hello"`))
+		})
+	})
+
+	Context("when result contains backslash-escaped characters", func() {
+		BeforeEach(func() {
+			runner.RunReturns(&claude.ClaudeResult{
+				Result: `{"status":"done","message":"path\\to\\file"}`,
+			}, nil)
+		})
+
+		It("correctly parses JSON with backslash escapes", func() {
+			Expect(runErr).To(BeNil())
+			Expect(result).NotTo(BeNil())
+			Expect(result.Status).To(Equal(claude.AgentStatusDone))
+			Expect(result.Message).To(Equal(`path\to\file`))
+		})
+	})
 })

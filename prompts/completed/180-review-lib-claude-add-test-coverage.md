@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: 'Added test coverage for lib/claude package: NewAgentStep (100%), buildCommand WorkingDirectory branch (90.5%), expand-tilde (90%), deliver (100%), stepString (100%) — overall coverage 76.6% → 85.1%'
+container: agent-exec-180-review-lib-claude-add-test-coverage
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-26T05:50:53Z"
+completed: "2026-05-26T05:55:24Z"
 ---
 
 <summary>
