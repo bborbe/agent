@@ -29,16 +29,16 @@ generate:
 test:
 	go test -mod=mod -p=$${GO_TEST_PARALLEL:-1} -cover -race $(shell go list -mod=mod ./... | grep -v /vendor/)
 
-check: lint vet errcheck vulncheck osv-scanner gosec trivy
+# errcheck removed — embedded in golangci-lint (see .golangci.yml).
+# gosec removed — embedded in golangci-lint (see .golangci.yml).
+# Standalone errcheck/gosec fatal under Go 1.26+ (NeedDeps issue in package loader).
+check: lint vet vulncheck osv-scanner trivy
 
 lint:
 	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --config $(ROOTDIR)/.golangci.yml ./...
 
 vet:
 	go vet -mod=mod $(shell go list -mod=mod ./... | grep -v /vendor/)
-
-errcheck:
-	go run github.com/kisielk/errcheck@$(ERRCHECK_VERSION) -ignore '(Close|Write|Fprint)' $(shell go list -mod=mod ./... | grep -v /vendor/ | grep -v k8s/client)
 
 .PHONY: vulncheck
 vulncheck:
@@ -59,9 +59,6 @@ osv-scanner:
 		echo "No config found, running default scan"; \
 		go run github.com/google/osv-scanner/v2/cmd/osv-scanner@$(OSV_SCANNER_VERSION) --recursive .; \
 	fi
-
-gosec:
-	go run github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION) -exclude=G104 ./...
 
 .PHONY: trivy
 trivy:
