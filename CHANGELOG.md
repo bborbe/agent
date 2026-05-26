@@ -1,5 +1,17 @@
 # Changelog
 
+All notable changes to this project will be documented in this file.
+
+Please choose versions by [Semantic Versioning](http://semver.org/).
+
+* MAJOR version when you make incompatible API changes,
+* MINOR version when you add functionality in a backwards-compatible manner, and
+* PATCH version when you make backwards-compatible bug fixes.
+
+## v0.63.23
+
+- test(agent/gemini/pkg/steps): add Ginkgo v2 test suite covering ExecuteStep, VerifyStep, compute, and needsInput — 95.7% statement coverage
+
 ## v0.63.22
 
 - test(agent/code/pkg/steps): add Ginkgo v2 test suite with 26 tests covering PlanStep, ExecuteStep, VerifyStep, and the compute helper — 95.2% statement coverage

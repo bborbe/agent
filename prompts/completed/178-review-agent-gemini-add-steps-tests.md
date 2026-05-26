@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added comprehensive Ginkgo v2 test suite for agent/gemini/pkg/steps covering ExecuteStep, VerifyStep, compute, and needsInput — 95.7% statement coverage
+container: agent-exec-178-review-agent-gemini-add-steps-tests
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-26T00:00:58Z"
+completed: "2026-05-26T00:05:22Z"
 ---
 
 <summary>
