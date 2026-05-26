@@ -184,3 +184,23 @@ Deferring is not viable: the inbox is being relied on day-to-day (proven by the 
 - `docs/task-flow-and-failure-semantics.md` — must be updated (partial-update primitive enumerated).
 - `~/Documents/Obsidian/Personal/24 Tasks/UpdateFrontmatter Executor Bypasses human_review Doctrine.md` — driving task with live incident evidence (2026-05-25 prod, pr-reviewer + PR #3).
 - `~/Documents/Obsidian/OpenClaw/tasks/PR Review github - bborbe-agent - 3 - 183193c3 - add-pi-agent-variant.md` — incident artifact file with the violating frontmatter on disk at incident capture time.
+
+## Verification Result
+
+**Verified:** 2026-05-26T15:36:42Z (HEAD c25f540)
+**Binary:** installed `dark-factory` (agent repo spec; Phase 0 N/A)
+**Deployed image:** dev `agent-task-controller@sha256:320d5777bd11...`, pod started 2026-05-26T11:54:41Z (post-v0.63.15 release at 01:10Z — fix is live)
+**Scenario:** No scenario file (spec declares "No new scenario test"; behavior fully observable in Ginkgo unit tests + grep audit + doc inspection + live deploy confirmation).
+**Evidence:**
+- AC#1 helper: `task/controller/pkg/result/result_writer.go:288 func ClearAssigneeIfHumanReview(merged lib.TaskFrontmatter) string` — single declaration, body invokes existing `clearAssignee`.
+- AC#2 result_writer call site: line 215 calls `ClearAssigneeIfHumanReview(merged)` replacing inline `phase == "human_review"` guard.
+- AC#3 executor call site: `task_update_frontmatter_executor.go:122 result.ClearAssigneeIfHumanReview(fm)` inside `buildUpdateModifyFn` after merge, before marshal.
+- AC#4-7 unit tests: `task_update_frontmatter_executor_test.go` Context "spec 042: phase flip to human_review clears assignee" (line 282) + idempotent re-clear (line 340) + combined frontmatter+body Verdict reproducer (line 370) + non-phase preserve coverage in surrounding contexts. All pass under `make precommit`.
+- AC#8 result_writer_test.go unchanged tests: pass under `make precommit`.
+- AC#9 grep audit: `grep -rn 'phase.*human_review' task/controller/pkg/ lib/delivery/ --include='*.go' | grep -v _test.go` enumerates 10 matches — all comments (8), helper definition (line 289), or helper call sites (lines 215, 122). Zero assignment-side matches outside helper.
+- AC#10 controller-design.md line 71: table row `UpdateFrontmatterCommand (spec 042) | human_review | "" | buildUpdateModifyFn → ClearAssigneeIfHumanReview`.
+- AC#11 task-flow-and-failure-semantics.md line 188: "Partial-update doctrine guard (spec 042)" paragraph names `buildUpdateModifyFn` + `result.ClearAssigneeIfHumanReview`.
+- AC#12 CHANGELOG.md: v0.63.14 entry adds helper + executor wire + result_writer refactor; v0.63.15 fix entry names the 2026-05-25 prod incident and spec 039 predecessor.
+- AC#13 `make precommit` in `task/controller`: exit 0, `ready to commit`, gosec 0 issues, trivy 0 vuln.
+- AC#14 Post-Deploy: dev controller pod running v0.63.15+ image (start 11:54Z, release 01:10Z). **Caveat: live K8s pod-kill reproducer was NOT executed under this verification run.** Backtest task `c0690a8b-...` triggered for the purpose ran to natural completion via the spec-041 `Result.NextPhase: human_review` path (which DOES live-exercise the shared helper from the result_writer side at line 215), not the spec-042 partial-update path. Spec-042's executor path is covered by the four Ginkgo unit tests above; next opportunistic real K8s crash (or agent verify-fail emitting `UpdateFrontmatterCommand{phase: human_review}`) will provide live evidence. Accepted as adequate: the helper itself is exercised live via the result_writer call site, the call site in the executor is a single-line invocation of the tested helper, and the four unit tests cover all branches in the FailureModes table.
+**Verdict:** PASS
