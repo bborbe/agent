@@ -11,6 +11,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 ## v0.63.30
 
 - test(task/executor): add PublishIncrementTriggerCount coverage tests for happy path, error path, and empty task identifier edge case
+- test(task/executor): add PublishRaw test covering base.ParseEvent error path when invalid JSON is passed
 
 ## v0.63.29
 

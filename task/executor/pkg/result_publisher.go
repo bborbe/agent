@@ -39,6 +39,8 @@ type ResultPublisher interface {
 	// is not in the agent's effective type set. Sets phase=ai_review and clears assignee
 	// so the task surfaces in the operator inbox. Does not bump trigger_count or retry_count.
 	PublishTypeMismatchFailure(ctx context.Context, task lib.Task, reason string) error
+	// PublishRaw publishes a raw payload for testing error paths.
+	PublishRaw(ctx context.Context, operation base.CommandOperation, payload interface{}) error
 }
 
 // NewResultPublisher creates a ResultPublisher.
@@ -170,4 +172,13 @@ func (p *resultPublisher) publishRaw(
 		return errors.Wrapf(ctx, err, "send command for operation %s", operation)
 	}
 	return nil
+}
+
+// PublishRaw exposes publishRaw for testing error path coverage.
+func (p *resultPublisher) PublishRaw(
+	ctx context.Context,
+	operation base.CommandOperation,
+	payload interface{},
+) error {
+	return p.publishRaw(ctx, operation, payload)
 }

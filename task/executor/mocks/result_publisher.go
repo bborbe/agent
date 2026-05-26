@@ -7,6 +7,7 @@ import (
 
 	"github.com/bborbe/agent/lib"
 	"github.com/bborbe/agent/task/executor/pkg"
+	"github.com/bborbe/cqrs/base"
 )
 
 type FakeResultPublisher struct {
@@ -34,6 +35,19 @@ type FakeResultPublisher struct {
 		result1 error
 	}
 	publishIncrementTriggerCountReturnsOnCall map[int]struct {
+		result1 error
+	}
+	PublishRawStub        func(context.Context, base.CommandOperation, interface{}) error
+	publishRawMutex       sync.RWMutex
+	publishRawArgsForCall []struct {
+		arg1 context.Context
+		arg2 base.CommandOperation
+		arg3 interface{}
+	}
+	publishRawReturns struct {
+		result1 error
+	}
+	publishRawReturnsOnCall map[int]struct {
 		result1 error
 	}
 	PublishSpawnNotificationStub        func(context.Context, lib.Task, string) error
@@ -188,6 +202,69 @@ func (fake *FakeResultPublisher) PublishIncrementTriggerCountReturnsOnCall(i int
 		})
 	}
 	fake.publishIncrementTriggerCountReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeResultPublisher) PublishRaw(arg1 context.Context, arg2 base.CommandOperation, arg3 interface{}) error {
+	fake.publishRawMutex.Lock()
+	ret, specificReturn := fake.publishRawReturnsOnCall[len(fake.publishRawArgsForCall)]
+	fake.publishRawArgsForCall = append(fake.publishRawArgsForCall, struct {
+		arg1 context.Context
+		arg2 base.CommandOperation
+		arg3 interface{}
+	}{arg1, arg2, arg3})
+	stub := fake.PublishRawStub
+	fakeReturns := fake.publishRawReturns
+	fake.recordInvocation("PublishRaw", []interface{}{arg1, arg2, arg3})
+	fake.publishRawMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeResultPublisher) PublishRawCallCount() int {
+	fake.publishRawMutex.RLock()
+	defer fake.publishRawMutex.RUnlock()
+	return len(fake.publishRawArgsForCall)
+}
+
+func (fake *FakeResultPublisher) PublishRawCalls(stub func(context.Context, base.CommandOperation, interface{}) error) {
+	fake.publishRawMutex.Lock()
+	defer fake.publishRawMutex.Unlock()
+	fake.PublishRawStub = stub
+}
+
+func (fake *FakeResultPublisher) PublishRawArgsForCall(i int) (context.Context, base.CommandOperation, interface{}) {
+	fake.publishRawMutex.RLock()
+	defer fake.publishRawMutex.RUnlock()
+	argsForCall := fake.publishRawArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeResultPublisher) PublishRawReturns(result1 error) {
+	fake.publishRawMutex.Lock()
+	defer fake.publishRawMutex.Unlock()
+	fake.PublishRawStub = nil
+	fake.publishRawReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeResultPublisher) PublishRawReturnsOnCall(i int, result1 error) {
+	fake.publishRawMutex.Lock()
+	defer fake.publishRawMutex.Unlock()
+	fake.PublishRawStub = nil
+	if fake.publishRawReturnsOnCall == nil {
+		fake.publishRawReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.publishRawReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }

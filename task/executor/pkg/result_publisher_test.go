@@ -322,4 +322,15 @@ var _ = Describe("ResultPublisher", func() {
 			Expect(cmd.Delta).To(Equal(1))
 		})
 	})
+
+	Describe("PublishRaw", func() {
+		It("returns wrapped error when base.ParseEvent fails", func() {
+			// Pass an invalid JSON string to cause ParseEvent to fail
+			invalidJSON := "{not valid json"
+			err := publisher.PublishRaw(ctx, taskcmd.UpdateFrontmatterCommandOperation, invalidJSON)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("parse event for operation"))
+			Expect(err.Error()).To(ContainSubstring("update-frontmatter"))
+		})
+	})
 })
