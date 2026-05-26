@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: 'Three security fixes applied: Title path separator validation in resolveCreateTaskPath, context cancellation check before first HTTP attempt in Post/Delete retry loops, and io.LimitReader bounds on HTTP response reads in Get/List'
+container: agent-exec-184-review-task-controller-fix-title-path-traversal-and-security
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-26T06:25:21Z"
+completed: "2026-05-26T06:28:42Z"
 ---
 
 <summary>

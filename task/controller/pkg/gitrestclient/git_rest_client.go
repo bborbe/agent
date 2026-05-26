@@ -116,7 +116,7 @@ func (g *gitRestClient) Get(ctx context.Context, relPath string) ([]byte, error)
 		return nil, errors.Wrapf(ctx, err, "GET %s", relPath)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024)) // 10 MiB max
 	if err != nil {
 		g.metrics.GitRestCallsTotal("get", "error").Inc()
 		return nil, errors.Wrapf(ctx, err, "read GET response body for %s", relPath)
@@ -138,6 +138,11 @@ func (g *gitRestClient) Post(ctx context.Context, relPath string, content []byte
 	reqURL := g.baseURL + "/api/v1/files/" + relPath
 	var lastErr error
 	for attempt := 0; attempt < 5; attempt++ {
+		select {
+		case <-ctx.Done():
+			return errors.Wrapf(ctx, ctx.Err(), "POST %s cancelled before attempt", relPath)
+		default:
+		}
 		if attempt > 0 {
 			g.metrics.KafkaConsumePausedTotal().Inc()
 			backoff := g.backoff(attempt)
@@ -189,6 +194,11 @@ func (g *gitRestClient) Delete(ctx context.Context, relPath string) error {
 	reqURL := g.baseURL + "/api/v1/files/" + relPath
 	var lastErr error
 	for attempt := 0; attempt < 5; attempt++ {
+		select {
+		case <-ctx.Done():
+			return errors.Wrapf(ctx, ctx.Err(), "DELETE %s cancelled before attempt", relPath)
+		default:
+		}
 		if attempt > 0 {
 			g.metrics.KafkaConsumePausedTotal().Inc()
 			backoff := g.backoff(attempt)
@@ -247,7 +257,7 @@ func (g *gitRestClient) List(ctx context.Context, glob string) ([]string, error)
 		return nil, errors.Wrapf(ctx, err, "LIST glob %s", glob)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024)) // 10 MiB max
 	if err != nil {
 		g.metrics.GitRestCallsTotal("list", "error").Inc()
 		return nil, errors.Wrapf(ctx, err, "read LIST response body for glob %s", glob)

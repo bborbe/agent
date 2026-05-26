@@ -8,6 +8,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/cqrs/cdb"
@@ -110,10 +111,19 @@ func resolveCreateTaskPath(
 
 	titlePath := filepath.Join(taskDirPath, cmd.Title+".md")
 
+	// Reject titles containing path separators to prevent path traversal.
+	if strings.ContainsAny(cmd.Title, "/\\") {
+		glog.Warningf(
+			"create-task: Title %q contains path separator; falling back to UUID path",
+			cmd.Title,
+		)
+		return uuidPath
+	}
+
 	// Check if a file already exists at the title-derived path.
 	existing, err := os.ReadFile(
 		titlePath,
-	) // #nosec G304 -- path built from validated Title within taskDirPath
+	) // #nosec G304 -- titlePath is guarded by strings.ContainsAny check above; defense-in-depth
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Title path is free — use it.

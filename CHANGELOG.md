@@ -8,6 +8,12 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.63.29
+
+- fix(task/controller): reject titles containing path separators in resolveCreateTaskPath as defense-in-depth against traversal
+- fix(task/controller): check context cancellation before first HTTP attempt in Post and Delete retry loops
+- fix(task/controller): limit HTTP response body reads to 10 MiB in Get and List methods
+
 ## v0.63.28
 
 - test(task/controller): add coverage tests for NewGitRestVaultScanner, exponentialBackoff, extractFrontmatter CRLF, and processFile YAML unmarshal failure path
