@@ -1,6 +1,10 @@
 ---
-status: draft
+status: executing
+container: agent-exec-192-review-task-controller-fix-vault-scanner-srp
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
+queued: "2026-05-26T11:51:18Z"
+started: "2026-05-26T11:51:20Z"
 ---
 
 <summary>
