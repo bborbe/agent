@@ -26,7 +26,7 @@ var _ = Describe("AgentsHandler", func() {
 
 	BeforeEach(func() {
 		providerFake = &fakeProviderImpl{}
-		h = handler.NewAgentsHandler(providerFake)
+		h = handler.NewAgentsHandler(providerFake, "")
 	})
 
 	Context("GET request", func() {
@@ -93,6 +93,58 @@ var _ = Describe("AgentsHandler", func() {
 			h.ServeHTTP(rec, req)
 
 			Expect(rec.statusCode).To(Equal(http.StatusInternalServerError))
+		})
+	})
+
+	Context("authentication", func() {
+		var providerFake *fakeProviderImpl
+
+		BeforeEach(func() {
+			providerFake = &fakeProviderImpl{}
+		})
+
+		It("returns HTTP 401 without X-Agent-Auth header when secret is set", func() {
+			h = handler.NewAgentsHandler(providerFake, "secret123")
+
+			rec := &responseRecorder{}
+			req := httptest.NewRequest(http.MethodGet, "/agents", nil)
+			h.ServeHTTP(rec, req)
+
+			Expect(rec.statusCode).To(Equal(http.StatusUnauthorized))
+		})
+
+		It("returns HTTP 401 with wrong X-Agent-Auth header value", func() {
+			h = handler.NewAgentsHandler(providerFake, "secret123")
+
+			rec := &responseRecorder{}
+			req := httptest.NewRequest(http.MethodGet, "/agents", nil)
+			req.Header.Set("X-Agent-Auth", "wrong-secret")
+			h.ServeHTTP(rec, req)
+
+			Expect(rec.statusCode).To(Equal(http.StatusUnauthorized))
+		})
+
+		It("returns HTTP 200 with correct X-Agent-Auth header", func() {
+			providerFake.configs = []*agentv1.Config{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-agent",
+					},
+					Spec: agentv1.ConfigSpec{
+						Assignee: "claude",
+						Image:    "test-image:latest",
+					},
+				},
+			}
+			h = handler.NewAgentsHandler(providerFake, "secret123")
+
+			rec := &responseRecorder{}
+			req := httptest.NewRequest(http.MethodGet, "/agents", nil)
+			req.Header.Set("X-Agent-Auth", "secret123")
+			h.ServeHTTP(rec, req)
+
+			Expect(rec.statusCode).To(Equal(http.StatusOK))
+			Expect(rec.body).To(ContainSubstring(`"name":"test-agent"`))
 		})
 	})
 })

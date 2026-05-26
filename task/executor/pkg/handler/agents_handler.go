@@ -16,15 +16,29 @@ import (
 
 // NewAgentsHandler returns an http.Handler that lists all known agent
 // configs from the in-memory store as JSON.
-func NewAgentsHandler(provider k8s.Provider[agentv1.Config]) http.Handler {
-	return &agentsHandler{provider: provider}
+// If authSecret is non-empty, requests must include X-Agent-Auth header with the secret.
+func NewAgentsHandler(provider k8s.Provider[agentv1.Config], authSecret string) http.Handler {
+	return &agentsHandler{
+		provider:   provider,
+		authSecret: authSecret,
+	}
 }
 
 type agentsHandler struct {
-	provider k8s.Provider[agentv1.Config]
+	provider   k8s.Provider[agentv1.Config]
+	authSecret string
 }
 
 func (h *agentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// AGENTS_AUTH_SECRET enables authentication for the /agents endpoint.
+	// If empty, authentication is disabled (for development).
+	if h.authSecret != "" {
+		if r.Header.Get("X-Agent-Auth") != h.authSecret {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
 	configs, err := h.provider.Get(r.Context())
 	if err != nil {
 		glog.Warningf("list agent configs: %v", err)

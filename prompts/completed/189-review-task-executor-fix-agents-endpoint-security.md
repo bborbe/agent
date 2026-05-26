@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added X-Agent-Auth header authentication to /agents endpoint with AGENTS_AUTH_SECRET env var support, returning 401 Unauthorized when secret is set but header missing or invalid
+container: agent-exec-189-review-task-executor-fix-agents-endpoint-security
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-26T07:21:06Z"
+completed: "2026-05-26T07:23:27Z"
 ---
 
 <summary>
