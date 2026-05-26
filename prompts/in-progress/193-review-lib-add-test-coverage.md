@@ -1,6 +1,12 @@
 ---
-status: draft
+status: committing
+summary: Added 11 new Ginkgo test files covering agent_markdown.go, agent_parser.go, agent_phase.go, agent_runner.go, agent_schema.go, agent_task-assignee.go, agent_task-identifier.go, agent_status.go, agent_print-result.go, agent_task-content.go, and agent_task-frontmatter.go, raising lib/ coverage from 59.2% to 91.8%.
+container: agent-exec-193-review-lib-add-test-coverage
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
+queued: "2026-05-26T15:21:34Z"
+started: "2026-05-26T15:21:35Z"
+completed: "2026-05-26T15:26:48Z"
 ---
 
 <summary>
