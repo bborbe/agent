@@ -10,6 +10,8 @@ export ROOTDIR ?= $(shell git rev-parse --show-toplevel)
 
 default: precommit
 
+.PHONY: precommit ensure format generate check lint test vet errcheck gosec addlicense vulncheck osv-scanner trivy
+
 precommit: ensure format generate test check addlicense
 	@echo "ready to commit"
 
@@ -30,7 +32,6 @@ generate:
 	echo "package mocks" > mocks/mocks.go
 	go generate -mod=mod ./...
 
-.PHONY: test
 test:
 	go test -mod=mod -p=$${GO_TEST_PARALLEL:-1} -cover -race $(shell go list -mod=mod ./... | grep -v /vendor/)
 
@@ -45,14 +46,12 @@ vet:
 errcheck:
 	GODEBUG=gotypesalias=1 go run github.com/kisielk/errcheck@$(ERRCHECK_VERSION) -ignore '(Close|Write|Fprint)' $(shell go list -mod=mod ./... | grep -v /vendor/ | grep -v k8s/client)
 
-.PHONY: vulncheck
 vulncheck:
 	@go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) -format json $(shell go list -mod=mod ./... | grep -v /vendor/) 2>&1 | \
 		jq -e 'select(.finding != null and .finding.osv != "GO-2026-4923" and .finding.osv != "GO-2026-4514" and .finding.osv != "GO-2022-0470" and .finding.osv != "GO-2026-4772" and .finding.osv != "GO-2026-4771")' > /dev/null 2>&1 && \
 		{ echo "Unexpected vulnerabilities found"; go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) $(shell go list -mod=mod ./... | grep -v /vendor/); exit 1; } || \
 		echo "No unignored vulnerabilities found"
 
-.PHONY: osv-scanner
 osv-scanner:
 	@if [ -f .osv-scanner.toml ]; then \
 		echo "Using .osv-scanner.toml"; \
@@ -68,7 +67,6 @@ osv-scanner:
 gosec:
 	go run github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION) -exclude=G104 ./...
 
-.PHONY: trivy
 trivy:
 	trivy fs \
 	--db-repository ghcr.io/aquasecurity/trivy-db \

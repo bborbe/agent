@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added tools.go and consolidated .PHONY declaration to task/controller Makefile
+container: agent-exec-181-review-task-controller-fix-build-tooling
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-26T05:55:28Z"
+completed: "2026-05-26T05:58:52Z"
 ---
 
 <summary>
