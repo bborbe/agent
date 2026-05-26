@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.63.33
+
+- refactor(task/executor): replace concrete `run.Runnable` return type with `CronScheduler` interface in `CreateHealthcheckCron`
+
 ## v0.63.32
 
 - fix(task/executor): add X-Agent-Auth header authentication to /agents endpoint protecting K8s resource names and Secret names from unauthenticated access

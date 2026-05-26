@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Replaced concrete run.Runnable return type with CronScheduler interface in CreateHealthcheckCron
+container: agent-exec-190-review-task-executor-fix-create-healthcheck-cron-return-type
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-26T07:23:31Z"
+completed: "2026-05-26T07:26:27Z"
 ---
 
 <summary>

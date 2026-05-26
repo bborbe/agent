@@ -128,6 +128,6 @@ func CreateHealthcheckRunner(
 func CreateHealthcheckCron(
 	expression libcron.Expression,
 	runner probe.HealthcheckRunner,
-) run.Runnable {
+) pkg.CronScheduler {
 	return libcron.NewExpressionCron(expression, runner)
 }
