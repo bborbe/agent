@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/bborbe/agent/agent/pi/pkg/envparse"
+	"github.com/bborbe/agent/lib/envparse"
 )
 
 var _ = Describe("KeyValuePairs", func() {
@@ -27,6 +27,12 @@ var _ = Describe("KeyValuePairs", func() {
 	It("trims whitespace around each pair", func() {
 		Expect(
 			envparse.KeyValuePairs(" A=1 , B=2 "),
+		).To(Equal(map[string]string{"A": "1", "B": "2"}))
+	})
+
+	It("trims whitespace around keys and values separately", func() {
+		Expect(
+			envparse.KeyValuePairs(" A = 1 , B = 2 "),
 		).To(Equal(map[string]string{"A": "1", "B": "2"}))
 	})
 

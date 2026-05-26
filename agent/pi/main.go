@@ -26,10 +26,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/push"
 
-	"github.com/bborbe/agent/agent/pi/pkg/envparse"
 	"github.com/bborbe/agent/agent/pi/pkg/factory"
 	agentlib "github.com/bborbe/agent/lib"
 	delivery "github.com/bborbe/agent/lib/delivery"
+	"github.com/bborbe/agent/lib/envparse"
 	libmetrics "github.com/bborbe/agent/lib/metrics"
 )
 

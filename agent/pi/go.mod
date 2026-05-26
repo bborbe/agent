@@ -22,7 +22,7 @@ require (
 require (
 	github.com/IBM/sarama v1.48.1 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/bborbe/agent/agent/claude v0.0.0-20260526000723-8f72cee99d0a // indirect
+	github.com/bborbe/agent/agent/claude v0.0.0-20260526072627-a49f3245e794 // indirect
 	github.com/bborbe/argument/v2 v2.12.22 // indirect
 	github.com/bborbe/collection v1.20.12 // indirect
 	github.com/bborbe/http v1.26.12 // indirect

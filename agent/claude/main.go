@@ -35,6 +35,7 @@ import (
 	agentlib "github.com/bborbe/agent/lib"
 	claudelib "github.com/bborbe/agent/lib/claude"
 	delivery "github.com/bborbe/agent/lib/delivery"
+	"github.com/bborbe/agent/lib/envparse"
 	libmetrics "github.com/bborbe/agent/lib/metrics"
 )
 
@@ -134,7 +135,7 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		)
 	}
 
-	claudeEnv := claudelib.ParseKeyValuePairs(a.ClaudeEnvRaw)
+	claudeEnv := envparse.KeyValuePairs(a.ClaudeEnvRaw)
 	if claudeEnv == nil {
 		claudeEnv = map[string]string{}
 	}
@@ -154,7 +155,7 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		claudelib.ParseAllowedTools(a.AllowedToolsRaw),
 		a.AnthropicModel,
 		claudeEnv,
-		claudelib.ParseKeyValuePairs(a.EnvContextRaw),
+		envparse.KeyValuePairs(a.EnvContextRaw),
 	)
 	agent, err := provider.Get(ctx, agentlib.TaskType(a.TaskType))
 	if err != nil {

@@ -2,16 +2,15 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package claude
+// Package envparse provides simple parsers for KEY=VALUE-style CLI inputs.
+package envparse
 
 import "strings"
 
-// ParseKeyValuePairs parses a comma-separated KEY1=VALUE1,KEY2=VALUE2
-// string into a map. Empty input returns nil. Pairs without '=' are
-// silently skipped. Used by claude-agent main entry points to populate
-// EnvContext (prompt template vars) and the Claude CLI process env from
-// CLI flags / K8s Job env.
-func ParseKeyValuePairs(raw string) map[string]string {
+// KeyValuePairs parses a comma-separated KEY1=VALUE1,KEY2=VALUE2 string
+// into a map. Empty input returns nil. Pairs without '=' are silently
+// skipped. Whitespace around keys and values is trimmed.
+func KeyValuePairs(raw string) map[string]string {
 	if raw == "" {
 		return nil
 	}

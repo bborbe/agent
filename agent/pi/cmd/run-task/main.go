@@ -19,9 +19,9 @@ import (
 	"github.com/bborbe/service"
 	"github.com/bborbe/vault-cli/pkg/domain"
 
-	"github.com/bborbe/agent/agent/pi/pkg/envparse"
 	"github.com/bborbe/agent/agent/pi/pkg/factory"
 	agentlib "github.com/bborbe/agent/lib"
+	"github.com/bborbe/agent/lib/envparse"
 )
 
 func main() {
