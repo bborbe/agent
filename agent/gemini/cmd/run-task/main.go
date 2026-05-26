@@ -19,6 +19,7 @@ import (
 	"github.com/bborbe/vault-cli/pkg/domain"
 
 	"github.com/bborbe/agent/agent/gemini/pkg/factory"
+	"github.com/bborbe/agent/agent/gemini/pkg/parser"
 	agentlib "github.com/bborbe/agent/lib"
 )
 
@@ -50,7 +51,7 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		return errors.Wrapf(ctx, err, "read task file: %s", a.TaskFilePath)
 	}
 
-	geminiParser, err := factory.CreateGeminiParser(ctx, a.GeminiAPIKey, a.GeminiModel)
+	geminiParser, err := parser.New(ctx, a.GeminiAPIKey, a.GeminiModel)
 	if err != nil {
 		return errors.Wrap(ctx, err, "create gemini parser")
 	}

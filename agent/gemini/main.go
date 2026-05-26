@@ -36,6 +36,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/push"
 
 	"github.com/bborbe/agent/agent/gemini/pkg/factory"
+	"github.com/bborbe/agent/agent/gemini/pkg/parser"
 	agentlib "github.com/bborbe/agent/lib"
 	delivery "github.com/bborbe/agent/lib/delivery"
 	libmetrics "github.com/bborbe/agent/lib/metrics"
@@ -91,7 +92,7 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 
 	glog.V(2).Infof("agent-gemini started phase=%s", a.Phase)
 
-	parser, err := factory.CreateGeminiParser(ctx, a.GeminiAPIKey, a.GeminiModel)
+	parser, err := parser.New(ctx, a.GeminiAPIKey, a.GeminiModel)
 	if err != nil {
 		jobMetrics.RecordRun(agentlib.AgentStatusFailed)
 		jobMetrics.RecordDuration(time.Since(start))
@@ -105,7 +106,11 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 			jobMetrics.RecordDuration(time.Since(start))
 			return errors.Errorf(ctx, "KAFKA_BROKERS must be set when TASK_ID is set")
 		}
-		syncProducer, err := factory.CreateSyncProducer(ctx, a.KafkaBrokers)
+		syncProducer, err := libkafka.NewSyncProducerWithName(
+			ctx,
+			a.KafkaBrokers,
+			factory.ServiceName,
+		)
 		if err != nil {
 			jobMetrics.RecordRun(agentlib.AgentStatusFailed)
 			jobMetrics.RecordDuration(time.Since(start))

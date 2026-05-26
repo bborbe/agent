@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Removed CreateSyncProducer and CreateGeminiParser factory functions from agent/gemini/pkg/factory/factory.go and moved error-producing logic to call sites in main.go and cmd/run-task/main.go
+container: agent-exec-179-review-agent-gemini-fix-factory-pattern
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-26T00:05:26Z"
+completed: "2026-05-26T00:07:23Z"
 ---
 
 <summary>

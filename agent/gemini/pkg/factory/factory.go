@@ -9,49 +9,18 @@
 package factory
 
 import (
-	"context"
-
 	"github.com/bborbe/cqrs/base"
-	"github.com/bborbe/errors"
 	libkafka "github.com/bborbe/kafka"
 	libtime "github.com/bborbe/time"
 	"github.com/bborbe/vault-cli/pkg/domain"
 
-	"github.com/bborbe/agent/agent/gemini/pkg/parser"
 	"github.com/bborbe/agent/agent/gemini/pkg/steps"
 	agentlib "github.com/bborbe/agent/lib"
 	delivery "github.com/bborbe/agent/lib/delivery"
 	healthcheck "github.com/bborbe/agent/lib/healthcheck"
 )
 
-const serviceName = "agent-gemini"
-
-// CreateSyncProducer creates a Kafka sync producer.
-func CreateSyncProducer(
-	ctx context.Context,
-	brokers libkafka.Brokers,
-) (libkafka.SyncProducer, error) {
-	producer, err := libkafka.NewSyncProducerWithName(ctx, brokers, serviceName)
-	if err != nil {
-		return nil, errors.Wrap(ctx, err, "create sync producer failed")
-	}
-	return producer, nil
-}
-
-// CreateGeminiParser constructs a Gemini-backed AIParser for use with
-// lib.NewParseStep. Returns the AIParser interface so callers stay
-// decoupled from the concrete Gemini implementation.
-func CreateGeminiParser(
-	ctx context.Context,
-	apiKey string,
-	model string,
-) (agentlib.AIParser, error) {
-	p, err := parser.New(ctx, apiKey, model)
-	if err != nil {
-		return nil, errors.Wrap(ctx, err, "create gemini parser failed")
-	}
-	return p, nil
-}
+const ServiceName = "agent-gemini"
 
 // CreateKafkaResultDeliverer creates a ResultDeliverer that publishes task
 // updates to Kafka via CQRS commands. Uses the passthrough content generator
