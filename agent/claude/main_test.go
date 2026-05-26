@@ -7,9 +7,6 @@ package main_test
 //go:generate go run -mod=mod github.com/maxbrunsfeld/counterfeiter/v6 -generate
 
 import (
-	"os"
-	"os/exec"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -18,16 +15,12 @@ import (
 	"github.com/onsi/gomega/format"
 )
 
-var _ = Describe("Main", func() {
-	It("Compiles", func() {
-		tmpDir, err := os.MkdirTemp("", "agent-claude-build-*")
-		Expect(err).NotTo(HaveOccurred())
-		defer os.RemoveAll(tmpDir)
-		cmd := exec.Command("go", "build", "-mod=mod", "-buildvcs=false", "-o", filepath.Join(tmpDir, "bin"), ".")
-		out, err := cmd.CombinedOutput()
-		Expect(err).NotTo(HaveOccurred(), "go build failed: %s", out)
-	})
-})
+// NOTE: Explicit "Compiles" spec removed because spawning a child
+// process from this race-instrumented test binary segfaults on the
+// GH Actions runner (works locally; only reproduces on Linux CI under
+// -race). The test binary itself IS package main built — if main.go
+// does not compile, `go test` fails immediately, so the assertion is
+// redundant. See vault note [[Github Workflow Actions]] gotchas.
 
 func TestSuite(t *testing.T) {
 	time.Local = time.UTC
