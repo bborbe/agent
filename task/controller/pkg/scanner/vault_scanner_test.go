@@ -78,6 +78,62 @@ func (t *testGitClient) ReadFile(_ context.Context, _ string) ([]byte, error) { 
 
 func (t *testGitClient) WriteFile(_ context.Context, _ string, _ []byte) error { return nil }
 
+// fileOpsTestGitClient is a test double with real file I/O for NewGitRestVaultScanner tests.
+type fileOpsTestGitClient struct {
+	path          string
+	pullErr       error
+	commitPushErr error
+}
+
+func (t *fileOpsTestGitClient) EnsureCloned(_ context.Context) error { return nil }
+
+func (t *fileOpsTestGitClient) Pull(_ context.Context) error { return t.pullErr }
+
+func (t *fileOpsTestGitClient) Path() string { return t.path }
+
+func (t *fileOpsTestGitClient) CommitAndPush(_ context.Context, _ string) error {
+	return t.commitPushErr
+}
+
+func (t *fileOpsTestGitClient) AtomicWriteAndCommitPush(
+	_ context.Context,
+	_ string,
+	_ []byte,
+	_ string,
+) error {
+	return t.commitPushErr
+}
+
+func (t *fileOpsTestGitClient) AtomicReadModifyWriteAndCommitPush(
+	_ context.Context,
+	_ string,
+	_ func([]byte) ([]byte, error),
+	_ string,
+) error {
+	return t.commitPushErr
+}
+
+func (t *fileOpsTestGitClient) ListFiles(_ context.Context, glob string) ([]string, error) {
+	matches, err := filepath.Glob(filepath.Join(t.path, glob))
+	if err != nil {
+		return nil, err
+	}
+	var rel []string
+	for _, m := range matches {
+		r, _ := filepath.Rel(t.path, m)
+		rel = append(rel, r)
+	}
+	return rel, nil
+}
+
+func (t *fileOpsTestGitClient) ReadFile(_ context.Context, relPath string) ([]byte, error) {
+	return os.ReadFile(filepath.Join(t.path, relPath)) // #nosec G304 -- test-only path
+}
+
+func (t *fileOpsTestGitClient) WriteFile(_ context.Context, relPath string, content []byte) error {
+	return os.WriteFile(filepath.Join(t.path, relPath), content, 0600)
+}
+
 func mustInitGitRepo(dir string) {
 	cmds := [][]string{
 		{"git", "-C", dir, "init"},
@@ -346,6 +402,24 @@ var _ = Describe("VaultScanner", func() {
 			Expect(result.Changed).To(HaveLen(1))
 			Expect(string(result.Changed[0].Frontmatter.Assignee())).To(Equal("claude"))
 		})
+
+		It(
+			"skips file when YAML is invalid and fails DeduplicateFrontmatter first unmarshal",
+			func() {
+				// Content with a bare '[' character is invalid YAML (unclosed flow sequence).
+				// DeduplicateFrontmatter returns an error, causing processFile to skip the file.
+				// RunCycle always sends an empty ScanResult to the channel, so we verify
+				// that Changed is empty (file was not published).
+				content := "---\ntask_identifier: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\nstatus: todo\nassignee: [invalid\n---\n# Invalid"
+				absPath := filepath.Join(tmpDir, taskDir, "invalid-yaml-frontmatter.md")
+				Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+
+				s.RunCycle(ctx, results)
+				var result scanner.ScanResult
+				Expect(results).To(Receive(&result))
+				Expect(result.Changed).To(BeEmpty())
+			},
+		)
 	})
 
 	Describe("DeduplicateFrontmatter", func() {
@@ -409,6 +483,28 @@ var _ = Describe("VaultScanner", func() {
 		It("returns a non-nil VaultScanner", func() {
 			vs := scanner.NewVaultScanner(fakeGit, taskDir, time.Hour, nil)
 			Expect(vs).NotTo(BeNil())
+		})
+	})
+
+	Describe("NewGitRestVaultScanner", func() {
+		It("uses fileOps (ListFiles/ReadFile/WriteFile) through the fileOps interface", func() {
+			// fileOpsTestGitClient provides real ListFiles/ReadFile/WriteFile implementations
+			gitClient := &fileOpsTestGitClient{path: tmpDir}
+			vs := scanner.NewGitRestVaultScanner(gitClient, taskDir, time.Hour, nil)
+			Expect(vs).NotTo(BeNil())
+
+			// Write a task file and run a cycle to exercise ListFiles/ReadFile/WriteFile
+			content := "---\ntask_identifier: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\nstatus: todo\nassignee: claude\n---\n# Test"
+			absPath := filepath.Join(tmpDir, taskDir, "gitrest-cycle.md")
+			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+
+			resultsCh := make(chan scanner.ScanResult, 1)
+			vs.RunCycle(ctx, resultsCh)
+
+			var result scanner.ScanResult
+			Expect(resultsCh).To(Receive(&result))
+			Expect(result.Changed).To(HaveLen(1))
+			Expect(string(result.Changed[0].Frontmatter.Assignee())).To(Equal("claude"))
 		})
 	})
 

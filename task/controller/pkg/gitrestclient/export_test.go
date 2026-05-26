@@ -24,3 +24,8 @@ func NewGitRestClientForTest(
 		metrics.New(),
 	)
 }
+
+// ExponentialBackoff exposes the package-level exponentialBackoff function for testing.
+func ExponentialBackoff(attempt int) time.Duration {
+	return exponentialBackoff(attempt)
+}

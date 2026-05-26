@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added test coverage for NewGitRestVaultScanner, exponentialBackoff, extractFrontmatter CRLF, and processFile YAML unmarshal failure
+container: agent-exec-183-review-task-controller-fix-test-coverage-gaps
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-26T06:06:37Z"
+completed: "2026-05-26T06:25:17Z"
 ---
 
 <summary>

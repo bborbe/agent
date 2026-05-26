@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.63.28
+
+- test(task/controller): add coverage tests for NewGitRestVaultScanner, exponentialBackoff, extractFrontmatter CRLF, and processFile YAML unmarshal failure path
+
 ## v0.63.27
 
 - feat(task/controller): add Metrics interface to pkg/metrics/metrics.go enabling Counterfeiter mock injection for testability

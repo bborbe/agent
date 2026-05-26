@@ -27,6 +27,16 @@ func shortBackoff(_ int) time.Duration {
 	return time.Millisecond
 }
 
+var _ = Describe("exponentialBackoff", func() {
+	It("returns correct doubling sequence", func() {
+		Expect(gitrestclient.ExponentialBackoff(1)).To(Equal(1 * time.Second))
+		Expect(gitrestclient.ExponentialBackoff(2)).To(Equal(2 * time.Second))
+		Expect(gitrestclient.ExponentialBackoff(3)).To(Equal(4 * time.Second))
+		Expect(gitrestclient.ExponentialBackoff(4)).To(Equal(8 * time.Second))
+		Expect(gitrestclient.ExponentialBackoff(5)).To(Equal(16 * time.Second))
+	})
+})
+
 var _ = Describe("GitRestClient", func() {
 	var (
 		ctx    context.Context
