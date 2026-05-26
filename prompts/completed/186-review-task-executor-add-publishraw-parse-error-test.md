@@ -1,12 +1,12 @@
 ---
-status: committing
+status: completed
 summary: Added PublishRaw test covering base.ParseEvent error path - publishRaw now has 100% coverage
 container: agent-exec-186-review-task-executor-add-publishraw-parse-error-test
 dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T22:23:09Z"
 started: "2026-05-26T07:02:49Z"
-completed: "2026-05-26T07:09:05Z"
+completed: "2026-05-26T07:09:17Z"
 ---
 
 <summary>
