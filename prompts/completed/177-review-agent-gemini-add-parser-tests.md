@@ -1,11 +1,11 @@
 ---
-status: committing
+status: completed
 container: agent-exec-177-review-agent-gemini-add-parser-tests
 dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T22:23:09Z"
 started: "2026-05-25T23:38:42Z"
-completed: "2026-05-26T00:00:44Z"
+completed: "2026-05-26T00:00:56Z"
 ---
 
 <summary>
