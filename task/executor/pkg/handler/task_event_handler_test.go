@@ -315,6 +315,31 @@ var _ = Describe("TaskEventHandler", func() {
 			Expect(calledJobName).To(Equal("claude-20260418120000"))
 		})
 
+		It(
+			"returns nil when PublishSpawnNotification fails but SpawnJob succeeds (best-effort)",
+			func() {
+				fakeSpawner.IsJobActiveReturns(false, nil)
+				fakeSpawner.SpawnJobReturns("claude-20260418120000", nil)
+				fakeResultPublisher.PublishSpawnNotificationReturns(
+					errors.Errorf(ctx, "kafka unavailable"),
+				)
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("test-task-uuid-1234"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":   "in_progress",
+						"phase":    string(domain.TaskPhaseAIReview),
+						"assignee": "claude",
+						"stage":    "prod",
+					},
+				}
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				// Spawn must have been called (job is running), but handler returns nil
+				// because the notification failure is best-effort only.
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
+			},
+		)
+
 		It("stores task in taskStore after successful spawn", func() {
 			fakeSpawner.IsJobActiveReturns(false, nil)
 			fakeSpawner.SpawnJobReturns("claude-20260418120000", nil)
@@ -1445,6 +1470,25 @@ var _ = Describe("TaskEventHandler", func() {
 			BeforeEach(func() {
 				fakeSpawner.IsJobActiveReturns(false, nil)
 				fakeSpawner.SpawnJobReturns("job-grace-1", nil)
+			})
+
+			It("treats malformed job_started_at as elapsed and spawns", func() {
+				// Malformed job_started_at (not parseable as time.RFC3339) must be treated
+				// as elapsed — the grace window is bypassed and spawn proceeds.
+				currentDateTime.SetNow(libtimetest.ParseDateTime("2026-05-16T20:19:26Z"))
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("tid-grace-parse-err"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":         "in_progress",
+						"phase":          string(domain.TaskPhaseExecution),
+						"assignee":       "claude",
+						"current_job":    "pod-A",
+						"job_started_at": "not-a-valid-timestamp",
+					},
+				}
+				err := h.ConsumeMessage(ctx, buildMsg(task))
+				Expect(err).To(BeNil())
+				Expect(fakeSpawner.SpawnJobCallCount()).To(Equal(1))
 			})
 
 			DescribeTable("grace-window decision matrix",

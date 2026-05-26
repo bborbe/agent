@@ -879,6 +879,67 @@ var _ = Describe("JobSpawner", func() {
 			Expect(err).To(BeNil())
 			Expect(active).To(BeTrue())
 		})
+
+		It("returns error when K8s List call fails", func() {
+			fakeClient.PrependReactor(
+				"list",
+				"jobs",
+				func(action k8stesting.Action) (bool, runtime.Object, error) {
+					return true, nil, k8serrors.NewInternalError(fmt.Errorf("server error"))
+				},
+			)
+			jobSpawner = spawner.NewJobSpawner(
+				fakeClient,
+				"test-ns",
+				"kafka:9092",
+				"develop",
+				currentDateTime,
+			)
+			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-list-err"))
+			Expect(err).NotTo(BeNil())
+			Expect(active).To(BeFalse())
+		})
+	})
+
+	Describe("applyTaskIDLabel", func() {
+		It("creates new Labels map when job.Labels is nil (via Create reactor)", func() {
+			// Use a Create reactor to capture the job at the moment of creation.
+			// applyTaskIDLabel is called BEFORE the K8s Create call, so the
+			// captured job will have the labels already set.
+			var capturedJob *batchv1.Job
+			fakeClient.PrependReactor(
+				"create",
+				"jobs",
+				func(action k8stesting.Action) (bool, runtime.Object, error) {
+					createAction, ok := action.(k8stesting.CreateAction)
+					if !ok {
+						return false, nil, nil
+					}
+					capturedJob, ok = createAction.GetObject().(*batchv1.Job)
+					if !ok {
+						return false, nil, nil
+					}
+					return false, nil, nil // pass through to fake client
+				},
+			)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("nil-labels-task"),
+				Frontmatter:    lib.TaskFrontmatter{"assignee": "claude"},
+			}
+			_, err := jobSpawner.SpawnJob(ctx, task, pkg.AgentConfiguration{
+				Assignee: "claude", Image: "my-image:latest",
+			})
+			Expect(err).To(BeNil())
+			Expect(capturedJob).NotTo(BeNil())
+			Expect(capturedJob.Labels).NotTo(BeNil())
+			Expect(
+				capturedJob.Labels["agent.benjamin-borbe.de/task-id"],
+			).To(Equal("nil-labels-task"))
+			Expect(capturedJob.Spec.Template.Labels).NotTo(BeNil())
+			Expect(
+				capturedJob.Spec.Template.Labels["agent.benjamin-borbe.de/task-id"],
+			).To(Equal("nil-labels-task"))
+		})
 	})
 
 	// Regression guard: SpawnJob and IsJobActive must agree on the label key used
@@ -922,6 +983,47 @@ var _ = Describe("JobSpawner", func() {
 			Expect(err).To(BeNil())
 			Expect(active).
 				To(BeFalse(), "IsJobActive must not match a different task's spawned Job")
+		})
+	})
+
+	Describe("applyTaskIDLabel", func() {
+		It("creates new Labels map when job.Labels is nil (via Create reactor)", func() {
+			// Use a Create reactor to capture the job at the moment of creation.
+			// applyTaskIDLabel is called BEFORE the K8s Create call, so the
+			// captured job will have the labels already set.
+			var capturedJob *batchv1.Job
+			fakeClient.PrependReactor(
+				"create",
+				"jobs",
+				func(action k8stesting.Action) (bool, runtime.Object, error) {
+					createAction, ok := action.(k8stesting.CreateAction)
+					if !ok {
+						return false, nil, nil
+					}
+					capturedJob, ok = createAction.GetObject().(*batchv1.Job)
+					if !ok {
+						return false, nil, nil
+					}
+					return false, nil, nil // pass through to fake client
+				},
+			)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("nil-labels-task"),
+				Frontmatter:    lib.TaskFrontmatter{"assignee": "claude"},
+			}
+			_, err := jobSpawner.SpawnJob(ctx, task, pkg.AgentConfiguration{
+				Assignee: "claude", Image: "my-image:latest",
+			})
+			Expect(err).To(BeNil())
+			Expect(capturedJob).NotTo(BeNil())
+			Expect(capturedJob.Labels).NotTo(BeNil())
+			Expect(
+				capturedJob.Labels["agent.benjamin-borbe.de/task-id"],
+			).To(Equal("nil-labels-task"))
+			Expect(capturedJob.Spec.Template.Labels).NotTo(BeNil())
+			Expect(
+				capturedJob.Spec.Template.Labels["agent.benjamin-borbe.de/task-id"],
+			).To(Equal("nil-labels-task"))
 		})
 	})
 })

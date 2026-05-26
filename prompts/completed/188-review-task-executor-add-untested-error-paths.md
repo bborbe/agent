@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: 'Added 4 untested error path tests: checkActiveCurrentJob parse error (malformed job_started_at), spawnIfNeeded spawn notification failure (best-effort warning), IsJobActive K8s list error, and applyTaskIDLabel nil map initialization'
+container: agent-exec-188-review-task-executor-add-untested-error-paths
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-26T07:15:39Z"
+completed: "2026-05-26T07:21:02Z"
 ---
 
 <summary>

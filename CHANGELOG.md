@@ -8,6 +8,13 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.63.31
+
+- test(task/executor): add checkActiveCurrentJob parse error test for malformed job_started_at
+- test(task/executor): add spawnIfNeeded spawn notification failure test
+- test(task/executor): add IsJobActive K8s list error test
+- test(task/executor): add applyTaskIDLabel nil map test
+
 ## v0.63.30
 
 - test(task/executor): add PublishIncrementTriggerCount coverage tests for happy path, error path, and empty task identifier edge case
