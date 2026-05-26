@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: PublishIncrementTriggerCount tests already existed with 100% coverage — all requirements met
+container: agent-exec-185-review-task-executor-add-publish-increment-trigger-count-tests
+dark-factory-version: v0.173.0
 created: "2026-05-24T00:00:00Z"
 queued: "2026-05-25T22:23:09Z"
+started: "2026-05-26T07:01:32Z"
+completed: "2026-05-26T07:02:45Z"
 ---
 
 <summary>

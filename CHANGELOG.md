@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.63.30
+
+- test(task/executor): add PublishIncrementTriggerCount coverage tests for happy path, error path, and empty task identifier edge case
+
 ## v0.63.29
 
 - fix(task/controller): reject titles containing path separators in resolveCreateTaskPath as defense-in-depth against traversal

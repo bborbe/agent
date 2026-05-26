@@ -10,6 +10,7 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/bborbe/cqrs/base"
+	"github.com/bborbe/errors"
 	libkafka "github.com/bborbe/kafka"
 	libtime "github.com/bborbe/time"
 	libtimetest "github.com/bborbe/time/test"
@@ -46,6 +47,29 @@ func (c *capturingSyncProducer) Close() error { return nil }
 
 var _ libkafka.SyncProducer = &capturingSyncProducer{}
 
+// failingSyncProducer implements libkafka.SyncProducer and always returns an error.
+type failingSyncProducer struct {
+	err error
+}
+
+func (f *failingSyncProducer) SendMessage(
+	_ context.Context,
+	_ *sarama.ProducerMessage,
+) (int32, int64, error) {
+	return 0, 0, f.err
+}
+
+func (f *failingSyncProducer) SendMessages(
+	_ context.Context,
+	_ []*sarama.ProducerMessage,
+) error {
+	return f.err
+}
+
+func (f *failingSyncProducer) Close() error { return nil }
+
+var _ libkafka.SyncProducer = &failingSyncProducer{}
+
 // decodeUpdateFrontmatterCommand extracts the operation and UpdateFrontmatterCommand from a captured message.
 func decodeUpdateFrontmatterCommand(
 	msg *sarama.ProducerMessage,
@@ -61,6 +85,25 @@ func decodeUpdateFrontmatterCommand(
 	Expect(err).NotTo(HaveOccurred())
 
 	var cmd taskcmd.UpdateFrontmatterCommand
+	Expect(json.Unmarshal(dataBytes, &cmd)).To(Succeed())
+
+	return command.Operation, cmd
+}
+
+// decodeIncrementFrontmatterCommand extracts the operation and IncrementFrontmatterCommand from a captured message.
+func decodeIncrementFrontmatterCommand(
+	msg *sarama.ProducerMessage,
+) (base.CommandOperation, taskcmd.IncrementFrontmatterCommand) {
+	raw, err := msg.Value.Encode()
+	Expect(err).NotTo(HaveOccurred())
+
+	var command base.Command
+	Expect(json.Unmarshal(raw, &command)).To(Succeed())
+
+	dataBytes, err := json.Marshal(command.Data)
+	Expect(err).NotTo(HaveOccurred())
+
+	var cmd taskcmd.IncrementFrontmatterCommand
 	Expect(json.Unmarshal(dataBytes, &cmd)).To(Succeed())
 
 	return command.Operation, cmd
@@ -214,5 +257,69 @@ var _ = Describe("ResultPublisher", func() {
 				).To(BeFalse(), "trigger_count must not be in type mismatch update")
 			},
 		)
+	})
+
+	Describe("PublishIncrementTriggerCount", func() {
+		It("sends IncrementFrontmatterCommand with trigger_count and delta 1", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-4"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status":        "in_progress",
+					"phase":         "planning",
+					"trigger_count": 0,
+				},
+			}
+			err := publisher.PublishIncrementTriggerCount(ctx, task)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(producer.messages).To(HaveLen(1))
+			operation, cmd := decodeIncrementFrontmatterCommand(producer.messages[0])
+
+			Expect(
+				string(operation),
+			).To(Equal(string(taskcmd.IncrementFrontmatterCommandOperation)))
+			Expect(string(cmd.TaskIdentifier)).To(Equal("test-task-4"))
+			Expect(cmd.Field).To(Equal("trigger_count"))
+			Expect(cmd.Delta).To(Equal(1))
+		})
+
+		It("returns error when sender fails", func() {
+			failingProducer := &failingSyncProducer{
+				err: errors.New(context.Background(), "kafka: leader not available"),
+			}
+			failingPublisher := pkg.NewResultPublisher(
+				failingProducer,
+				base.Branch("prod"),
+				currentDateTime,
+			)
+
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-5"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status": "in_progress",
+				},
+			}
+			err := failingPublisher.PublishIncrementTriggerCount(ctx, task)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("kafka: leader not available"))
+		})
+
+		It("handles empty task identifier gracefully", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier(""),
+				Frontmatter: lib.TaskFrontmatter{
+					"status": "in_progress",
+				},
+			}
+			err := publisher.PublishIncrementTriggerCount(ctx, task)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(producer.messages).To(HaveLen(1))
+			_, cmd := decodeIncrementFrontmatterCommand(producer.messages[0])
+
+			Expect(string(cmd.TaskIdentifier)).To(Equal(""))
+			Expect(cmd.Field).To(Equal("trigger_count"))
+			Expect(cmd.Delta).To(Equal(1))
+		})
 	})
 })
