@@ -105,10 +105,16 @@ func (r *piRunner) buildCommand(ctx context.Context, prompt string) *exec.Cmd {
 
 	cmd := exec.CommandContext(ctx, "pi", args...)
 
+	// Set cwd to AgentDir so pi's context-file discovery (AGENTS.md /
+	// CLAUDE.md walk from cwd toward /) finds the project guardrails.
+	if r.config.AgentDir != "" {
+		cmd.Dir = r.config.AgentDir
+	}
+
 	env := r.buildSubprocessEnv()
 	cmd.Env = env
 
-	glog.V(4).Infof("spawning pi: pi %v\n  env: %v", args, env)
+	glog.V(4).Infof("spawning pi: pi %v\n  cwd: %s\n  env: %v", args, cmd.Dir, env)
 
 	return cmd
 }

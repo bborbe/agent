@@ -6,7 +6,11 @@ package pi
 
 // PiRunnerConfig holds configuration for spawning the Pi CLI.
 type PiRunnerConfig struct {
-	// AgentDir sets the working directory for the pi process (contains .pi/ with skills, etc.).
+	// AgentDir is the working directory for the pi process. Pi's
+	// context-file discovery walks AGENTS.md/CLAUDE.md from cwd toward /,
+	// so place project guardrails as AGENTS.md inside this directory.
+	// Pi's other config (settings, skills, sessions) is resolved via
+	// $PI_CODING_AGENT_DIR or ~/.pi/agent/ and is independent of cwd.
 	AgentDir string
 	// AllowedTools is the comma-separated list of tool names to enable.
 	AllowedTools string

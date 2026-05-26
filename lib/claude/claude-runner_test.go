@@ -359,7 +359,10 @@ exit 0`,
 		var workDir string
 
 		BeforeEach(func() {
-			workDir = GinkgoT().TempDir()
+			var err error
+			// Resolve symlinks so the test works on macOS where /var → /private/var.
+			workDir, err = filepath.EvalSymlinks(GinkgoT().TempDir())
+			Expect(err).NotTo(HaveOccurred())
 			writeShim(
 				`echo "{\"type\":\"result\",\"result\":\"PWD=$PWD\"}"
 exit 0`,
