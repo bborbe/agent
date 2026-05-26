@@ -183,3 +183,19 @@ Do-nothing is not viable: the driving task captured a live prod incident on 2026
 - `docs/task-flow-and-failure-semantics.md` — doctrine reference; no edit anticipated.
 - `~/Documents/Obsidian/Personal/24 Tasks/spawn_notification Early Return Skips human_review Guard.md` — driving task; option-A rationale and rejected alternatives recorded there.
 - `~/Documents/Obsidian/OpenClaw/tasks/PR Review github - bborbe-agent - 3 - 183193c3 - add-pi-agent-variant.md` — live incident evidence (read-only; not modified).
+
+## Verification Result
+
+**Verified:** 2026-05-26T15:33:31Z (HEAD d216127, fix shipped in v0.63.14 commit 9ccc06a)
+**Binary:** dark-factory v0.173.0 (installed); target = bborbe/agent task/controller
+**Scenario:** No scenario file (per AC#12). E2E verification via Ginkgo unit suite + source-ordering grep + live dev-cluster reproducer.
+**Evidence:**
+- AC#1 Ginkgo Context `spawn_notification + human_review handoff (spec 041 prod incident reproducer)` in `task/controller/pkg/result/result_writer_test.go:783` — focused run: `1 Passed | 0 Failed | 1 Pending | 49 Skipped`.
+- AC#2-4,7 full result suite: `50 Passed | 0 Failed | 1 Pending` (needs_input, failed, cap stickiness, legitimate handoff Contexts all green).
+- AC#5,6 source-ordering: inside `applyRetryCounter`, `applyTriggerCap(` at relative line 18, `ClearAssigneeIfHumanReview(merged)` at relative line 31, `if merged.SpawnNotification()` at relative line 33. Human-review guard call precedes spawn_notification early return; applyTriggerCap precedes early return. (Helper extracted by follow-on spec 042; invariant from spec 041 `## Goal` preserved.)
+- AC#8 `docs/controller-design.md:77-85` — explicit doctrine note "The guard fires regardless of `spawn_notification` state".
+- AC#9 `CHANGELOG.md:117` — `fix(controller)` entry citing spec 039 + `spawn_notification` + 2026-05-25 prod incident.
+- AC#10 `cd task/controller && make precommit` → final line `ready to commit`.
+- AC#11 Post-Deploy (Rung-2): dev pod `agent-task-controller-0` imageID `sha256:320d5777bd114da41b9e068e82a1047213642e2711e93f952807615ec4bb9766`, created 2026-05-26T11:54:41Z; prod pod imageID `sha256:4176e35b0f4412b2167b77badecb49674d54495cc51eac116f4ff8a336e74b02`. Live reproducer task `c0690a8b-8d06-49da-bed4-c1e62de6bdef` (file `~/Documents/Obsidian/OpenClaw/tasks/spec-042-e2e-verify-pod-kill-backtest.md`) ran on dev 2026-05-26T06:44:47Z: backtest-agent verify-step failed → `Result{Status: Done, NextPhase: "human_review"}` against a task with `spawn_notification: true`. Resulting on-disk frontmatter from the post-fix controller: `assignee: ""`, `previous_assignee: backtest-agent`, `phase: human_review`, `spawn_notification` key absent — exact spec-041 invariant proven. (Spec text named pr-reviewer; backtest-agent took the same code path before the planned pod-kill could be executed.)
+- AC#12 No new file under `scenarios/`; all spec-041 test code confined to `task/controller/pkg/result/result_writer_test.go`.
+**Verdict:** PASS
