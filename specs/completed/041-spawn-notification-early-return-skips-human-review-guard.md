@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-05-25T21:44:39Z"
 generating: "2026-05-25T21:44:40Z"
 prompted: "2026-05-25T21:51:06Z"
 verifying: "2026-05-25T22:48:54Z"
+completed: "2026-05-26T15:34:21Z"
 branch: dark-factory/spawn-notification-early-return-skips-human-review-guard
 ---
 
