@@ -103,7 +103,7 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 	glog.V(2).Infof("WriteResult: starting for task %s", req.TaskIdentifier)
 	glog.V(3).Infof("WriteResult: scanning taskDir=%s", r.taskDir)
 
-	matchedRelPath, existingFrontmatter, err := FindTaskFilePath(
+	matchedRelPath, _, err := FindTaskFilePath(
 		ctx,
 		r.gitClient,
 		r.taskDir,
@@ -119,32 +119,67 @@ func (r *resultWriter) WriteResult(ctx context.Context, req lib.Task) error {
 		return nil
 	}
 
-	merged := mergeFrontmatter(existingFrontmatter, req.Frontmatter)
-	body := r.applyRetryCounter(merged, existingFrontmatter, string(req.Content))
-
-	marshaledFrontmatter, err := yaml.Marshal(map[string]any(merged))
-	if err != nil {
-		return errors.Wrapf(ctx, err, "marshal frontmatter failed")
-	}
-
-	newContent := []byte(
-		"---\n" + string(marshaledFrontmatter) + "---\n" + body,
-	)
 	absPath := filepath.Join(r.gitClient.Path(), matchedRelPath)
+	commitMessage := fmt.Sprintf(
+		"[agent-task-controller] write result for task %s",
+		req.TaskIdentifier,
+	)
 	glog.V(2).Infof("WriteResult: writing and pushing for task %s", req.TaskIdentifier)
-	if err := r.gitClient.AtomicWriteAndCommitPush(
+	if err := r.gitClient.AtomicReadModifyWriteAndCommitPush(
 		ctx,
 		absPath,
-		newContent,
-		fmt.Sprintf("[agent-task-controller] write result for task %s", req.TaskIdentifier),
+		r.buildResultModifyFn(ctx, req),
+		commitMessage,
 	); err != nil {
 		metrics.ResultsWrittenTotal.WithLabelValues("error").Inc()
-		return errors.Wrapf(ctx, err, "atomic write and push failed")
+		return errors.Wrapf(ctx, err, "atomic read-modify-write and push failed")
 	}
 
 	glog.V(2).Infof("WriteResult: completed successfully for task %s", req.TaskIdentifier)
 	metrics.ResultsWrittenTotal.WithLabelValues("success").Inc()
 	return nil
+}
+
+// buildResultModifyFn returns a modify callback for AtomicReadModifyWriteAndCommitPush
+// that re-reads the on-disk frontmatter+body on every git retry, then applies the
+// merge / retry-counter / cap rules. Re-reading per retry eliminates the read-then-write
+// race against the partial-update executor (task_update_frontmatter_executor.go) that
+// previously caused stale-snapshot writes to roll back terminal status.
+func (r *resultWriter) buildResultModifyFn(
+	ctx context.Context,
+	req lib.Task,
+) func(current []byte) ([]byte, error) {
+	return func(current []byte) ([]byte, error) {
+		frontmatterStr, err := ExtractFrontmatter(ctx, current)
+		if err != nil {
+			return nil, errors.Wrapf(ctx, err, "extract frontmatter")
+		}
+		bodyStr, err := ExtractBody(ctx, current)
+		if err != nil {
+			return nil, errors.Wrapf(ctx, err, "extract body")
+		}
+		var currentOnDisk lib.TaskFrontmatter
+		// NOTE: inlined yaml ops mirror the pre-race version of WriteResult; pkg/command/ helpers
+		// are unexported and the lift-and-share is out of scope for this race fix.
+		if err := yaml.Unmarshal([]byte(frontmatterStr), &currentOnDisk); err != nil {
+			return nil, errors.Wrapf(ctx, err, "unmarshal current frontmatter")
+		}
+
+		merged := mergeFrontmatter(currentOnDisk, req.Frontmatter)
+		body := r.applyRetryCounter(merged, currentOnDisk, string(req.Content))
+
+		marshaledFrontmatter, err := yaml.Marshal(map[string]any(merged))
+		if err != nil {
+			return nil, errors.Wrapf(ctx, err, "marshal frontmatter")
+		}
+		// Discard the on-disk body — WriteResult fully replaces body with req.Content
+		// (post-applyRetryCounter modifications), matching the prior single-write
+		// semantics. bodyStr is read above only to validate the file has well-formed
+		// delimiters; an extraction error must surface so we do not silently overwrite a
+		// corrupted file.
+		_ = bodyStr
+		return []byte("---\n" + string(marshaledFrontmatter) + "---\n" + body), nil
+	}
 }
 
 func (r *resultWriter) applyRetryCounter(merged, existing lib.TaskFrontmatter, body string) string {

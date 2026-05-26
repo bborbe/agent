@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.63.34
+
+- fix(task/controller): eliminate write-after-read race in result writer by switching to AtomicReadModifyWriteAndCommitPush, ensuring concurrent partial updates are not clobbered
+
 ## v0.63.33
 
 - refactor(task/executor): replace concrete `run.Runnable` return type with `CronScheduler` interface in `CreateHealthcheckCron`
