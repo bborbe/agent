@@ -1,0 +1,15 @@
+# maintainer-bot per-repo config — read by the maintainer agents.
+#
+# Schema (fields default false when absent):
+#   release:
+#     autoRelease: true   # github-release watcher gate
+#   prReviewer:
+#     autoApprove: true   # pr-reviewer agent gate
+#
+# prReviewer.autoApprove true: verdict "approve" posts as APPROVE
+# (counts toward branch-protection); false/absent demotes approve to COMMENT.
+#
+# Replaces the legacy .pr-reviewer.yaml (kept until the new pr-reviewer
+# image is deployed to prod; removed in a follow-up cleanup).
+prReviewer:
+  autoApprove: true
