@@ -11,19 +11,15 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
-	"github.com/onsi/gomega/gexec"
 )
 
-var _ = Describe("Main", func() {
-	It("Compiles", func() {
-		var err error
-		_, err = gexec.Build(
-			"github.com/bborbe/agent/agent/claude/cmd/run-task",
-			"-mod=mod",
-		)
-		Expect(err).NotTo(HaveOccurred())
-	})
-})
+// NOTE: Explicit "Compiles" spec removed because spawning a child
+// process from this race-instrumented test binary segfaults randomly
+// on the GH Actions runner (works locally; only reproduces on Linux CI
+// under -race). The test binary itself IS package main built — if
+// main.go does not compile, `go test` fails immediately, so the
+// assertion is redundant. See vault note [[Github Workflow Actions]]
+// gotchas section for full diagnosis.
 
 func TestSuite(t *testing.T) {
 	time.Local = time.UTC
