@@ -1,7 +1,7 @@
 workflow: direct
 testCommand: "make test"
 validationPrompt: docs/dod.md
-autoRelease: true
+autoRelease: false
 maxContainers: 8
 preflightCommand: "true"
 preflightInterval: "8h"
