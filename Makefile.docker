@@ -4,6 +4,7 @@ DIRS += $(shell find */* -maxdepth 0 -name Makefile -exec dirname "{}" \;)
 build: check-go-mod
 	DOCKER_BUILDKIT=1 \
 	docker build \
+	--pull \
 	--no-cache \
 	--rm=true \
 	--platform=linux/amd64 \
