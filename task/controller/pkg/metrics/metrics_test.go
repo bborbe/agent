@@ -30,6 +30,7 @@ var _ = Describe("Metrics", func() {
 		Expect(names).To(HaveKey("agent_controller_conflict_resolutions_total"))
 		Expect(names).To(HaveKey("agent_controller_frontmatter_commands_total"))
 		Expect(names).To(HaveKey("agent_controller_git_rest_calls_total"))
+		Expect(names).To(HaveKey("agent_controller_vault_scanner_skipped_files_total"))
 	})
 
 	It("pre-initializes all scan_cycles_total label combinations", func() {
@@ -92,6 +93,20 @@ var _ = Describe("Metrics", func() {
 
 		labels = gatherLabels(mfs, "agent_controller_git_rest_calls_total", "status")
 		Expect(labels).To(ContainElements("success", "error"))
+	})
+
+	It("pre-initializes all vault_scanner_skipped_files_total label combinations", func() {
+		mfs, err := prometheus.DefaultGatherer.Gather()
+		Expect(err).NotTo(HaveOccurred())
+
+		labels := gatherLabels(mfs, "agent_controller_vault_scanner_skipped_files_total", "reason")
+		Expect(labels).To(ContainElements(
+			"invalid_frontmatter",
+			"duplicate_frontmatter_invalid",
+			"empty_status",
+			"inject_task_identifier_failed",
+			"read_failed",
+		))
 	})
 })
 
