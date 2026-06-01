@@ -10,7 +10,7 @@ export ROOTDIR ?= $(shell git rev-parse --show-toplevel)
 
 default: precommit
 
-precommit: ensure format generate test check addlicense
+precommit: ensure format generate test test-envtest check addlicense
 	@echo "ready to commit"
 
 ensure:
@@ -29,6 +29,18 @@ generate:
 	mkdir -p mocks
 	echo "package mocks" > mocks/mocks.go
 	go generate -mod=mod ./...
+
+ENVTEST_K8S_VERSION ?= 1.31.0
+
+.PHONY: envtest-setup
+envtest-setup:
+	@command -v setup-envtest >/dev/null 2>&1 || go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+	@setup-envtest use $(ENVTEST_K8S_VERSION) -p path > /dev/null
+
+.PHONY: test-envtest
+test-envtest: envtest-setup
+	ENVTEST_REQUIRED=1 KUBEBUILDER_ASSETS=$$(setup-envtest use $(ENVTEST_K8S_VERSION) -p path) \
+		go test -mod=mod -p=$${GO_TEST_PARALLEL:-1} -tags=envtest ./pkg/envtest
 
 .PHONY: test
 test:

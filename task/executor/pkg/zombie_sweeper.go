@@ -188,9 +188,9 @@ func (s *zombieSweeper) resolveSweeperInterval(ctx context.Context) (time.Durati
 // we MUST NOT issue API LIST calls here.
 func (s *zombieSweeper) classify(
 	taskID lib.TaskIdentifier,
-	task lib.Task,
-	jobName string,
-	jobStartedAt time.Time,
+	_ lib.Task,
+	_ string,
+	_ time.Time,
 	now time.Time,
 ) ZombieReason {
 	selector := labels.SelectorFromSet(labels.Set{

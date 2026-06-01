@@ -51,6 +51,7 @@ type application struct {
 	HealthcheckCronExpression string            `                 arg:"healthcheck-cron-expression" env:"HEALTHCHECK_CRON_EXPRESSION" usage:"Cron expression for agent liveness health checks"                          default:"0 0 8 * * 1"`
 }
 
+//nolint:funlen // Initialization sequence; wiring is linear with no branching.
 func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
 	libmetrics.NewBuildInfoMetrics().SetBuildInfo(a.BuildGitVersion, a.BuildGitCommit, a.BuildDate)
 	glog.V(1).

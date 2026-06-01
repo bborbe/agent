@@ -8,15 +8,14 @@ import (
 	"context"
 	"time"
 
+	libtime "github.com/bborbe/time"
+	libtimetest "github.com/bborbe/time/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
-
-	libtime "github.com/bborbe/time"
-	libtimetest "github.com/bborbe/time/test"
 
 	lib "github.com/bborbe/agent/lib"
 	agentv1 "github.com/bborbe/agent/task/executor/k8s/apis/agent.benjamin-borbe.de/v1"
@@ -106,23 +105,40 @@ var _ = Describe("ZombieSweeper", func() {
 				// Config: deadline = 60s
 				cfg := agentv1.Config{
 					ObjectMeta: metav1.ObjectMeta{Name: "cfg-a"},
-					Spec:       agentv1.ConfigSpec{Assignee: "agent-a", ZombieJobTimeoutSeconds: ptrInt32(60)},
+					Spec: agentv1.ConfigSpec{
+						Assignee:                "agent-a",
+						ZombieJobTimeoutSeconds: ptrInt32(60),
+					},
 				}
 				_ = eventHandlerConfig.OnAdd(ctx, cfg)
 
 				fakeClient := fake.NewSimpleClientset()
-				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(fakeClient, 0, k8sinformers.WithNamespace("test-ns"))
+				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(
+					fakeClient,
+					0,
+					k8sinformers.WithNamespace("test-ns"),
+				)
 				podInformer := informerFactory.Core().V1().Pods().Informer()
-				podInformer.GetIndexer().Add(makePod("pod-failed", "test-ns", string(taskID), corev1.PodFailed, 0))
+				_ = podInformer.GetIndexer().
+					Add(makePod("pod-failed", "test-ns", string(taskID), corev1.PodFailed, 0))
 				podLister := informerFactory.Core().V1().Pods().Lister()
 
-				sweeper := pkg.NewZombieSweeper(podLister, "test-ns", taskStore, fakePublisher, eventHandlerConfig, currentDateTime)
+				sweeper := pkg.NewZombieSweeper(
+					podLister,
+					"test-ns",
+					taskStore,
+					fakePublisher,
+					eventHandlerConfig,
+					currentDateTime,
+				)
 
 				err := sweeper.SweepOnce(ctx)
 				Expect(err).To(BeNil())
 
 				Expect(fakePublisher.PublishFailureCallCount()).To(Equal(1))
-				_, calledTask, calledJobName, calledReason := fakePublisher.PublishFailureArgsForCall(0)
+				_, calledTask, calledJobName, calledReason := fakePublisher.PublishFailureArgsForCall(
+					0,
+				)
 				Expect(string(calledTask.TaskIdentifier)).To(Equal(string(taskID)))
 				Expect(calledJobName).To(Equal("job-1"))
 				Expect(calledReason).To(Equal("deadline_exceeded"))
@@ -139,17 +155,32 @@ var _ = Describe("ZombieSweeper", func() {
 
 				cfg := agentv1.Config{
 					ObjectMeta: metav1.ObjectMeta{Name: "cfg-a"},
-					Spec:       agentv1.ConfigSpec{Assignee: "agent-a", ZombieJobTimeoutSeconds: ptrInt32(60)},
+					Spec: agentv1.ConfigSpec{
+						Assignee:                "agent-a",
+						ZombieJobTimeoutSeconds: ptrInt32(60),
+					},
 				}
 				_ = eventHandlerConfig.OnAdd(ctx, cfg)
 
 				fakeClient := fake.NewSimpleClientset()
-				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(fakeClient, 0, k8sinformers.WithNamespace("test-ns"))
+				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(
+					fakeClient,
+					0,
+					k8sinformers.WithNamespace("test-ns"),
+				)
 				podInformer := informerFactory.Core().V1().Pods().Informer()
-				podInformer.GetIndexer().Add(makePod("pod-running", "test-ns", string(taskID), corev1.PodRunning, 0))
+				_ = podInformer.GetIndexer().
+					Add(makePod("pod-running", "test-ns", string(taskID), corev1.PodRunning, 0))
 				podLister := informerFactory.Core().V1().Pods().Lister()
 
-				sweeper := pkg.NewZombieSweeper(podLister, "test-ns", taskStore, fakePublisher, eventHandlerConfig, currentDateTime)
+				sweeper := pkg.NewZombieSweeper(
+					podLister,
+					"test-ns",
+					taskStore,
+					fakePublisher,
+					eventHandlerConfig,
+					currentDateTime,
+				)
 
 				err := sweeper.SweepOnce(ctx)
 				Expect(err).To(BeNil())
@@ -168,17 +199,32 @@ var _ = Describe("ZombieSweeper", func() {
 
 				cfg := agentv1.Config{
 					ObjectMeta: metav1.ObjectMeta{Name: "cfg-a"},
-					Spec:       agentv1.ConfigSpec{Assignee: "agent-a", ZombieJobTimeoutSeconds: ptrInt32(60)},
+					Spec: agentv1.ConfigSpec{
+						Assignee:                "agent-a",
+						ZombieJobTimeoutSeconds: ptrInt32(60),
+					},
 				}
 				_ = eventHandlerConfig.OnAdd(ctx, cfg)
 
 				fakeClient := fake.NewSimpleClientset()
-				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(fakeClient, 0, k8sinformers.WithNamespace("test-ns"))
+				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(
+					fakeClient,
+					0,
+					k8sinformers.WithNamespace("test-ns"),
+				)
 				podInformer := informerFactory.Core().V1().Pods().Informer()
-				podInformer.GetIndexer().Add(makePod("pod-failed", "test-ns", string(taskID), corev1.PodFailed, 0))
+				_ = podInformer.GetIndexer().
+					Add(makePod("pod-failed", "test-ns", string(taskID), corev1.PodFailed, 0))
 				podLister := informerFactory.Core().V1().Pods().Lister()
 
-				sweeper := pkg.NewZombieSweeper(podLister, "test-ns", taskStore, fakePublisher, eventHandlerConfig, currentDateTime)
+				sweeper := pkg.NewZombieSweeper(
+					podLister,
+					"test-ns",
+					taskStore,
+					fakePublisher,
+					eventHandlerConfig,
+					currentDateTime,
+				)
 
 				err := sweeper.SweepOnce(ctx)
 				Expect(err).To(BeNil())
@@ -196,21 +242,37 @@ var _ = Describe("ZombieSweeper", func() {
 
 				cfg := agentv1.Config{
 					ObjectMeta: metav1.ObjectMeta{Name: "cfg-a"},
-					Spec:       agentv1.ConfigSpec{Assignee: "agent-a", ZombieJobTimeoutSeconds: ptrInt32(60)},
+					Spec: agentv1.ConfigSpec{
+						Assignee:                "agent-a",
+						ZombieJobTimeoutSeconds: ptrInt32(60),
+					},
 				}
 				_ = eventHandlerConfig.OnAdd(ctx, cfg)
 
 				// Empty fake client — no pods at all
 				fakeClient := fake.NewSimpleClientset()
-				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(fakeClient, 0, k8sinformers.WithNamespace("test-ns"))
+				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(
+					fakeClient,
+					0,
+					k8sinformers.WithNamespace("test-ns"),
+				)
 				podLister := informerFactory.Core().V1().Pods().Lister()
 
-				sweeper := pkg.NewZombieSweeper(podLister, "test-ns", taskStore, fakePublisher, eventHandlerConfig, currentDateTime)
+				sweeper := pkg.NewZombieSweeper(
+					podLister,
+					"test-ns",
+					taskStore,
+					fakePublisher,
+					eventHandlerConfig,
+					currentDateTime,
+				)
 
 				err := sweeper.SweepOnce(ctx)
 				Expect(err).To(BeNil())
 				Expect(fakePublisher.PublishFailureCallCount()).To(Equal(1))
-				_, calledTask, calledJobName, calledReason := fakePublisher.PublishFailureArgsForCall(0)
+				_, calledTask, calledJobName, calledReason := fakePublisher.PublishFailureArgsForCall(
+					0,
+				)
 				Expect(string(calledTask.TaskIdentifier)).To(Equal(string(taskID)))
 				Expect(calledJobName).To(Equal("job-1"))
 				Expect(calledReason).To(Equal("executor_watch_lost"))
@@ -227,18 +289,33 @@ var _ = Describe("ZombieSweeper", func() {
 
 				cfg := agentv1.Config{
 					ObjectMeta: metav1.ObjectMeta{Name: "cfg-a"},
-					Spec:       agentv1.ConfigSpec{Assignee: "agent-a", ZombieJobTimeoutSeconds: ptrInt32(60)},
+					Spec: agentv1.ConfigSpec{
+						Assignee:                "agent-a",
+						ZombieJobTimeoutSeconds: ptrInt32(60),
+					},
 				}
 				_ = eventHandlerConfig.OnAdd(ctx, cfg)
 
 				fakeClient := fake.NewSimpleClientset()
-				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(fakeClient, 0, k8sinformers.WithNamespace("test-ns"))
+				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(
+					fakeClient,
+					0,
+					k8sinformers.WithNamespace("test-ns"),
+				)
 				podInformer := informerFactory.Core().V1().Pods().Informer()
 				// Pod created 5 minutes ago (exceeds 2min grace window), Pending, PodScheduled=False
-				podInformer.GetIndexer().Add(makePod("pod-unschedulable", "test-ns", string(taskID), corev1.PodPending, 5*time.Minute, podScheduledFalseCondition()))
+				_ = podInformer.GetIndexer().
+					Add(makePod("pod-unschedulable", "test-ns", string(taskID), corev1.PodPending, 5*time.Minute, podScheduledFalseCondition()))
 				podLister := informerFactory.Core().V1().Pods().Lister()
 
-				sweeper := pkg.NewZombieSweeper(podLister, "test-ns", taskStore, fakePublisher, eventHandlerConfig, currentDateTime)
+				sweeper := pkg.NewZombieSweeper(
+					podLister,
+					"test-ns",
+					taskStore,
+					fakePublisher,
+					eventHandlerConfig,
+					currentDateTime,
+				)
 
 				err := sweeper.SweepOnce(ctx)
 				Expect(err).To(BeNil())
@@ -252,30 +329,53 @@ var _ = Describe("ZombieSweeper", func() {
 		// when no config is set. The 6c test (under-deadline) implicitly uses the default
 		// interval via the sweeper. We add an explicit test that exercises the default
 		// path through the interval resolver by using a task with no matching config.
-		Context("interval default: task with no matching config uses 1800s default deadline", func() {
-			It("does not publish failure when elapsed (29min) < default deadline (1800s)", func() {
-				taskID := lib.TaskIdentifier("task-6f-default-deadline")
-				// job_started_at = 11:31:00Z, elapsed = 29min, default deadline = 1800s (30min)
-				// elapsed < deadline → no publish
-				ts := libtimetest.ParseDateTime("2026-06-01T11:31:00Z")
-				task := makeTask(string(taskID), "agent-no-config", "job-1", ts.Format(time.RFC3339))
-				taskStore.Store(taskID, task)
+		Context(
+			"interval default: task with no matching config uses 1800s default deadline",
+			func() {
+				It(
+					"does not publish failure when elapsed (29min) < default deadline (1800s)",
+					func() {
+						taskID := lib.TaskIdentifier("task-6f-default-deadline")
+						// job_started_at = 11:31:00Z, elapsed = 29min, default deadline = 1800s (30min)
+						// elapsed < deadline → no publish
+						ts := libtimetest.ParseDateTime("2026-06-01T11:31:00Z")
+						task := makeTask(
+							string(taskID),
+							"agent-no-config",
+							"job-1",
+							ts.Format(time.RFC3339),
+						)
+						taskStore.Store(taskID, task)
 
-				// No config added — uses default deadline of 1800s
-				fakeClient := fake.NewSimpleClientset()
-				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(fakeClient, 0, k8sinformers.WithNamespace("test-ns"))
-				podInformer := informerFactory.Core().V1().Pods().Informer()
-				podInformer.GetIndexer().Add(makePod("pod-failed", "test-ns", string(taskID), corev1.PodFailed, 0))
-				podLister := informerFactory.Core().V1().Pods().Lister()
+						// No config added — uses default deadline of 1800s
+						fakeClient := fake.NewSimpleClientset()
+						informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(
+							fakeClient,
+							0,
+							k8sinformers.WithNamespace("test-ns"),
+						)
+						podInformer := informerFactory.Core().V1().Pods().Informer()
+						_ = podInformer.GetIndexer().
+							Add(makePod("pod-failed", "test-ns", string(taskID), corev1.PodFailed, 0))
+						podLister := informerFactory.Core().V1().Pods().Lister()
 
-				sweeper := pkg.NewZombieSweeper(podLister, "test-ns", taskStore, fakePublisher, eventHandlerConfig, currentDateTime)
+						sweeper := pkg.NewZombieSweeper(
+							podLister,
+							"test-ns",
+							taskStore,
+							fakePublisher,
+							eventHandlerConfig,
+							currentDateTime,
+						)
 
-				err := sweeper.SweepOnce(ctx)
-				Expect(err).To(BeNil())
-				// elapsed (29min) < default deadline (30min) → no zombie
-				Expect(fakePublisher.PublishFailureCallCount()).To(Equal(0))
-			})
-		})
+						err := sweeper.SweepOnce(ctx)
+						Expect(err).To(BeNil())
+						// elapsed (29min) < default deadline (30min) → no zombie
+						Expect(fakePublisher.PublishFailureCallCount()).To(Equal(0))
+					},
+				)
+			},
+		)
 
 		// 6g: interval override — tested via 6a-6e which use configs with specific timeouts
 		// 6h: deadline default — verified by 6f (uses default when no config matches)
@@ -287,10 +387,21 @@ var _ = Describe("ZombieSweeper", func() {
 				taskStore.Store(taskID, task)
 
 				fakeClient := fake.NewSimpleClientset()
-				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(fakeClient, 0, k8sinformers.WithNamespace("test-ns"))
+				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(
+					fakeClient,
+					0,
+					k8sinformers.WithNamespace("test-ns"),
+				)
 				podLister := informerFactory.Core().V1().Pods().Lister()
 
-				sweeper := pkg.NewZombieSweeper(podLister, "test-ns", taskStore, fakePublisher, eventHandlerConfig, currentDateTime)
+				sweeper := pkg.NewZombieSweeper(
+					podLister,
+					"test-ns",
+					taskStore,
+					fakePublisher,
+					eventHandlerConfig,
+					currentDateTime,
+				)
 
 				err := sweeper.SweepOnce(ctx)
 				Expect(err).To(BeNil())
@@ -315,10 +426,21 @@ var _ = Describe("ZombieSweeper", func() {
 				taskStore.Store(taskID, task)
 
 				fakeClient := fake.NewSimpleClientset()
-				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(fakeClient, 0, k8sinformers.WithNamespace("test-ns"))
+				informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(
+					fakeClient,
+					0,
+					k8sinformers.WithNamespace("test-ns"),
+				)
 				podLister := informerFactory.Core().V1().Pods().Lister()
 
-				sweeper := pkg.NewZombieSweeper(podLister, "test-ns", taskStore, fakePublisher, eventHandlerConfig, currentDateTime)
+				sweeper := pkg.NewZombieSweeper(
+					podLister,
+					"test-ns",
+					taskStore,
+					fakePublisher,
+					eventHandlerConfig,
+					currentDateTime,
+				)
 
 				err := sweeper.SweepOnce(ctx)
 				Expect(err).To(BeNil())
