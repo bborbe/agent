@@ -122,9 +122,11 @@ var _ = Describe("ZombieSweeper", func() {
 				_ = podInformer.GetIndexer().
 					Add(makePod("pod-failed", "test-ns", string(taskID), corev1.PodFailed, 0))
 				podLister := informerFactory.Core().V1().Pods().Lister()
+				fakeJobWatcher := &mocks.FakeJobWatcher{}
+				fakeJobWatcher.PodListerReturns(podLister)
 
 				sweeper := pkg.NewZombieSweeper(
-					podLister,
+					fakeJobWatcher,
 					"test-ns",
 					taskStore,
 					fakePublisher,
@@ -172,9 +174,11 @@ var _ = Describe("ZombieSweeper", func() {
 				_ = podInformer.GetIndexer().
 					Add(makePod("pod-running", "test-ns", string(taskID), corev1.PodRunning, 0))
 				podLister := informerFactory.Core().V1().Pods().Lister()
+				fakeJobWatcher := &mocks.FakeJobWatcher{}
+				fakeJobWatcher.PodListerReturns(podLister)
 
 				sweeper := pkg.NewZombieSweeper(
-					podLister,
+					fakeJobWatcher,
 					"test-ns",
 					taskStore,
 					fakePublisher,
@@ -216,9 +220,11 @@ var _ = Describe("ZombieSweeper", func() {
 				_ = podInformer.GetIndexer().
 					Add(makePod("pod-failed", "test-ns", string(taskID), corev1.PodFailed, 0))
 				podLister := informerFactory.Core().V1().Pods().Lister()
+				fakeJobWatcher := &mocks.FakeJobWatcher{}
+				fakeJobWatcher.PodListerReturns(podLister)
 
 				sweeper := pkg.NewZombieSweeper(
-					podLister,
+					fakeJobWatcher,
 					"test-ns",
 					taskStore,
 					fakePublisher,
@@ -257,9 +263,11 @@ var _ = Describe("ZombieSweeper", func() {
 					k8sinformers.WithNamespace("test-ns"),
 				)
 				podLister := informerFactory.Core().V1().Pods().Lister()
+				fakeJobWatcher := &mocks.FakeJobWatcher{}
+				fakeJobWatcher.PodListerReturns(podLister)
 
 				sweeper := pkg.NewZombieSweeper(
-					podLister,
+					fakeJobWatcher,
 					"test-ns",
 					taskStore,
 					fakePublisher,
@@ -307,9 +315,11 @@ var _ = Describe("ZombieSweeper", func() {
 				_ = podInformer.GetIndexer().
 					Add(makePod("pod-unschedulable", "test-ns", string(taskID), corev1.PodPending, 5*time.Minute, podScheduledFalseCondition()))
 				podLister := informerFactory.Core().V1().Pods().Lister()
+				fakeJobWatcher := &mocks.FakeJobWatcher{}
+				fakeJobWatcher.PodListerReturns(podLister)
 
 				sweeper := pkg.NewZombieSweeper(
-					podLister,
+					fakeJobWatcher,
 					"test-ns",
 					taskStore,
 					fakePublisher,
@@ -358,9 +368,11 @@ var _ = Describe("ZombieSweeper", func() {
 						_ = podInformer.GetIndexer().
 							Add(makePod("pod-failed", "test-ns", string(taskID), corev1.PodFailed, 0))
 						podLister := informerFactory.Core().V1().Pods().Lister()
+						fakeJobWatcher := &mocks.FakeJobWatcher{}
+						fakeJobWatcher.PodListerReturns(podLister)
 
 						sweeper := pkg.NewZombieSweeper(
-							podLister,
+							fakeJobWatcher,
 							"test-ns",
 							taskStore,
 							fakePublisher,
@@ -393,9 +405,11 @@ var _ = Describe("ZombieSweeper", func() {
 					k8sinformers.WithNamespace("test-ns"),
 				)
 				podLister := informerFactory.Core().V1().Pods().Lister()
+				fakeJobWatcher := &mocks.FakeJobWatcher{}
+				fakeJobWatcher.PodListerReturns(podLister)
 
 				sweeper := pkg.NewZombieSweeper(
-					podLister,
+					fakeJobWatcher,
 					"test-ns",
 					taskStore,
 					fakePublisher,
@@ -432,9 +446,49 @@ var _ = Describe("ZombieSweeper", func() {
 					k8sinformers.WithNamespace("test-ns"),
 				)
 				podLister := informerFactory.Core().V1().Pods().Lister()
+				fakeJobWatcher := &mocks.FakeJobWatcher{}
+				fakeJobWatcher.PodListerReturns(podLister)
 
 				sweeper := pkg.NewZombieSweeper(
-					podLister,
+					fakeJobWatcher,
+					"test-ns",
+					taskStore,
+					fakePublisher,
+					eventHandlerConfig,
+					currentDateTime,
+				)
+
+				err := sweeper.SweepOnce(ctx)
+				Expect(err).To(BeNil())
+				Expect(fakePublisher.PublishFailureCallCount()).To(Equal(0))
+			})
+		})
+
+		// Pod lister not yet synced — sweeper must skip the tick without
+		// publishing failures. Guards the regression where service.Run starts
+		// the sweeper before JobWatcher.Run finishes WaitForCacheSync.
+		Context("pod lister is nil (JobWatcher not yet synced)", func() {
+			It("skips the tick without publishing failures", func() {
+				taskID := lib.TaskIdentifier("task-lister-nil")
+				ts := libtimetest.ParseDateTime("2026-06-01T11:30:00Z")
+				task := makeTask(string(taskID), "agent-a", "job-1", ts.Format(time.RFC3339))
+				taskStore.Store(taskID, task)
+
+				cfg := agentv1.Config{
+					ObjectMeta: metav1.ObjectMeta{Name: "cfg-a"},
+					Spec: agentv1.ConfigSpec{
+						Assignee:                "agent-a",
+						ZombieJobTimeoutSeconds: ptrInt32(60),
+					},
+				}
+				_ = eventHandlerConfig.OnAdd(ctx, cfg)
+
+				// FakeJobWatcher returns a nil PodLister by default — simulates
+				// the pre-cache-sync state.
+				fakeJobWatcher := &mocks.FakeJobWatcher{}
+
+				sweeper := pkg.NewZombieSweeper(
+					fakeJobWatcher,
 					"test-ns",
 					taskStore,
 					fakePublisher,

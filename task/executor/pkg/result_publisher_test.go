@@ -70,6 +70,44 @@ func (f *failingSyncProducer) Close() error { return nil }
 
 var _ libkafka.SyncProducer = &failingSyncProducer{}
 
+// partialFailingSyncProducer succeeds for the first `successCount` sends, then
+// returns `err` on every subsequent send. Captures all attempted messages
+// (including the ones that failed) so tests can assert exact send counts.
+type partialFailingSyncProducer struct {
+	successCount int
+	calls        int
+	err          error
+	messages     []*sarama.ProducerMessage
+}
+
+func (p *partialFailingSyncProducer) SendMessage(
+	_ context.Context,
+	msg *sarama.ProducerMessage,
+) (int32, int64, error) {
+	p.calls++
+	p.messages = append(p.messages, msg)
+	if p.calls > p.successCount {
+		return 0, 0, p.err
+	}
+	return 0, 0, nil
+}
+
+func (p *partialFailingSyncProducer) SendMessages(
+	_ context.Context,
+	msgs []*sarama.ProducerMessage,
+) error {
+	p.calls++
+	p.messages = append(p.messages, msgs...)
+	if p.calls > p.successCount {
+		return p.err
+	}
+	return nil
+}
+
+func (p *partialFailingSyncProducer) Close() error { return nil }
+
+var _ libkafka.SyncProducer = &partialFailingSyncProducer{}
+
 // decodeUpdateFrontmatterCommand extracts the operation and UpdateFrontmatterCommand from a captured message.
 func decodeUpdateFrontmatterCommand(
 	msg *sarama.ProducerMessage,
@@ -244,6 +282,55 @@ var _ = Describe("ResultPublisher", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(producer.messages).To(HaveLen(2), "second call should be deduped")
 		})
+
+		It(
+			"records dedupe after first successful send so a retry after increment-failure does not duplicate the update",
+			func() {
+				partialProducer := &partialFailingSyncProducer{
+					successCount: 1, // first send (update) succeeds, second (increment) fails
+					err:          errors.New(context.Background(), "kafka: leader not available"),
+				}
+				partialPublisher := pkg.NewResultPublisher(
+					partialProducer,
+					base.Branch("prod"),
+					currentDateTime,
+				)
+
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("test-task-partial"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status": "in_progress",
+					},
+					Content: lib.TaskContent("do the work"),
+				}
+
+				// First call: update commits, increment fails — caller sees the increment error.
+				err := partialPublisher.PublishFailure(
+					ctx,
+					task,
+					"claude-20260418120000",
+					"pod OOM killed",
+				)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("trigger_count increment"))
+				Expect(
+					partialProducer.messages,
+				).To(HaveLen(2), "both update and increment were attempted")
+
+				// Second call with the same jobName: dedupe must suppress it entirely
+				// (zero new Kafka sends) so the committed update is not duplicated.
+				err = partialPublisher.PublishFailure(
+					ctx,
+					task,
+					"claude-20260418120000",
+					"pod OOM killed",
+				)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(
+					partialProducer.messages,
+				).To(HaveLen(2), "second call must be a no-op: zero Kafka sends")
+			},
+		)
 	})
 
 	Describe("PublishTypeMismatchFailure", func() {

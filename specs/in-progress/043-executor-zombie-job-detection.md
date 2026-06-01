@@ -1,5 +1,5 @@
 ---
-status: prompted
+status: verifying
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ tags:
 approved: "2026-06-01T18:52:44Z"
 generating: "2026-06-01T18:57:25Z"
 prompted: "2026-06-01T19:55:19Z"
+verifying: "2026-06-01T21:08:46Z"
 branch: dark-factory/executor-zombie-job-detection
 ---
 

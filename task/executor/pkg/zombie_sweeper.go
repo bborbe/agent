@@ -39,9 +39,13 @@ type ZombieSweeper interface {
 	SweepOnce(ctx context.Context) error
 }
 
-// NewZombieSweeper creates a ZombieSweeper.
+// NewZombieSweeper creates a ZombieSweeper. The JobWatcher is held by reference
+// (not its lister) because the lister is only populated after JobWatcher.Run
+// completes its cache sync; service.Run starts all components concurrently, so
+// extracting the lister at wiring time would capture nil. SweepOnce resolves
+// the lister lazily on every tick and skips the tick if it is not yet ready.
 func NewZombieSweeper(
-	podLister corev1listers.PodLister,
+	jobWatcher JobWatcher,
 	namespace libk8s.Namespace,
 	taskStore *TaskStore,
 	publisher ResultPublisher,
@@ -49,7 +53,7 @@ func NewZombieSweeper(
 	currentDateTime libtime.CurrentDateTimeGetter,
 ) ZombieSweeper {
 	return &zombieSweeper{
-		podLister:       podLister,
+		jobWatcher:      jobWatcher,
 		namespace:       namespace,
 		taskStore:       taskStore,
 		publisher:       publisher,
@@ -59,7 +63,7 @@ func NewZombieSweeper(
 }
 
 type zombieSweeper struct {
-	podLister       corev1listers.PodLister
+	jobWatcher      JobWatcher
 	namespace       libk8s.Namespace
 	taskStore       *TaskStore
 	publisher       ResultPublisher
@@ -111,6 +115,15 @@ func (s *zombieSweeper) Run(ctx context.Context) error {
 }
 
 func (s *zombieSweeper) SweepOnce(ctx context.Context) error {
+	// Resolve the Pod lister lazily — JobWatcher.Run populates it only after
+	// the informer cache has synced, and service.Run starts all components
+	// concurrently. If the lister is not yet available, skip this tick rather
+	// than publishing spurious failures.
+	lister := s.jobWatcher.PodLister()
+	if lister == nil {
+		glog.V(2).Infof("sweep skipped: pod lister not yet synced")
+		return nil
+	}
 	snapshot := s.taskStore.Snapshot()
 	now := s.currentDateTime.Now().Time()
 	// Fetch configs ONCE per tick — used by taskDeadline() for every task in
@@ -138,7 +151,7 @@ func (s *zombieSweeper) SweepOnce(ctx context.Context) error {
 		if elapsed < deadline {
 			continue
 		}
-		reason := s.classify(taskID, task, jobName, jobStartedAt, now)
+		reason := s.classify(lister, taskID, task, jobName, jobStartedAt, now)
 		if reason == "" {
 			continue
 		}
@@ -187,6 +200,7 @@ func (s *zombieSweeper) resolveSweeperInterval(ctx context.Context) (time.Durati
 // (429)" mandates: "Sweeper relies on informer cache (no per-cycle list)" —
 // we MUST NOT issue API LIST calls here.
 func (s *zombieSweeper) classify(
+	lister corev1listers.PodLister,
 	taskID lib.TaskIdentifier,
 	_ lib.Task,
 	_ string,
@@ -196,7 +210,7 @@ func (s *zombieSweeper) classify(
 	selector := labels.SelectorFromSet(labels.Set{
 		"agent.benjamin-borbe.de/task-id": string(taskID),
 	})
-	pods, err := s.podLister.Pods(s.namespace.String()).List(selector)
+	pods, err := lister.Pods(s.namespace.String()).List(selector)
 	if err != nil {
 		glog.Errorf("zombie sweeper: lister pods for task %s: %v", taskID, err)
 		return ""

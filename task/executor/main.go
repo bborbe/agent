@@ -97,7 +97,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	jobWatcher := factory.CreateJobWatcher(kubeClient, a.Namespace, taskStore, resultPublisher)
 
 	zombieSweeper := factory.CreateZombieSweeper(
-		jobWatcher.PodLister(),
+		jobWatcher,
 		a.Namespace,
 		taskStore,
 		resultPublisher,

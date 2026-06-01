@@ -67,63 +67,61 @@ func NewResultPublisher(
 			log.DefaultSamplerFactory,
 		),
 		currentDateTime: currentDateTime,
-		dedupe:          newDedupe(dedupeCapacity),
+		dedupe:          newDedupe(dedupeCapacity, currentDateTime),
 	}
 }
 
-// dedupeEntry tracks a job name and its insertion timestamp for TTL-based LRU eviction.
-type dedupeEntry struct {
-	jobName string
-	ts      time.Time
-}
-
 // ttlDedupe implements a minimal TTL'd LRU with RWMutex for publish-layer dedupe.
+// The eviction order is tracked via a separate []string so map lookups never
+// hold stale slice indices after the oldest entry is shifted out.
 type ttlDedupe struct {
 	mu       sync.RWMutex
 	capacity int
 	ttl      time.Duration
-	entries  []dedupeEntry // insertion-order list; oldest at index 0
-	index    map[string]int
+	order    []string             // insertion order; index 0 is oldest
+	seen     map[string]time.Time // jobName -> insertion ts; existence = "in dedupe window"
+	now      libtime.CurrentDateTimeGetter
 }
 
-func newDedupe(capacity int) *ttlDedupe {
+func newDedupe(capacity int, now libtime.CurrentDateTimeGetter) *ttlDedupe {
 	return &ttlDedupe{
 		capacity: capacity,
 		ttl:      dedupeTTL,
-		entries:  make([]dedupeEntry, 0, capacity),
-		index:    make(map[string]int),
+		order:    make([]string, 0, capacity),
+		seen:     make(map[string]time.Time, capacity),
+		now:      now,
 	}
 }
 
 // checkDedupe returns true if a non-expired entry exists for jobName.
 // No mutation occurs.
-func (d *ttlDedupe) checkDedupe(jobName string, now time.Time) bool {
+func (d *ttlDedupe) checkDedupe(jobName string) bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	if idx, ok := d.index[jobName]; ok {
-		if now.Sub(d.entries[idx].ts) < d.ttl {
-			return true
-		}
+	ts, ok := d.seen[jobName]
+	if !ok {
+		return false
 	}
-	return false
+	return d.now.Now().Time().Sub(ts) < d.ttl
 }
 
 // recordDedupe inserts or refreshes the entry for jobName with the current timestamp.
-// Evicts oldest entries if at capacity.
-func (d *ttlDedupe) recordDedupe(jobName string, now time.Time) {
+// Evicts the oldest entry if at capacity.
+func (d *ttlDedupe) recordDedupe(jobName string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if idx, ok := d.index[jobName]; ok {
-		d.entries[idx].ts = now
+	now := d.now.Now().Time()
+	if _, ok := d.seen[jobName]; ok {
+		d.seen[jobName] = now // refresh ts
 		return
 	}
-	if len(d.entries) >= d.capacity {
-		evicted := d.entries[0]
-		delete(d.index, evicted.jobName)
-		d.entries = d.entries[1:]
+	if len(d.order) >= d.capacity {
+		oldest := d.order[0]
+		d.order = d.order[1:]
+		delete(d.seen, oldest)
 	}
-	d.entries = append(d.entries, dedupeEntry{jobName: jobName, ts: now})
-	d.index[jobName] = len(d.entries) - 1
+	d.order = append(d.order, jobName)
+	d.seen[jobName] = now
 }
 
 // resultPublisher implements ResultPublisher by sending CQRS command objects to Kafka.
@@ -155,13 +153,12 @@ func (p *resultPublisher) PublishFailure(
 	jobName string,
 	reason string,
 ) error {
-	nowTs := p.currentDateTime.Now()
-	if p.dedupe.checkDedupe(jobName, nowTs.Time()) {
+	if p.dedupe.checkDedupe(jobName) {
 		glog.V(2).Infof("event=zombie_dedupe job=%s task=%s", jobName, task.TaskIdentifier)
 		return nil
 	}
 
-	now := nowTs.UTC().Format(time.RFC3339)
+	now := p.currentDateTime.Now().UTC().Format(time.RFC3339)
 	section := fmt.Sprintf(
 		"## Failure\n\n- **Timestamp:** %s\n- **Job:** %s\n- **Reason:** %s\n",
 		now,
@@ -187,12 +184,26 @@ func (p *resultPublisher) PublishFailure(
 		)
 	}
 
+	// Record dedupe immediately after the update publish succeeds. The update
+	// has been committed to Kafka, so the task file will be modified
+	// (current_job cleared). A retry must NOT re-send the update, or it would
+	// duplicate the current_job="" write. If the increment publish below fails,
+	// trigger_count will be under by 1 — accepted as the lesser evil vs. a
+	// duplicate update write. After dedupeTTL expires, a subsequent zombie
+	// classification can retry the increment.
+	p.dedupe.recordDedupe(jobName)
+
 	incrementCmd := taskcmd.IncrementFrontmatterCommand{
 		TaskIdentifier: task.TaskIdentifier,
 		Field:          "trigger_count",
 		Delta:          1,
 	}
 	if err := p.publishRaw(ctx, taskcmd.IncrementFrontmatterCommandOperation, incrementCmd); err != nil {
+		glog.Warningf(
+			"PublishFailure: update committed but trigger_count increment failed for job=%s: %v",
+			jobName,
+			err,
+		)
 		return errors.Wrapf(
 			ctx,
 			err,
@@ -201,7 +212,6 @@ func (p *resultPublisher) PublishFailure(
 		)
 	}
 
-	p.dedupe.recordDedupe(jobName, nowTs.Time())
 	return nil
 }
 
