@@ -23,9 +23,10 @@ import (
 	taskcmd "github.com/bborbe/agent/lib/command/task"
 )
 
-const dedupeCapacity = 1024
-
-const dedupeTTL = 3600 * time.Second
+const (
+	dedupeCapacity = 1024
+	dedupeTTL      = 3600 * time.Second
+)
 
 //counterfeiter:generate -o ../mocks/result_publisher.go --fake-name FakeResultPublisher . ResultPublisher
 
@@ -184,26 +185,12 @@ func (p *resultPublisher) PublishFailure(
 		)
 	}
 
-	// Record dedupe immediately after the update publish succeeds. The update
-	// has been committed to Kafka, so the task file will be modified
-	// (current_job cleared). A retry must NOT re-send the update, or it would
-	// duplicate the current_job="" write. If the increment publish below fails,
-	// trigger_count will be under by 1 — accepted as the lesser evil vs. a
-	// duplicate update write. After dedupeTTL expires, a subsequent zombie
-	// classification can retry the increment.
-	p.dedupe.recordDedupe(jobName)
-
 	incrementCmd := taskcmd.IncrementFrontmatterCommand{
 		TaskIdentifier: task.TaskIdentifier,
 		Field:          "trigger_count",
 		Delta:          1,
 	}
 	if err := p.publishRaw(ctx, taskcmd.IncrementFrontmatterCommandOperation, incrementCmd); err != nil {
-		glog.Warningf(
-			"PublishFailure: update committed but trigger_count increment failed for job=%s: %v",
-			jobName,
-			err,
-		)
 		return errors.Wrapf(
 			ctx,
 			err,
@@ -211,6 +198,13 @@ func (p *resultPublisher) PublishFailure(
 			task.TaskIdentifier,
 		)
 	}
+
+	// Record dedupe only after BOTH publishes succeed. If the increment fails,
+	// the next cycle re-sends both messages — the duplicate current_job=""
+	// write is idempotent (writing empty to already-empty is a no-op visually),
+	// and the retry allows trigger_count to eventually bump so the retry cap
+	// (applyTriggerCap in result_writer.go) fires.
+	p.dedupe.recordDedupe(jobName)
 
 	return nil
 }

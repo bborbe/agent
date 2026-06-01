@@ -375,6 +375,33 @@ var _ = Describe("JobWatcher", func() {
 			Expect(calledReason).To(Equal("image_pull_backoff"))
 		})
 
+		It("publishes failure for CrashLoopBackOff container", func() {
+			pod := makePod(
+				"pod-crashloop",
+				string(testTaskID),
+				corev1.PodPending,
+				[]corev1.ContainerStatus{
+					{
+						State: corev1.ContainerState{
+							Waiting: &corev1.ContainerStateWaiting{
+								Reason: "CrashLoopBackOff",
+							},
+						},
+					},
+				},
+				makeJobOwnerRef("my-job"),
+				"",
+			)
+			taskStore.Store(testTaskID, testTask)
+
+			watcher.HandlePod(ctx, pod)
+
+			Expect(fakePublisher.PublishFailureCallCount()).To(Equal(1))
+			_, _, calledJobName, calledReason := fakePublisher.PublishFailureArgsForCall(0)
+			Expect(calledJobName).To(Equal("my-job"))
+			Expect(calledReason).To(Equal("pod_crash_no_stdout"))
+		})
+
 		It("publishes failure for Evicted pod", func() {
 			pod := makePod(
 				"pod-evicted",

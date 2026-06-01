@@ -464,6 +464,82 @@ var _ = Describe("ZombieSweeper", func() {
 			})
 		})
 
+		// Per-task publish errors must NOT abort the sweep — every past-deadline
+		// task must get a PublishFailure attempt even when an earlier one fails.
+		// Guards the regression where a single broken publisher.PublishFailure
+		// (e.g. transient kafka error for one task's UUID) would skip the rest.
+		Context("multiple tasks with one publish failure mid-loop", func() {
+			It(
+				"calls PublishFailure for every task and continues past per-task errors",
+				func() {
+					ts := libtimetest.ParseDateTime("2026-06-01T11:30:00Z")
+					tasks := []lib.TaskIdentifier{
+						"task-multi-1",
+						"task-multi-2",
+						"task-multi-3",
+					}
+					for _, id := range tasks {
+						task := makeTask(
+							string(id),
+							"agent-a",
+							"job-"+string(id),
+							ts.Format(time.RFC3339),
+						)
+						taskStore.Store(id, task)
+					}
+
+					cfg := agentv1.Config{
+						ObjectMeta: metav1.ObjectMeta{Name: "cfg-a"},
+						Spec: agentv1.ConfigSpec{
+							Assignee:                "agent-a",
+							ZombieJobTimeoutSeconds: ptrInt32(60),
+						},
+					}
+					_ = eventHandlerConfig.OnAdd(ctx, cfg)
+
+					// Empty pod lister — all tasks classify as executor_watch_lost.
+					fakeClient := fake.NewSimpleClientset()
+					informerFactory := k8sinformers.NewSharedInformerFactoryWithOptions(
+						fakeClient,
+						0,
+						k8sinformers.WithNamespace("test-ns"),
+					)
+					podLister := informerFactory.Core().V1().Pods().Lister()
+					fakeJobWatcher := &mocks.FakeJobWatcher{}
+					fakeJobWatcher.PodListerReturns(podLister)
+
+					// Snapshot iterates a map → non-deterministic order. Fail
+					// the second call regardless of which task lands there;
+					// the assertion (call count == 3) covers the loop-continue
+					// invariant without depending on order.
+					fakePublisher.PublishFailureStub = func(
+						_ context.Context,
+						_ lib.Task,
+						_ string,
+						_ string,
+					) error {
+						if fakePublisher.PublishFailureCallCount() == 2 {
+							return context.Canceled
+						}
+						return nil
+					}
+
+					sweeper := pkg.NewZombieSweeper(
+						fakeJobWatcher,
+						"test-ns",
+						taskStore,
+						fakePublisher,
+						eventHandlerConfig,
+						currentDateTime,
+					)
+
+					err := sweeper.SweepOnce(ctx)
+					Expect(err).To(BeNil())
+					Expect(fakePublisher.PublishFailureCallCount()).To(Equal(3))
+				},
+			)
+		})
+
 		// Pod lister not yet synced — sweeper must skip the tick without
 		// publishing failures. Guards the regression where service.Run starts
 		// the sweeper before JobWatcher.Run finishes WaitForCacheSync.

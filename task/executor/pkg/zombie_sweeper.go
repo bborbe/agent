@@ -88,9 +88,9 @@ const (
 // as covering both halves of the conjunction.
 
 func (s *zombieSweeper) Run(ctx context.Context) error {
-	// Resolve interval once per Run by fetching configs; reusing the same
-	// interval across ticks is acceptable — the executor pod is short-lived
-	// relative to CRD reconfiguration cycles.
+	// Interval is resolved once at startup. CRD changes to ZombieSweeperIntervalSeconds
+	// take effect only after pod restart. Acceptable because executor pods are short-lived
+	// relative to CRD reconciliation cycles.
 	interval, err := s.resolveSweeperInterval(ctx)
 	if err != nil {
 		return errors.Wrapf(ctx, err, "resolve sweeper interval")
@@ -151,7 +151,7 @@ func (s *zombieSweeper) SweepOnce(ctx context.Context) error {
 		if elapsed < deadline {
 			continue
 		}
-		reason := s.classify(lister, taskID, task, jobName, jobStartedAt, now)
+		reason := s.classify(lister, taskID, now)
 		if reason == "" {
 			continue
 		}
@@ -202,9 +202,6 @@ func (s *zombieSweeper) resolveSweeperInterval(ctx context.Context) (time.Durati
 func (s *zombieSweeper) classify(
 	lister corev1listers.PodLister,
 	taskID lib.TaskIdentifier,
-	_ lib.Task,
-	_ string,
-	_ time.Time,
 	now time.Time,
 ) ZombieReason {
 	selector := labels.SelectorFromSet(labels.Set{

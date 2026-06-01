@@ -284,7 +284,7 @@ var _ = Describe("ResultPublisher", func() {
 		})
 
 		It(
-			"records dedupe after first successful send so a retry after increment-failure does not duplicate the update",
+			"does NOT record dedupe when increment publish fails, so next cycle retries both messages",
 			func() {
 				partialProducer := &partialFailingSyncProducer{
 					successCount: 1, // first send (update) succeeds, second (increment) fails
@@ -317,9 +317,48 @@ var _ = Describe("ResultPublisher", func() {
 					partialProducer.messages,
 				).To(HaveLen(2), "both update and increment were attempted")
 
-				// Second call with the same jobName: dedupe must suppress it entirely
-				// (zero new Kafka sends) so the committed update is not duplicated.
+				// Second call with the same jobName: dedupe must NOT suppress it,
+				// because the increment failed last time. The publish is attempted
+				// again — verified by the producer recording at least one more
+				// message (this producer's state means the update also fails on
+				// the retry, but the key invariant is: not deduped to zero sends).
 				err = partialPublisher.PublishFailure(
+					ctx,
+					task,
+					"claude-20260418120000",
+					"pod OOM killed",
+				)
+				Expect(err).To(HaveOccurred())
+				Expect(
+					len(partialProducer.messages),
+				).To(BeNumerically(">", 2), "second call must re-attempt publishing (not deduped)")
+			},
+		)
+
+		It(
+			"allows re-send after dedupeTTL expires",
+			func() {
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("test-task-ttl"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status": "in_progress",
+					},
+					Content: lib.TaskContent("do the work"),
+				}
+
+				err := publisher.PublishFailure(
+					ctx,
+					task,
+					"claude-20260418120000",
+					"pod OOM killed",
+				)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(producer.messages).To(HaveLen(2))
+
+				// Advance past dedupeTTL (3600s).
+				currentDateTime.SetNow(libtimetest.ParseDateTime("2026-04-18T13:00:01Z"))
+
+				err = publisher.PublishFailure(
 					ctx,
 					task,
 					"claude-20260418120000",
@@ -327,8 +366,56 @@ var _ = Describe("ResultPublisher", func() {
 				)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(
+					producer.messages,
+				).To(HaveLen(4), "second call after TTL expiry must publish both messages again")
+			},
+		)
+
+		It(
+			"does NOT record dedupe when the first (update) publish fails and does not attempt the increment",
+			func() {
+				// successCount: 0 — first send (update) fails immediately.
+				partialProducer := &partialFailingSyncProducer{
+					successCount: 0,
+					err:          errors.New(context.Background(), "kafka: leader not available"),
+				}
+				partialPublisher := pkg.NewResultPublisher(
+					partialProducer,
+					base.Branch("prod"),
+					currentDateTime,
+				)
+
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("test-task-first-fail"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status": "in_progress",
+					},
+					Content: lib.TaskContent("do the work"),
+				}
+
+				err := partialPublisher.PublishFailure(
+					ctx,
+					task,
+					"claude-20260418120000",
+					"pod OOM killed",
+				)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("zombie failure update"))
+				Expect(
 					partialProducer.messages,
-				).To(HaveLen(2), "second call must be a no-op: zero Kafka sends")
+				).To(HaveLen(1), "only the update was attempted; increment must not run after update fails")
+
+				// Verify dedupe was NOT recorded: second call attempts publishing again.
+				err = partialPublisher.PublishFailure(
+					ctx,
+					task,
+					"claude-20260418120000",
+					"pod OOM killed",
+				)
+				Expect(err).To(HaveOccurred())
+				Expect(
+					partialProducer.messages,
+				).To(HaveLen(2), "second call re-attempts the update (dedupe was not recorded)")
 			},
 		)
 	})
@@ -377,6 +464,41 @@ var _ = Describe("ResultPublisher", func() {
 				Expect(cmd.Body.Section).To(ContainSubstring("2026-04-18T12:00:00Z"))
 				Expect(cmd.Body.Section).To(ContainSubstring("agent-pr-reviewer"))
 				Expect(cmd.Body.Section).To(ContainSubstring("healthcheck"))
+			},
+		)
+
+		It(
+			"omits previous_assignee when prior assignee is empty",
+			func() {
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("test-task-empty-assignee"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":   "in_progress",
+						"phase":    "planning",
+						"assignee": "",
+					},
+				}
+				err := publisher.PublishTypeMismatchFailure(
+					ctx,
+					task,
+					"reason=type_mismatch",
+				)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(producer.messages).To(HaveLen(1))
+				_, cmd := decodeUpdateFrontmatterCommand(producer.messages[0])
+
+				Expect(cmd.Updates).To(HaveLen(2))
+				Expect(cmd.Updates["assignee"]).To(Equal(""))
+				Expect(cmd.Updates["current_job"]).To(Equal(""))
+
+				_, hasPreviousAssignee := cmd.Updates["previous_assignee"]
+				Expect(
+					hasPreviousAssignee,
+				).To(BeFalse(), "previous_assignee must be omitted when prior assignee is empty")
+
+				Expect(cmd.Body).NotTo(BeNil())
+				Expect(cmd.Body.Section).To(ContainSubstring("reason=type_mismatch"))
 			},
 		)
 	})

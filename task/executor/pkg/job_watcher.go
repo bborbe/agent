@@ -6,6 +6,7 @@ package pkg
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/bborbe/errors"
@@ -62,7 +63,7 @@ type jobWatcher struct {
 	namespace  libk8s.Namespace
 	taskStore  *TaskStore
 	publisher  ResultPublisher
-	podLister  corev1listers.PodLister
+	podLister  atomic.Pointer[corev1listers.PodLister]
 }
 
 func (w *jobWatcher) Run(ctx context.Context) error {
@@ -121,14 +122,19 @@ func (w *jobWatcher) Run(ctx context.Context) error {
 	if !cache.WaitForCacheSync(ctx.Done(), informer.HasSynced, podInformer.HasSynced) {
 		return errors.Errorf(ctx, "timed out waiting for job/pod informer cache sync")
 	}
-	w.podLister = factory.Core().V1().Pods().Lister()
+	lister := factory.Core().V1().Pods().Lister()
+	w.podLister.Store(&lister)
 	glog.V(2).Infof("job and pod informer started in namespace %s", w.namespace)
 	<-ctx.Done()
 	return nil
 }
 
 func (w *jobWatcher) PodLister() corev1listers.PodLister {
-	return w.podLister
+	lister := w.podLister.Load()
+	if lister == nil {
+		return nil
+	}
+	return *lister
 }
 
 func (w *jobWatcher) HandleJob(ctx context.Context, job *batchv1.Job) {
@@ -313,6 +319,11 @@ func classifyPodFailure(pod *corev1.Pod) ZombieReason {
 			switch cs.State.Waiting.Reason {
 			case "ImagePullBackOff", "ErrImagePull":
 				return ZombieReasonImagePullBackOff
+			case "CrashLoopBackOff":
+				// With BackoffLimit=0 in the spawner, crash-looping pods never
+				// reach PodFailed phase, so this branch is the only signal that
+				// classifies them before activeDeadlineSeconds fires.
+				return ZombieReasonPodCrashNoStdout
 			}
 		}
 	}
