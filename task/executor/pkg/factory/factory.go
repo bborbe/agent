@@ -17,6 +17,7 @@ import (
 	"github.com/bborbe/run"
 	libtime "github.com/bborbe/time"
 	"k8s.io/client-go/kubernetes"
+	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
@@ -35,6 +36,29 @@ func CreateJobWatcher(
 	publisher pkg.ResultPublisher,
 ) pkg.JobWatcher {
 	return pkg.NewJobWatcher(kubeClient, namespace, taskStore, publisher)
+}
+
+// CreateZombieSweeper creates a deadline sweeper that classifies stuck tasks as
+// zombies and emits failure events via the publisher. Interval and per-task
+// deadline are sourced from the AgentConfig CRD knobs (see ConfigSpec). The
+// podLister parameter is the shared Pod informer's lister introduced by
+// prompt 2 — the sweeper reuses it (no per-cycle API LIST).
+func CreateZombieSweeper(
+	podLister corev1listers.PodLister,
+	namespace libk8s.Namespace,
+	taskStore *pkg.TaskStore,
+	publisher pkg.ResultPublisher,
+	configProvider pkg.EventHandlerConfig,
+	currentDateTime libtime.CurrentDateTimeGetter,
+) pkg.ZombieSweeper {
+	return pkg.NewZombieSweeper(
+		podLister,
+		namespace,
+		taskStore,
+		publisher,
+		configProvider,
+		currentDateTime,
+	)
 }
 
 // CreateK8sConnector returns a K8sConnector wired to the given rest.Config.

@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	lib "github.com/bborbe/agent/lib"
@@ -35,6 +36,10 @@ type JobWatcher interface {
 	// HandlePod processes a single Pod (invoked by the Pod informer event handler
 	// and by unit tests directly).
 	HandlePod(ctx context.Context, pod *corev1.Pod)
+	// PodLister returns the Pod lister backed by the shared informer cache, for
+	// use by the deadline sweeper. The returned lister is safe for concurrent
+	// read access.
+	PodLister() corev1listers.PodLister
 }
 
 // NewJobWatcher creates a JobWatcher.
@@ -57,6 +62,7 @@ type jobWatcher struct {
 	namespace  libk8s.Namespace
 	taskStore  *TaskStore
 	publisher  ResultPublisher
+	podLister  corev1listers.PodLister
 }
 
 func (w *jobWatcher) Run(ctx context.Context) error {
@@ -115,9 +121,14 @@ func (w *jobWatcher) Run(ctx context.Context) error {
 	if !cache.WaitForCacheSync(ctx.Done(), informer.HasSynced, podInformer.HasSynced) {
 		return errors.Errorf(ctx, "timed out waiting for job/pod informer cache sync")
 	}
+	w.podLister = factory.Core().V1().Pods().Lister()
 	glog.V(2).Infof("job and pod informer started in namespace %s", w.namespace)
 	<-ctx.Done()
 	return nil
+}
+
+func (w *jobWatcher) PodLister() corev1listers.PodLister {
+	return w.podLister
 }
 
 func (w *jobWatcher) HandleJob(ctx context.Context, job *batchv1.Job) {

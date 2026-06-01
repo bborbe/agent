@@ -95,6 +95,15 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	taskStore := pkg.NewTaskStore()
 	jobWatcher := factory.CreateJobWatcher(kubeClient, a.Namespace, taskStore, resultPublisher)
 
+	zombieSweeper := factory.CreateZombieSweeper(
+		jobWatcher.PodLister(),
+		a.Namespace,
+		taskStore,
+		resultPublisher,
+		eventHandlerConfig,
+		currentDateTimeGetter,
+	)
+
 	healthcheckRunner := factory.CreateHealthcheckRunner(
 		eventHandlerConfig,
 		syncProducer,
@@ -126,6 +135,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		consumer.Consume,
 		taskEventHandler.RunDeferredRespawnLoop,
 		jobWatcher.Run,
+		zombieSweeper.Run,
 		a.createHTTPServer(eventHandlerConfig, healthcheckRunner),
 		healthcheckCron.Run,
 	)

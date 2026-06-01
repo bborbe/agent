@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [043-executor-zombie-job-detection]
+summary: Add deadline sweeper goroutine (ZombieSweeper) that classifies zombie tasks and publishes failures, wired into executor service.Run lifecycle
+container: agent-zombie-detect-exec-197-spec-043-deadline-sweeper
+dark-factory-version: v0.173.0
 created: "2026-06-01T20:30:00Z"
 queued: "2026-06-01T20:11:58Z"
+started: "2026-06-01T20:30:57Z"
+completed: "2026-06-01T20:40:50Z"
 ---
 
 <summary>

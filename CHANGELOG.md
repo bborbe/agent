@@ -15,6 +15,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 - feat(task/executor): propagate zombieJobTimeoutSeconds through AgentConfiguration and stamp Job.Spec.ActiveDeadlineSeconds on every spawned Job
 - feat(task/executor): add Pods informer to JobWatcher for ImagePullBackOff, evicted, and crash-no-stdout failure detection
 - feat(task/executor): narrow Job-condition path reason into ZombieReason enum (DeadlineExceeded/BackoffLimitExceeded → deadline_exceeded, other → pod_crash_no_stdout)
+- feat(task/executor): add deadline sweeper goroutine that classifies zombie tasks and publishes failure events via result publisher; wired into service.Run lifecycle
 
 ## v0.63.35
 
