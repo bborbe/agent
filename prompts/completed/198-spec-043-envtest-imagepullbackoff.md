@@ -1,13 +1,12 @@
 ---
-status: failed
+status: completed
 spec: [043-executor-zombie-job-detection]
 container: agent-zombie-detect-exec-198-spec-043-envtest-imagepullbackoff
 dark-factory-version: v0.173.0
 created: "2026-06-01T20:30:00Z"
 queued: "2026-06-01T20:11:58Z"
 started: "2026-06-01T20:40:51Z"
-completed: "2026-06-01T21:04:46Z"
-lastFailReason: 'validate completion report: completion report status: failed'
+completed: "2026-06-01T21:08:31Z"
 ---
 
 <summary>
