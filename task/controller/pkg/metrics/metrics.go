@@ -147,9 +147,9 @@ var KafkaConsumePausedTotal = promauto.NewCounter(prometheus.CounterOpts{
 const (
 	ReasonInvalidFrontmatter          = "invalid_frontmatter"
 	ReasonDuplicateFrontmatterInvalid = "duplicate_frontmatter_invalid"
-	ReasonEmptyStatus                = "empty_status"
-	ReasonInjectTaskIdentifierFailed = "inject_task_identifier_failed"
-	ReasonReadFailed                 = "read_failed"
+	ReasonEmptyStatus                 = "empty_status"
+	ReasonInjectTaskIdentifierFailed  = "inject_task_identifier_failed"
+	ReasonReadFailed                  = "read_failed"
 )
 
 // SkippedFilesTotal counts vault task files the scanner skipped during a scan cycle,

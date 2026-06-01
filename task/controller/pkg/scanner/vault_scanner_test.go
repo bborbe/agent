@@ -182,7 +182,13 @@ var _ = Describe("VaultScanner", func() {
 		fakeGit = &testGitClient{path: tmpDir}
 		results = make(chan scanner.ScanResult, 1)
 
-		s = scanner.NewVaultScanner(fakeGit, taskDir, time.Second, make(chan struct{}), metrics.New())
+		s = scanner.NewVaultScanner(
+			fakeGit,
+			taskDir,
+			time.Second,
+			make(chan struct{}),
+			metrics.New(),
+		)
 	})
 
 	AfterEach(func() {
@@ -793,29 +799,40 @@ var _ = Describe("VaultScanner", func() {
 		Context("invalid_frontmatter reason (extractFrontmatter failure)", func() {
 			// Content without frontmatter delimiter fails at extractFrontmatter, not at DeduplicateFrontmatter.
 			// The second cycle re-processes (hash not stored), so counter ticks again.
-			It("increments counter on first cycle and again on second cycle (re-scan increments)", func() {
-				// No frontmatter delimiter - extractFrontmatter fails
-				content := "task_identifier: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\nstatus: todo\nassignee: claude\n---\n# No frontmatter"
-				absPath := filepath.Join(tmpDir, taskDir, "no-frontmatter.md")
-				Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+			It(
+				"increments counter on first cycle and again on second cycle (re-scan increments)",
+				func() {
+					// No frontmatter delimiter - extractFrontmatter fails
+					content := "task_identifier: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\nstatus: todo\nassignee: claude\n---\n# No frontmatter"
+					absPath := filepath.Join(tmpDir, taskDir, "no-frontmatter.md")
+					Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-				initial := counterValue(metrics.ReasonInvalidFrontmatter)
-				initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
-				initialEmptyStatus := counterValue(metrics.ReasonEmptyStatus)
-				initialInjectFailed := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
-				initialReadFailed := counterValue(metrics.ReasonReadFailed)
+					initial := counterValue(metrics.ReasonInvalidFrontmatter)
+					initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
+					initialEmptyStatus := counterValue(metrics.ReasonEmptyStatus)
+					initialInjectFailed := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
+					initialReadFailed := counterValue(metrics.ReasonReadFailed)
 
-				s.RunCycle(ctx, results)
-				Expect(counterValue(metrics.ReasonInvalidFrontmatter)).To(Equal(initial + 1))
+					s.RunCycle(ctx, results)
+					Expect(counterValue(metrics.ReasonInvalidFrontmatter)).To(Equal(initial + 1))
 
-				s.RunCycle(ctx, results)
-				Expect(counterValue(metrics.ReasonInvalidFrontmatter)).To(Equal(initial + 2))
+					s.RunCycle(ctx, results)
+					Expect(counterValue(metrics.ReasonInvalidFrontmatter)).To(Equal(initial + 2))
 
-				Expect(counterValue(metrics.ReasonDuplicateFrontmatterInvalid)).To(BeNumerically("==", initialDupInvalid))
-				Expect(counterValue(metrics.ReasonEmptyStatus)).To(BeNumerically("==", initialEmptyStatus))
-				Expect(counterValue(metrics.ReasonInjectTaskIdentifierFailed)).To(BeNumerically("==", initialInjectFailed))
-				Expect(counterValue(metrics.ReasonReadFailed)).To(BeNumerically("==", initialReadFailed))
-			})
+					Expect(
+						counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+					).To(BeNumerically("==", initialDupInvalid))
+					Expect(
+						counterValue(metrics.ReasonEmptyStatus),
+					).To(BeNumerically("==", initialEmptyStatus))
+					Expect(
+						counterValue(metrics.ReasonInjectTaskIdentifierFailed),
+					).To(BeNumerically("==", initialInjectFailed))
+					Expect(
+						counterValue(metrics.ReasonReadFailed),
+					).To(BeNumerically("==", initialReadFailed))
+				},
+			)
 		})
 
 		Context("duplicate_frontmatter_invalid reason", func() {
@@ -824,57 +841,89 @@ var _ = Describe("VaultScanner", func() {
 			// for this content is DeduplicateFrontmatter → duplicate_frontmatter_invalid,
 			// NOT extractFrontmatter → invalid_frontmatter.
 			// So duplicate_frontmatter_invalid ticks and invalid_frontmatter does NOT tick.
-			It("increments duplicate_frontmatter_invalid counter (NOT invalid_frontmatter) on first cycle and again on second cycle", func() {
-				content := "---\ntask_identifier: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\nstatus: todo\nassignee: [invalid\n---\n# Invalid"
-				absPath := filepath.Join(tmpDir, taskDir, "invalid-yaml-duplicate.md")
-				Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+			It(
+				"increments duplicate_frontmatter_invalid counter (NOT invalid_frontmatter) on first cycle and again on second cycle",
+				func() {
+					content := "---\ntask_identifier: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\nstatus: todo\nassignee: [invalid\n---\n# Invalid"
+					absPath := filepath.Join(tmpDir, taskDir, "invalid-yaml-duplicate.md")
+					Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-				initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
-				initialInvalid := counterValue(metrics.ReasonInvalidFrontmatter)
-				initialEmptyStatus := counterValue(metrics.ReasonEmptyStatus)
-				initialInjectFailed := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
-				initialReadFailed := counterValue(metrics.ReasonReadFailed)
+					initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
+					initialInvalid := counterValue(metrics.ReasonInvalidFrontmatter)
+					initialEmptyStatus := counterValue(metrics.ReasonEmptyStatus)
+					initialInjectFailed := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
+					initialReadFailed := counterValue(metrics.ReasonReadFailed)
 
-				s.RunCycle(ctx, results)
-				Expect(counterValue(metrics.ReasonDuplicateFrontmatterInvalid)).To(BeNumerically("==", initialDupInvalid+1))
-				Expect(counterValue(metrics.ReasonInvalidFrontmatter)).To(BeNumerically("==", initialInvalid)) // NOT incremented
+					s.RunCycle(ctx, results)
+					Expect(
+						counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+					).To(BeNumerically("==", initialDupInvalid+1))
+					Expect(
+						counterValue(metrics.ReasonInvalidFrontmatter),
+					).To(BeNumerically("==", initialInvalid))
+					// NOT incremented
 
-				s.RunCycle(ctx, results)
-				Expect(counterValue(metrics.ReasonDuplicateFrontmatterInvalid)).To(BeNumerically("==", initialDupInvalid+2))
-				Expect(counterValue(metrics.ReasonInvalidFrontmatter)).To(BeNumerically("==", initialInvalid))
+					s.RunCycle(ctx, results)
+					Expect(
+						counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+					).To(BeNumerically("==", initialDupInvalid+2))
+					Expect(
+						counterValue(metrics.ReasonInvalidFrontmatter),
+					).To(BeNumerically("==", initialInvalid))
 
-				Expect(counterValue(metrics.ReasonEmptyStatus)).To(BeNumerically("==", initialEmptyStatus))
-				Expect(counterValue(metrics.ReasonInjectTaskIdentifierFailed)).To(BeNumerically("==", initialInjectFailed))
-				Expect(counterValue(metrics.ReasonReadFailed)).To(BeNumerically("==", initialReadFailed))
-			})
+					Expect(
+						counterValue(metrics.ReasonEmptyStatus),
+					).To(BeNumerically("==", initialEmptyStatus))
+					Expect(
+						counterValue(metrics.ReasonInjectTaskIdentifierFailed),
+					).To(BeNumerically("==", initialInjectFailed))
+					Expect(
+						counterValue(metrics.ReasonReadFailed),
+					).To(BeNumerically("==", initialReadFailed))
+				},
+			)
 		})
 
 		Context("empty_status reason", func() {
 			// The empty_status check happens AFTER v.hashes[relPath] = fileEntry{hash: hash, ...}
 			// is stored, so the second cycle short-circuits at the hash check and
 			// the counter does NOT tick again (hash prevents re-process).
-			It("increments counter on first cycle but NOT on second cycle (hash prevents re-process)", func() {
-				content := "---\ntask_identifier: 88888888-8888-4888-8888-888888888888\nassignee: claude\n---\n# Empty status\n"
-				absPath := filepath.Join(tmpDir, taskDir, "empty-status.md")
-				Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+			It(
+				"increments counter on first cycle but NOT on second cycle (hash prevents re-process)",
+				func() {
+					content := "---\ntask_identifier: 88888888-8888-4888-8888-888888888888\nassignee: claude\n---\n# Empty status\n"
+					absPath := filepath.Join(tmpDir, taskDir, "empty-status.md")
+					Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
-				initial := counterValue(metrics.ReasonEmptyStatus)
-				initialInvalid := counterValue(metrics.ReasonInvalidFrontmatter)
-				initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
-				initialInjectFailed := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
-				initialReadFailed := counterValue(metrics.ReasonReadFailed)
+					initial := counterValue(metrics.ReasonEmptyStatus)
+					initialInvalid := counterValue(metrics.ReasonInvalidFrontmatter)
+					initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
+					initialInjectFailed := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
+					initialReadFailed := counterValue(metrics.ReasonReadFailed)
 
-				s.RunCycle(ctx, results)
-				Expect(counterValue(metrics.ReasonEmptyStatus)).To(Equal(initial + 1))
+					s.RunCycle(ctx, results)
+					Expect(counterValue(metrics.ReasonEmptyStatus)).To(Equal(initial + 1))
 
-				s.RunCycle(ctx, results)
-				Expect(counterValue(metrics.ReasonEmptyStatus)).To(Equal(initial + 1)) // NOT incremented again
+					s.RunCycle(ctx, results)
+					Expect(
+						counterValue(metrics.ReasonEmptyStatus),
+					).To(Equal(initial + 1))
+					// NOT incremented again
 
-				Expect(counterValue(metrics.ReasonInvalidFrontmatter)).To(BeNumerically("==", initialInvalid))
-				Expect(counterValue(metrics.ReasonDuplicateFrontmatterInvalid)).To(BeNumerically("==", initialDupInvalid))
-				Expect(counterValue(metrics.ReasonInjectTaskIdentifierFailed)).To(BeNumerically("==", initialInjectFailed))
-				Expect(counterValue(metrics.ReasonReadFailed)).To(BeNumerically("==", initialReadFailed))
-			})
+					Expect(
+						counterValue(metrics.ReasonInvalidFrontmatter),
+					).To(BeNumerically("==", initialInvalid))
+					Expect(
+						counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+					).To(BeNumerically("==", initialDupInvalid))
+					Expect(
+						counterValue(metrics.ReasonInjectTaskIdentifierFailed),
+					).To(BeNumerically("==", initialInjectFailed))
+					Expect(
+						counterValue(metrics.ReasonReadFailed),
+					).To(BeNumerically("==", initialReadFailed))
+				},
+			)
 		})
 
 		Context("read_failed reason", func() {
@@ -895,7 +944,13 @@ var _ = Describe("VaultScanner", func() {
 					fileOpsTestGitClient: &fileOpsTestGitClient{path: tmpDir},
 				}
 
-				vs := scanner.NewGitRestVaultScanner(failingClient, taskDir, time.Hour, make(chan struct{}), metrics.New())
+				vs := scanner.NewGitRestVaultScanner(
+					failingClient,
+					taskDir,
+					time.Hour,
+					make(chan struct{}),
+					metrics.New(),
+				)
 				scanResults := make(chan scanner.ScanResult, 1)
 
 				vs.RunCycle(ctx, scanResults)
@@ -904,10 +959,18 @@ var _ = Describe("VaultScanner", func() {
 				vs.RunCycle(ctx, scanResults)
 				Expect(counterValue(metrics.ReasonReadFailed)).To(Equal(initial + 2))
 
-				Expect(counterValue(metrics.ReasonInvalidFrontmatter)).To(BeNumerically("==", initialInvalid))
-				Expect(counterValue(metrics.ReasonDuplicateFrontmatterInvalid)).To(BeNumerically("==", initialDupInvalid))
-				Expect(counterValue(metrics.ReasonEmptyStatus)).To(BeNumerically("==", initialEmptyStatus))
-				Expect(counterValue(metrics.ReasonInjectTaskIdentifierFailed)).To(BeNumerically("==", initialInjectFailed))
+				Expect(
+					counterValue(metrics.ReasonInvalidFrontmatter),
+				).To(BeNumerically("==", initialInvalid))
+				Expect(
+					counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+				).To(BeNumerically("==", initialDupInvalid))
+				Expect(
+					counterValue(metrics.ReasonEmptyStatus),
+				).To(BeNumerically("==", initialEmptyStatus))
+				Expect(
+					counterValue(metrics.ReasonInjectTaskIdentifierFailed),
+				).To(BeNumerically("==", initialInjectFailed))
 			})
 		})
 
@@ -915,41 +978,58 @@ var _ = Describe("VaultScanner", func() {
 			// Merge marker content passes extractFrontmatter but fails DeduplicateFrontmatter's yaml.Unmarshal.
 			// Broken file's hash is never stored in v.hashes, so second cycle re-processes it.
 			// Valid file processes normally and is published.
-			It("skips broken file, publishes valid file, counter increments again on second cycle for broken file", func() {
-				brokenContent := "---\n<<<<<<< HEAD\ntask_identifier: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\nstatus: todo\nassignee: claude\n---\n# Broken"
-				validContent := "---\ntask_identifier: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\nstatus: todo\nassignee: claude\n---\n# Valid"
+			It(
+				"skips broken file, publishes valid file, counter increments again on second cycle for broken file",
+				func() {
+					brokenContent := "---\n<<<<<<< HEAD\ntask_identifier: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\nstatus: todo\nassignee: claude\n---\n# Broken"
+					validContent := "---\ntask_identifier: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\nstatus: todo\nassignee: claude\n---\n# Valid"
 
-				brokenPath := filepath.Join(tmpDir, taskDir, "broken-regression.md")
-				validPath := filepath.Join(tmpDir, taskDir, "valid-regression.md")
-				Expect(os.WriteFile(brokenPath, []byte(brokenContent), 0600)).To(Succeed())
-				Expect(os.WriteFile(validPath, []byte(validContent), 0600)).To(Succeed())
+					brokenPath := filepath.Join(tmpDir, taskDir, "broken-regression.md")
+					validPath := filepath.Join(tmpDir, taskDir, "valid-regression.md")
+					Expect(os.WriteFile(brokenPath, []byte(brokenContent), 0600)).To(Succeed())
+					Expect(os.WriteFile(validPath, []byte(validContent), 0600)).To(Succeed())
 
-				initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
-				initialInvalid := counterValue(metrics.ReasonInvalidFrontmatter)
-				initialEmptyStatus := counterValue(metrics.ReasonEmptyStatus)
-				initialInjectFailed := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
-				initialReadFailed := counterValue(metrics.ReasonReadFailed)
+					initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
+					initialInvalid := counterValue(metrics.ReasonInvalidFrontmatter)
+					initialEmptyStatus := counterValue(metrics.ReasonEmptyStatus)
+					initialInjectFailed := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
+					initialReadFailed := counterValue(metrics.ReasonReadFailed)
 
-				s.RunCycle(ctx, results)
-				var firstResult scanner.ScanResult
-				Expect(results).To(Receive(&firstResult))
-				Expect(firstResult.Changed).To(HaveLen(1))
-				Expect(string(firstResult.Changed[0].TaskIdentifier)).To(Equal("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"))
-				Expect(counterValue(metrics.ReasonDuplicateFrontmatterInvalid)).To(Equal(initialDupInvalid + 1))
+					s.RunCycle(ctx, results)
+					var firstResult scanner.ScanResult
+					Expect(results).To(Receive(&firstResult))
+					Expect(firstResult.Changed).To(HaveLen(1))
+					Expect(
+						string(firstResult.Changed[0].TaskIdentifier),
+					).To(Equal("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"))
+					Expect(
+						counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+					).To(Equal(initialDupInvalid + 1))
 
-				s.RunCycle(ctx, results)
-				var secondResult scanner.ScanResult
-				Expect(results).To(Receive(&secondResult))
-				// valid file unchanged, not re-published
-				Expect(secondResult.Changed).To(BeEmpty())
-				// broken file re-processed (hash never stored)
-				Expect(counterValue(metrics.ReasonDuplicateFrontmatterInvalid)).To(Equal(initialDupInvalid + 2))
+					s.RunCycle(ctx, results)
+					var secondResult scanner.ScanResult
+					Expect(results).To(Receive(&secondResult))
+					// valid file unchanged, not re-published
+					Expect(secondResult.Changed).To(BeEmpty())
+					// broken file re-processed (hash never stored)
+					Expect(
+						counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+					).To(Equal(initialDupInvalid + 2))
 
-				Expect(counterValue(metrics.ReasonInvalidFrontmatter)).To(BeNumerically("==", initialInvalid))
-				Expect(counterValue(metrics.ReasonEmptyStatus)).To(BeNumerically("==", initialEmptyStatus))
-				Expect(counterValue(metrics.ReasonInjectTaskIdentifierFailed)).To(BeNumerically("==", initialInjectFailed))
-				Expect(counterValue(metrics.ReasonReadFailed)).To(BeNumerically("==", initialReadFailed))
-			})
+					Expect(
+						counterValue(metrics.ReasonInvalidFrontmatter),
+					).To(BeNumerically("==", initialInvalid))
+					Expect(
+						counterValue(metrics.ReasonEmptyStatus),
+					).To(BeNumerically("==", initialEmptyStatus))
+					Expect(
+						counterValue(metrics.ReasonInjectTaskIdentifierFailed),
+					).To(BeNumerically("==", initialInjectFailed))
+					Expect(
+						counterValue(metrics.ReasonReadFailed),
+					).To(BeNumerically("==", initialReadFailed))
+				},
+			)
 		})
 
 		It("maintains counter-call parity with skip-site log lines (AC#6 invariant)", func() {
@@ -958,7 +1038,11 @@ var _ = Describe("VaultScanner", func() {
 			scannerSrc, err := filepath.Abs("vault_scanner.go")
 			Expect(err).NotTo(HaveOccurred())
 
-			cmd := exec.Command("awk", `/^func \(v \*vaultScanner\) (processFile|injectAndStore)\(/,/^}/`, scannerSrc)
+			cmd := exec.Command(
+				"awk",
+				`/^func \(v \*vaultScanner\) (processFile|injectAndStore)\(/,/^}/`,
+				scannerSrc,
+			)
 			out, err := cmd.Output()
 			Expect(err).NotTo(HaveOccurred())
 			body := string(out)
@@ -968,7 +1052,9 @@ var _ = Describe("VaultScanner", func() {
 				strings.Count(body, `glog.Warningf("failed to read`)
 			counterCount := strings.Count(body, `SkippedFilesTotal(`)
 			Expect(skipCount).To(Equal(6), "expected 6 skip-site log lines, got %d", skipCount)
-			Expect(counterCount).To(Equal(6), "expected 6 counter increment calls, got %d", counterCount)
+			Expect(
+				counterCount,
+			).To(Equal(6), "expected 6 counter increment calls, got %d", counterCount)
 		})
 	})
 })

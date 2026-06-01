@@ -1,11 +1,12 @@
 ---
-status: prompted
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-06-01T19:47:57Z"
 generating: "2026-06-01T19:48:13Z"
 prompted: "2026-06-01T20:23:00Z"
+verifying: "2026-06-01T21:25:16Z"
 branch: dark-factory/surface-vault-scanner-skip-failures
 ---
 

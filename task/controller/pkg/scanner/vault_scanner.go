@@ -218,6 +218,8 @@ func (v *vaultScanner) scanFiles(
 
 // processFile handles a single .md file during a scan cycle.
 // Returns (task, writtenRelPath, writeError).
+//
+//nolint:funlen // +5 statements from spec-043 counter calls at 5 skip sites; each site needs its own metric.
 func (v *vaultScanner) processFile(
 	ctx context.Context,
 	relPath string,

@@ -33,36 +33,52 @@ var _ = Describe("injectAndStore", func() {
 		return 0
 	}
 
-	It("increments inject_task_identifier_failed counter when InjectTaskIdentifier returns error", func() {
-		v := &vaultScanner{
-			metrics: metrics.New(),
-			ops: fileOps{
-				readFile: func(_ context.Context, _ string) ([]byte, error) {
-					return nil, nil
+	It(
+		"increments inject_task_identifier_failed counter when InjectTaskIdentifier returns error",
+		func() {
+			v := &vaultScanner{
+				metrics: metrics.New(),
+				ops: fileOps{
+					readFile: func(_ context.Context, _ string) ([]byte, error) {
+						return nil, nil
+					},
+					writeFile: func(_ context.Context, _ string, _ []byte) error {
+						return nil
+					},
 				},
-				writeFile: func(_ context.Context, _ string, _ []byte) error {
-					return nil
-				},
-			},
-		}
+			}
 
-		initial := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
-		initialInvalid := counterValue(metrics.ReasonInvalidFrontmatter)
-		initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
-		initialEmptyStatus := counterValue(metrics.ReasonEmptyStatus)
-		initialReadFailed := counterValue(metrics.ReasonReadFailed)
+			initial := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
+			initialInvalid := counterValue(metrics.ReasonInvalidFrontmatter)
+			initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
+			initialEmptyStatus := counterValue(metrics.ReasonEmptyStatus)
+			initialReadFailed := counterValue(metrics.ReasonReadFailed)
 
-		// Content without frontmatter delimiter causes InjectTaskIdentifier to fail
-		task, written, werr := v.injectAndStore(context.Background(), []byte("no frontmatter at all"), "rel.md", "")
-		Expect(task).To(BeNil())
-		Expect(written).To(Equal(""))
-		Expect(werr).To(BeFalse())
-		Expect(counterValue(metrics.ReasonInjectTaskIdentifierFailed)).To(Equal(initial + 1))
+			// Content without frontmatter delimiter causes InjectTaskIdentifier to fail
+			task, written, werr := v.injectAndStore(
+				context.Background(),
+				[]byte("no frontmatter at all"),
+				"rel.md",
+				"",
+			)
+			Expect(task).To(BeNil())
+			Expect(written).To(Equal(""))
+			Expect(werr).To(BeFalse())
+			Expect(counterValue(metrics.ReasonInjectTaskIdentifierFailed)).To(Equal(initial + 1))
 
-		// Other reason labels must not tick (compared to initial values)
-		Expect(counterValue(metrics.ReasonInvalidFrontmatter)).To(BeNumerically("==", initialInvalid))
-		Expect(counterValue(metrics.ReasonDuplicateFrontmatterInvalid)).To(BeNumerically("==", initialDupInvalid))
-		Expect(counterValue(metrics.ReasonEmptyStatus)).To(BeNumerically("==", initialEmptyStatus))
-		Expect(counterValue(metrics.ReasonReadFailed)).To(BeNumerically("==", initialReadFailed))
-	})
+			// Other reason labels must not tick (compared to initial values)
+			Expect(
+				counterValue(metrics.ReasonInvalidFrontmatter),
+			).To(BeNumerically("==", initialInvalid))
+			Expect(
+				counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+			).To(BeNumerically("==", initialDupInvalid))
+			Expect(
+				counterValue(metrics.ReasonEmptyStatus),
+			).To(BeNumerically("==", initialEmptyStatus))
+			Expect(
+				counterValue(metrics.ReasonReadFailed),
+			).To(BeNumerically("==", initialReadFailed))
+		},
+	)
 })
