@@ -97,7 +97,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 
 	trigger := make(chan struct{}, 1)
 	syncLoop := pkgsync.NewSyncLoop(
-		scanner.NewGitRestVaultScanner(gitClient, a.TaskDir, a.PollInterval, trigger),
+		scanner.NewGitRestVaultScanner(gitClient, a.TaskDir, a.PollInterval, trigger, metrics.New()),
 		publisher.NewTaskPublisher(eventObjectSender, lib.TaskV1SchemaID, currentDateTime),
 		trigger,
 		metrics.New(),
