@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [043-executor-zombie-job-detection]
+summary: Added zombieSweeperIntervalSeconds and zombieJobTimeoutSeconds CRD fields with admission validation floors, wired zombieJobTimeoutSeconds through AgentConfiguration to Job.Spec.ActiveDeadlineSeconds on every spawned Job
+container: agent-zombie-detect-exec-196-spec-043-crd-knobs-and-active-deadline
+dark-factory-version: v0.173.0
 created: "2026-06-01T20:30:00Z"
 queued: "2026-06-01T20:11:58Z"
+started: "2026-06-01T20:20:31Z"
+completed: "2026-06-01T20:30:56Z"
 ---
 
 <summary>

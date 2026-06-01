@@ -132,6 +132,16 @@ func (in *ConfigSpec) DeepCopyInto(out *ConfigSpec) {
 		*out = new(Trigger)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.ZombieSweeperIntervalSeconds != nil {
+		in, out := &in.ZombieSweeperIntervalSeconds, &out.ZombieSweeperIntervalSeconds
+		*out = new(int32)
+		**out = **in
+	}
+	if in.ZombieJobTimeoutSeconds != nil {
+		in, out := &in.ZombieJobTimeoutSeconds, &out.ZombieJobTimeoutSeconds
+		*out = new(int32)
+		**out = **in
+	}
 	return
 }
 

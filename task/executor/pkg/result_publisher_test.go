@@ -189,7 +189,9 @@ var _ = Describe("ResultPublisher", func() {
 
 				// First message: UpdateFrontmatterCommand
 				operation, updateCmd := decodeUpdateFrontmatterCommand(producer.messages[0])
-				Expect(string(operation)).To(Equal(string(taskcmd.UpdateFrontmatterCommandOperation)))
+				Expect(
+					string(operation),
+				).To(Equal(string(taskcmd.UpdateFrontmatterCommandOperation)))
 				Expect(updateCmd.Updates).To(HaveLen(1))
 				Expect(updateCmd.Updates["current_job"]).To(Equal(""))
 
@@ -200,7 +202,9 @@ var _ = Describe("ResultPublisher", func() {
 				_, hasAssignee := updateCmd.Updates["assignee"]
 				Expect(hasAssignee).To(BeFalse(), "assignee must not be in failure update")
 				_, hasPreviousAssignee := updateCmd.Updates["previous_assignee"]
-				Expect(hasPreviousAssignee).To(BeFalse(), "previous_assignee must not be in failure update")
+				Expect(
+					hasPreviousAssignee,
+				).To(BeFalse(), "previous_assignee must not be in failure update")
 				_, hasTriggerCount := updateCmd.Updates["trigger_count"]
 				Expect(hasTriggerCount).To(BeFalse(), "trigger_count must not be in failure update")
 
@@ -212,7 +216,9 @@ var _ = Describe("ResultPublisher", func() {
 
 				// Second message: IncrementFrontmatterCommand
 				incOperation, incCmd := decodeIncrementFrontmatterCommand(producer.messages[1])
-				Expect(string(incOperation)).To(Equal(string(taskcmd.IncrementFrontmatterCommandOperation)))
+				Expect(
+					string(incOperation),
+				).To(Equal(string(taskcmd.IncrementFrontmatterCommandOperation)))
 				Expect(string(incCmd.TaskIdentifier)).To(Equal("test-task-2"))
 				Expect(incCmd.Field).To(Equal("trigger_count"))
 				Expect(incCmd.Delta).To(Equal(1))
@@ -262,7 +268,9 @@ var _ = Describe("ResultPublisher", func() {
 				Expect(producer.messages).To(HaveLen(1))
 				operation, cmd := decodeUpdateFrontmatterCommand(producer.messages[0])
 
-				Expect(string(operation)).To(Equal(string(taskcmd.UpdateFrontmatterCommandOperation)))
+				Expect(
+					string(operation),
+				).To(Equal(string(taskcmd.UpdateFrontmatterCommandOperation)))
 				Expect(cmd.Updates).To(HaveLen(3))
 				Expect(cmd.Updates["assignee"]).To(Equal(""))
 				Expect(cmd.Updates["previous_assignee"]).To(Equal("agent-pr-reviewer"))
@@ -273,7 +281,9 @@ var _ = Describe("ResultPublisher", func() {
 				_, hasPhase := cmd.Updates["phase"]
 				Expect(hasPhase).To(BeFalse(), "phase must not be in type mismatch update")
 				_, hasTriggerCount := cmd.Updates["trigger_count"]
-				Expect(hasTriggerCount).To(BeFalse(), "trigger_count must not be in type mismatch update")
+				Expect(
+					hasTriggerCount,
+				).To(BeFalse(), "trigger_count must not be in type mismatch update")
 
 				Expect(cmd.Body).NotTo(BeNil())
 				Expect(cmd.Body.Heading).To(Equal("## Failure"))

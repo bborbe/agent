@@ -19,6 +19,15 @@ import (
 // var _ k8s.Type = Config{} ensures Config implements k8s.Type at compile time.
 var _ libk8s.Type = Config{}
 
+// Defaults and validation floors for the zombie-detection knobs.
+// Floors prevent thrash (sweeper) and pathological short-deadline kills (timeout).
+const (
+	DefaultZombieSweeperIntervalSeconds int32 = 60
+	MinZombieSweeperIntervalSeconds     int32 = 10
+	DefaultZombieJobTimeoutSeconds      int32 = 1800
+	MinZombieJobTimeoutSeconds          int32 = 30
+)
+
 var taskTypePattern = regexp.MustCompile(`^[a-z0-9-]+$`)
 
 // +genclient
@@ -68,6 +77,20 @@ type ConfigSpec struct {
 	PriorityClassName string `json:"priorityClassName,omitempty"`
 	// Trigger declares the per-agent phase and status conditions under which the executor spawns a Job.
 	Trigger *Trigger `json:"trigger,omitempty"`
+	// ZombieSweeperIntervalSeconds is how often the executor's deadline sweeper
+	// walks the TaskStore looking for zombie jobs. Optional; when nil, the executor
+	// uses DefaultZombieSweeperIntervalSeconds (60). Values below
+	// MinZombieSweeperIntervalSeconds (10) are rejected at admission to prevent
+	// sweeper thrash. Pointer-typed so "unset" is distinguishable from "0".
+	ZombieSweeperIntervalSeconds *int32 `json:"zombieSweeperIntervalSeconds,omitempty"`
+	// ZombieJobTimeoutSeconds is the deadline applied to every spawned Job (via
+	// Job.Spec.ActiveDeadlineSeconds) AND the elapsed-time threshold the sweeper
+	// uses when classifying zombies. Optional; when nil, the executor uses
+	// DefaultZombieJobTimeoutSeconds (1800 — 30 minutes). Values below
+	// MinZombieJobTimeoutSeconds (30) are rejected at admission to prevent
+	// pathological short-deadline kills. Pointer-typed so "unset" is
+	// distinguishable from "0".
+	ZombieJobTimeoutSeconds *int32 `json:"zombieJobTimeoutSeconds,omitempty"`
 }
 
 // AgentResources holds optional resource requests and limits for the agent container.
@@ -139,7 +162,9 @@ func (s ConfigSpec) Equal(o ConfigSpec) bool {
 		s.PriorityClassName == o.PriorityClassName &&
 		reflect.DeepEqual(s.Env, o.Env) &&
 		reflect.DeepEqual(s.Resources, o.Resources) &&
-		reflect.DeepEqual(s.Trigger, o.Trigger)
+		reflect.DeepEqual(s.Trigger, o.Trigger) &&
+		reflect.DeepEqual(s.ZombieSweeperIntervalSeconds, o.ZombieSweeperIntervalSeconds) &&
+		reflect.DeepEqual(s.ZombieJobTimeoutSeconds, o.ZombieJobTimeoutSeconds)
 }
 
 // Validate validates the ConfigSpec fields.
@@ -169,7 +194,43 @@ func (s ConfigSpec) Validate(ctx context.Context) error {
 	if err := validateTaskTypeValue(ctx, s.TaskType); err != nil {
 		return err
 	}
-	return validateTaskTypesList(ctx, s.TaskTypes)
+	if err := validateTaskTypesList(ctx, s.TaskTypes); err != nil {
+		return err
+	}
+	if err := validateZombieSweeperInterval(ctx, s.ZombieSweeperIntervalSeconds); err != nil {
+		return err
+	}
+	return validateZombieJobTimeout(ctx, s.ZombieJobTimeoutSeconds)
+}
+
+func validateZombieSweeperInterval(ctx context.Context, v *int32) error {
+	if v == nil {
+		return nil
+	}
+	if *v < MinZombieSweeperIntervalSeconds {
+		return errors.Wrapf(
+			ctx,
+			validation.Error,
+			"zombieSweeperIntervalSeconds invalid: must be >= %d",
+			MinZombieSweeperIntervalSeconds,
+		)
+	}
+	return nil
+}
+
+func validateZombieJobTimeout(ctx context.Context, v *int32) error {
+	if v == nil {
+		return nil
+	}
+	if *v < MinZombieJobTimeoutSeconds {
+		return errors.Wrapf(
+			ctx,
+			validation.Error,
+			"zombieJobTimeoutSeconds invalid: must be >= %d",
+			MinZombieJobTimeoutSeconds,
+		)
+	}
+	return nil
 }
 
 func validateTrigger(ctx context.Context, trigger *Trigger) error {

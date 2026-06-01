@@ -11,6 +11,8 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 ## Unreleased
 
 - feat(task/executor): add ZombieReason enum with stable reason strings for all zombie failure modes (image_pull_backoff, pod_evicted, pod_crash_no_stdout, deadline_exceeded)
+- feat(task/executor): add zombieSweeperIntervalSeconds and zombieJobTimeoutSeconds CRD fields with admission validation floors (10s and 30s respectively)
+- feat(task/executor): propagate zombieJobTimeoutSeconds through AgentConfiguration and stamp Job.Spec.ActiveDeadlineSeconds on every spawned Job
 - feat(task/executor): add Pods informer to JobWatcher for ImagePullBackOff, evicted, and crash-no-stdout failure detection
 - feat(task/executor): narrow Job-condition path reason into ZombieReason enum (DeadlineExceeded/BackoffLimitExceeded → deadline_exceeded, other → pod_crash_no_stdout)
 

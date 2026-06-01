@@ -942,6 +942,51 @@ var _ = Describe("JobSpawner", func() {
 		})
 	})
 
+	Describe("ActiveDeadlineSeconds", func() {
+		ptrInt32 := func(v int32) *int32 { return &v }
+
+		It("stamps ActiveDeadlineSeconds from config", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("deadline-task"),
+				Frontmatter:    lib.TaskFrontmatter{"assignee": "claude"},
+				Content:        lib.TaskContent("do the work"),
+			}
+			config := pkg.AgentConfiguration{
+				Assignee:                "claude",
+				Image:                   "my-image:latest",
+				ZombieJobTimeoutSeconds: ptrInt32(900),
+			}
+			jobName, err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+			Expect(jobName).NotTo(BeEmpty())
+
+			job, err := fakeClient.BatchV1().Jobs("test-ns").Get(ctx, jobName, metav1.GetOptions{})
+			Expect(err).To(BeNil())
+			Expect(job.Spec.ActiveDeadlineSeconds).NotTo(BeNil())
+			Expect(*job.Spec.ActiveDeadlineSeconds).To(Equal(int64(900)))
+		})
+
+		It("uses default ActiveDeadlineSeconds when config is unset", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("default-deadline-task"),
+				Frontmatter:    lib.TaskFrontmatter{"assignee": "claude"},
+				Content:        lib.TaskContent("do the work"),
+			}
+			config := pkg.AgentConfiguration{
+				Assignee: "claude",
+				Image:    "my-image:latest",
+			}
+			jobName, err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+			Expect(jobName).NotTo(BeEmpty())
+
+			job, err := fakeClient.BatchV1().Jobs("test-ns").Get(ctx, jobName, metav1.GetOptions{})
+			Expect(err).To(BeNil())
+			Expect(job.Spec.ActiveDeadlineSeconds).NotTo(BeNil())
+			Expect(*job.Spec.ActiveDeadlineSeconds).To(Equal(int64(1800)))
+		})
+	})
+
 	// Regression guard: SpawnJob and IsJobActive must agree on the label key used
 	// to identify a Job. A mismatch causes the executor to treat a freshly-spawned
 	// Job as "no active job" and respawn another every poll cycle.

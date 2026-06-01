@@ -261,27 +261,27 @@ var _ = Describe("JobWatcher", func() {
 	Describe("jobFailureReason mapping", func() {
 		It("returns deadline_exceeded for DeadlineExceeded", func() {
 			job := makeJob("j", string(testTaskID), batchv1.JobCondition{
-				Type:    batchv1.JobFailed,
-				Status:  corev1.ConditionTrue,
-				Reason:  "DeadlineExceeded",
+				Type:   batchv1.JobFailed,
+				Status: corev1.ConditionTrue,
+				Reason: "DeadlineExceeded",
 			})
 			Expect(pkg.JobFailureReason(job)).To(Equal(pkg.ZombieReasonDeadlineExceeded))
 		})
 
 		It("returns deadline_exceeded for BackoffLimitExceeded", func() {
 			job := makeJob("j", string(testTaskID), batchv1.JobCondition{
-				Type:    batchv1.JobFailed,
-				Status:  corev1.ConditionTrue,
-				Reason:  "BackoffLimitExceeded",
+				Type:   batchv1.JobFailed,
+				Status: corev1.ConditionTrue,
+				Reason: "BackoffLimitExceeded",
 			})
 			Expect(pkg.JobFailureReason(job)).To(Equal(pkg.ZombieReasonDeadlineExceeded))
 		})
 
 		It("returns pod_crash_no_stdout for other Failed condition reasons", func() {
 			job := makeJob("j", string(testTaskID), batchv1.JobCondition{
-				Type:    batchv1.JobFailed,
-				Status:  corev1.ConditionTrue,
-				Reason:  "",
+				Type:   batchv1.JobFailed,
+				Status: corev1.ConditionTrue,
+				Reason: "",
 			})
 			Expect(pkg.JobFailureReason(job)).To(Equal(pkg.ZombieReasonPodCrashNoStdout))
 		})
@@ -323,15 +323,22 @@ var _ = Describe("JobWatcher", func() {
 		}
 
 		It("publishes failure for ImagePullBackOff container", func() {
-			pod := makePod("pod-imgpull", string(testTaskID), corev1.PodPending, []corev1.ContainerStatus{
-				{
-					State: corev1.ContainerState{
-						Waiting: &corev1.ContainerStateWaiting{
-							Reason: "ImagePullBackOff",
+			pod := makePod(
+				"pod-imgpull",
+				string(testTaskID),
+				corev1.PodPending,
+				[]corev1.ContainerStatus{
+					{
+						State: corev1.ContainerState{
+							Waiting: &corev1.ContainerStateWaiting{
+								Reason: "ImagePullBackOff",
+							},
 						},
 					},
 				},
-			}, makeJobOwnerRef("my-job"), "")
+				makeJobOwnerRef("my-job"),
+				"",
+			)
 			taskStore.Store(testTaskID, testTask)
 
 			watcher.HandlePod(ctx, pod)
@@ -343,15 +350,22 @@ var _ = Describe("JobWatcher", func() {
 		})
 
 		It("publishes failure for ErrImagePull container", func() {
-			pod := makePod("pod-errimg", string(testTaskID), corev1.PodPending, []corev1.ContainerStatus{
-				{
-					State: corev1.ContainerState{
-						Waiting: &corev1.ContainerStateWaiting{
-							Reason: "ErrImagePull",
+			pod := makePod(
+				"pod-errimg",
+				string(testTaskID),
+				corev1.PodPending,
+				[]corev1.ContainerStatus{
+					{
+						State: corev1.ContainerState{
+							Waiting: &corev1.ContainerStateWaiting{
+								Reason: "ErrImagePull",
+							},
 						},
 					},
 				},
-			}, makeJobOwnerRef("my-job"), "")
+				makeJobOwnerRef("my-job"),
+				"",
+			)
 			taskStore.Store(testTaskID, testTask)
 
 			watcher.HandlePod(ctx, pod)
@@ -362,7 +376,14 @@ var _ = Describe("JobWatcher", func() {
 		})
 
 		It("publishes failure for Evicted pod", func() {
-			pod := makePod("pod-evicted", string(testTaskID), corev1.PodPending, nil, makeJobOwnerRef("my-job"), "Evicted")
+			pod := makePod(
+				"pod-evicted",
+				string(testTaskID),
+				corev1.PodPending,
+				nil,
+				makeJobOwnerRef("my-job"),
+				"Evicted",
+			)
 			taskStore.Store(testTaskID, testTask)
 
 			watcher.HandlePod(ctx, pod)
@@ -373,15 +394,22 @@ var _ = Describe("JobWatcher", func() {
 		})
 
 		It("publishes failure for PodFailed with non-zero exit code", func() {
-			pod := makePod("pod-crash", string(testTaskID), corev1.PodFailed, []corev1.ContainerStatus{
-				{
-					State: corev1.ContainerState{
-						Terminated: &corev1.ContainerStateTerminated{
-							ExitCode: 137,
+			pod := makePod(
+				"pod-crash",
+				string(testTaskID),
+				corev1.PodFailed,
+				[]corev1.ContainerStatus{
+					{
+						State: corev1.ContainerState{
+							Terminated: &corev1.ContainerStateTerminated{
+								ExitCode: 137,
+							},
 						},
 					},
 				},
-			}, makeJobOwnerRef("my-job"), "")
+				makeJobOwnerRef("my-job"),
+				"",
+			)
 			taskStore.Store(testTaskID, testTask)
 
 			watcher.HandlePod(ctx, pod)
@@ -392,7 +420,14 @@ var _ = Describe("JobWatcher", func() {
 		})
 
 		It("does NOT publish failure for healthy Running pod", func() {
-			pod := makePod("pod-running", string(testTaskID), corev1.PodRunning, nil, makeJobOwnerRef("my-job"), "")
+			pod := makePod(
+				"pod-running",
+				string(testTaskID),
+				corev1.PodRunning,
+				nil,
+				makeJobOwnerRef("my-job"),
+				"",
+			)
 			taskStore.Store(testTaskID, testTask)
 
 			watcher.HandlePod(ctx, pod)
@@ -401,15 +436,22 @@ var _ = Describe("JobWatcher", func() {
 		})
 
 		It("does NOT publish failure when task is not in store", func() {
-			pod := makePod("pod-imgpull", string(testTaskID), corev1.PodPending, []corev1.ContainerStatus{
-				{
-					State: corev1.ContainerState{
-						Waiting: &corev1.ContainerStateWaiting{
-							Reason: "ImagePullBackOff",
+			pod := makePod(
+				"pod-imgpull",
+				string(testTaskID),
+				corev1.PodPending,
+				[]corev1.ContainerStatus{
+					{
+						State: corev1.ContainerState{
+							Waiting: &corev1.ContainerStateWaiting{
+								Reason: "ImagePullBackOff",
+							},
 						},
 					},
 				},
-			}, makeJobOwnerRef("my-job"), "")
+				makeJobOwnerRef("my-job"),
+				"",
+			)
 
 			watcher.HandlePod(ctx, pod)
 
@@ -417,15 +459,22 @@ var _ = Describe("JobWatcher", func() {
 		})
 
 		It("does NOT publish failure when pod has no Job ownerRef", func() {
-			pod := makePod("pod-noowner", string(testTaskID), corev1.PodPending, []corev1.ContainerStatus{
-				{
-					State: corev1.ContainerState{
-						Waiting: &corev1.ContainerStateWaiting{
-							Reason: "ImagePullBackOff",
+			pod := makePod(
+				"pod-noowner",
+				string(testTaskID),
+				corev1.PodPending,
+				[]corev1.ContainerStatus{
+					{
+						State: corev1.ContainerState{
+							Waiting: &corev1.ContainerStateWaiting{
+								Reason: "ImagePullBackOff",
+							},
 						},
 					},
 				},
-			}, nil, "")
+				nil,
+				"",
+			)
 			taskStore.Store(testTaskID, testTask)
 
 			watcher.HandlePod(ctx, pod)

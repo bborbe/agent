@@ -19,6 +19,22 @@ func TestPkg(t *testing.T) {
 	RunSpecs(t, "Pkg Suite")
 }
 
+var _ = Describe("AgentConfiguration", func() {
+	Describe("EffectiveZombieJobTimeoutSeconds", func() {
+		ptrInt32 := func(v int32) *int32 { return &v }
+
+		It("returns default when ZombieJobTimeoutSeconds is nil", func() {
+			cfg := pkg.AgentConfiguration{}
+			Expect(cfg.EffectiveZombieJobTimeoutSeconds()).To(Equal(int32(1800)))
+		})
+
+		It("returns configured value when set", func() {
+			cfg := pkg.AgentConfiguration{ZombieJobTimeoutSeconds: ptrInt32(900)}
+			Expect(cfg.EffectiveZombieJobTimeoutSeconds()).To(Equal(int32(900)))
+		})
+	})
+})
+
 var _ = Describe("AgentConfigurations", func() {
 	var configs pkg.AgentConfigurations
 
@@ -122,6 +138,15 @@ var _ = Describe("AgentConfigurations", func() {
 		It("preserves nil Resources for configs without resources", func() {
 			result := configs.TaggedConfigurations("prod")
 			Expect(result[1].Resources).To(BeNil())
+		})
+
+		It("preserves ZombieJobTimeoutSeconds", func() {
+			ptr := int32(900)
+			configs[0].ZombieJobTimeoutSeconds = &ptr
+			result := configs.TaggedConfigurations("prod")
+			Expect(result[0].ZombieJobTimeoutSeconds).NotTo(BeNil())
+			Expect(*result[0].ZombieJobTimeoutSeconds).To(Equal(int32(900)))
+			Expect(result[1].ZombieJobTimeoutSeconds).To(BeNil())
 		})
 	})
 })

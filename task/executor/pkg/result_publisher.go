@@ -14,16 +14,17 @@ import (
 	cdb "github.com/bborbe/cqrs/cdb"
 	cqrsiam "github.com/bborbe/cqrs/iam"
 	"github.com/bborbe/errors"
-	"github.com/golang/glog"
 	libkafka "github.com/bborbe/kafka"
 	"github.com/bborbe/log"
 	libtime "github.com/bborbe/time"
+	"github.com/golang/glog"
 
 	lib "github.com/bborbe/agent/lib"
 	taskcmd "github.com/bborbe/agent/lib/command/task"
 )
 
 const dedupeCapacity = 1024
+
 const dedupeTTL = 3600 * time.Second
 
 //counterfeiter:generate -o ../mocks/result_publisher.go --fake-name FakeResultPublisher . ResultPublisher
@@ -66,7 +67,7 @@ func NewResultPublisher(
 			log.DefaultSamplerFactory,
 		),
 		currentDateTime: currentDateTime,
-		dedupe:         newDedupe(dedupeCapacity),
+		dedupe:          newDedupe(dedupeCapacity),
 	}
 }
 
@@ -178,7 +179,12 @@ func (p *resultPublisher) PublishFailure(
 		},
 	}
 	if err := p.publishRaw(ctx, taskcmd.UpdateFrontmatterCommandOperation, updateCmd); err != nil {
-		return errors.Wrapf(ctx, err, "publish zombie failure update for task %s", task.TaskIdentifier)
+		return errors.Wrapf(
+			ctx,
+			err,
+			"publish zombie failure update for task %s",
+			task.TaskIdentifier,
+		)
 	}
 
 	incrementCmd := taskcmd.IncrementFrontmatterCommand{
@@ -187,7 +193,12 @@ func (p *resultPublisher) PublishFailure(
 		Delta:          1,
 	}
 	if err := p.publishRaw(ctx, taskcmd.IncrementFrontmatterCommandOperation, incrementCmd); err != nil {
-		return errors.Wrapf(ctx, err, "publish zombie failure trigger_count increment for task %s", task.TaskIdentifier)
+		return errors.Wrapf(
+			ctx,
+			err,
+			"publish zombie failure trigger_count increment for task %s",
+			task.TaskIdentifier,
+		)
 	}
 
 	p.dedupe.recordDedupe(jobName, nowTs.Time())
@@ -234,7 +245,12 @@ func (p *resultPublisher) PublishTypeMismatchFailure(
 		},
 	}
 	if err := p.publishRaw(ctx, taskcmd.UpdateFrontmatterCommandOperation, cmd); err != nil {
-		return errors.Wrapf(ctx, err, "publish type mismatch failure for task %s", task.TaskIdentifier)
+		return errors.Wrapf(
+			ctx,
+			err,
+			"publish type mismatch failure for task %s",
+			task.TaskIdentifier,
+		)
 	}
 	return nil
 }
