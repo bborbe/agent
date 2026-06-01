@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(task/controller): add `agent_controller_vault_scanner_skipped_files_total{reason}` counter and promote operator-actionable skip logs to `glog.Errorf`, restoring Prometheus observability for files silently skipped by the vault scanner; references the 2026-05-31 / 2026-06-01 incident and advances [[Make Parked Agent Tasks Visible to Operator]]
+
 ## v0.63.35
 
 - refactor(task/controller): extract frontmatter and task-identifier helpers from vault_scanner.go into dedicated files in pkg/scanner/
