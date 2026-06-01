@@ -20,8 +20,10 @@ import (
 	"github.com/bborbe/vault-cli/pkg/domain"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/yaml.v3"
 
+	"github.com/bborbe/agent/task/controller/pkg/metrics"
 	"github.com/bborbe/agent/task/controller/pkg/scanner"
 )
 
@@ -134,6 +136,16 @@ func (t *fileOpsTestGitClient) WriteFile(_ context.Context, relPath string, cont
 	return os.WriteFile(filepath.Join(t.path, relPath), content, 0600)
 }
 
+// failingReadFileOpsGitClient shadows ReadFile to always fail while keeping
+// the real ListFiles implementation from fileOpsTestGitClient.
+type failingReadFileOpsGitClient struct {
+	*fileOpsTestGitClient
+}
+
+func (f *failingReadFileOpsGitClient) ReadFile(_ context.Context, _ string) ([]byte, error) {
+	return nil, os.ErrNotExist
+}
+
 func mustInitGitRepo(dir string) {
 	cmds := [][]string{
 		{"git", "-C", dir, "init"},
@@ -170,7 +182,13 @@ var _ = Describe("VaultScanner", func() {
 		fakeGit = &testGitClient{path: tmpDir}
 		results = make(chan scanner.ScanResult, 1)
 
-		s = scanner.NewVaultScanner(fakeGit, taskDir, time.Second, make(chan struct{}))
+		s = scanner.NewVaultScanner(
+			fakeGit,
+			taskDir,
+			time.Second,
+			make(chan struct{}),
+			metrics.New(),
+		)
 	})
 
 	AfterEach(func() {
@@ -481,7 +499,7 @@ var _ = Describe("VaultScanner", func() {
 
 	Describe("NewVaultScanner", func() {
 		It("returns a non-nil VaultScanner", func() {
-			vs := scanner.NewVaultScanner(fakeGit, taskDir, time.Hour, nil)
+			vs := scanner.NewVaultScanner(fakeGit, taskDir, time.Hour, nil, metrics.New())
 			Expect(vs).NotTo(BeNil())
 		})
 	})
@@ -490,7 +508,7 @@ var _ = Describe("VaultScanner", func() {
 		It("uses fileOps (ListFiles/ReadFile/WriteFile) through the fileOps interface", func() {
 			// fileOpsTestGitClient provides real ListFiles/ReadFile/WriteFile implementations
 			gitClient := &fileOpsTestGitClient{path: tmpDir}
-			vs := scanner.NewGitRestVaultScanner(gitClient, taskDir, time.Hour, nil)
+			vs := scanner.NewGitRestVaultScanner(gitClient, taskDir, time.Hour, nil, metrics.New())
 			Expect(vs).NotTo(BeNil())
 
 			// Write a task file and run a cycle to exercise ListFiles/ReadFile/WriteFile
@@ -510,7 +528,7 @@ var _ = Describe("VaultScanner", func() {
 
 	Describe("Run", func() {
 		It("returns nil when context is cancelled", func() {
-			vs := scanner.NewVaultScanner(fakeGit, taskDir, time.Hour, nil)
+			vs := scanner.NewVaultScanner(fakeGit, taskDir, time.Hour, nil, metrics.New())
 			runCtx, cancel := context.WithCancel(ctx)
 			done := make(chan error, 1)
 			go func() {
@@ -526,7 +544,7 @@ var _ = Describe("VaultScanner", func() {
 			Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
 
 			trigger := make(chan struct{}, 1)
-			vs := scanner.NewVaultScanner(fakeGit, taskDir, time.Hour, trigger)
+			vs := scanner.NewVaultScanner(fakeGit, taskDir, time.Hour, trigger, metrics.New())
 			scanResults := make(chan scanner.ScanResult, 1)
 			runCtx, cancel := context.WithCancel(ctx)
 			defer cancel()
@@ -756,6 +774,287 @@ var _ = Describe("VaultScanner", func() {
 
 			s.RunCycle(ctx, results)
 			Consistently(results, 50*time.Millisecond).ShouldNot(Receive())
+		})
+	})
+
+	Describe("SkippedFilesTotal counter", func() {
+		counterValue := func(reason string) float64 {
+			mfs, err := prometheus.DefaultGatherer.Gather()
+			Expect(err).NotTo(HaveOccurred())
+			for _, mf := range mfs {
+				if mf.GetName() != "agent_controller_vault_scanner_skipped_files_total" {
+					continue
+				}
+				for _, m := range mf.GetMetric() {
+					for _, lp := range m.GetLabel() {
+						if lp.GetName() == "reason" && lp.GetValue() == reason {
+							return m.GetCounter().GetValue()
+						}
+					}
+				}
+			}
+			return 0
+		}
+
+		Context("invalid_frontmatter reason (extractFrontmatter failure)", func() {
+			// Content without frontmatter delimiter fails at extractFrontmatter, not at DeduplicateFrontmatter.
+			// The second cycle re-processes (hash not stored), so counter ticks again.
+			It(
+				"increments counter on first cycle and again on second cycle (re-scan increments)",
+				func() {
+					// No frontmatter delimiter - extractFrontmatter fails
+					content := "task_identifier: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\nstatus: todo\nassignee: claude\n---\n# No frontmatter"
+					absPath := filepath.Join(tmpDir, taskDir, "no-frontmatter.md")
+					Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+
+					initial := counterValue(metrics.ReasonInvalidFrontmatter)
+					initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
+					initialEmptyStatus := counterValue(metrics.ReasonEmptyStatus)
+					initialInjectFailed := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
+					initialReadFailed := counterValue(metrics.ReasonReadFailed)
+
+					s.RunCycle(ctx, results)
+					Expect(counterValue(metrics.ReasonInvalidFrontmatter)).To(Equal(initial + 1))
+
+					s.RunCycle(ctx, results)
+					Expect(counterValue(metrics.ReasonInvalidFrontmatter)).To(Equal(initial + 2))
+
+					Expect(
+						counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+					).To(BeNumerically("==", initialDupInvalid))
+					Expect(
+						counterValue(metrics.ReasonEmptyStatus),
+					).To(BeNumerically("==", initialEmptyStatus))
+					Expect(
+						counterValue(metrics.ReasonInjectTaskIdentifierFailed),
+					).To(BeNumerically("==", initialInjectFailed))
+					Expect(
+						counterValue(metrics.ReasonReadFailed),
+					).To(BeNumerically("==", initialReadFailed))
+				},
+			)
+		})
+
+		Context("duplicate_frontmatter_invalid reason", func() {
+			// Bare '[' is valid at the raw frontmatter string level (extractFrontmatter passes),
+			// but fails DeduplicateFrontmatter's internal unmarshal — the FIRST skip site hit
+			// for this content is DeduplicateFrontmatter → duplicate_frontmatter_invalid,
+			// NOT extractFrontmatter → invalid_frontmatter.
+			// So duplicate_frontmatter_invalid ticks and invalid_frontmatter does NOT tick.
+			It(
+				"increments duplicate_frontmatter_invalid counter (NOT invalid_frontmatter) on first cycle and again on second cycle",
+				func() {
+					content := "---\ntask_identifier: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\nstatus: todo\nassignee: [invalid\n---\n# Invalid"
+					absPath := filepath.Join(tmpDir, taskDir, "invalid-yaml-duplicate.md")
+					Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+
+					initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
+					initialInvalid := counterValue(metrics.ReasonInvalidFrontmatter)
+					initialEmptyStatus := counterValue(metrics.ReasonEmptyStatus)
+					initialInjectFailed := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
+					initialReadFailed := counterValue(metrics.ReasonReadFailed)
+
+					s.RunCycle(ctx, results)
+					Expect(
+						counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+					).To(BeNumerically("==", initialDupInvalid+1))
+					Expect(
+						counterValue(metrics.ReasonInvalidFrontmatter),
+					).To(BeNumerically("==", initialInvalid))
+					// NOT incremented
+
+					s.RunCycle(ctx, results)
+					Expect(
+						counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+					).To(BeNumerically("==", initialDupInvalid+2))
+					Expect(
+						counterValue(metrics.ReasonInvalidFrontmatter),
+					).To(BeNumerically("==", initialInvalid))
+
+					Expect(
+						counterValue(metrics.ReasonEmptyStatus),
+					).To(BeNumerically("==", initialEmptyStatus))
+					Expect(
+						counterValue(metrics.ReasonInjectTaskIdentifierFailed),
+					).To(BeNumerically("==", initialInjectFailed))
+					Expect(
+						counterValue(metrics.ReasonReadFailed),
+					).To(BeNumerically("==", initialReadFailed))
+				},
+			)
+		})
+
+		Context("empty_status reason", func() {
+			// The empty_status check happens AFTER v.hashes[relPath] = fileEntry{hash: hash, ...}
+			// is stored, so the second cycle short-circuits at the hash check and
+			// the counter does NOT tick again (hash prevents re-process).
+			It(
+				"increments counter on first cycle but NOT on second cycle (hash prevents re-process)",
+				func() {
+					content := "---\ntask_identifier: 88888888-8888-4888-8888-888888888888\nassignee: claude\n---\n# Empty status\n"
+					absPath := filepath.Join(tmpDir, taskDir, "empty-status.md")
+					Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+
+					initial := counterValue(metrics.ReasonEmptyStatus)
+					initialInvalid := counterValue(metrics.ReasonInvalidFrontmatter)
+					initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
+					initialInjectFailed := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
+					initialReadFailed := counterValue(metrics.ReasonReadFailed)
+
+					s.RunCycle(ctx, results)
+					Expect(counterValue(metrics.ReasonEmptyStatus)).To(Equal(initial + 1))
+
+					s.RunCycle(ctx, results)
+					Expect(
+						counterValue(metrics.ReasonEmptyStatus),
+					).To(Equal(initial + 1))
+					// NOT incremented again
+
+					Expect(
+						counterValue(metrics.ReasonInvalidFrontmatter),
+					).To(BeNumerically("==", initialInvalid))
+					Expect(
+						counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+					).To(BeNumerically("==", initialDupInvalid))
+					Expect(
+						counterValue(metrics.ReasonInjectTaskIdentifierFailed),
+					).To(BeNumerically("==", initialInjectFailed))
+					Expect(
+						counterValue(metrics.ReasonReadFailed),
+					).To(BeNumerically("==", initialReadFailed))
+				},
+			)
+		})
+
+		Context("read_failed reason", func() {
+			// File is listed but ReadFile always fails.
+			// Counter increments on each cycle since hash is never stored.
+			It("increments counter on first cycle and again on second cycle", func() {
+				content := "---\ntask_identifier: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\nstatus: todo\nassignee: claude\n---\n# Read fail"
+				absPath := filepath.Join(tmpDir, taskDir, "read-fail.md")
+				Expect(os.WriteFile(absPath, []byte(content), 0600)).To(Succeed())
+
+				initial := counterValue(metrics.ReasonReadFailed)
+				initialInvalid := counterValue(metrics.ReasonInvalidFrontmatter)
+				initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
+				initialEmptyStatus := counterValue(metrics.ReasonEmptyStatus)
+				initialInjectFailed := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
+
+				failingClient := &failingReadFileOpsGitClient{
+					fileOpsTestGitClient: &fileOpsTestGitClient{path: tmpDir},
+				}
+
+				vs := scanner.NewGitRestVaultScanner(
+					failingClient,
+					taskDir,
+					time.Hour,
+					make(chan struct{}),
+					metrics.New(),
+				)
+				scanResults := make(chan scanner.ScanResult, 1)
+
+				vs.RunCycle(ctx, scanResults)
+				Expect(counterValue(metrics.ReasonReadFailed)).To(Equal(initial + 1))
+
+				vs.RunCycle(ctx, scanResults)
+				Expect(counterValue(metrics.ReasonReadFailed)).To(Equal(initial + 2))
+
+				Expect(
+					counterValue(metrics.ReasonInvalidFrontmatter),
+				).To(BeNumerically("==", initialInvalid))
+				Expect(
+					counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+				).To(BeNumerically("==", initialDupInvalid))
+				Expect(
+					counterValue(metrics.ReasonEmptyStatus),
+				).To(BeNumerically("==", initialEmptyStatus))
+				Expect(
+					counterValue(metrics.ReasonInjectTaskIdentifierFailed),
+				).To(BeNumerically("==", initialInjectFailed))
+			})
+		})
+
+		Context("broken vs valid regression", func() {
+			// Merge marker content passes extractFrontmatter but fails DeduplicateFrontmatter's yaml.Unmarshal.
+			// Broken file's hash is never stored in v.hashes, so second cycle re-processes it.
+			// Valid file processes normally and is published.
+			It(
+				"skips broken file, publishes valid file, counter increments again on second cycle for broken file",
+				func() {
+					brokenContent := "---\n<<<<<<< HEAD\ntask_identifier: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\nstatus: todo\nassignee: claude\n---\n# Broken"
+					validContent := "---\ntask_identifier: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\nstatus: todo\nassignee: claude\n---\n# Valid"
+
+					brokenPath := filepath.Join(tmpDir, taskDir, "broken-regression.md")
+					validPath := filepath.Join(tmpDir, taskDir, "valid-regression.md")
+					Expect(os.WriteFile(brokenPath, []byte(brokenContent), 0600)).To(Succeed())
+					Expect(os.WriteFile(validPath, []byte(validContent), 0600)).To(Succeed())
+
+					initialDupInvalid := counterValue(metrics.ReasonDuplicateFrontmatterInvalid)
+					initialInvalid := counterValue(metrics.ReasonInvalidFrontmatter)
+					initialEmptyStatus := counterValue(metrics.ReasonEmptyStatus)
+					initialInjectFailed := counterValue(metrics.ReasonInjectTaskIdentifierFailed)
+					initialReadFailed := counterValue(metrics.ReasonReadFailed)
+
+					s.RunCycle(ctx, results)
+					var firstResult scanner.ScanResult
+					Expect(results).To(Receive(&firstResult))
+					Expect(firstResult.Changed).To(HaveLen(1))
+					Expect(
+						string(firstResult.Changed[0].TaskIdentifier),
+					).To(Equal("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"))
+					Expect(
+						counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+					).To(Equal(initialDupInvalid + 1))
+
+					s.RunCycle(ctx, results)
+					var secondResult scanner.ScanResult
+					Expect(results).To(Receive(&secondResult))
+					// valid file unchanged, not re-published
+					Expect(secondResult.Changed).To(BeEmpty())
+					// broken file re-processed (hash never stored)
+					Expect(
+						counterValue(metrics.ReasonDuplicateFrontmatterInvalid),
+					).To(Equal(initialDupInvalid + 2))
+
+					Expect(
+						counterValue(metrics.ReasonInvalidFrontmatter),
+					).To(BeNumerically("==", initialInvalid))
+					Expect(
+						counterValue(metrics.ReasonEmptyStatus),
+					).To(BeNumerically("==", initialEmptyStatus))
+					Expect(
+						counterValue(metrics.ReasonInjectTaskIdentifierFailed),
+					).To(BeNumerically("==", initialInjectFailed))
+					Expect(
+						counterValue(metrics.ReasonReadFailed),
+					).To(BeNumerically("==", initialReadFailed))
+				},
+			)
+		})
+
+		It("maintains counter-call parity with skip-site log lines (AC#6 invariant)", func() {
+			// vault_scanner.go is in pkg/scanner/ so the test file at pkg/scanner/vault_scanner_test.go
+			// finds the source at pkg/scanner/vault_scanner.go (same directory).
+			scannerSrc, err := filepath.Abs("vault_scanner.go")
+			Expect(err).NotTo(HaveOccurred())
+
+			cmd := exec.Command(
+				"awk",
+				`/^func \(v \*vaultScanner\) (processFile|injectAndStore)\(/,/^}/`,
+				scannerSrc,
+			)
+			out, err := cmd.Output()
+			Expect(err).NotTo(HaveOccurred())
+			body := string(out)
+
+			skipCount := strings.Count(body, `glog.Warningf("skipping`) +
+				strings.Count(body, `glog.Errorf("skipping`) +
+				strings.Count(body, `glog.Warningf("failed to read`)
+			counterCount := strings.Count(body, `SkippedFilesTotal(`)
+			Expect(skipCount).To(Equal(6), "expected 6 skip-site log lines, got %d", skipCount)
+			Expect(
+				counterCount,
+			).To(Equal(6), "expected 6 counter increment calls, got %d", counterCount)
 		})
 	})
 })

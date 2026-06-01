@@ -18,6 +18,7 @@ import (
 
 	"github.com/bborbe/agent/lib"
 	gitclient "github.com/bborbe/agent/task/controller/pkg/gitrestclient"
+	"github.com/bborbe/agent/task/controller/pkg/metrics"
 )
 
 // ScanResult holds the outcome of a single vault scan cycle.
@@ -56,6 +57,7 @@ type vaultScanner struct {
 	pollInterval time.Duration
 	hashes       map[string]fileEntry
 	trigger      <-chan struct{}
+	metrics      metrics.Metrics
 	ops          fileOps
 }
 
@@ -98,6 +100,7 @@ func NewVaultScanner(
 	taskDir string,
 	pollInterval time.Duration,
 	trigger <-chan struct{},
+	m metrics.Metrics,
 ) VaultScanner {
 	return &vaultScanner{
 		gitClient:    gitClient,
@@ -105,6 +108,7 @@ func NewVaultScanner(
 		pollInterval: pollInterval,
 		hashes:       make(map[string]fileEntry),
 		trigger:      trigger,
+		metrics:      m,
 		ops:          newLocalFileOps(gitClient.Path()),
 	}
 }
@@ -117,6 +121,7 @@ func NewGitRestVaultScanner(
 	taskDir string,
 	pollInterval time.Duration,
 	trigger <-chan struct{},
+	m metrics.Metrics,
 ) VaultScanner {
 	return &vaultScanner{
 		gitClient:    gitClient,
@@ -124,6 +129,7 @@ func NewGitRestVaultScanner(
 		pollInterval: pollInterval,
 		hashes:       make(map[string]fileEntry),
 		trigger:      trigger,
+		metrics:      m,
 		ops: fileOps{
 			listFiles: gitClient.ListFiles,
 			readFile:  gitClient.ReadFile,
@@ -212,6 +218,8 @@ func (v *vaultScanner) scanFiles(
 
 // processFile handles a single .md file during a scan cycle.
 // Returns (task, writtenRelPath, writeError).
+//
+//nolint:funlen // +5 statements from spec-043 counter calls at 5 skip sites; each site needs its own metric.
 func (v *vaultScanner) processFile(
 	ctx context.Context,
 	relPath string,
@@ -219,6 +227,7 @@ func (v *vaultScanner) processFile(
 	content, readErr := v.ops.readFile(ctx, relPath)
 	if readErr != nil {
 		glog.Warningf("failed to read %s: %v", relPath, readErr)
+		v.metrics.SkippedFilesTotal(metrics.ReasonReadFailed).Inc()
 		return nil, "", false
 	}
 	hash := sha256.Sum256(content)
@@ -227,12 +236,14 @@ func (v *vaultScanner) processFile(
 	}
 	fmYAML, err := extractFrontmatter(ctx, content)
 	if err != nil {
-		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, err)
+		glog.Errorf("skipping %s: invalid frontmatter: %v", relPath, err)
+		v.metrics.SkippedFilesTotal(metrics.ReasonInvalidFrontmatter).Inc()
 		return nil, "", false
 	}
 	dedupedYAML, hasDuplicates, dedupErr := DeduplicateFrontmatter(ctx, fmYAML)
 	if dedupErr != nil {
-		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, dedupErr)
+		glog.Errorf("skipping %s: invalid frontmatter: %v", relPath, dedupErr)
+		v.metrics.SkippedFilesTotal(metrics.ReasonDuplicateFrontmatterInvalid).Inc()
 		return nil, "", false
 	}
 	if hasDuplicates {
@@ -240,7 +251,8 @@ func (v *vaultScanner) processFile(
 	}
 	var fmMap map[string]interface{}
 	if err := yaml.Unmarshal([]byte(dedupedYAML), &fmMap); err != nil {
-		glog.Warningf("skipping %s: invalid frontmatter: %v", relPath, err)
+		glog.Errorf("skipping %s: invalid frontmatter: %v", relPath, err)
+		v.metrics.SkippedFilesTotal(metrics.ReasonInvalidFrontmatter).Inc()
 		return nil, "", false
 	}
 	frontmatter := lib.TaskFrontmatter(fmMap)
@@ -284,7 +296,8 @@ func (v *vaultScanner) processFile(
 		assignee:       currentFMAssignee,
 	}
 	if frontmatter.Status() == "" {
-		glog.Warningf("skipping %s: invalid frontmatter: status is empty", relPath)
+		glog.Errorf("skipping %s: invalid frontmatter: status is empty", relPath)
+		v.metrics.SkippedFilesTotal(metrics.ReasonEmptyStatus).Inc()
 		return nil, "", false
 	}
 	if currentFMAssignee == "" {
@@ -311,6 +324,7 @@ func (v *vaultScanner) injectAndStore(
 	newContent, injectErr := InjectTaskIdentifier(ctx, content, id)
 	if injectErr != nil {
 		glog.Warningf("skipping %s: failed to inject task_identifier: %v", relPath, injectErr)
+		v.metrics.SkippedFilesTotal(metrics.ReasonInjectTaskIdentifierFailed).Inc()
 		return nil, "", false
 	}
 	if writeErr := v.ops.writeFile(ctx, relPath, newContent); writeErr != nil {

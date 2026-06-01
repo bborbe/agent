@@ -24,4 +24,7 @@ coverprofile.out
 gha-creds-*.json
 main
 pkg.test
+*.test
+task/controller/controller
+task/executor/executor
 vendor

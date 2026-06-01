@@ -61,6 +61,7 @@ type application struct {
 	BuildDate       *libtime.DateTime `required:"false" arg:"build-date"        env:"BUILD_DATE"        usage:"Build timestamp (RFC3339)"`
 }
 
+//nolint:funlen // +6 lines from spec-043 metrics.New() passed to scanner + sync loop; extraction would split tightly-coupled wiring.
 func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
 	libmetrics.NewBuildInfoMetrics().SetBuildInfo(a.BuildGitVersion, a.BuildGitCommit, a.BuildDate)
 	glog.V(1).
@@ -97,7 +98,13 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 
 	trigger := make(chan struct{}, 1)
 	syncLoop := pkgsync.NewSyncLoop(
-		scanner.NewGitRestVaultScanner(gitClient, a.TaskDir, a.PollInterval, trigger),
+		scanner.NewGitRestVaultScanner(
+			gitClient,
+			a.TaskDir,
+			a.PollInterval,
+			trigger,
+			metrics.New(),
+		),
 		publisher.NewTaskPublisher(eventObjectSender, lib.TaskV1SchemaID, currentDateTime),
 		trigger,
 		metrics.New(),

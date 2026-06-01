@@ -86,6 +86,17 @@ type Metrics struct {
 	scanCyclesTotalReturnsOnCall map[int]struct {
 		result1 prometheus.Counter
 	}
+	SkippedFilesTotalStub        func(string) prometheus.Counter
+	skippedFilesTotalMutex       sync.RWMutex
+	skippedFilesTotalArgsForCall []struct {
+		arg1 string
+	}
+	skippedFilesTotalReturns struct {
+		result1 prometheus.Counter
+	}
+	skippedFilesTotalReturnsOnCall map[int]struct {
+		result1 prometheus.Counter
+	}
 	TasksPublishedTotalStub        func(string) prometheus.Counter
 	tasksPublishedTotalMutex       sync.RWMutex
 	tasksPublishedTotalArgsForCall []struct {
@@ -510,6 +521,67 @@ func (fake *Metrics) ScanCyclesTotalReturnsOnCall(i int, result1 prometheus.Coun
 		})
 	}
 	fake.scanCyclesTotalReturnsOnCall[i] = struct {
+		result1 prometheus.Counter
+	}{result1}
+}
+
+func (fake *Metrics) SkippedFilesTotal(arg1 string) prometheus.Counter {
+	fake.skippedFilesTotalMutex.Lock()
+	ret, specificReturn := fake.skippedFilesTotalReturnsOnCall[len(fake.skippedFilesTotalArgsForCall)]
+	fake.skippedFilesTotalArgsForCall = append(fake.skippedFilesTotalArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.SkippedFilesTotalStub
+	fakeReturns := fake.skippedFilesTotalReturns
+	fake.recordInvocation("SkippedFilesTotal", []interface{}{arg1})
+	fake.skippedFilesTotalMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *Metrics) SkippedFilesTotalCallCount() int {
+	fake.skippedFilesTotalMutex.RLock()
+	defer fake.skippedFilesTotalMutex.RUnlock()
+	return len(fake.skippedFilesTotalArgsForCall)
+}
+
+func (fake *Metrics) SkippedFilesTotalCalls(stub func(string) prometheus.Counter) {
+	fake.skippedFilesTotalMutex.Lock()
+	defer fake.skippedFilesTotalMutex.Unlock()
+	fake.SkippedFilesTotalStub = stub
+}
+
+func (fake *Metrics) SkippedFilesTotalArgsForCall(i int) string {
+	fake.skippedFilesTotalMutex.RLock()
+	defer fake.skippedFilesTotalMutex.RUnlock()
+	argsForCall := fake.skippedFilesTotalArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *Metrics) SkippedFilesTotalReturns(result1 prometheus.Counter) {
+	fake.skippedFilesTotalMutex.Lock()
+	defer fake.skippedFilesTotalMutex.Unlock()
+	fake.SkippedFilesTotalStub = nil
+	fake.skippedFilesTotalReturns = struct {
+		result1 prometheus.Counter
+	}{result1}
+}
+
+func (fake *Metrics) SkippedFilesTotalReturnsOnCall(i int, result1 prometheus.Counter) {
+	fake.skippedFilesTotalMutex.Lock()
+	defer fake.skippedFilesTotalMutex.Unlock()
+	fake.SkippedFilesTotalStub = nil
+	if fake.skippedFilesTotalReturnsOnCall == nil {
+		fake.skippedFilesTotalReturnsOnCall = make(map[int]struct {
+			result1 prometheus.Counter
+		})
+	}
+	fake.skippedFilesTotalReturnsOnCall[i] = struct {
 		result1 prometheus.Counter
 	}{result1}
 }

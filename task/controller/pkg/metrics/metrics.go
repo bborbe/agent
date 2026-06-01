@@ -23,6 +23,7 @@ type Metrics interface {
 	FrontmatterCommandsTotal(operation, outcome string) prometheus.Counter
 	GitRestCallsTotal(operation, status string) prometheus.Counter
 	KafkaConsumePausedTotal() prometheus.Counter
+	SkippedFilesTotal(reason string) prometheus.Counter
 }
 
 // defaultMetrics implements Metrics using promauto-registered counters.
@@ -65,6 +66,10 @@ func (m *defaultMetrics) GitRestCallsTotal(operation, status string) prometheus.
 
 func (m *defaultMetrics) KafkaConsumePausedTotal() prometheus.Counter {
 	return KafkaConsumePausedTotal
+}
+
+func (m *defaultMetrics) SkippedFilesTotal(reason string) prometheus.Counter {
+	return SkippedFilesTotal.WithLabelValues(reason)
 }
 
 // ScanCyclesTotal counts scan cycle completions by result.
@@ -139,6 +144,28 @@ var KafkaConsumePausedTotal = promauto.NewCounter(prometheus.CounterOpts{
 	Help: "Total number of times Kafka consumption was paused waiting for git-rest.",
 })
 
+const (
+	ReasonInvalidFrontmatter          = "invalid_frontmatter"
+	ReasonDuplicateFrontmatterInvalid = "duplicate_frontmatter_invalid"
+	ReasonEmptyStatus                 = "empty_status"
+	ReasonInjectTaskIdentifierFailed  = "inject_task_identifier_failed"
+	ReasonReadFailed                  = "read_failed"
+)
+
+// SkippedFilesTotal counts vault task files the scanner skipped during a scan cycle,
+// labelled by the structured reason for the skip. A non-zero value on any label
+// indicates operator-actionable vault health issues (broken frontmatter, empty status,
+// unreadable files, injection failures); a stuck broken file will keep the relevant
+// label rate-positive until repaired. The closed set of reason values is declared
+// as constants above and pre-initialised in init().
+var SkippedFilesTotal = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "agent_controller_vault_scanner_skipped_files_total",
+		Help: "Total number of vault task files the scanner skipped during a scan cycle, by reason. Increments exactly once per skipped file per cycle — re-scans of an unrepaired broken file keep the rate positive.",
+	},
+	[]string{"reason"},
+)
+
 func init() {
 	ScanCyclesTotal.WithLabelValues("changes").Add(0)
 	ScanCyclesTotal.WithLabelValues("no_changes").Add(0)
@@ -169,5 +196,15 @@ func init() {
 		for _, status := range []string{"success", "error"} {
 			GitRestCallsTotal.WithLabelValues(op, status).Add(0)
 		}
+	}
+
+	for _, reason := range []string{
+		ReasonInvalidFrontmatter,
+		ReasonDuplicateFrontmatterInvalid,
+		ReasonEmptyStatus,
+		ReasonInjectTaskIdentifierFailed,
+		ReasonReadFailed,
+	} {
+		SkippedFilesTotal.WithLabelValues(reason).Add(0)
 	}
 }
