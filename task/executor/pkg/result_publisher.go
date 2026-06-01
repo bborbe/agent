@@ -7,6 +7,7 @@ package pkg
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/bborbe/cqrs/base"
@@ -16,9 +17,15 @@ import (
 	libkafka "github.com/bborbe/kafka"
 	"github.com/bborbe/log"
 	libtime "github.com/bborbe/time"
+	"github.com/golang/glog"
 
 	lib "github.com/bborbe/agent/lib"
 	taskcmd "github.com/bborbe/agent/lib/command/task"
+)
+
+const (
+	dedupeCapacity = 1024
+	dedupeTTL      = 3600 * time.Second
 )
 
 //counterfeiter:generate -o ../mocks/result_publisher.go --fake-name FakeResultPublisher . ResultPublisher
@@ -29,15 +36,20 @@ type ResultPublisher interface {
 	// PublishSpawnNotification publishes current_job, job_started_at, and
 	// spawn_notification without touching any other frontmatter keys.
 	PublishSpawnNotification(ctx context.Context, task lib.Task, jobName string) error
-	// PublishFailure publishes a partial frontmatter update setting status, phase,
-	// and current_job. Body content is not mutated by this publisher.
+	// PublishFailure publishes a zombie failure: clears current_job and atomically
+	// bumps trigger_count by 1 via a paired IncrementFrontmatterCommand. Leaves
+	// phase, status, and assignee untouched so the existing trigger_count retry
+	// cap (applyTriggerCap in task/controller/pkg/result/result_writer.go) handles
+	// eventual operator-inbox escalation. Idempotent per current_job via a TTL'd
+	// LRU; concurrent classifications for the same job emit one event.
 	PublishFailure(ctx context.Context, task lib.Task, jobName string, reason string) error
 	// PublishIncrementTriggerCount sends an IncrementFrontmatterCommand that atomically
 	// increments trigger_count by 1. Must complete before SpawnJob is called.
 	PublishIncrementTriggerCount(ctx context.Context, task lib.Task) error
 	// PublishTypeMismatchFailure publishes a synthetic failure when the task's task_type
-	// is not in the agent's effective type set. Sets phase=ai_review and clears assignee
-	// so the task surfaces in the operator inbox. Does not bump trigger_count or retry_count.
+	// is not in the agent's effective type set. Clears assignee and current_job so the
+	// task surfaces in the operator inbox via assignee=="" filter. Does not bump
+	// trigger_count or retry_count.
 	PublishTypeMismatchFailure(ctx context.Context, task lib.Task, reason string) error
 	// PublishRaw publishes a raw payload for testing error paths.
 	PublishRaw(ctx context.Context, operation base.CommandOperation, payload interface{}) error
@@ -56,13 +68,68 @@ func NewResultPublisher(
 			log.DefaultSamplerFactory,
 		),
 		currentDateTime: currentDateTime,
+		dedupe:          newDedupe(dedupeCapacity, currentDateTime),
 	}
+}
+
+// ttlDedupe implements a minimal TTL'd LRU with RWMutex for publish-layer dedupe.
+// The eviction order is tracked via a separate []string so map lookups never
+// hold stale slice indices after the oldest entry is shifted out.
+type ttlDedupe struct {
+	mu       sync.RWMutex
+	capacity int
+	ttl      time.Duration
+	order    []string             // insertion order; index 0 is oldest
+	seen     map[string]time.Time // jobName -> insertion ts; existence = "in dedupe window"
+	now      libtime.CurrentDateTimeGetter
+}
+
+func newDedupe(capacity int, now libtime.CurrentDateTimeGetter) *ttlDedupe {
+	return &ttlDedupe{
+		capacity: capacity,
+		ttl:      dedupeTTL,
+		order:    make([]string, 0, capacity),
+		seen:     make(map[string]time.Time, capacity),
+		now:      now,
+	}
+}
+
+// checkDedupe returns true if a non-expired entry exists for jobName.
+// No mutation occurs.
+func (d *ttlDedupe) checkDedupe(jobName string) bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	ts, ok := d.seen[jobName]
+	if !ok {
+		return false
+	}
+	return d.now.Now().Time().Sub(ts) < d.ttl
+}
+
+// recordDedupe inserts or refreshes the entry for jobName with the current timestamp.
+// Evicts the oldest entry if at capacity.
+func (d *ttlDedupe) recordDedupe(jobName string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	now := d.now.Now().Time()
+	if _, ok := d.seen[jobName]; ok {
+		d.seen[jobName] = now // refresh ts
+		return
+	}
+	if len(d.order) >= d.capacity {
+		oldest := d.order[0]
+		d.order = d.order[1:]
+		delete(d.seen, oldest)
+	}
+	d.order = append(d.order, jobName)
+	d.seen[jobName] = now
 }
 
 // resultPublisher implements ResultPublisher by sending CQRS command objects to Kafka.
 type resultPublisher struct {
 	commandObjectSender cdb.CommandObjectSender
 	currentDateTime     libtime.CurrentDateTimeGetter
+	dedupe              *ttlDedupe
 }
 
 func (p *resultPublisher) PublishSpawnNotification(
@@ -87,6 +154,11 @@ func (p *resultPublisher) PublishFailure(
 	jobName string,
 	reason string,
 ) error {
+	if p.dedupe.checkDedupe(jobName) {
+		glog.V(2).Infof("event=zombie_dedupe job=%s task=%s", jobName, task.TaskIdentifier)
+		return nil
+	}
+
 	now := p.currentDateTime.Now().UTC().Format(time.RFC3339)
 	section := fmt.Sprintf(
 		"## Failure\n\n- **Timestamp:** %s\n- **Job:** %s\n- **Reason:** %s\n",
@@ -94,11 +166,9 @@ func (p *resultPublisher) PublishFailure(
 		jobName,
 		reason,
 	)
-	cmd := taskcmd.UpdateFrontmatterCommand{
+	updateCmd := taskcmd.UpdateFrontmatterCommand{
 		TaskIdentifier: task.TaskIdentifier,
 		Updates: lib.TaskFrontmatter{
-			"status":      "in_progress",
-			"phase":       "human_review",
 			"current_job": "",
 		},
 		Body: &taskcmd.BodySection{
@@ -106,7 +176,37 @@ func (p *resultPublisher) PublishFailure(
 			Section: section,
 		},
 	}
-	return p.publishRaw(ctx, taskcmd.UpdateFrontmatterCommandOperation, cmd)
+	if err := p.publishRaw(ctx, taskcmd.UpdateFrontmatterCommandOperation, updateCmd); err != nil {
+		return errors.Wrapf(
+			ctx,
+			err,
+			"publish zombie failure update for task %s",
+			task.TaskIdentifier,
+		)
+	}
+
+	incrementCmd := taskcmd.IncrementFrontmatterCommand{
+		TaskIdentifier: task.TaskIdentifier,
+		Field:          "trigger_count",
+		Delta:          1,
+	}
+	if err := p.publishRaw(ctx, taskcmd.IncrementFrontmatterCommandOperation, incrementCmd); err != nil {
+		return errors.Wrapf(
+			ctx,
+			err,
+			"publish zombie failure trigger_count increment for task %s",
+			task.TaskIdentifier,
+		)
+	}
+
+	// Record dedupe only after BOTH publishes succeed. If the increment fails,
+	// the next cycle re-sends both messages — the duplicate current_job=""
+	// write is idempotent (writing empty to already-empty is a no-op visually),
+	// and the retry allows trigger_count to eventually bump so the retry cap
+	// (applyTriggerCap in result_writer.go) fires.
+	p.dedupe.recordDedupe(jobName)
+
+	return nil
 }
 
 func (p *resultPublisher) PublishIncrementTriggerCount(ctx context.Context, task lib.Task) error {
@@ -124,26 +224,39 @@ func (p *resultPublisher) PublishTypeMismatchFailure(
 	reason string,
 ) error {
 	now := p.currentDateTime.Now().UTC().Format(time.RFC3339)
+	priorAssignee := string(task.Frontmatter.Assignee())
 	section := fmt.Sprintf(
 		"## Failure\n\n- **Timestamp:** %s\n- **Assignee:** %s\n- **Reason:** %s\n",
 		now,
-		task.Frontmatter.Assignee(),
+		priorAssignee,
 		reason,
 	)
+
+	updates := lib.TaskFrontmatter{
+		"assignee":    "",
+		"current_job": "",
+	}
+	if priorAssignee != "" {
+		updates["previous_assignee"] = priorAssignee
+	}
+
 	cmd := taskcmd.UpdateFrontmatterCommand{
 		TaskIdentifier: task.TaskIdentifier,
-		Updates: lib.TaskFrontmatter{
-			"status":      "in_progress",
-			"phase":       "ai_review",
-			"assignee":    "",
-			"current_job": "",
-		},
+		Updates:        updates,
 		Body: &taskcmd.BodySection{
 			Heading: "## Failure",
 			Section: section,
 		},
 	}
-	return p.publishRaw(ctx, taskcmd.UpdateFrontmatterCommandOperation, cmd)
+	if err := p.publishRaw(ctx, taskcmd.UpdateFrontmatterCommandOperation, cmd); err != nil {
+		return errors.Wrapf(
+			ctx,
+			err,
+			"publish type mismatch failure for task %s",
+			task.TaskIdentifier,
+		)
+	}
+	return nil
 }
 
 func (p *resultPublisher) publishRaw(

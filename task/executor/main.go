@@ -51,6 +51,7 @@ type application struct {
 	HealthcheckCronExpression string            `                 arg:"healthcheck-cron-expression" env:"HEALTHCHECK_CRON_EXPRESSION" usage:"Cron expression for agent liveness health checks"                          default:"0 0 8 * * 1"`
 }
 
+//nolint:funlen // Initialization sequence; wiring is linear with no branching.
 func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
 	libmetrics.NewBuildInfoMetrics().SetBuildInfo(a.BuildGitVersion, a.BuildGitCommit, a.BuildDate)
 	glog.V(1).
@@ -95,6 +96,15 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	taskStore := pkg.NewTaskStore()
 	jobWatcher := factory.CreateJobWatcher(kubeClient, a.Namespace, taskStore, resultPublisher)
 
+	zombieSweeper := factory.CreateZombieSweeper(
+		jobWatcher,
+		a.Namespace,
+		taskStore,
+		resultPublisher,
+		eventHandlerConfig,
+		currentDateTimeGetter,
+	)
+
 	healthcheckRunner := factory.CreateHealthcheckRunner(
 		eventHandlerConfig,
 		syncProducer,
@@ -126,6 +136,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		consumer.Consume,
 		taskEventHandler.RunDeferredRespawnLoop,
 		jobWatcher.Run,
+		zombieSweeper.Run,
 		a.createHTTPServer(eventHandlerConfig, healthcheckRunner),
 		healthcheckCron.Run,
 	)

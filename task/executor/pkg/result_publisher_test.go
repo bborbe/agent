@@ -70,6 +70,44 @@ func (f *failingSyncProducer) Close() error { return nil }
 
 var _ libkafka.SyncProducer = &failingSyncProducer{}
 
+// partialFailingSyncProducer succeeds for the first `successCount` sends, then
+// returns `err` on every subsequent send. Captures all attempted messages
+// (including the ones that failed) so tests can assert exact send counts.
+type partialFailingSyncProducer struct {
+	successCount int
+	calls        int
+	err          error
+	messages     []*sarama.ProducerMessage
+}
+
+func (p *partialFailingSyncProducer) SendMessage(
+	_ context.Context,
+	msg *sarama.ProducerMessage,
+) (int32, int64, error) {
+	p.calls++
+	p.messages = append(p.messages, msg)
+	if p.calls > p.successCount {
+		return 0, 0, p.err
+	}
+	return 0, 0, nil
+}
+
+func (p *partialFailingSyncProducer) SendMessages(
+	_ context.Context,
+	msgs []*sarama.ProducerMessage,
+) error {
+	p.calls++
+	p.messages = append(p.messages, msgs...)
+	if p.calls > p.successCount {
+		return p.err
+	}
+	return nil
+}
+
+func (p *partialFailingSyncProducer) Close() error { return nil }
+
+var _ libkafka.SyncProducer = &partialFailingSyncProducer{}
+
 // decodeUpdateFrontmatterCommand extracts the operation and UpdateFrontmatterCommand from a captured message.
 func decodeUpdateFrontmatterCommand(
 	msg *sarama.ProducerMessage,
@@ -165,7 +203,7 @@ var _ = Describe("ResultPublisher", func() {
 
 	Describe("PublishFailure", func() {
 		It(
-			"publishes a failure command with phase human_review and a ## Failure body section",
+			"publishes two commands: UpdateFrontmatterCommand clearing current_job with ## Failure body, then IncrementFrontmatterCommand bumping trigger_count",
 			func() {
 				task := lib.Task{
 					TaskIdentifier: lib.TaskIdentifier("test-task-2"),
@@ -185,37 +223,206 @@ var _ = Describe("ResultPublisher", func() {
 				)
 				Expect(err).NotTo(HaveOccurred())
 
-				Expect(producer.messages).To(HaveLen(1))
-				operation, cmd := decodeUpdateFrontmatterCommand(producer.messages[0])
+				Expect(producer.messages).To(HaveLen(2))
 
+				// First message: UpdateFrontmatterCommand
+				operation, updateCmd := decodeUpdateFrontmatterCommand(producer.messages[0])
 				Expect(
 					string(operation),
 				).To(Equal(string(taskcmd.UpdateFrontmatterCommandOperation)))
-				Expect(cmd.Updates).To(HaveLen(3))
+				Expect(updateCmd.Updates).To(HaveLen(1))
+				Expect(updateCmd.Updates["current_job"]).To(Equal(""))
 
-				Expect(cmd.Updates["status"]).To(Equal("in_progress"))
-				Expect(cmd.Updates["phase"]).To(Equal("human_review"))
-				Expect(cmd.Updates["current_job"]).To(Equal(""))
-
-				_, hasTriggerCount := cmd.Updates["trigger_count"]
-				Expect(hasTriggerCount).To(BeFalse(), "trigger_count must not be in failure update")
-				_, hasSpawnNotification := cmd.Updates["spawn_notification"]
+				_, hasStatus := updateCmd.Updates["status"]
+				Expect(hasStatus).To(BeFalse(), "status must not be in failure update")
+				_, hasPhase := updateCmd.Updates["phase"]
+				Expect(hasPhase).To(BeFalse(), "phase must not be in failure update")
+				_, hasAssignee := updateCmd.Updates["assignee"]
+				Expect(hasAssignee).To(BeFalse(), "assignee must not be in failure update")
+				_, hasPreviousAssignee := updateCmd.Updates["previous_assignee"]
 				Expect(
-					hasSpawnNotification,
-				).To(BeFalse(), "spawn_notification must not be in failure update")
+					hasPreviousAssignee,
+				).To(BeFalse(), "previous_assignee must not be in failure update")
+				_, hasTriggerCount := updateCmd.Updates["trigger_count"]
+				Expect(hasTriggerCount).To(BeFalse(), "trigger_count must not be in failure update")
 
-				Expect(cmd.Body).NotTo(BeNil())
-				Expect(cmd.Body.Heading).To(Equal("## Failure"))
-				Expect(cmd.Body.Section).To(ContainSubstring("2026-04-18T12:00:00Z"))
-				Expect(cmd.Body.Section).To(ContainSubstring("claude-20260418120000"))
-				Expect(cmd.Body.Section).To(ContainSubstring("pod OOM killed"))
+				Expect(updateCmd.Body).NotTo(BeNil())
+				Expect(updateCmd.Body.Heading).To(Equal("## Failure"))
+				Expect(updateCmd.Body.Section).To(ContainSubstring("2026-04-18T12:00:00Z"))
+				Expect(updateCmd.Body.Section).To(ContainSubstring("claude-20260418120000"))
+				Expect(updateCmd.Body.Section).To(ContainSubstring("pod OOM killed"))
+
+				// Second message: IncrementFrontmatterCommand
+				incOperation, incCmd := decodeIncrementFrontmatterCommand(producer.messages[1])
+				Expect(
+					string(incOperation),
+				).To(Equal(string(taskcmd.IncrementFrontmatterCommandOperation)))
+				Expect(string(incCmd.TaskIdentifier)).To(Equal("test-task-2"))
+				Expect(incCmd.Field).To(Equal("trigger_count"))
+				Expect(incCmd.Delta).To(Equal(1))
+			},
+		)
+	})
+
+	Describe("PublishFailure dedupe", func() {
+		It("suppresses a second call with the same job name", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-dedupe"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status": "in_progress",
+				},
+				Content: lib.TaskContent("do the work"),
+			}
+
+			err := publisher.PublishFailure(ctx, task, "claude-20260418120000", "pod OOM killed")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(producer.messages).To(HaveLen(2))
+
+			err = publisher.PublishFailure(ctx, task, "claude-20260418120000", "pod OOM killed")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(producer.messages).To(HaveLen(2), "second call should be deduped")
+		})
+
+		It(
+			"does NOT record dedupe when increment publish fails, so next cycle retries both messages",
+			func() {
+				partialProducer := &partialFailingSyncProducer{
+					successCount: 1, // first send (update) succeeds, second (increment) fails
+					err:          errors.New(context.Background(), "kafka: leader not available"),
+				}
+				partialPublisher := pkg.NewResultPublisher(
+					partialProducer,
+					base.Branch("prod"),
+					currentDateTime,
+				)
+
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("test-task-partial"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status": "in_progress",
+					},
+					Content: lib.TaskContent("do the work"),
+				}
+
+				// First call: update commits, increment fails — caller sees the increment error.
+				err := partialPublisher.PublishFailure(
+					ctx,
+					task,
+					"claude-20260418120000",
+					"pod OOM killed",
+				)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("trigger_count increment"))
+				Expect(
+					partialProducer.messages,
+				).To(HaveLen(2), "both update and increment were attempted")
+
+				// Second call with the same jobName: dedupe must NOT suppress it,
+				// because the increment failed last time. The publish is attempted
+				// again — verified by the producer recording at least one more
+				// message (this producer's state means the update also fails on
+				// the retry, but the key invariant is: not deduped to zero sends).
+				err = partialPublisher.PublishFailure(
+					ctx,
+					task,
+					"claude-20260418120000",
+					"pod OOM killed",
+				)
+				Expect(err).To(HaveOccurred())
+				Expect(
+					len(partialProducer.messages),
+				).To(BeNumerically(">", 2), "second call must re-attempt publishing (not deduped)")
+			},
+		)
+
+		It(
+			"allows re-send after dedupeTTL expires",
+			func() {
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("test-task-ttl"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status": "in_progress",
+					},
+					Content: lib.TaskContent("do the work"),
+				}
+
+				err := publisher.PublishFailure(
+					ctx,
+					task,
+					"claude-20260418120000",
+					"pod OOM killed",
+				)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(producer.messages).To(HaveLen(2))
+
+				// Advance past dedupeTTL (3600s).
+				currentDateTime.SetNow(libtimetest.ParseDateTime("2026-04-18T13:00:01Z"))
+
+				err = publisher.PublishFailure(
+					ctx,
+					task,
+					"claude-20260418120000",
+					"pod OOM killed",
+				)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(
+					producer.messages,
+				).To(HaveLen(4), "second call after TTL expiry must publish both messages again")
+			},
+		)
+
+		It(
+			"does NOT record dedupe when the first (update) publish fails and does not attempt the increment",
+			func() {
+				// successCount: 0 — first send (update) fails immediately.
+				partialProducer := &partialFailingSyncProducer{
+					successCount: 0,
+					err:          errors.New(context.Background(), "kafka: leader not available"),
+				}
+				partialPublisher := pkg.NewResultPublisher(
+					partialProducer,
+					base.Branch("prod"),
+					currentDateTime,
+				)
+
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("test-task-first-fail"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status": "in_progress",
+					},
+					Content: lib.TaskContent("do the work"),
+				}
+
+				err := partialPublisher.PublishFailure(
+					ctx,
+					task,
+					"claude-20260418120000",
+					"pod OOM killed",
+				)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("zombie failure update"))
+				Expect(
+					partialProducer.messages,
+				).To(HaveLen(1), "only the update was attempted; increment must not run after update fails")
+
+				// Verify dedupe was NOT recorded: second call attempts publishing again.
+				err = partialPublisher.PublishFailure(
+					ctx,
+					task,
+					"claude-20260418120000",
+					"pod OOM killed",
+				)
+				Expect(err).To(HaveOccurred())
+				Expect(
+					partialProducer.messages,
+				).To(HaveLen(2), "second call re-attempts the update (dedupe was not recorded)")
 			},
 		)
 	})
 
 	Describe("PublishTypeMismatchFailure", func() {
 		It(
-			"publishes phase=ai_review, assignee='', current_job='' and Assignee bullet in body",
+			"publishes assignee='', previous_assignee=<prior>, current_job='' and Assignee bullet in body",
 			func() {
 				task := lib.Task{
 					TaskIdentifier: lib.TaskIdentifier("test-task-3"),
@@ -238,23 +445,60 @@ var _ = Describe("ResultPublisher", func() {
 				Expect(
 					string(operation),
 				).To(Equal(string(taskcmd.UpdateFrontmatterCommandOperation)))
-				Expect(cmd.Updates).To(HaveLen(4))
-
-				Expect(cmd.Updates["status"]).To(Equal("in_progress"))
-				Expect(cmd.Updates["phase"]).To(Equal("ai_review"))
+				Expect(cmd.Updates).To(HaveLen(3))
 				Expect(cmd.Updates["assignee"]).To(Equal(""))
+				Expect(cmd.Updates["previous_assignee"]).To(Equal("agent-pr-reviewer"))
 				Expect(cmd.Updates["current_job"]).To(Equal(""))
+
+				_, hasStatus := cmd.Updates["status"]
+				Expect(hasStatus).To(BeFalse(), "status must not be in type mismatch update")
+				_, hasPhase := cmd.Updates["phase"]
+				Expect(hasPhase).To(BeFalse(), "phase must not be in type mismatch update")
+				_, hasTriggerCount := cmd.Updates["trigger_count"]
+				Expect(
+					hasTriggerCount,
+				).To(BeFalse(), "trigger_count must not be in type mismatch update")
 
 				Expect(cmd.Body).NotTo(BeNil())
 				Expect(cmd.Body.Heading).To(Equal("## Failure"))
 				Expect(cmd.Body.Section).To(ContainSubstring("2026-04-18T12:00:00Z"))
 				Expect(cmd.Body.Section).To(ContainSubstring("agent-pr-reviewer"))
 				Expect(cmd.Body.Section).To(ContainSubstring("healthcheck"))
+			},
+		)
 
-				_, hasTriggerCount := cmd.Updates["trigger_count"]
+		It(
+			"omits previous_assignee when prior assignee is empty",
+			func() {
+				task := lib.Task{
+					TaskIdentifier: lib.TaskIdentifier("test-task-empty-assignee"),
+					Frontmatter: lib.TaskFrontmatter{
+						"status":   "in_progress",
+						"phase":    "planning",
+						"assignee": "",
+					},
+				}
+				err := publisher.PublishTypeMismatchFailure(
+					ctx,
+					task,
+					"reason=type_mismatch",
+				)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(producer.messages).To(HaveLen(1))
+				_, cmd := decodeUpdateFrontmatterCommand(producer.messages[0])
+
+				Expect(cmd.Updates).To(HaveLen(2))
+				Expect(cmd.Updates["assignee"]).To(Equal(""))
+				Expect(cmd.Updates["current_job"]).To(Equal(""))
+
+				_, hasPreviousAssignee := cmd.Updates["previous_assignee"]
 				Expect(
-					hasTriggerCount,
-				).To(BeFalse(), "trigger_count must not be in type mismatch update")
+					hasPreviousAssignee,
+				).To(BeFalse(), "previous_assignee must be omitted when prior assignee is empty")
+
+				Expect(cmd.Body).NotTo(BeNil())
+				Expect(cmd.Body.Section).To(ContainSubstring("reason=type_mismatch"))
 			},
 		)
 	})

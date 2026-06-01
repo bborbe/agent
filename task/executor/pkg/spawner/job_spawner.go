@@ -102,11 +102,7 @@ func (s *jobSpawner) SpawnJob(
 
 	podSpecBuilder.SetContainersBuilder(containersBuilder)
 	podSpecBuilder.SetRestartPolicy(corev1.RestartPolicyNever)
-	secretName := "docker"
-	if config.ImagePullSecret != "" {
-		secretName = config.ImagePullSecret
-	}
-	podSpecBuilder.SetImagePullSecrets([]string{secretName})
+	podSpecBuilder.SetImagePullSecrets([]string{imagePullSecretName(config)})
 
 	objectMetaBuilder := k8s.NewObjectMetaBuilder()
 	objectMetaBuilder.SetName(k8s.Name(jobName))
@@ -131,6 +127,7 @@ func (s *jobSpawner) SpawnJob(
 	if config.PriorityClassName != "" {
 		job.Spec.Template.Spec.PriorityClassName = config.PriorityClassName
 	}
+	applyActiveDeadlineSeconds(config, jobName, task.TaskIdentifier, job)
 
 	_, err = s.kubeClient.BatchV1().
 		Jobs(s.namespace.String()).
@@ -208,6 +205,15 @@ func applyVolumeMount(
 	return nil
 }
 
+// imagePullSecretName returns the image pull secret name from the config,
+// falling back to "docker" when not set.
+func imagePullSecretName(config pkg.AgentConfiguration) string {
+	if config.ImagePullSecret != "" {
+		return config.ImagePullSecret
+	}
+	return "docker"
+}
+
 // applyCPUMemoryResources sets CPU and memory requests/limits on the container builder
 // when the corresponding config values are non-empty. Empty values leave builder defaults untouched.
 func applyCPUMemoryResources(config pkg.AgentConfiguration, containerBuilder k8s.ContainerBuilder) {
@@ -281,6 +287,19 @@ func applyTaskIDLabel(taskID lib.TaskIdentifier, job *batchv1.Job) {
 		job.Spec.Template.Labels = map[string]string{}
 	}
 	job.Spec.Template.Labels[taskIDLabelKey] = string(taskID)
+}
+
+// applyActiveDeadlineSeconds stamps Job.Spec.ActiveDeadlineSeconds from the config's
+// effective zombie job timeout so Kubernetes enforces a hard deadline on every spawned Job.
+func applyActiveDeadlineSeconds(
+	config pkg.AgentConfiguration,
+	jobName string,
+	taskID lib.TaskIdentifier,
+	job *batchv1.Job,
+) {
+	deadline := int64(config.EffectiveZombieJobTimeoutSeconds())
+	job.Spec.ActiveDeadlineSeconds = &deadline
+	glog.V(2).Infof("set activeDeadlineSeconds=%d on job %s for task %s", deadline, jobName, taskID)
 }
 
 // taskPhaseString returns the string value of the task's phase, or "" when absent.

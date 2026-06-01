@@ -37,6 +37,32 @@ func CreateJobWatcher(
 	return pkg.NewJobWatcher(kubeClient, namespace, taskStore, publisher)
 }
 
+// CreateZombieSweeper creates a deadline sweeper that classifies stuck tasks as
+// zombies and emits failure events via the publisher. Interval and per-task
+// deadline are sourced from the AgentConfig CRD knobs (see ConfigSpec). The
+// sweeper receives the JobWatcher (not its lister) because the lister is
+// populated only after JobWatcher.Run completes its informer cache sync; passing
+// the watcher lets the sweeper resolve the lister lazily on each tick and skip
+// the tick if cache sync has not yet happened (avoids a nil-deref panic at the
+// first tick when service.Run starts all components concurrently).
+func CreateZombieSweeper(
+	jobWatcher pkg.JobWatcher,
+	namespace libk8s.Namespace,
+	taskStore *pkg.TaskStore,
+	publisher pkg.ResultPublisher,
+	configProvider pkg.EventHandlerConfig,
+	currentDateTime libtime.CurrentDateTimeGetter,
+) pkg.ZombieSweeper {
+	return pkg.NewZombieSweeper(
+		jobWatcher,
+		namespace,
+		taskStore,
+		publisher,
+		configProvider,
+		currentDateTime,
+	)
+}
+
 // CreateK8sConnector returns a K8sConnector wired to the given rest.Config.
 func CreateK8sConnector(config *rest.Config) pkg.K8sConnector {
 	return pkg.NewK8sConnector(config, pkg.DefaultCRDClientBuilder)

@@ -15,6 +15,14 @@ rules:
       - watch
       - delete
   - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
       - agent.benjamin-borbe.de
     resources:
       - configs

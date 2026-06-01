@@ -6,6 +6,7 @@ package pkg
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/bborbe/errors"
@@ -16,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	lib "github.com/bborbe/agent/lib"
@@ -23,14 +25,22 @@ import (
 
 //counterfeiter:generate -o ../mocks/job_watcher.go --fake-name FakeJobWatcher . JobWatcher
 
-// JobWatcher watches batch/v1 Jobs in the executor's namespace and publishes
-// synthetic failure results for terminal-state Jobs that belong to spawned tasks.
+// JobWatcher watches batch/v1 Jobs and their Pods in the executor's namespace and
+// publishes synthetic failure results for terminal-state objects that belong to
+// spawned tasks.
 type JobWatcher interface {
-	// Run starts the Job informer and blocks until ctx is cancelled.
+	// Run starts the Job and Pod informers and blocks until ctx is cancelled.
 	Run(ctx context.Context) error
 	// HandleJob processes a single Job (invoked by the informer event handlers
 	// and by unit tests directly, avoiding the need for a fake informer).
 	HandleJob(ctx context.Context, job *batchv1.Job)
+	// HandlePod processes a single Pod (invoked by the Pod informer event handler
+	// and by unit tests directly).
+	HandlePod(ctx context.Context, pod *corev1.Pod)
+	// PodLister returns the Pod lister backed by the shared informer cache, for
+	// use by the deadline sweeper. The returned lister is safe for concurrent
+	// read access.
+	PodLister() corev1listers.PodLister
 }
 
 // NewJobWatcher creates a JobWatcher.
@@ -53,6 +63,7 @@ type jobWatcher struct {
 	namespace  libk8s.Namespace
 	taskStore  *TaskStore
 	publisher  ResultPublisher
+	podLister  atomic.Pointer[corev1listers.PodLister]
 }
 
 func (w *jobWatcher) Run(ctx context.Context) error {
@@ -86,13 +97,44 @@ func (w *jobWatcher) Run(ctx context.Context) error {
 		return errors.Wrapf(ctx, err, "add job informer event handler")
 	}
 
-	factory.Start(ctx.Done())
-	if !cache.WaitForCacheSync(ctx.Done(), informer.HasSynced) {
-		return errors.Errorf(ctx, "timed out waiting for job informer cache sync")
+	podInformer := factory.Core().V1().Pods().Informer()
+	_, err = podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			pod, ok := obj.(*corev1.Pod)
+			if !ok {
+				return
+			}
+			w.HandlePod(ctx, pod)
+		},
+		UpdateFunc: func(_, newObj interface{}) {
+			pod, ok := newObj.(*corev1.Pod)
+			if !ok {
+				return
+			}
+			w.HandlePod(ctx, pod)
+		},
+	})
+	if err != nil {
+		return errors.Wrapf(ctx, err, "add pod informer event handler")
 	}
-	glog.V(2).Infof("job informer started in namespace %s", w.namespace)
+
+	factory.Start(ctx.Done())
+	if !cache.WaitForCacheSync(ctx.Done(), informer.HasSynced, podInformer.HasSynced) {
+		return errors.Errorf(ctx, "timed out waiting for job/pod informer cache sync")
+	}
+	lister := factory.Core().V1().Pods().Lister()
+	w.podLister.Store(&lister)
+	glog.V(2).Infof("job and pod informer started in namespace %s", w.namespace)
 	<-ctx.Done()
 	return nil
+}
+
+func (w *jobWatcher) PodLister() corev1listers.PodLister {
+	lister := w.podLister.Load()
+	if lister == nil {
+		return nil
+	}
+	return *lister
 }
 
 func (w *jobWatcher) HandleJob(ctx context.Context, job *batchv1.Job) {
@@ -103,7 +145,7 @@ func (w *jobWatcher) HandleJob(ctx context.Context, job *batchv1.Job) {
 	taskID := lib.TaskIdentifier(taskIDStr)
 
 	if isJobFailed(job) {
-		reason := jobFailureReason(job)
+		reason := JobFailureReason(job)
 		glog.V(2).Infof("job %s/%s failed (task %s): %s", job.Namespace, job.Name, taskID, reason)
 		w.handleTerminal(ctx, taskID, job, reason, true)
 		return
@@ -129,7 +171,7 @@ func (w *jobWatcher) handleTerminal(
 	ctx context.Context,
 	taskID lib.TaskIdentifier,
 	job *batchv1.Job,
-	reason string,
+	reason ZombieReason,
 	alwaysPublish bool,
 ) {
 	task, ok := w.taskStore.Load(taskID)
@@ -145,9 +187,9 @@ func (w *jobWatcher) publishSyntheticFailure(
 	taskID lib.TaskIdentifier,
 	task lib.Task,
 	job *batchv1.Job,
-	reason string,
+	reason ZombieReason,
 ) {
-	if err := w.publisher.PublishFailure(ctx, task, job.Name, reason); err != nil {
+	if err := w.publisher.PublishFailure(ctx, task, job.Name, reason.String()); err != nil {
 		glog.Errorf("publish synthetic failure for task %s (job %s): %v", taskID, job.Name, err)
 	} else {
 		glog.V(2).Infof("published synthetic failure for task %s (job %s)", taskID, job.Name)
@@ -193,11 +235,118 @@ func isJobSucceeded(job *batchv1.Job) bool {
 	return false
 }
 
-func jobFailureReason(job *batchv1.Job) string {
+// JobFailureReason maps a failed Job's conditions to a ZombieReason. Returns
+// ZombieReasonDeadlineExceeded when any Failed condition has Reason
+// "DeadlineExceeded" or "BackoffLimitExceeded" (kubelet killed the pod for
+// running past activeDeadlineSeconds or exhausting BackoffLimit). Returns
+// ZombieReasonPodCrashNoStdout for any other Failed condition (the pod
+// terminated non-zero and no AgentResult was observed; the Job-condition
+// informer only fires AFTER terminal state, so absence of an AgentResult is
+// implicit at this point).
+func JobFailureReason(job *batchv1.Job) ZombieReason {
 	for _, c := range job.Status.Conditions {
-		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue && c.Message != "" {
-			return c.Message
+		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
+			switch c.Reason {
+			case "DeadlineExceeded", "BackoffLimitExceeded":
+				return ZombieReasonDeadlineExceeded
+			}
 		}
 	}
-	return "unknown failure reason"
+	return ZombieReasonPodCrashNoStdout
+}
+
+// HandlePod processes a Pod that has transitioned to a terminal failure state.
+// It publishes a single zombie failure event and returns without deleting the
+// task from the TaskStore — the Job-condition path or the deadline sweeper
+// performs the final delete when terminal state is observed.
+func (w *jobWatcher) HandlePod(ctx context.Context, pod *corev1.Pod) {
+	taskIDStr, ok := pod.Labels["agent.benjamin-borbe.de/task-id"]
+	if !ok || taskIDStr == "" {
+		return
+	}
+	taskID := lib.TaskIdentifier(taskIDStr)
+
+	reason := classifyPodFailure(pod)
+	if reason == "" {
+		return
+	}
+
+	task, ok := w.taskStore.Load(taskID)
+	if !ok {
+		glog.V(3).Infof(
+			"pod %s/%s (task %s) in %s state but task not in store; sweeper will handle if still in flight",
+			pod.Namespace, pod.Name, taskID, reason,
+		)
+		return
+	}
+
+	jobName := ownerJobName(pod)
+	if jobName == "" {
+		glog.V(2).Infof(
+			"pod %s/%s (task %s) in %s state but has no Job ownerRef; ignoring",
+			pod.Namespace, pod.Name, taskID, reason,
+		)
+		return
+	}
+
+	if err := w.publisher.PublishFailure(ctx, task, jobName, reason.String()); err != nil {
+		glog.Errorf(
+			"publish pod-state failure for task %s (pod %s reason %s): %v",
+			taskID, pod.Name, reason, err,
+		)
+		return
+	}
+	glog.V(2).Infof(
+		"published pod-state failure for task %s (pod %s reason %s)",
+		taskID, pod.Name, reason,
+	)
+	// Do NOT call w.taskStore.Delete here. The pod may transition again (e.g. evicted then
+	// rescheduled). The Job-condition path or the deadline sweeper performs the final delete
+	// when terminal state is observed. Dedupe in PublishFailure (prompt 1) prevents
+	// double-publish for the same job name.
+}
+
+// classifyPodFailure returns a non-empty ZombieReason when the Pod is in a
+// terminal failure state we recognize. Returns "" for healthy, pending-without-
+// excessive-delay, and any state we should not act on from the informer path.
+// pod_not_scheduled is deliberately NOT returned here — it requires a grace
+// window the informer cannot evaluate (a freshly created Pod is always briefly
+// Pending before scheduling). The deadline sweeper (separate prompt) owns that
+// classification.
+func classifyPodFailure(pod *corev1.Pod) ZombieReason {
+	for _, cs := range pod.Status.ContainerStatuses {
+		if cs.State.Waiting != nil {
+			switch cs.State.Waiting.Reason {
+			case "ImagePullBackOff", "ErrImagePull":
+				return ZombieReasonImagePullBackOff
+			case "CrashLoopBackOff":
+				// With BackoffLimit=0 in the spawner, crash-looping pods never
+				// reach PodFailed phase, so this branch is the only signal that
+				// classifies them before activeDeadlineSeconds fires.
+				return ZombieReasonPodCrashNoStdout
+			}
+		}
+	}
+	if pod.Status.Reason == "Evicted" {
+		return ZombieReasonPodEvicted
+	}
+	if pod.Status.Phase == corev1.PodFailed {
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
+				return ZombieReasonPodCrashNoStdout
+			}
+		}
+	}
+	return ""
+}
+
+// ownerJobName returns the name of the Job that owns the Pod, or "" when no
+// Job ownerRef is present.
+func ownerJobName(pod *corev1.Pod) string {
+	for _, ref := range pod.OwnerReferences {
+		if ref.Kind == "Job" {
+			return ref.Name
+		}
+	}
+	return ""
 }

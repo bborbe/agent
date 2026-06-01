@@ -595,6 +595,80 @@ var _ = Describe("ConfigSpec", func() {
 			Expect(a.Equal(b)).To(BeTrue())
 		})
 	})
+
+	Describe("Validate - zombie knobs", func() {
+		ptrInt32 := func(v int32) *int32 { return &v }
+
+		baseSpec := func() agentv1.ConfigSpec {
+			return agentv1.ConfigSpec{
+				Assignee:  "agent",
+				Image:     "img:latest",
+				Heartbeat: "1m",
+				TaskType:  "claude",
+			}
+		}
+
+		It("accepts nil zombie fields", func() {
+			spec := baseSpec()
+			Expect(spec.Validate(ctx)).To(Succeed())
+		})
+
+		It("accepts valid zombie values at the floor", func() {
+			spec := baseSpec()
+			spec.ZombieSweeperIntervalSeconds = ptrInt32(10)
+			spec.ZombieJobTimeoutSeconds = ptrInt32(30)
+			Expect(spec.Validate(ctx)).To(Succeed())
+		})
+
+		It("rejects zombieSweeperIntervalSeconds below floor", func() {
+			spec := baseSpec()
+			spec.ZombieSweeperIntervalSeconds = ptrInt32(9)
+			err := spec.Validate(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid: must be >= 10"))
+		})
+
+		It("rejects zombieJobTimeoutSeconds below floor", func() {
+			spec := baseSpec()
+			spec.ZombieJobTimeoutSeconds = ptrInt32(29)
+			err := spec.Validate(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid: must be >= 30"))
+		})
+	})
+
+	Describe("Equal - zombie fields", func() {
+		ptrInt32 := func(v int32) *int32 { return &v }
+
+		It("equal when both zombie fields nil", func() {
+			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "t"}
+			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "t"}
+			Expect(a.Equal(b)).To(BeTrue())
+		})
+
+		It("equal when both have same non-nil zombie values", func() {
+			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "t",
+				ZombieJobTimeoutSeconds: ptrInt32(1800)}
+			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "t",
+				ZombieJobTimeoutSeconds: ptrInt32(1800)}
+			Expect(a.Equal(b)).To(BeTrue())
+		})
+
+		It("not equal when one zombie field nil and other non-nil", func() {
+			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "t"}
+			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "t",
+				ZombieJobTimeoutSeconds: ptrInt32(1800)}
+			Expect(a.Equal(b)).To(BeFalse())
+		})
+
+		It("not equal when zombie values differ", func() {
+			a := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "t",
+				ZombieJobTimeoutSeconds: ptrInt32(1800)}
+			b := agentv1.ConfigSpec{Assignee: "x", Image: "y", Heartbeat: "1m", TaskType: "t",
+				ZombieJobTimeoutSeconds: ptrInt32(900)}
+			Expect(a.Equal(b)).To(BeFalse())
+		})
+	})
 })
 
 var _ = Describe("JSON round-trip for taskType", func() {

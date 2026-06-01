@@ -43,6 +43,20 @@ type AgentConfiguration struct {
 	ImagePullSecret string
 	// Trigger declares the per-agent phase and status conditions under which the executor spawns a Job.
 	Trigger *agentv1.Trigger
+	// ZombieJobTimeoutSeconds mirrors ConfigSpec.ZombieJobTimeoutSeconds. The
+	// spawner stamps this value onto Job.Spec.ActiveDeadlineSeconds; the sweeper
+	// uses it as the elapsed-time threshold. nil means "use the default
+	// DefaultZombieJobTimeoutSeconds from the CRD types package".
+	ZombieJobTimeoutSeconds *int32
+}
+
+// EffectiveZombieJobTimeoutSeconds returns the effective deadline in seconds:
+// the configured value when non-nil, else agentv1.DefaultZombieJobTimeoutSeconds.
+func (a AgentConfiguration) EffectiveZombieJobTimeoutSeconds() int32 {
+	if a.ZombieJobTimeoutSeconds != nil {
+		return *a.ZombieJobTimeoutSeconds
+	}
+	return agentv1.DefaultZombieJobTimeoutSeconds
 }
 
 // AgentConfigurations is a list of agent configurations.
@@ -65,18 +79,19 @@ func (a AgentConfigurations) TaggedConfigurations(branch string) AgentConfigurat
 	result := make(AgentConfigurations, len(a))
 	for i, c := range a {
 		result[i] = AgentConfiguration{
-			Assignee:          c.Assignee,
-			TaskType:          c.TaskType,
-			TaskTypes:         append([]string(nil), c.TaskTypes...),
-			Image:             c.Image + ":" + branch,
-			Env:               c.Env,
-			VolumeClaim:       c.VolumeClaim,
-			VolumeMountPath:   c.VolumeMountPath,
-			SecretName:        c.SecretName,
-			Resources:         c.Resources.DeepCopy(),
-			PriorityClassName: c.PriorityClassName,
-			ImagePullSecret:   c.ImagePullSecret,
-			Trigger:           c.Trigger,
+			Assignee:                c.Assignee,
+			TaskType:                c.TaskType,
+			TaskTypes:               append([]string(nil), c.TaskTypes...),
+			Image:                   c.Image + ":" + branch,
+			Env:                     c.Env,
+			VolumeClaim:             c.VolumeClaim,
+			VolumeMountPath:         c.VolumeMountPath,
+			SecretName:              c.SecretName,
+			Resources:               c.Resources.DeepCopy(),
+			PriorityClassName:       c.PriorityClassName,
+			ImagePullSecret:         c.ImagePullSecret,
+			Trigger:                 c.Trigger,
+			ZombieJobTimeoutSeconds: c.ZombieJobTimeoutSeconds,
 		}
 	}
 	return result
