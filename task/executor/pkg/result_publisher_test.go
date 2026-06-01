@@ -165,7 +165,7 @@ var _ = Describe("ResultPublisher", func() {
 
 	Describe("PublishFailure", func() {
 		It(
-			"publishes a failure command with phase human_review and a ## Failure body section",
+			"publishes two commands: UpdateFrontmatterCommand clearing current_job with ## Failure body, then IncrementFrontmatterCommand bumping trigger_count",
 			func() {
 				task := lib.Task{
 					TaskIdentifier: lib.TaskIdentifier("test-task-2"),
@@ -185,37 +185,64 @@ var _ = Describe("ResultPublisher", func() {
 				)
 				Expect(err).NotTo(HaveOccurred())
 
-				Expect(producer.messages).To(HaveLen(1))
-				operation, cmd := decodeUpdateFrontmatterCommand(producer.messages[0])
+				Expect(producer.messages).To(HaveLen(2))
 
-				Expect(
-					string(operation),
-				).To(Equal(string(taskcmd.UpdateFrontmatterCommandOperation)))
-				Expect(cmd.Updates).To(HaveLen(3))
+				// First message: UpdateFrontmatterCommand
+				operation, updateCmd := decodeUpdateFrontmatterCommand(producer.messages[0])
+				Expect(string(operation)).To(Equal(string(taskcmd.UpdateFrontmatterCommandOperation)))
+				Expect(updateCmd.Updates).To(HaveLen(1))
+				Expect(updateCmd.Updates["current_job"]).To(Equal(""))
 
-				Expect(cmd.Updates["status"]).To(Equal("in_progress"))
-				Expect(cmd.Updates["phase"]).To(Equal("human_review"))
-				Expect(cmd.Updates["current_job"]).To(Equal(""))
-
-				_, hasTriggerCount := cmd.Updates["trigger_count"]
+				_, hasStatus := updateCmd.Updates["status"]
+				Expect(hasStatus).To(BeFalse(), "status must not be in failure update")
+				_, hasPhase := updateCmd.Updates["phase"]
+				Expect(hasPhase).To(BeFalse(), "phase must not be in failure update")
+				_, hasAssignee := updateCmd.Updates["assignee"]
+				Expect(hasAssignee).To(BeFalse(), "assignee must not be in failure update")
+				_, hasPreviousAssignee := updateCmd.Updates["previous_assignee"]
+				Expect(hasPreviousAssignee).To(BeFalse(), "previous_assignee must not be in failure update")
+				_, hasTriggerCount := updateCmd.Updates["trigger_count"]
 				Expect(hasTriggerCount).To(BeFalse(), "trigger_count must not be in failure update")
-				_, hasSpawnNotification := cmd.Updates["spawn_notification"]
-				Expect(
-					hasSpawnNotification,
-				).To(BeFalse(), "spawn_notification must not be in failure update")
 
-				Expect(cmd.Body).NotTo(BeNil())
-				Expect(cmd.Body.Heading).To(Equal("## Failure"))
-				Expect(cmd.Body.Section).To(ContainSubstring("2026-04-18T12:00:00Z"))
-				Expect(cmd.Body.Section).To(ContainSubstring("claude-20260418120000"))
-				Expect(cmd.Body.Section).To(ContainSubstring("pod OOM killed"))
+				Expect(updateCmd.Body).NotTo(BeNil())
+				Expect(updateCmd.Body.Heading).To(Equal("## Failure"))
+				Expect(updateCmd.Body.Section).To(ContainSubstring("2026-04-18T12:00:00Z"))
+				Expect(updateCmd.Body.Section).To(ContainSubstring("claude-20260418120000"))
+				Expect(updateCmd.Body.Section).To(ContainSubstring("pod OOM killed"))
+
+				// Second message: IncrementFrontmatterCommand
+				incOperation, incCmd := decodeIncrementFrontmatterCommand(producer.messages[1])
+				Expect(string(incOperation)).To(Equal(string(taskcmd.IncrementFrontmatterCommandOperation)))
+				Expect(string(incCmd.TaskIdentifier)).To(Equal("test-task-2"))
+				Expect(incCmd.Field).To(Equal("trigger_count"))
+				Expect(incCmd.Delta).To(Equal(1))
 			},
 		)
 	})
 
+	Describe("PublishFailure dedupe", func() {
+		It("suppresses a second call with the same job name", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("test-task-dedupe"),
+				Frontmatter: lib.TaskFrontmatter{
+					"status": "in_progress",
+				},
+				Content: lib.TaskContent("do the work"),
+			}
+
+			err := publisher.PublishFailure(ctx, task, "claude-20260418120000", "pod OOM killed")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(producer.messages).To(HaveLen(2))
+
+			err = publisher.PublishFailure(ctx, task, "claude-20260418120000", "pod OOM killed")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(producer.messages).To(HaveLen(2), "second call should be deduped")
+		})
+	})
+
 	Describe("PublishTypeMismatchFailure", func() {
 		It(
-			"publishes phase=ai_review, assignee='', current_job='' and Assignee bullet in body",
+			"publishes assignee='', previous_assignee=<prior>, current_job='' and Assignee bullet in body",
 			func() {
 				task := lib.Task{
 					TaskIdentifier: lib.TaskIdentifier("test-task-3"),
@@ -235,26 +262,24 @@ var _ = Describe("ResultPublisher", func() {
 				Expect(producer.messages).To(HaveLen(1))
 				operation, cmd := decodeUpdateFrontmatterCommand(producer.messages[0])
 
-				Expect(
-					string(operation),
-				).To(Equal(string(taskcmd.UpdateFrontmatterCommandOperation)))
-				Expect(cmd.Updates).To(HaveLen(4))
-
-				Expect(cmd.Updates["status"]).To(Equal("in_progress"))
-				Expect(cmd.Updates["phase"]).To(Equal("ai_review"))
+				Expect(string(operation)).To(Equal(string(taskcmd.UpdateFrontmatterCommandOperation)))
+				Expect(cmd.Updates).To(HaveLen(3))
 				Expect(cmd.Updates["assignee"]).To(Equal(""))
+				Expect(cmd.Updates["previous_assignee"]).To(Equal("agent-pr-reviewer"))
 				Expect(cmd.Updates["current_job"]).To(Equal(""))
+
+				_, hasStatus := cmd.Updates["status"]
+				Expect(hasStatus).To(BeFalse(), "status must not be in type mismatch update")
+				_, hasPhase := cmd.Updates["phase"]
+				Expect(hasPhase).To(BeFalse(), "phase must not be in type mismatch update")
+				_, hasTriggerCount := cmd.Updates["trigger_count"]
+				Expect(hasTriggerCount).To(BeFalse(), "trigger_count must not be in type mismatch update")
 
 				Expect(cmd.Body).NotTo(BeNil())
 				Expect(cmd.Body.Heading).To(Equal("## Failure"))
 				Expect(cmd.Body.Section).To(ContainSubstring("2026-04-18T12:00:00Z"))
 				Expect(cmd.Body.Section).To(ContainSubstring("agent-pr-reviewer"))
 				Expect(cmd.Body.Section).To(ContainSubstring("healthcheck"))
-
-				_, hasTriggerCount := cmd.Updates["trigger_count"]
-				Expect(
-					hasTriggerCount,
-				).To(BeFalse(), "trigger_count must not be in type mismatch update")
 			},
 		)
 	})
