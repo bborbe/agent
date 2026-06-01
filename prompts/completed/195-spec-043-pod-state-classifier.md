@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [043-executor-zombie-job-detection]
+summary: Added ZombieReason enum, Pods informer to JobWatcher, and updated job failure classification to emit stable reason strings
+container: agent-zombie-detect-exec-195-spec-043-pod-state-classifier
+dark-factory-version: v0.173.0
 created: "2026-06-01T20:30:00Z"
 queued: "2026-06-01T20:11:58Z"
+started: "2026-06-01T20:16:41Z"
+completed: "2026-06-01T20:20:30Z"
 ---
 
 <summary>

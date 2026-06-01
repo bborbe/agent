@@ -8,6 +8,12 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(task/executor): add ZombieReason enum with stable reason strings for all zombie failure modes (image_pull_backoff, pod_evicted, pod_crash_no_stdout, deadline_exceeded)
+- feat(task/executor): add Pods informer to JobWatcher for ImagePullBackOff, evicted, and crash-no-stdout failure detection
+- feat(task/executor): narrow Job-condition path reason into ZombieReason enum (DeadlineExceeded/BackoffLimitExceeded → deadline_exceeded, other → pod_crash_no_stdout)
+
 ## v0.63.35
 
 - refactor(task/controller): extract frontmatter and task-identifier helpers from vault_scanner.go into dedicated files in pkg/scanner/

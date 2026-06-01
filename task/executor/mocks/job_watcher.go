@@ -7,6 +7,7 @@ import (
 
 	"github.com/bborbe/agent/task/executor/pkg"
 	v1 "k8s.io/api/batch/v1"
+	v1a "k8s.io/api/core/v1"
 )
 
 type FakeJobWatcher struct {
@@ -15,6 +16,12 @@ type FakeJobWatcher struct {
 	handleJobArgsForCall []struct {
 		arg1 context.Context
 		arg2 *v1.Job
+	}
+	HandlePodStub        func(context.Context, *v1a.Pod)
+	handlePodMutex       sync.RWMutex
+	handlePodArgsForCall []struct {
+		arg1 context.Context
+		arg2 *v1a.Pod
 	}
 	RunStub        func(context.Context) error
 	runMutex       sync.RWMutex
@@ -61,6 +68,39 @@ func (fake *FakeJobWatcher) HandleJobArgsForCall(i int) (context.Context, *v1.Jo
 	fake.handleJobMutex.RLock()
 	defer fake.handleJobMutex.RUnlock()
 	argsForCall := fake.handleJobArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeJobWatcher) HandlePod(arg1 context.Context, arg2 *v1a.Pod) {
+	fake.handlePodMutex.Lock()
+	fake.handlePodArgsForCall = append(fake.handlePodArgsForCall, struct {
+		arg1 context.Context
+		arg2 *v1a.Pod
+	}{arg1, arg2})
+	stub := fake.HandlePodStub
+	fake.recordInvocation("HandlePod", []interface{}{arg1, arg2})
+	fake.handlePodMutex.Unlock()
+	if stub != nil {
+		fake.HandlePodStub(arg1, arg2)
+	}
+}
+
+func (fake *FakeJobWatcher) HandlePodCallCount() int {
+	fake.handlePodMutex.RLock()
+	defer fake.handlePodMutex.RUnlock()
+	return len(fake.handlePodArgsForCall)
+}
+
+func (fake *FakeJobWatcher) HandlePodCalls(stub func(context.Context, *v1a.Pod)) {
+	fake.handlePodMutex.Lock()
+	defer fake.handlePodMutex.Unlock()
+	fake.HandlePodStub = stub
+}
+
+func (fake *FakeJobWatcher) HandlePodArgsForCall(i int) (context.Context, *v1a.Pod) {
+	fake.handlePodMutex.RLock()
+	defer fake.handlePodMutex.RUnlock()
+	argsForCall := fake.handlePodArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
