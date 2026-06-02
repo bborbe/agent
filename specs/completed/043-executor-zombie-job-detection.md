@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -8,6 +8,7 @@ approved: "2026-06-01T18:52:44Z"
 generating: "2026-06-01T18:57:25Z"
 prompted: "2026-06-01T19:55:19Z"
 verifying: "2026-06-01T21:08:46Z"
+completed: "2026-06-02T07:01:18Z"
 branch: dark-factory/executor-zombie-job-detection
 ---
 
@@ -138,3 +139,21 @@ Post-deploy manual verification (operator runs in `agent-dev` after merge + depl
 ## Do-Nothing Option
 
 Keep the current `result_publisher.go` and `job_watcher.go`. Outcome: tasks whose Jobs die silently continue to park indefinitely with `current_job` set and `assignee` non-empty, invisible to the inbox filter. Operators discover stuck tasks by accident — the 2026-05-31 incident is the existence proof. Doctrine drift compounds: every new caller of `PublishFailure` learns the wrong failure shape from existing code, propagating the `phase: human_review` bug. As the agent fleet grows (more concurrent dispatches, more deploy rollovers, more chances for image-pull races), the incident rate scales with dispatch volume. Not acceptable.
+
+## Verification Result
+
+**Verified:** 2026-06-02T07:00:57Z (HEAD dbce914)
+**Binary:** /Users/bborbe/Documents/workspaces/go/bin/dark-factory v0.173.0
+**Scenario:** unit + envtest gate via `cd task/executor && make precommit` (exit 0); live deploy confirmation in dev (commit 5b49f7b) + prod (v0.64.0 / 8d0ac7b); production sweeper observed publishing a real zombie failure.
+**Evidence:**
+- `make precommit` → `ready to commit` (AC #11)
+- result_publisher_test.go: PublishFailure shape + cap progression + TypeMismatch + dedupe (AC #1–4, #9)
+- job_watcher_test.go HandlePod: image_pull_backoff / ErrImagePull / CrashLoopBackOff / pod_evicted / pod_crash_no_stdout (AC #5)
+- zombie_sweeper_test.go: 4-cell predicate + executor_watch_lost + pod_not_scheduled (AC #6)
+- types_test.go:618-636 admission rejects ZombieSweeperIntervalSeconds<10 and ZombieJobTimeoutSeconds<30 with required substring (AC #7)
+- job_spawner_test.go:945-986 Job.Spec.ActiveDeadlineSeconds stamped from config + default 1800 (AC #8)
+- envtest/job_watcher_envtest_test.go:168 asserts PublishFailureCallCount==1 with reason ZombieReasonImagePullBackOff within 30s, Consistently stays 1 (AC #10)
+- Prod log 2026-06-01 23:02:12 UTC: `zombie_sweeper.go:165] zombie sweeper: published failure for task 0c3556fb... reason deadline_exceeded elapsed=139h0m20s` — real production code path firing on a real zombie
+- Dev pod (5b49f7b) + prod pod (v0.64.0) both report `zombie sweeper started interval=1m0s` and `job and pod informer started` post-RBAC fix
+- PR #13 merged to master 2026-06-01 22:37 UTC; v0.64.0 auto-released; deployed dev + prod
+**Verdict:** PASS
