@@ -281,8 +281,8 @@ var _ = Describe("TaskFrontmatter", func() {
 		It(
 			"returns the task_type value as TaskType when the key is present and is a string",
 			func() {
-				f := lib.TaskFrontmatter{"task_type": "claude"}
-				Expect(f.TaskType()).To(Equal(lib.TaskType("claude")))
+				f := lib.TaskFrontmatter{"task_type": "llm"}
+				Expect(f.TaskType()).To(Equal(lib.TaskType("llm")))
 			},
 		)
 

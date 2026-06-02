@@ -38,8 +38,8 @@ var _ = Describe("CreateAgentProvider", func() {
 		Expect(provider).NotTo(BeNil())
 	})
 
-	It("Get returns the domain agent for TaskTypeClaude", func() {
-		agent, err := provider.Get(ctx, agentlib.TaskTypeClaude)
+	It("Get returns the domain agent for TaskTypeLLM", func() {
+		agent, err := provider.Get(ctx, agentlib.TaskTypeLLM)
 		Expect(err).To(BeNil())
 		Expect(agent).NotTo(BeNil())
 	})
@@ -82,7 +82,7 @@ var _ = Describe("CreateAgentProvider", func() {
 		})
 
 		It("error message contains the sorted accepted-types list", func() {
-			Expect(err.Error()).To(ContainSubstring("[claude healthcheck oauth-probe]"))
+			Expect(err.Error()).To(ContainSubstring("[healthcheck llm oauth-probe]"))
 		})
 	})
 })

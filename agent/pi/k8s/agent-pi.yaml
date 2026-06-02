@@ -10,7 +10,7 @@ metadata:
 spec:
   assignee: pi-agent
   taskTypes:
-    - claude
+    - llm
     - healthcheck
   priorityClassName: agent-pi
   image: docker.quant.benjamin-borbe.de:443/agent-pi

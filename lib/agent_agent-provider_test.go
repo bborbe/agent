@@ -30,17 +30,17 @@ var _ = Describe("AgentProvider", func() {
 	Describe("Get", func() {
 		It("returns the agent registered for the given task_type", func() {
 			provider := lib.NewAgentProvider("test-binary", map[lib.TaskType]*lib.Agent{
-				lib.TaskTypeClaude:      domain,
+				lib.TaskTypeLLM:         domain,
 				lib.TaskTypeHealthcheck: liveness,
 			})
-			result, err := provider.Get(ctx, lib.TaskTypeClaude)
+			result, err := provider.Get(ctx, lib.TaskTypeLLM)
 			Expect(err).To(BeNil())
 			Expect(result).To(BeIdenticalTo(domain))
 		})
 
 		It("returns a different agent for a different task_type from the same provider", func() {
 			provider := lib.NewAgentProvider("test-binary", map[lib.TaskType]*lib.Agent{
-				lib.TaskTypeClaude:      domain,
+				lib.TaskTypeLLM:         domain,
 				lib.TaskTypeHealthcheck: liveness,
 			})
 			result, err := provider.Get(ctx, lib.TaskTypeHealthcheck)
@@ -53,7 +53,7 @@ var _ = Describe("AgentProvider", func() {
 
 			BeforeEach(func() {
 				provider = lib.NewAgentProvider("test-binary", map[lib.TaskType]*lib.Agent{
-					lib.TaskTypeClaude:      domain,
+					lib.TaskTypeLLM:         domain,
 					lib.TaskTypeHealthcheck: liveness,
 				})
 			})
@@ -72,13 +72,13 @@ var _ = Describe("AgentProvider", func() {
 				Entry("literal 'unknown task_type'", ContainSubstring("unknown task_type")),
 				Entry("offending value quoted", ContainSubstring(`"bogus"`)),
 				Entry("provider name", ContainSubstring("test-binary")),
-				Entry("accepted list contains claude", ContainSubstring("claude")),
+				Entry("accepted list contains llm", ContainSubstring("llm")),
 				Entry("accepted list contains healthcheck", ContainSubstring("healthcheck")),
 			)
 
 			It("returns accepted-types list sorted alphabetically (deterministic)", func() {
 				_, err := provider.Get(ctx, lib.TaskType("bogus"))
-				Expect(err.Error()).To(ContainSubstring("[claude healthcheck]"))
+				Expect(err.Error()).To(ContainSubstring("[healthcheck llm]"))
 			})
 		})
 

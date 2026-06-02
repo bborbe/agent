@@ -46,8 +46,8 @@ func (t TaskType) Validate(ctx context.Context) error {
 }
 
 const (
-	// TaskTypeClaude is the task type for Claude agent jobs.
-	TaskTypeClaude TaskType = "claude"
+	// TaskTypeLLM is the task type for generic LLM agent jobs.
+	TaskTypeLLM TaskType = "llm"
 	// TaskTypePRReview is the task type for PR review jobs.
 	TaskTypePRReview TaskType = "pr-review"
 	// TaskTypeBacktest is the task type for backtesting jobs.
