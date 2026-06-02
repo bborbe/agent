@@ -1,8 +1,8 @@
 ---
-assignee: claude-agent
+assignee: pi-agent
 phase: done
 status: completed
-title: Dummy Claude Task
+title: Dummy Pi Task
 ---
 
 Report which language model is processing this task. Return a JSON object with these exact fields:

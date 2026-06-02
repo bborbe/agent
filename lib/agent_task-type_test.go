@@ -27,7 +27,7 @@ var _ = Describe("TaskType", func() {
 			func(value lib.TaskType) {
 				Expect(value.Validate(ctx)).To(Succeed())
 			},
-			Entry("claude constant", lib.TaskTypeClaude),
+			Entry("llm constant", lib.TaskTypeLLM),
 			Entry("pr-review constant", lib.TaskTypePRReview),
 			Entry("backtest constant", lib.TaskTypeBacktest),
 			Entry("hypothesis constant", lib.TaskTypeHypothesis),
@@ -57,20 +57,20 @@ var _ = Describe("TaskType", func() {
 
 	Describe("String", func() {
 		It("returns the underlying string", func() {
-			Expect(lib.TaskTypeClaude.String()).To(Equal("claude"))
+			Expect(lib.TaskTypeLLM.String()).To(Equal("llm"))
 		})
 	})
 
 	Describe("Bytes", func() {
 		It("returns the underlying bytes", func() {
-			Expect(lib.TaskTypeClaude.Bytes()).To(Equal([]byte("claude")))
+			Expect(lib.TaskTypeLLM.Bytes()).To(Equal([]byte("llm")))
 		})
 	})
 
 	Describe("Ptr", func() {
 		It("returns a non-nil pointer to the value", func() {
-			tt := lib.TaskTypeClaude
-			Expect(lib.TaskTypeClaude.Ptr()).To(Equal(&tt))
+			tt := lib.TaskTypeLLM
+			Expect(lib.TaskTypeLLM.Ptr()).To(Equal(&tt))
 		})
 	})
 })

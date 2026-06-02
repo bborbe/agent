@@ -90,7 +90,7 @@ func CreateAgentProvider(
 	domainAgent := CreateAgent(runner, envContext)
 	livenessAgent := healthcheck.NewAgent(healthcheck.NewPiStep(runner))
 	return agentlib.NewAgentProvider(ServiceName, map[agentlib.TaskType]*agentlib.Agent{
-		agentlib.TaskTypeClaude:      domainAgent,
+		agentlib.TaskTypeLLM:         domainAgent,
 		agentlib.TaskTypeHealthcheck: livenessAgent,
 		agentlib.TaskTypeOAuthProbe:  livenessAgent,
 	})

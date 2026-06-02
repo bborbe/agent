@@ -10,7 +10,7 @@ metadata:
 spec:
   assignee: claude-agent
   taskTypes:
-    - claude
+    - llm
     - healthcheck
   priorityClassName: agent-claude
   image: docker.quant.benjamin-borbe.de:443/agent-claude

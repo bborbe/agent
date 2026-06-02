@@ -127,7 +127,7 @@ func CreateAgentFromRunner(
 // Returns lib.AgentProvider — main.go calls Get(ctx, taskType) to select the
 // appropriate *Agent. Pure plumbing; no conditional, no error.
 //
-// TaskTypeClaude routes to the existing 3-phase domain agent. TaskTypeHealthcheck
+// TaskTypeLLM routes to the existing 3-phase domain agent. TaskTypeHealthcheck
 // and TaskTypeOAuthProbe (transition alias) both route to the shared
 // healthcheck-Claude liveness agent, reusing the same ClaudeRunner.
 func CreateAgentProvider(
@@ -142,7 +142,7 @@ func CreateAgentProvider(
 	domainAgent := CreateAgentFromRunner(runner, envContext)
 	livenessAgent := healthcheck.NewAgent(healthcheck.NewClaudeStep(runner))
 	return agentlib.NewAgentProvider(serviceName, map[agentlib.TaskType]*agentlib.Agent{
-		agentlib.TaskTypeClaude:      domainAgent,
+		agentlib.TaskTypeLLM:         domainAgent,
 		agentlib.TaskTypeHealthcheck: livenessAgent,
 		agentlib.TaskTypeOAuthProbe:  livenessAgent,
 	})
