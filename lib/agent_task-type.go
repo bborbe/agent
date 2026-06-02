@@ -46,10 +46,7 @@ func (t TaskType) Validate(ctx context.Context) error {
 }
 
 const (
-	// TaskTypeLLM is the generic-LLM task type — work shaped as
-	// "feed task content to an LLM, get a JSON result back". Routed to
-	// whichever agent binary (agent-claude, agent-pi, …) declares it in
-	// its Config CRD's taskTypes filter.
+	// TaskTypeLLM is the task type for generic LLM agent jobs.
 	TaskTypeLLM TaskType = "llm"
 	// TaskTypePRReview is the task type for PR review jobs.
 	TaskTypePRReview TaskType = "pr-review"
