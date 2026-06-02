@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.64.0
 
 - feat(task/executor): add ZombieReason enum with stable reason strings for all zombie failure modes (image_pull_backoff, pod_evicted, pod_crash_no_stdout, deadline_exceeded)
 - feat(task/executor): add zombieSweeperIntervalSeconds and zombieJobTimeoutSeconds CRD fields with admission validation floors (10s and 30s respectively)

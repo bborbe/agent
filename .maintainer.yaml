@@ -11,5 +11,7 @@
 #
 # Replaces the legacy .pr-reviewer.yaml (kept until the new pr-reviewer
 # image is deployed to prod; removed in a follow-up cleanup).
+release:
+  autoRelease: true
 prReviewer:
   autoApprove: true
