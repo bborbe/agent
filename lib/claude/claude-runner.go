@@ -15,6 +15,8 @@ import (
 
 	"github.com/bborbe/errors"
 	"github.com/golang/glog"
+
+	"github.com/bborbe/agent/lib/envparse"
 )
 
 const (
@@ -114,7 +116,7 @@ func (r *claudeRunner) buildCommand(
 		return nil, errors.Wrap(ctx, err, "build subprocess env")
 	}
 	cmd.Env = env
-	glog.V(2).Infof("cmd.Env = %+v", cmd.Env)
+	glog.V(2).Infof("cmd.Env = %+v", envparse.RedactForLog(cmd.Env))
 
 	return cmd, nil
 }
