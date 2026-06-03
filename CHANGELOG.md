@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v1.0.0
 
 - refactor(lib): rename TaskTypeClaude (value "claude") → TaskTypeLLM (value "llm") — the generic-LLM bucket no longer bakes a specific implementation name into vault frontmatter; both agent-claude and agent-pi declare the new slot in their Config CRD taskTypes
 - refactor(agent/pi): rewrite README and cmd/run-task README to be pi-specific; drop stale `CLAUDE_CONFIG_DIR` env var (pi uses `$HOME/.pi`, not a Claude OAuth dir), drop `lib/claude` references in favour of `lib/pi`, fix admin endpoint URLs, point guardrails reference at `AGENTS.md`
