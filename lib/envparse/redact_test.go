@@ -70,36 +70,41 @@ var _ = Describe("IsSensitiveKey", func() {
 })
 
 var _ = Describe("RedactForLog", func() {
-	It("returns an empty slice for nil input", func() {
-		Expect(envparse.RedactForLog(nil)).To(Equal([]string{}))
+	It("returns nil for nil input (preserves cmd.Env inherit-parent semantics)", func() {
+		Expect(envparse.RedactForLog(nil)).To(BeNil())
 	})
 
 	It("returns an empty slice for empty input", func() {
 		Expect(envparse.RedactForLog([]string{})).To(Equal([]string{}))
 	})
 
-	It("keeps non-sensitive entries verbatim and redacts sensitive values, preserving order", func() {
-		input := []string{
-			"PATH=/usr/bin",
-			"ANTHROPIC_AUTH_TOKEN=sk-ant-xxxxxxxx",
-			"HOME=/home/agent",
-			"GH_TOKEN=ghp_yyyyyyyy",
-		}
-		expected := []string{
-			"PATH=/usr/bin",
-			"ANTHROPIC_AUTH_TOKEN=***",
-			"HOME=/home/agent",
-			"GH_TOKEN=***",
-		}
-		Expect(envparse.RedactForLog(input)).To(Equal(expected))
-	})
+	It(
+		"keeps non-sensitive entries verbatim and redacts sensitive values, preserving order",
+		func() {
+			input := []string{
+				"PATH=/usr/bin",
+				"ANTHROPIC_AUTH_TOKEN=sk-ant-xxxxxxxx",
+				"HOME=/home/agent",
+				"GH_TOKEN=ghp_yyyyyyyy",
+			}
+			expected := []string{
+				"PATH=/usr/bin",
+				"ANTHROPIC_AUTH_TOKEN=***",
+				"HOME=/home/agent",
+				"GH_TOKEN=***",
+			}
+			Expect(envparse.RedactForLog(input)).To(Equal(expected))
+		},
+	)
 
 	It("replaces an empty sensitive value with ***", func() {
 		Expect(envparse.RedactForLog([]string{"GH_TOKEN="})).To(Equal([]string{"GH_TOKEN=***"}))
 	})
 
 	It("passes entries without '=' through unchanged", func() {
-		Expect(envparse.RedactForLog([]string{"NOEQ", "FOO=bar"})).To(Equal([]string{"NOEQ", "FOO=bar"}))
+		Expect(
+			envparse.RedactForLog([]string{"NOEQ", "FOO=bar"}),
+		).To(Equal([]string{"NOEQ", "FOO=bar"}))
 	})
 
 	It("does not mutate the input slice", func() {

@@ -39,8 +39,8 @@ func IsSensitiveKey(key string) bool {
 // vars are passed without exposing the values. Entries without '=' pass
 // through unchanged. The input slice is not mutated.
 func RedactForLog(env []string) []string {
-	if len(env) == 0 {
-		return []string{}
+	if env == nil {
+		return nil
 	}
 	out := make([]string, len(env))
 	for i, entry := range env {
