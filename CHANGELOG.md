@@ -10,6 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## v1.0.0
 
+- fix(lib/claude, lib/pi): redact secret values from subprocess env log lines via new `envparse.RedactForLog` and `envparse.IsSensitiveKey`; keys with markers (TOKEN, SECRET, PASSWORD, PASSWD, CREDENTIAL, API_KEY, PRIVATE_KEY, ACCESS_KEY) become `KEY=***` while non-sensitive vars pass through verbatim
 - refactor(lib): rename TaskTypeClaude (value "claude") → TaskTypeLLM (value "llm") — the generic-LLM bucket no longer bakes a specific implementation name into vault frontmatter; both agent-claude and agent-pi declare the new slot in their Config CRD taskTypes
 - refactor(agent/pi): rewrite README and cmd/run-task README to be pi-specific; drop stale `CLAUDE_CONFIG_DIR` env var (pi uses `$HOME/.pi`, not a Claude OAuth dir), drop `lib/claude` references in favour of `lib/pi`, fix admin endpoint URLs, point guardrails reference at `AGENTS.md`
 - refactor(agent/pi/cmd/run-task): rename dummy task to "Dummy Pi Task" with `assignee: pi-agent`
