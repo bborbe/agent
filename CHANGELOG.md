@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## v1.0.0
+## v0.65.0
 
 - fix(lib/claude, lib/pi): redact secret values from subprocess env log lines via new `envparse.RedactForLog` and `envparse.IsSensitiveKey`; keys with markers (TOKEN, SECRET, PASSWORD, PASSWD, CREDENTIAL, API_KEY, PRIVATE_KEY, ACCESS_KEY) become `KEY=***` while non-sensitive vars pass through verbatim
 - refactor(lib): rename TaskTypeClaude (value "claude") → TaskTypeLLM (value "llm") — the generic-LLM bucket no longer bakes a specific implementation name into vault frontmatter; both agent-claude and agent-pi declare the new slot in their Config CRD taskTypes
