@@ -15,7 +15,7 @@ import (
 	lib "github.com/bborbe/agent/lib"
 )
 
-//counterfeiter:generate -o mocks/task-create-command-sender.go --fake-name TaskCreateCommandSender . CreateCommandSender
+//counterfeiter:generate -o ../../mocks/task-create-command-sender.go --fake-name TaskCreateCommandSender . CreateCommandSender
 
 // CreateCommandSender sends CreateCommand payloads to Kafka.
 // Calls Validate before publishing — a validation error is returned without touching Kafka.

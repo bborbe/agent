@@ -15,7 +15,7 @@ import (
 	lib "github.com/bborbe/agent/lib"
 )
 
-//counterfeiter:generate -o mocks/task-update-frontmatter-command-sender.go --fake-name TaskUpdateFrontmatterCommandSender . UpdateFrontmatterCommandSender
+//counterfeiter:generate -o ../../mocks/task-update-frontmatter-command-sender.go --fake-name TaskUpdateFrontmatterCommandSender . UpdateFrontmatterCommandSender
 
 // UpdateFrontmatterCommandSender sends UpdateFrontmatterCommand payloads to Kafka.
 // Calls Validate before publishing — a validation error is returned without touching Kafka.

@@ -15,7 +15,7 @@ import (
 	lib "github.com/bborbe/agent/lib"
 )
 
-//counterfeiter:generate -o mocks/task-increment-frontmatter-command-sender.go --fake-name TaskIncrementFrontmatterCommandSender . IncrementFrontmatterCommandSender
+//counterfeiter:generate -o ../../mocks/task-increment-frontmatter-command-sender.go --fake-name TaskIncrementFrontmatterCommandSender . IncrementFrontmatterCommandSender
 
 // IncrementFrontmatterCommandSender sends IncrementFrontmatterCommand payloads to Kafka.
 // Calls Validate before publishing — a validation error is returned without touching Kafka.
