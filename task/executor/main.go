@@ -58,6 +58,14 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 	glog.V(1).
 		Infof("agent-task-executor started version=%s commit=%s", a.BuildGitVersion, a.BuildGitCommit)
 
+	if a.JobTTLSecondsAfterFinished < 0 {
+		return errors.Errorf(
+			ctx,
+			"job-ttl-seconds-after-finished must be >= 0 (0 deletes immediately), got %d",
+			a.JobTTLSecondsAfterFinished,
+		)
+	}
+
 	kubeConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return errors.Wrapf(ctx, err, "get in-cluster k8s config")
