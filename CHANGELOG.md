@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.66.0
 
 - feat(task/executor): make K8s Job `ttlSecondsAfterFinished` configurable via `--job-ttl-seconds-after-finished` / `JOB_TTL_SECONDS_AFTER_FINISHED` (default 1800); replaces hardcoded constant in `spawner.NewJobSpawner`
 
