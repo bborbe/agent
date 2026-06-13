@@ -48,7 +48,7 @@ type application struct {
 	BuildGitVersion            string            `required:"false" arg:"build-git-version"              env:"BUILD_GIT_VERSION"              usage:"Build Git version (git describe --tags --always --dirty)"                                               default:"dev"`
 	BuildGitCommit             string            `required:"false" arg:"build-git-commit"               env:"BUILD_GIT_COMMIT"               usage:"Build Git commit hash"                                                                                  default:"none"`
 	BuildDate                  *libtime.DateTime `required:"false" arg:"build-date"                     env:"BUILD_DATE"                     usage:"Build timestamp (RFC3339)"`
-	HealthcheckCronExpression  string            `                 arg:"healthcheck-cron-expression"    env:"HEALTHCHECK_CRON_EXPRESSION"    usage:"Cron expression for agent liveness health checks"                                                       default:"0 0 8 * * 1"`
+	HealthcheckCronExpression  string            `required:"true"  arg:"healthcheck-cron-expression"    env:"HEALTHCHECK_CRON_EXPRESSION"    usage:"Cron expression for agent liveness health checks"                                                       default:"0 0 8 * * 1"`
 	JobTTLSecondsAfterFinished int32             `required:"false" arg:"job-ttl-seconds-after-finished" env:"JOB_TTL_SECONDS_AFTER_FINISHED" usage:"K8s Job TTL after completion (seconds) — completed Job pods are GCed after this delay"                  default:"1800"`
 }
 
