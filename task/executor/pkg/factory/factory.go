@@ -103,6 +103,7 @@ func CreateConsumer(
 	currentDateTimeGetter libtime.CurrentDateTimeGetter,
 	resultPublisher pkg.ResultPublisher,
 	taskStore *pkg.TaskStore,
+	jobTTLSecondsAfterFinished int32,
 ) (libkafka.Consumer, handler.TaskEventHandler) {
 	jobSpawner := spawner.NewJobSpawner(
 		kubeClient,
@@ -110,6 +111,7 @@ func CreateConsumer(
 		kafkaBrokers,
 		string(branch),
 		currentDateTimeGetter,
+		jobTTLSecondsAfterFinished,
 	)
 	taskEventHandler := handler.NewTaskEventHandler(
 		jobSpawner,

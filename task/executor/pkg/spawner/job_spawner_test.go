@@ -54,6 +54,7 @@ var _ = Describe("JobSpawner", func() {
 			"kafka:9092",
 			"develop",
 			currentDateTime,
+			1800,
 		)
 	})
 
@@ -112,6 +113,39 @@ var _ = Describe("JobSpawner", func() {
 			Expect(envMap["GEMINI_API_KEY"]).To(Equal("test-gemini-key"))
 			Expect(envMap["PHASE"]).To(Equal("planning"))
 			Expect(envMap["TASK_TYPE"]).To(Equal(""))
+		})
+
+		It("propagates a non-default ttlSecondsAfterFinished to the Job spec", func() {
+			customTTL := int32(60)
+			jobSpawner = spawner.NewJobSpawner(
+				fakeClient,
+				"test-ns",
+				"kafka:9092",
+				"develop",
+				currentDateTime,
+				customTTL,
+			)
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("ttl-custom"),
+				Frontmatter: lib.TaskFrontmatter{
+					"assignee": "claude",
+					"phase":    "planning",
+				},
+				Content: lib.TaskContent("do the work"),
+			}
+			config := pkg.AgentConfiguration{
+				Assignee: "claude",
+				Image:    "my-image:latest",
+				Env:      map[string]string{"GEMINI_API_KEY": "test-gemini-key"},
+			}
+			_, err := jobSpawner.SpawnJob(ctx, task, config)
+			Expect(err).To(BeNil())
+
+			jobs, err := fakeClient.BatchV1().Jobs("test-ns").List(ctx, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+			Expect(jobs.Items).To(HaveLen(1))
+			Expect(jobs.Items[0].Spec.TTLSecondsAfterFinished).NotTo(BeNil())
+			Expect(*jobs.Items[0].Spec.TTLSecondsAfterFinished).To(Equal(customTTL))
 		})
 
 		It(
@@ -359,6 +393,7 @@ var _ = Describe("JobSpawner", func() {
 				"kafka:9092",
 				"develop",
 				currentDateTime,
+				1800,
 			)
 
 			task := lib.Task{
@@ -799,6 +834,7 @@ var _ = Describe("JobSpawner", func() {
 				"kafka:9092",
 				"develop",
 				currentDateTime,
+				1800,
 			)
 
 			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-2"))
@@ -824,6 +860,7 @@ var _ = Describe("JobSpawner", func() {
 				"kafka:9092",
 				"develop",
 				currentDateTime,
+				1800,
 			)
 
 			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-3"))
@@ -850,6 +887,7 @@ var _ = Describe("JobSpawner", func() {
 				"kafka:9092",
 				"develop",
 				currentDateTime,
+				1800,
 			)
 
 			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-4"))
@@ -873,6 +911,7 @@ var _ = Describe("JobSpawner", func() {
 				"kafka:9092",
 				"develop",
 				currentDateTime,
+				1800,
 			)
 
 			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-5"))
@@ -894,6 +933,7 @@ var _ = Describe("JobSpawner", func() {
 				"kafka:9092",
 				"develop",
 				currentDateTime,
+				1800,
 			)
 			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-list-err"))
 			Expect(err).NotTo(BeNil())
