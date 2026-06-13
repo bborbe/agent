@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(task/executor): make K8s Job `ttlSecondsAfterFinished` configurable via `--job-ttl-seconds-after-finished` / `JOB_TTL_SECONDS_AFTER_FINISHED` (default 1800); replaces hardcoded constant in `spawner.NewJobSpawner`
+
 ## v0.65.0
 
 - fix(lib/claude, lib/pi): redact secret values from subprocess env log lines via new `envparse.RedactForLog` and `envparse.IsSensitiveKey`; keys with markers (TOKEN, SECRET, PASSWORD, PASSWD, CREDENTIAL, API_KEY, PRIVATE_KEY, ACCESS_KEY) become `KEY=***` while non-sensitive vars pass through verbatim

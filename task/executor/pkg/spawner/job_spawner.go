@@ -27,11 +27,6 @@ import (
 // can look it up. Must match the selector used in IsJobActive.
 const taskIDLabelKey = "agent.benjamin-borbe.de/task-id"
 
-// jobTTLSecondsAfterFinished controls how long completed Job pods survive
-// before Kubernetes' TTL controller garbage-collects them. 30 min gives
-// operators headroom to fetch logs after noticing an unexpected vault state.
-const jobTTLSecondsAfterFinished int32 = 1800
-
 //counterfeiter:generate -o ../../mocks/job_spawner.go --fake-name FakeJobSpawner . JobSpawner
 
 // JobSpawner creates a K8s Job for a task.
@@ -46,29 +41,34 @@ type JobSpawner interface {
 }
 
 // NewJobSpawner creates a new JobSpawner backed by the K8s batch/v1 API.
+// jobTTLSecondsAfterFinished controls how long completed Job pods survive
+// before Kubernetes' TTL controller garbage-collects them.
 func NewJobSpawner(
 	kubeClient kubernetes.Interface,
 	namespace k8s.Namespace,
 	kafkaBrokers string,
 	branch string,
 	currentDateTimeGetter libtime.CurrentDateTimeGetter,
+	jobTTLSecondsAfterFinished int32,
 ) JobSpawner {
 	return &jobSpawner{
-		kubeClient:            kubeClient,
-		namespace:             namespace,
-		kafkaBrokers:          kafkaBrokers,
-		branch:                branch,
-		currentDateTimeGetter: currentDateTimeGetter,
+		kubeClient:                 kubeClient,
+		namespace:                  namespace,
+		kafkaBrokers:               kafkaBrokers,
+		branch:                     branch,
+		currentDateTimeGetter:      currentDateTimeGetter,
+		jobTTLSecondsAfterFinished: jobTTLSecondsAfterFinished,
 	}
 }
 
 // jobSpawner implements JobSpawner by creating batch/v1 Jobs via the K8s client.
 type jobSpawner struct {
-	kubeClient            kubernetes.Interface
-	namespace             k8s.Namespace
-	kafkaBrokers          string
-	branch                string
-	currentDateTimeGetter libtime.CurrentDateTimeGetter
+	kubeClient                 kubernetes.Interface
+	namespace                  k8s.Namespace
+	kafkaBrokers               string
+	branch                     string
+	currentDateTimeGetter      libtime.CurrentDateTimeGetter
+	jobTTLSecondsAfterFinished int32
 }
 
 func (s *jobSpawner) SpawnJob(
@@ -112,7 +112,7 @@ func (s *jobSpawner) SpawnJob(
 	jobBuilder.SetObjectMetaBuild(objectMetaBuilder)
 	jobBuilder.SetPodSpecBuilder(podSpecBuilder)
 	jobBuilder.SetBackoffLimit(0)
-	jobBuilder.SetTTLSecondsAfterFinished(jobTTLSecondsAfterFinished)
+	jobBuilder.SetTTLSecondsAfterFinished(s.jobTTLSecondsAfterFinished)
 	jobBuilder.SetApp("agent")
 	jobBuilder.SetComponent(string(task.TaskIdentifier))
 

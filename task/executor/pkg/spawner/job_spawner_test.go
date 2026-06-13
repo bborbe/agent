@@ -54,6 +54,7 @@ var _ = Describe("JobSpawner", func() {
 			"kafka:9092",
 			"develop",
 			currentDateTime,
+			1800,
 		)
 	})
 
@@ -359,6 +360,7 @@ var _ = Describe("JobSpawner", func() {
 				"kafka:9092",
 				"develop",
 				currentDateTime,
+				1800,
 			)
 
 			task := lib.Task{
@@ -799,6 +801,7 @@ var _ = Describe("JobSpawner", func() {
 				"kafka:9092",
 				"develop",
 				currentDateTime,
+				1800,
 			)
 
 			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-2"))
@@ -824,6 +827,7 @@ var _ = Describe("JobSpawner", func() {
 				"kafka:9092",
 				"develop",
 				currentDateTime,
+				1800,
 			)
 
 			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-3"))
@@ -850,6 +854,7 @@ var _ = Describe("JobSpawner", func() {
 				"kafka:9092",
 				"develop",
 				currentDateTime,
+				1800,
 			)
 
 			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-4"))
@@ -873,6 +878,7 @@ var _ = Describe("JobSpawner", func() {
 				"kafka:9092",
 				"develop",
 				currentDateTime,
+				1800,
 			)
 
 			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-5"))
@@ -894,6 +900,7 @@ var _ = Describe("JobSpawner", func() {
 				"kafka:9092",
 				"develop",
 				currentDateTime,
+				1800,
 			)
 			active, err := jobSpawner.IsJobActive(ctx, lib.TaskIdentifier("tid-list-err"))
 			Expect(err).NotTo(BeNil())
