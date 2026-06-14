@@ -6,6 +6,7 @@ package task
 
 import (
 	"context"
+	"regexp"
 	"strings"
 
 	"github.com/bborbe/cqrs/base"
@@ -26,6 +27,10 @@ type CreateCommand struct {
 	Title          string              `json:"title"`
 	Frontmatter    lib.TaskFrontmatter `json:"frontmatter"`
 	Body           string              `json:"body,omitempty"`
+	// TargetVault is the slug of the Obsidian vault this task belongs in.
+	// Empty value means "use the controller's legacy default (openclaw)".
+	// Wire format uses omitempty so legacy producers that never set it stay byte-compatible.
+	TargetVault string `json:"targetVault,omitempty"`
 }
 
 // Validate enforces CreateCommand schema rules before publishing or processing.
@@ -33,6 +38,7 @@ func (cmd CreateCommand) Validate(ctx context.Context) error {
 	return validation.All{
 		validation.Name("Title", validateCreateTitle(cmd.Title)),
 		validation.Name("Body", validateCreateBody(cmd.Body)),
+		validation.Name("TargetVault", validateCreateTargetVault(cmd.TargetVault)),
 	}.Validate(ctx)
 }
 
@@ -118,6 +124,27 @@ func validateCreateBody(body string) validation.HasValidation {
 				validation.Error,
 				"body length %d bytes exceeds maximum 500 KiB",
 				len(body),
+			)
+		}
+		return nil
+	})
+}
+
+var targetVaultSlugRegexp = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
+func validateCreateTargetVault(targetVault string) validation.HasValidation {
+	return validation.HasValidationFunc(func(ctx context.Context) error {
+		if targetVault == "" {
+			// Empty is valid: legacy producers and the controller's
+			// "use default vault" semantics both rely on it.
+			return nil
+		}
+		if !targetVaultSlugRegexp.MatchString(targetVault) {
+			return errors.Wrapf(
+				ctx,
+				validation.Error,
+				"targetVault %q must match ^[a-z][a-z0-9-]*$",
+				targetVault,
 			)
 		}
 		return nil
