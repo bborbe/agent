@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(task/controller, lib/command/task): add `targetVault` field on CreateCommand (omitted from wire form when empty) and require `MY_VAULT` env var on the task controller; commands whose effective target vault does not match the controller's MY_VAULT are skipped silently with a V(2) log line, and the legacy empty-targetVault fallback routes to `openclaw`
+
 ## v0.66.0
 
 - feat(task/executor): make K8s Job `ttlSecondsAfterFinished` configurable via `--job-ttl-seconds-after-finished` / `JOB_TTL_SECONDS_AFTER_FINISHED` (default 1800); replaces hardcoded constant in `spawner.NewJobSpawner`

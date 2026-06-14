@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [044-multi-vault-routing]
+summary: 'Wired vault routing into task/controller: added required MY_VAULT env var, new pkg/routing package with ShouldProcess predicate (100% coverage, 10 specs) and ValidateMyVault startup check, extended NewCreateTaskExecutor with myVault arg + V(2) skip-log, threaded myVault through factory.CreateCommandConsumer and application.Run, added 4 new vault-routing executor tests + reflect-based MyVault field test, and updated CHANGELOG + controller-design.md'
+container: agent-multi-vault-routing-exec-202-multi-vault-routing-controller-myvault
+dark-factory-version: v0.177.1
 created: "2026-06-14T21:22:30Z"
 queued: "2026-06-14T21:26:34Z"
+started: "2026-06-14T21:30:53Z"
+completed: "2026-06-14T21:39:11Z"
 branch: dark-factory/multi-vault-routing
 ---
 

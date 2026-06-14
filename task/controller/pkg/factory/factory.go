@@ -26,12 +26,13 @@ func CreateCommandConsumer(
 	resultWriter result.ResultWriter,
 	gitClient gitclient.GitClient,
 	taskDir string,
+	myVault string,
 ) run.Func {
 	executors := cdb.CommandObjectExecutorTxs{
 		command.NewTaskResultExecutor(resultWriter),
 		command.NewIncrementFrontmatterExecutor(gitClient, taskDir),
 		command.NewUpdateFrontmatterExecutor(gitClient, taskDir),
-		command.NewCreateTaskExecutor(gitClient, taskDir),
+		command.NewCreateTaskExecutor(gitClient, taskDir, myVault),
 	}
 	return cdb.RunCommandConsumerTxDefault(
 		saramaClientProvider,
