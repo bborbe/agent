@@ -55,3 +55,23 @@ func TestApplicationBuildGitVersionFieldOrder(t *testing.T) {
 		)
 	}
 }
+
+func TestApplicationMyVaultFieldExists(t *testing.T) {
+	typ := reflect.TypeOf(application{})
+	f, ok := typ.FieldByName("MyVault")
+	if !ok {
+		t.Fatalf("application struct is missing MyVault field")
+	}
+	if f.Type.Kind() != reflect.String {
+		t.Fatalf("MyVault must be string, got %s", f.Type.Kind())
+	}
+	if got, want := f.Tag.Get("env"), "MY_VAULT"; got != want {
+		t.Errorf("MyVault env tag = %q, want %q", got, want)
+	}
+	if got, want := f.Tag.Get("arg"), "my-vault"; got != want {
+		t.Errorf("MyVault arg tag = %q, want %q", got, want)
+	}
+	if got, want := f.Tag.Get("required"), "true"; got != want {
+		t.Errorf("MyVault required tag = %q, want %q", got, want)
+	}
+}

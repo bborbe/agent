@@ -52,7 +52,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 			return os.WriteFile(absPath, content, 0600) // #nosec G306 -- test helper
 		}
 
-		executor = command.NewCreateTaskExecutor(fakeGit, taskDir)
+		executor = command.NewCreateTaskExecutor(fakeGit, taskDir, "openclaw")
 		schemaID = cdb.SchemaID{Group: "agent", Kind: "task", Version: "v1"}
 	})
 
@@ -333,6 +333,84 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(0))
 			})
+		})
+
+		Context("vault routing", func() {
+			It(
+				"skips a command whose TargetVault is openclaw when myVault=personal (no git write, no error)",
+				func() {
+					executor := command.NewCreateTaskExecutor(fakeGit, taskDir, "personal")
+					cmdObj := buildCmdObj(task.CreateCommand{
+						TaskIdentifier: lib.TaskIdentifier("task-1"),
+						Title:          "Personal Task",
+						Frontmatter: lib.TaskFrontmatter{
+							"assignee": "claude",
+							"status":   "next",
+						},
+						TargetVault: "openclaw",
+					})
+					_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(0))
+				},
+			)
+
+			It(
+				"processes a command whose TargetVault is openclaw when myVault=openclaw (one git write)",
+				func() {
+					executor := command.NewCreateTaskExecutor(fakeGit, taskDir, "openclaw")
+					cmdObj := buildCmdObj(task.CreateCommand{
+						TaskIdentifier: lib.TaskIdentifier("task-1"),
+						Title:          "Openclaw Task",
+						Frontmatter: lib.TaskFrontmatter{
+							"assignee": "claude",
+							"status":   "next",
+						},
+						TargetVault: "openclaw",
+					})
+					_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+				},
+			)
+
+			It(
+				"processes a command with empty TargetVault when myVault=openclaw (legacy fallback)",
+				func() {
+					executor := command.NewCreateTaskExecutor(fakeGit, taskDir, "openclaw")
+					cmdObj := buildCmdObj(task.CreateCommand{
+						TaskIdentifier: lib.TaskIdentifier("task-1"),
+						Title:          "Legacy Task",
+						Frontmatter: lib.TaskFrontmatter{
+							"assignee": "claude",
+							"status":   "next",
+						},
+						// TargetVault deliberately empty — legacy producer.
+					})
+					_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+				},
+			)
+
+			It(
+				"skips a command with empty TargetVault when myVault=personal (legacy fallback is openclaw, not personal)",
+				func() {
+					executor := command.NewCreateTaskExecutor(fakeGit, taskDir, "personal")
+					cmdObj := buildCmdObj(task.CreateCommand{
+						TaskIdentifier: lib.TaskIdentifier("task-1"),
+						Title:          "Legacy Task",
+						Frontmatter: lib.TaskFrontmatter{
+							"assignee": "claude",
+							"status":   "next",
+						},
+						// TargetVault deliberately empty.
+					})
+					_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(0))
+				},
+			)
 		})
 	})
 })

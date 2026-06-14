@@ -47,6 +47,8 @@ On agent-task-v1-request (operation: "update"):
   └── CQRS framework publishes success/failure result to agent-task-v1-result
 ```
 
+The controller reads a required `MY_VAULT` env var (CLI flag `--my-vault`) at startup naming the single Obsidian vault it serves. Every CreateCommand is checked against `MY_VAULT` via the `pkg/routing.ShouldProcess` predicate: the effective target is `cmd.targetVault` if non-empty, otherwise the legacy fallback `openclaw`; commands whose effective target is not `MY_VAULT` are skipped without side effects (no git write, no result publish, no error) and emit a single `glog.V(2)` line naming the command's `targetVault`, the effective target, and `MY_VAULT` so operators can confirm routing decisions. Two controllers (e.g. one per vault) can therefore share the `agent-task-v1-request` topic without duplicating task materializations. The `targetVault` field is added to `task.CreateCommand` with `omitempty`; legacy producers that emit no `targetVault` continue to flow to the `openclaw` controller.
+
 ## Frontmatter Merge
 
 When writing a result back, the ResultWriter merges frontmatter from the existing task file with frontmatter provided by the agent. Existing keys are preserved, agent keys override on conflict. This ensures fields like `assignee`, `tags`, and `task_identifier` survive result writeback even though agents don't receive frontmatter.

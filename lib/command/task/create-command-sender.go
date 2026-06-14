@@ -24,17 +24,28 @@ type CreateCommandSender interface {
 }
 
 // NewCreateCommandSender creates a CreateCommandSender using the given cdb.CommandObjectSender.
-func NewCreateCommandSender(commandObjectSender cdb.CommandObjectSender) CreateCommandSender {
+// The defaultVault is substituted into cmd.TargetVault at SendCommand time when
+// cmd.TargetVault is empty; an invalid defaultVault surfaces as a validation
+// error on the first SendCommand call.
+func NewCreateCommandSender(
+	commandObjectSender cdb.CommandObjectSender,
+	defaultVault string,
+) CreateCommandSender {
 	return &createCommandSender{
 		commandObjectSender: commandObjectSender,
+		defaultVault:        defaultVault,
 	}
 }
 
 type createCommandSender struct {
 	commandObjectSender cdb.CommandObjectSender
+	defaultVault        string
 }
 
 func (s *createCommandSender) SendCommand(ctx context.Context, cmd CreateCommand) error {
+	if cmd.TargetVault == "" && s.defaultVault != "" {
+		cmd.TargetVault = s.defaultVault
+	}
 	if err := cmd.Validate(ctx); err != nil {
 		return errors.Wrapf(ctx, err, "validate CreateCommand")
 	}

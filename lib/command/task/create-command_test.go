@@ -77,6 +77,37 @@ var _ = Describe("CreateCommand", func() {
 		Expect(jsonStr).To(ContainSubstring(`"frontmatter"`))
 		Expect(jsonStr).NotTo(ContainSubstring(`"body"`))
 	})
+
+	It("round-trips with empty TargetVault: marshaled JSON has no targetVault key", func() {
+		cmd := task.CreateCommand{
+			TaskIdentifier: lib.TaskIdentifier("task-novault"),
+			Title:          "My Task",
+			Frontmatter:    lib.TaskFrontmatter{"status": "todo"},
+		}
+		data, err := json.Marshal(cmd)
+		Expect(err).To(BeNil())
+		Expect(string(data)).NotTo(ContainSubstring("targetVault"))
+
+		var got task.CreateCommand
+		Expect(json.Unmarshal(data, &got)).To(Succeed())
+		Expect(got.TargetVault).To(BeEmpty())
+	})
+
+	It("round-trips with explicit TargetVault: JSON contains targetVault value", func() {
+		cmd := task.CreateCommand{
+			TaskIdentifier: lib.TaskIdentifier("task-personal"),
+			Title:          "My Task",
+			Frontmatter:    lib.TaskFrontmatter{"status": "todo"},
+			TargetVault:    "personal",
+		}
+		data, err := json.Marshal(cmd)
+		Expect(err).To(BeNil())
+		Expect(string(data)).To(ContainSubstring(`"targetVault":"personal"`))
+
+		var got task.CreateCommand
+		Expect(json.Unmarshal(data, &got)).To(Succeed())
+		Expect(got.TargetVault).To(Equal("personal"))
+	})
 })
 
 var _ = Describe("CreateCommand.Validate", func() {
@@ -260,4 +291,39 @@ var _ = Describe("CreateCommand.Validate", func() {
 		}
 		Expect(cmd.Validate(ctx)).To(Succeed())
 	})
+
+	DescribeTable("TargetVault empty value is valid",
+		func(targetVault string) {
+			cmd := task.CreateCommand{
+				TaskIdentifier: lib.TaskIdentifier("task-1"),
+				Title:          "T",
+				Frontmatter:    lib.TaskFrontmatter{"status": "todo"},
+				TargetVault:    targetVault,
+			}
+			Expect(cmd.Validate(ctx)).To(Succeed())
+		},
+		Entry("empty string", ""),
+		Entry("openclaw", "openclaw"),
+		Entry("personal", "personal"),
+		Entry("vault-2", "vault-2"),
+	)
+
+	DescribeTable("TargetVault invalid value is rejected",
+		func(targetVault string) {
+			cmd := task.CreateCommand{
+				TaskIdentifier: lib.TaskIdentifier("task-1"),
+				Title:          "T",
+				Frontmatter:    lib.TaskFrontmatter{"status": "todo"},
+				TargetVault:    targetVault,
+			}
+			err := cmd.Validate(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("TargetVault"))
+		},
+		Entry("capitalized", "Personal"),
+		Entry("leading space", " personal"),
+		Entry("internal space", "per sonal"),
+		Entry("leading digit", "1personal"),
+		Entry("leading hyphen", "-personal"),
+	)
 })

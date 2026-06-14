@@ -21,6 +21,7 @@ import (
 	task "github.com/bborbe/agent/lib/command/task"
 	gitclient "github.com/bborbe/agent/task/controller/pkg/gitrestclient"
 	"github.com/bborbe/agent/task/controller/pkg/result"
+	"github.com/bborbe/agent/task/controller/pkg/routing"
 )
 
 // NewCreateTaskExecutor creates a cdb.CommandObjectExecutorTx that materializes
@@ -28,9 +29,12 @@ import (
 // the file is written at tasks/{title}.md; otherwise it falls back to tasks/{task_identifier}.md.
 // If a file for the resolved path already exists the command is a strict no-op (idempotent).
 // Frontmatter must include "assignee" and "status"; missing fields return a wrapped validation error.
+// Commands whose effective target vault (cmd.TargetVault or the legacy fallback) does not
+// match myVault are skipped without side effects (no git write, no error, no result event).
 func NewCreateTaskExecutor(
 	gitClient gitclient.GitClient,
 	taskDir string,
+	myVault string,
 ) cdb.CommandObjectExecutorTx {
 	return cdb.CommandObjectExecutorTxFunc(
 		task.CreateCommandOperation,
@@ -47,6 +51,17 @@ func NewCreateTaskExecutor(
 			}
 			if err := cmd.TaskIdentifier.Validate(ctx); err != nil {
 				return nil, nil, errors.Wrapf(ctx, err, "validate task_identifier")
+			}
+			if !routing.ShouldProcess(cmd, myVault) {
+				effective := cmd.TargetVault
+				if effective == "" {
+					effective = routing.LegacyDefaultVault
+				}
+				glog.V(2).Infof(
+					"create-task: skipped vault mismatch target=%q effective=%q my=%q task=%s",
+					cmd.TargetVault, effective, myVault, cmd.TaskIdentifier,
+				)
+				return nil, nil, nil
 			}
 			if err := validateCreateTaskFrontmatter(ctx, cmd.Frontmatter); err != nil {
 				return nil, nil, errors.Wrapf(ctx, err, "validate frontmatter")
