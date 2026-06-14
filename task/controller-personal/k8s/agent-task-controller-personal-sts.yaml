@@ -60,6 +60,8 @@ spec:
               value: '{{ "KAFKA_BROKERS" | env }}'
             - name: GIT_REST_URL
               value: 'http://vault-obsidian-personal:9090'
+            - name: MY_VAULT
+              value: 'personal'
             - name: POLL_INTERVAL
               value: '60s'
             - name: TASK_DIR
