@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [044-multi-vault-routing]
+summary: Extended NewCreateCommandSender to accept a defaultVault string second argument that substitutes cmd.TargetVault when empty, with deferred validation; updated the test BeforeEach and added four matrix tests (AC 5, 6, 7, 8); counterfeiter mock unchanged; make precommit exits 0
+container: agent-multi-vault-routing-exec-201-multi-vault-routing-sender-default
+dark-factory-version: v0.177.1
 created: "2026-06-14T21:22:30Z"
 queued: "2026-06-14T21:26:34Z"
+started: "2026-06-14T21:27:01Z"
+completed: "2026-06-14T21:30:52Z"
 branch: dark-factory/multi-vault-routing
 ---
 
