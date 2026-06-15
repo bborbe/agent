@@ -60,7 +60,7 @@ spec:
               value: '{{ "KAFKA_BROKERS" | env }}'
             - name: GIT_REST_URL
               value: 'http://vault-obsidian-{{ "VAULT" | env }}:9090'
-            - name: MY_VAULT
+            - name: VAULT_NAME
               value: '{{ "VAULT" | env }}'
             - name: POLL_INTERVAL
               value: '60s'
