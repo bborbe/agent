@@ -1,11 +1,12 @@
 ---
-status: prompted
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-06-14T21:06:26Z"
 generating: "2026-06-14T21:13:00Z"
 prompted: "2026-06-14T21:25:02Z"
+verifying: "2026-06-15T15:20:33Z"
 branch: dark-factory/multi-vault-routing
 ---
 
