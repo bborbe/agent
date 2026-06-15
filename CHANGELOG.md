@@ -10,7 +10,11 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## v0.67.0
 
-- feat(task/controller, lib/command/task): add `targetVault` field on CreateCommand (omitted from wire form when empty) and require `MY_VAULT` env var on the task controller; commands whose effective target vault does not match the controller's MY_VAULT are skipped silently with a V(2) log line, and the legacy empty-targetVault fallback routes to `openclaw`
+- feat(task/controller, lib/command/task): add `targetVault` field on CreateCommand (omitted from wire form when empty) and require `VAULT_NAME` env var on the task controller; commands whose effective target vault does not match the controller's VAULT_NAME are skipped silently with a V(2) log line, and the legacy empty-targetVault fallback routes to `openclaw`
+
+## Unreleased
+
+- refactor(task/controller): rename the vault-identity configuration (env, CLI flag, struct field, and the corresponding routing-validator function) to `VAULT_NAME` / `--vault-name` / `VaultName` for consistency with surrounding ops conventions (`NAMESPACE`, `BRANCH`, `KAFKA_BROKERS`). No behavior change. The skip-log structured key `my=` is renamed to `vault=`.
 
 ## v0.66.0
 

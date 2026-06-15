@@ -337,7 +337,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 
 		Context("vault routing", func() {
 			It(
-				"skips a command whose TargetVault is openclaw when myVault=personal (no git write, no error)",
+				"skips a command whose TargetVault is openclaw when vaultName=personal (no git write, no error)",
 				func() {
 					executor := command.NewCreateTaskExecutor(fakeGit, taskDir, "personal")
 					cmdObj := buildCmdObj(task.CreateCommand{
@@ -356,7 +356,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 			)
 
 			It(
-				"processes a command whose TargetVault is openclaw when myVault=openclaw (one git write)",
+				"processes a command whose TargetVault is openclaw when vaultName=openclaw (one git write)",
 				func() {
 					executor := command.NewCreateTaskExecutor(fakeGit, taskDir, "openclaw")
 					cmdObj := buildCmdObj(task.CreateCommand{
@@ -375,7 +375,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 			)
 
 			It(
-				"processes a command with empty TargetVault when myVault=openclaw (legacy fallback)",
+				"processes a command with empty TargetVault when vaultName=openclaw (legacy fallback)",
 				func() {
 					executor := command.NewCreateTaskExecutor(fakeGit, taskDir, "openclaw")
 					cmdObj := buildCmdObj(task.CreateCommand{
@@ -394,7 +394,7 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 			)
 
 			It(
-				"skips a command with empty TargetVault when myVault=personal (legacy fallback is openclaw, not personal)",
+				"skips a command with empty TargetVault when vaultName=personal (legacy fallback is openclaw, not personal)",
 				func() {
 					executor := command.NewCreateTaskExecutor(fakeGit, taskDir, "personal")
 					cmdObj := buildCmdObj(task.CreateCommand{

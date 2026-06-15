@@ -60,12 +60,12 @@ type application struct {
 	BuildGitVersion string            `required:"false" arg:"build-git-version" env:"BUILD_GIT_VERSION" usage:"Build Git version (git describe --tags --always --dirty)"                                                                    default:"dev"`
 	BuildGitCommit  string            `required:"false" arg:"build-git-commit"  env:"BUILD_GIT_COMMIT"  usage:"Build Git commit hash"                                                                                                       default:"none"`
 	BuildDate       *libtime.DateTime `required:"false" arg:"build-date"        env:"BUILD_DATE"        usage:"Build timestamp (RFC3339)"`
-	MyVault         string            `required:"true"  arg:"my-vault"          env:"MY_VAULT"          usage:"vault slug this controller serves (e.g. openclaw, personal); legacy empty targetVault defaults to openclaw"`
+	VaultName       string            `required:"true"  arg:"vault-name"        env:"VAULT_NAME"        usage:"vault slug this controller serves (e.g. openclaw, personal); legacy empty targetVault defaults to openclaw"`
 }
 
 //nolint:funlen // +6 lines from spec-043 metrics.New() passed to scanner + sync loop; extraction would split tightly-coupled wiring.
 func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
-	if err := routing.ValidateMyVault(ctx, a.MyVault); err != nil {
+	if err := routing.ValidateVaultName(ctx, a.VaultName); err != nil {
 		return err
 	}
 	libmetrics.NewBuildInfoMetrics().SetBuildInfo(a.BuildGitVersion, a.BuildGitCommit, a.BuildDate)
@@ -146,7 +146,7 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 		resultWriter,
 		gitClient,
 		a.TaskDir,
-		a.MyVault,
+		a.VaultName,
 	)
 
 	return service.Run(
