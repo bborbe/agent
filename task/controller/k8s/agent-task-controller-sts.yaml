@@ -65,7 +65,7 @@ spec:
             - name: POLL_INTERVAL
               value: '60s'
             - name: TASK_DIR
-              value: 'tasks'
+              value: '{{ "TASK_DIR" | env }}'
             - name: DATA_DIR
               value: /data/bolt
             - name: NO_SYNC
