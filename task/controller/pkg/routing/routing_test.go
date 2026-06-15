@@ -30,53 +30,59 @@ func TestSuite(t *testing.T) {
 }
 
 var _ = Describe("ShouldProcess", func() {
-	DescribeTable("routing matrix",
-		func(cmdTargetVault, myVault string, want bool) {
+	DescribeTable(
+		"routing matrix",
+		func(cmdTargetVault, vaultName string, want bool) {
 			cmd := task.CreateCommand{
 				TaskIdentifier: lib.TaskIdentifier("task-1"),
 				Title:          "T",
 				Frontmatter:    lib.TaskFrontmatter{"status": "next"},
 				TargetVault:    cmdTargetVault,
 			}
-			Expect(routing.ShouldProcess(cmd, myVault)).To(Equal(want))
+			Expect(routing.ShouldProcess(cmd, vaultName)).To(Equal(want))
 		},
 		// (cmd empty, my openclaw) → true (legacy fallback to openclaw)
-		Entry("empty target, myVault=openclaw → true (legacy fallback)", "", "openclaw", true),
+		Entry("empty target, vaultName=openclaw → true (legacy fallback)", "", "openclaw", true),
 		// (cmd openclaw, my openclaw) → true
-		Entry("openclaw target, myVault=openclaw → true", "openclaw", "openclaw", true),
+		Entry("openclaw target, vaultName=openclaw → true", "openclaw", "openclaw", true),
 		// (cmd personal, my personal) → true
-		Entry("personal target, myVault=personal → true", "personal", "personal", true),
+		Entry("personal target, vaultName=personal → true", "personal", "personal", true),
 		// (cmd empty, my personal) → false (legacy fallback is openclaw, not personal)
-		Entry("empty target, myVault=personal → false (legacy is openclaw)", "", "personal", false),
+		Entry(
+			"empty target, vaultName=personal → false (legacy is openclaw)",
+			"",
+			"personal",
+			false,
+		),
 		// (cmd openclaw, my personal) → false
-		Entry("openclaw target, myVault=personal → false", "openclaw", "personal", false),
+		Entry("openclaw target, vaultName=personal → false", "openclaw", "personal", false),
 		// (cmd other, my openclaw) → false
-		Entry("other target, myVault=openclaw → false", "other", "openclaw", false),
+		Entry("other target, vaultName=openclaw → false", "other", "openclaw", false),
 	)
 })
 
-var _ = Describe("ValidateMyVault", func() {
+var _ = Describe("ValidateVaultName", func() {
 	var ctx context.Context
 	BeforeEach(func() { ctx = context.Background() })
 
-	It("rejects empty MY_VAULT", func() {
-		err := routing.ValidateMyVault(ctx, "")
+	It("rejects empty VAULT_NAME", func() {
+		err := routing.ValidateVaultName(ctx, "")
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("MY_VAULT"))
+		Expect(err.Error()).To(ContainSubstring("VAULT_NAME"))
 	})
 
 	It("rejects invalid slug 'Bad'", func() {
-		err := routing.ValidateMyVault(ctx, "Bad")
+		err := routing.ValidateVaultName(ctx, "Bad")
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("MY_VAULT"))
+		Expect(err.Error()).To(ContainSubstring("VAULT_NAME"))
 		Expect(err.Error()).To(ContainSubstring("^[a-z][a-z0-9-]*$"))
 	})
 
 	It("accepts openclaw", func() {
-		Expect(routing.ValidateMyVault(ctx, "openclaw")).To(Succeed())
+		Expect(routing.ValidateVaultName(ctx, "openclaw")).To(Succeed())
 	})
 
 	It("accepts personal", func() {
-		Expect(routing.ValidateMyVault(ctx, "personal")).To(Succeed())
+		Expect(routing.ValidateVaultName(ctx, "personal")).To(Succeed())
 	})
 })

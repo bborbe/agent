@@ -30,11 +30,11 @@ import (
 // If a file for the resolved path already exists the command is a strict no-op (idempotent).
 // Frontmatter must include "assignee" and "status"; missing fields return a wrapped validation error.
 // Commands whose effective target vault (cmd.TargetVault or the legacy fallback) does not
-// match myVault are skipped without side effects (no git write, no error, no result event).
+// match vaultName are skipped without side effects (no git write, no error, no result event).
 func NewCreateTaskExecutor(
 	gitClient gitclient.GitClient,
 	taskDir string,
-	myVault string,
+	vaultName string,
 ) cdb.CommandObjectExecutorTx {
 	return cdb.CommandObjectExecutorTxFunc(
 		task.CreateCommandOperation,
@@ -52,14 +52,14 @@ func NewCreateTaskExecutor(
 			if err := cmd.TaskIdentifier.Validate(ctx); err != nil {
 				return nil, nil, errors.Wrapf(ctx, err, "validate task_identifier")
 			}
-			if !routing.ShouldProcess(cmd, myVault) {
+			if !routing.ShouldProcess(cmd, vaultName) {
 				effective := cmd.TargetVault
 				if effective == "" {
 					effective = routing.LegacyDefaultVault
 				}
 				glog.V(2).Infof(
-					"create-task: skipped vault mismatch target=%q effective=%q my=%q task=%s",
-					cmd.TargetVault, effective, myVault, cmd.TaskIdentifier,
+					"create-task: skipped vault mismatch target=%q effective=%q vault=%q task=%s",
+					cmd.TargetVault, effective, vaultName, cmd.TaskIdentifier,
 				)
 				return nil, nil, nil
 			}
