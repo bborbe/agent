@@ -2,8 +2,16 @@ include ../../../Makefile.variables
 include ../../../Makefile.env
 include ../../../Makefile.k8s
 
-# VAULTS tuple: '<vault-name>=<gateway-secret-teamvault-id>'
+# VAULTS tuple: '<vault-name>=<gateway-secret-teamvault-id>=<task-dir>'
 # Stage-split: tvids differ per environment. Pattern mirrors trading/mt5/connector/k8s/Makefile.
+#
+# task-dir is the directory inside the vault repo where this controller
+# materializes task files. The convention differs per vault:
+#   openclaw → tasks         (OpenClaw vault convention)
+#   personal → 24 Tasks      (Personal vault convention; matches Obsidian
+#                             folder pattern "24 Tasks/" for 1-7-day work)
+# The value is passed to the controller via TASK_DIR env (overriding the
+# binary default "24 Tasks").
 #
 # MIGRATION NOTE (one-time, when this PR first deploys):
 # The legacy openclaw STS is named `agent-task-controller` (no -openclaw suffix).
@@ -17,12 +25,12 @@ include ../../../Makefile.k8s
 # from offset 0; idempotent UUID5 task identifiers prevent duplicate vault files.
 ifeq ($(BRANCH),prod)
 	VAULTS ?= \
-		'openclaw=3OlKKw' \
-		'personal=dwkkgw'
+		'openclaw=3OlKKw=tasks' \
+		'personal=dwkkgw=24 Tasks'
 else ifeq ($(BRANCH),dev)
 	VAULTS ?= \
-		'openclaw=YLbzyL' \
-		'personal=9L6eMO'
+		'openclaw=YLbzyL=tasks' \
+		'personal=9L6eMO=24 Tasks'
 else
 	$(error apply requires BRANCH=dev or BRANCH=prod)
 endif
@@ -31,7 +39,8 @@ apply:
 	@for i in $(VAULTS); do \
 		export VAULT="$$(echo $$i | cut -d'=' -f1)"; \
 		export GATEWAY_SECRET_TVID="$$(echo $$i | cut -d'=' -f2)"; \
-		echo "applying for vault $${VAULT}"; \
+		export TASK_DIR="$$(echo $$i | cut -d'=' -f3-)"; \
+		echo "applying for vault $${VAULT} (task-dir=$${TASK_DIR})"; \
 		$(MAKE) applyOne; \
 	done
 
