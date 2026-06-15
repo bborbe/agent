@@ -52,7 +52,7 @@ type application struct {
 	KafkaBrokers    string            `required:"true"  arg:"kafka-brokers"     env:"KAFKA_BROKERS"     usage:"comma-separated Kafka broker addresses"`
 	Branch          base.Branch       `required:"true"  arg:"branch"            env:"BRANCH"            usage:"Kafka topic prefix branch (develop/live)"`
 	PollInterval    time.Duration     `required:"false" arg:"poll-interval"     env:"POLL_INTERVAL"     usage:"vault polling interval"                                                                                                      default:"60s"`
-	TaskDir         string            `required:"false" arg:"task-dir"          env:"TASK_DIR"          usage:"task directory within vault"                                                                                                 default:"24 Tasks"`
+	TaskDir         string            `required:"true"  arg:"task-dir"          env:"TASK_DIR"          usage:"task directory within vault (per-vault convention: openclaw=tasks, personal=24 Tasks)"`
 	DataDir         string            `required:"true"  arg:"data-dir"          env:"DATA_DIR"          usage:"directory for BoltDB offset storage"`
 	NoSync          bool              `required:"false" arg:"no-sync"           env:"NO_SYNC"           usage:"disable BoltDB fsync (for testing only)"`
 	GitRestURL      string            `required:"false" arg:"git-rest-url"      env:"GIT_REST_URL"      usage:"git-rest HTTP API base URL"                                                                                                  default:"http://vault-obsidian-openclaw:9090"`
