@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: agent-task-controller
+  name: 'agent-task-controller-{{ "VAULT" | env }}'
   namespace: '{{ "NAMESPACE" | env }}'
   annotations:
     keel.sh/policy: force
@@ -13,8 +13,8 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: agent-task-controller
-  serviceName: agent-task-controller
+      app: 'agent-task-controller-{{ "VAULT" | env }}'
+  serviceName: 'agent-task-controller-{{ "VAULT" | env }}'
   template:
     metadata:
       annotations:
@@ -24,7 +24,7 @@ spec:
         prometheus.io/scrape: "true"
         random: '{{ "RANDOM" | env }}'
       labels:
-        app: agent-task-controller
+        app: 'agent-task-controller-{{ "VAULT" | env }}'
     spec:
       affinity:
         nodeAffinity:
@@ -46,12 +46,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   key: sentry-dsn
-                  name: agent-task-controller
+                  name: 'agent-task-controller-{{ "VAULT" | env }}'
             - name: GATEWAY_SECRET
               valueFrom:
                 secretKeyRef:
                   key: gateway-secret
-                  name: agent-task-controller
+                  name: 'agent-task-controller-{{ "VAULT" | env }}'
             - name: SENTRY_PROXY
               value: '{{"SENTRY_PROXY_URL" | env}}'
             - name: BRANCH
@@ -59,7 +59,9 @@ spec:
             - name: KAFKA_BROKERS
               value: '{{ "KAFKA_BROKERS" | env }}'
             - name: GIT_REST_URL
-              value: 'http://vault-obsidian-openclaw:9090'
+              value: 'http://vault-obsidian-{{ "VAULT" | env }}:9090'
+            - name: VAULT_NAME
+              value: '{{ "VAULT" | env }}'
             - name: POLL_INTERVAL
               value: '60s'
             - name: TASK_DIR
