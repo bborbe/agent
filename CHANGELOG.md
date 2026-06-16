@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.68.1
 
 - fix(task/controller): percent-escape relPath segments in the git-rest client URL so vault paths containing `%`, spaces, `#`, etc. (e.g. `24 Tasks/Set up The 5%ers prop firm account.md`) no longer fail with `invalid URL escape` when constructing the GET/POST/DELETE request URL.
 
