@@ -108,6 +108,30 @@ var _ = Describe("GitRestClient", func() {
 				Expect(content).To(BeNil())
 			})
 		})
+
+		Context("relPath contains percent sign", func() {
+			BeforeEach(func() {
+				server = httptest.NewServer(
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						// Reaching this handler at all proves the URL was escaped — before
+						// the fix, http.NewRequestWithContext failed with `invalid URL escape "%er"`.
+						// r.URL.Path is the decoded path; verify it round-trips intact.
+						Expect(
+							r.URL.Path,
+						).To(Equal("/api/v1/files/24 Tasks/Set up The 5%ers prop firm account.md"))
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write([]byte("ok"))
+					}),
+				)
+				client = gitrestclient.NewGitRestClientForTest(server.URL, "", "", zeroBackoff)
+			})
+
+			It("escapes the path and succeeds", func() {
+				content, err := client.Get(ctx, "24 Tasks/Set up The 5%ers prop firm account.md")
+				Expect(err).To(BeNil())
+				Expect(content).To(Equal([]byte("ok")))
+			})
+		})
 	})
 
 	Describe("NewGitRestClient (public constructor)", func() {
