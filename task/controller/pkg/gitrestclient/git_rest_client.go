@@ -101,9 +101,19 @@ func (g *gitRestClient) setAuthHeaders(req *http.Request) {
 	req.Header.Set("X-Gateway-Initator", g.gatewayInitiator)
 }
 
+// fileURL builds /api/v1/files/<relPath> with proper percent-escaping so
+// characters like %, space, # in relPath survive the round-trip to git-rest.
+func (g *gitRestClient) fileURL(relPath string) string {
+	segments := strings.Split(relPath, "/")
+	for i, s := range segments {
+		segments[i] = url.PathEscape(s)
+	}
+	return g.baseURL + "/api/v1/files/" + strings.Join(segments, "/")
+}
+
 // Get retrieves file content from git-rest. Does not retry — reads fail-fast.
 func (g *gitRestClient) Get(ctx context.Context, relPath string) ([]byte, error) {
-	reqURL := g.baseURL + "/api/v1/files/" + relPath
+	reqURL := g.fileURL(relPath)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		g.metrics.GitRestCallsTotal("get", "error").Inc()
@@ -135,7 +145,7 @@ func (g *gitRestClient) Get(ctx context.Context, relPath string) ([]byte, error)
 
 // Post writes content to relPath with retry on 5xx or network errors.
 func (g *gitRestClient) Post(ctx context.Context, relPath string, content []byte) error {
-	reqURL := g.baseURL + "/api/v1/files/" + relPath
+	reqURL := g.fileURL(relPath)
 	var lastErr error
 	for attempt := 0; attempt < 5; attempt++ {
 		select {
@@ -191,7 +201,7 @@ func (g *gitRestClient) Post(ctx context.Context, relPath string, content []byte
 
 // Delete removes the file at relPath with retry on 5xx or network errors.
 func (g *gitRestClient) Delete(ctx context.Context, relPath string) error {
-	reqURL := g.baseURL + "/api/v1/files/" + relPath
+	reqURL := g.fileURL(relPath)
 	var lastErr error
 	for attempt := 0; attempt < 5; attempt++ {
 		select {

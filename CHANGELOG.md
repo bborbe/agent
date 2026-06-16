@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(task/controller): percent-escape relPath segments in the git-rest client URL so vault paths containing `%`, spaces, `#`, etc. (e.g. `24 Tasks/Set up The 5%ers prop firm account.md`) no longer fail with `invalid URL escape` when constructing the GET/POST/DELETE request URL.
+
 ## v0.68.0
 
 - refactor(task/controller): rename the vault-identity configuration (env, CLI flag, struct field, and the corresponding routing-validator function) to `VAULT_NAME` / `--vault-name` / `VaultName` for consistency with surrounding ops conventions (`NAMESPACE`, `BRANCH`, `KAFKA_BROKERS`). No behavior change. The skip-log structured key `my=` is renamed to `vault=`.
