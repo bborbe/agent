@@ -1,5 +1,10 @@
 # agent
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/bborbe/agent/lib.svg)](https://pkg.go.dev/github.com/bborbe/agent/lib)
+[![CI](https://github.com/bborbe/agent/actions/workflows/ci.yml/badge.svg)](https://github.com/bborbe/agent/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bborbe/agent/lib)](https://goreportcard.com/report/github.com/bborbe/agent/lib)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bborbe/agent)
+
 Event-driven, Kafka-based agent orchestration system. Generic task controller + pluggable Claude/AI runners spawned as Kubernetes Jobs.
 
 ## Where this fits in the bigger picture
