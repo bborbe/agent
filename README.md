@@ -2,6 +2,24 @@
 
 Event-driven, Kafka-based agent orchestration system. Generic task controller + pluggable Claude/AI runners spawned as Kubernetes Jobs.
 
+## Where this fits in the bigger picture
+
+This repo is the **architectural center** of the bborbe task / agent system. `task/controller` materializes vault files from Kafka commands; `task/executor` spawns one Kubernetes Job per task / phase, picking a runner image based on `assignee` (looked up in the `Config` CRD this repo defines).
+
+Producers emit `task.CreateCommand` events using the schema published from `lib/`:
+
+- [recurring-task-creator](https://github.com/bborbe/recurring-task-creator) — Schedule CR → cron tick → `CreateCommand`
+- [maintainer](https://github.com/bborbe/maintainer) — `watcher/github-pr` / `github-build` / `github-release` → `CreateCommand`
+- manual — `/vault-cli:create-task` via [vault-cli](https://github.com/bborbe/vault-cli)
+
+Downstream pieces:
+
+- [git-rest](https://github.com/bborbe/git-rest) — HTTP-over-git service that `task/controller` calls to write the vault `.md` files
+- [vault-cli](https://github.com/bborbe/vault-cli) — operator CLI / Go library / Claude Code plugin for vault CRUD (also imported by the runners in `agent/{claude,code,gemini,pi}`)
+- [task-orchestrator](https://github.com/bborbe/task-orchestrator) — Kanban UI on top of vault-cli for human-assignee tasks
+
+Full system map: [recurring-task-creator/docs/system-map.md](https://github.com/bborbe/recurring-task-creator/blob/master/docs/system-map.md).
+
 ## How it works
 
 1. A markdown task file lands in the configured Obsidian vault (assignee, status, phase frontmatter).
