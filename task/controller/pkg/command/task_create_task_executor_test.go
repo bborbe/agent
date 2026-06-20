@@ -51,6 +51,8 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 		) error {
 			return os.WriteFile(absPath, content, 0600) // #nosec G306 -- test helper
 		}
+		// Default: every title path is free unless a test overrides ReadFile.
+		fakeGit.ReadFileReturns(nil, errors.New("GET file returned 404: not found"))
 
 		executor = command.NewCreateTaskExecutor(fakeGit, taskDir, "openclaw")
 		schemaID = cdb.SchemaID{Group: "agent", Kind: "task", Version: "v1"}
@@ -145,27 +147,92 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 			})
 		})
 
-		Context("file already exists (idempotency)", func() {
-			It("returns nil without calling AtomicWriteAndCommitPush", func() {
-				absPath := filepath.Join(tmpDir, taskDir, "existing-task.md")
-				Expect(
-					os.WriteFile(
-						absPath,
-						[]byte("---\ntask_identifier: existing-task\n---\n"),
-						0600,
+		Context("title path already occupied (collision)", func() {
+			It("returns ErrTaskAlreadyExists and does not write (AC2)", func() {
+				// Second ReadFile call returns existing content → collision on replay.
+				fakeGit.ReadFileReturnsOnCall(0,
+					nil, errors.New("GET 24 Tasks/Replay Task.md returned 404: not found"))
+				fakeGit.ReadFileReturnsOnCall(
+					1,
+					[]byte(
+						"---\ntask_identifier: replay-task\nassignee: claude\nstatus: next\n---\n",
 					),
-				).To(Succeed())
+					nil,
+				)
 
 				cmdObj := buildCmdObj(task.CreateCommand{
-					TaskIdentifier: lib.TaskIdentifier("existing-task"),
-					Title:          "existing-task",
-					Frontmatter: lib.TaskFrontmatter{
-						"assignee": "claude",
-						"status":   "next",
-					},
+					TaskIdentifier: lib.TaskIdentifier("replay-task"),
+					Title:          "Replay Task",
+					Frontmatter:    lib.TaskFrontmatter{"assignee": "claude", "status": "next"},
+				})
+
+				// First create: file not found → writes.
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+
+				// Replay: file now exists → sentinel, no second write.
+				_, _, err = executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).To(HaveOccurred())
+				Expect(errors.Is(err, task.ErrTaskAlreadyExists)).To(BeTrue())
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1)) // still 1
+			})
+		})
+
+		Context("new filename", func() {
+			It("writes exactly once and returns nil when ReadFile reports not-found (AC3)", func() {
+				fakeGit.ReadFileReturns(
+					nil,
+					errors.New("GET 24 Tasks/Brand New.md returned 404: not found"),
+				)
+				cmdObj := buildCmdObj(task.CreateCommand{
+					TaskIdentifier: lib.TaskIdentifier("brand-new"),
+					Title:          "Brand New",
+					Frontmatter:    lib.TaskFrontmatter{"assignee": "claude", "status": "next"},
 				})
 				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
 				Expect(err).NotTo(HaveOccurred())
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
+			})
+		})
+
+		Context("collision with a different task_identifier", func() {
+			It("returns ErrTaskAlreadyExists and does not write (AC4)", func() {
+				// Existing file at the title path belongs to a DIFFERENT task — filename owns the
+				// slot; the executor must not consult frontmatter, must not write.
+				fakeGit.ReadFileReturns(
+					[]byte(
+						"---\ntask_identifier: someone-else\nassignee: alice\nstatus: todo\n---\n",
+					),
+					nil,
+				)
+				cmdObj := buildCmdObj(task.CreateCommand{
+					TaskIdentifier: lib.TaskIdentifier("new-task-id"),
+					Title:          "My Colliding Task",
+					Frontmatter:    lib.TaskFrontmatter{"assignee": "claude", "status": "next"},
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).To(HaveOccurred())
+				Expect(errors.Is(err, task.ErrTaskAlreadyExists)).To(BeTrue())
+				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(0))
+			})
+		})
+
+		Context("transient git-rest read error", func() {
+			It("propagates the wrapped error and does not write (AC5)", func() {
+				fakeGit.ReadFileReturns(
+					nil,
+					errors.New("GET 24 Tasks/Flaky.md returned 503: service unavailable"),
+				)
+				cmdObj := buildCmdObj(task.CreateCommand{
+					TaskIdentifier: lib.TaskIdentifier("flaky-task"),
+					Title:          "Flaky",
+					Frontmatter:    lib.TaskFrontmatter{"assignee": "claude", "status": "next"},
+				})
+				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
+				Expect(err).To(HaveOccurred())
+				Expect(errors.Is(err, task.ErrTaskAlreadyExists)).To(BeFalse())
+				Expect(err.Error()).To(ContainSubstring("503"))
 				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(0))
 			})
 		})
@@ -275,63 +342,6 @@ var _ = Describe("NewCreateTaskExecutor", func() {
 				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
 				_, absPath, _, _ := fakeGit.AtomicWriteAndCommitPushArgsForCall(0)
 				Expect(absPath).To(HaveSuffix(string(taskID) + ".md"))
-			})
-		})
-
-		Context("title path occupied by a different task", func() {
-			It("falls back to UUID path; existing file is unchanged", func() {
-				// Pre-create the title path with a different task_identifier.
-				titlePath := filepath.Join(tmpDir, taskDir, "My Colliding Task.md")
-				originalContent := []byte(
-					"---\ntask_identifier: other-task-id\nassignee: alice\nstatus: todo\n---\n",
-				)
-				Expect(os.WriteFile(titlePath, originalContent, 0600)).To(Succeed())
-
-				taskID := lib.TaskIdentifier("new-task-id")
-				cmdObj := buildCmdObj(task.CreateCommand{
-					TaskIdentifier: taskID,
-					Title:          "My Colliding Task",
-					Frontmatter: lib.TaskFrontmatter{
-						"assignee": "claude",
-						"status":   "next",
-					},
-				})
-				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
-				Expect(err).NotTo(HaveOccurred())
-
-				// New task written at UUID path.
-				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(1))
-				_, absPath, _, _ := fakeGit.AtomicWriteAndCommitPushArgsForCall(0)
-				Expect(absPath).To(HaveSuffix(string(taskID) + ".md"))
-
-				// Original file unchanged.
-				Expect(os.ReadFile(titlePath)).To(Equal(originalContent))
-			})
-		})
-
-		Context("title path already occupied by the same task (idempotent)", func() {
-			It("returns nil without calling AtomicWriteAndCommitPush", func() {
-				taskID := lib.TaskIdentifier("same-task-id")
-				titlePath := filepath.Join(tmpDir, taskDir, "Existing Title.md")
-				Expect(
-					os.WriteFile(
-						titlePath,
-						[]byte("---\ntask_identifier: same-task-id\n---\n"),
-						0600,
-					),
-				).To(Succeed())
-
-				cmdObj := buildCmdObj(task.CreateCommand{
-					TaskIdentifier: taskID,
-					Title:          "Existing Title",
-					Frontmatter: lib.TaskFrontmatter{
-						"assignee": "claude",
-						"status":   "next",
-					},
-				})
-				_, _, err := executor.HandleCommand(ctx, nil, cmdObj)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(fakeGit.AtomicWriteAndCommitPushCallCount()).To(Equal(0))
 			})
 		})
 
