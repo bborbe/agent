@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [045-bug-task-controller-filename-collision-idempotency]
+summary: Replaced create-task executor's local-disk existence checks (os.Stat/os.ReadFile) with git-rest round-trips via gitClient.ReadFile; on collision returns errors.Wrapf(ctx, task.ErrTaskAlreadyExists, ...) so replayed CreateCommands no longer overwrite existing recurring task files; removed frontmatter re-parse and task_identifier comparison; added isNotFoundReadError helper; rewrote collision/idempotency tests with AC2-AC5 cases; removed now-unused os and result imports.
+container: agent-filename-collision-exec-205-spec-045-executor-readfile-collision-sentinel
+dark-factory-version: v0.182.0
 created: "2026-06-20T15:11:00Z"
 queued: "2026-06-20T15:10:44Z"
+started: "2026-06-20T15:13:15Z"
+completed: "2026-06-20T15:17:03Z"
 branch: dark-factory/bug-task-controller-filename-collision-idempotency
 ---
 

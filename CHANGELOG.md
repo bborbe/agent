@@ -11,6 +11,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 ## Unreleased
 
 - feat: export ErrTaskAlreadyExists sentinel from lib/command/task so cross-repo callers can match filename-collision results via errors.Is
+- fix(task/controller): create-task executor checks filename existence via git-rest ReadFile instead of local os.Stat/os.ReadFile, and returns the new lib/command/task.ErrTaskAlreadyExists sentinel on collision so replayed CreateCommands no longer overwrite already-materialized recurring task files (stripping claude_session_id/phase)
 
 ## v0.68.1
 

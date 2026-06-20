@@ -6,7 +6,6 @@ package command
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -20,14 +19,14 @@ import (
 	lib "github.com/bborbe/agent/lib"
 	task "github.com/bborbe/agent/lib/command/task"
 	gitclient "github.com/bborbe/agent/task/controller/pkg/gitrestclient"
-	"github.com/bborbe/agent/task/controller/pkg/result"
 	"github.com/bborbe/agent/task/controller/pkg/routing"
 )
 
 // NewCreateTaskExecutor creates a cdb.CommandObjectExecutorTx that materializes
 // a new vault task file for the given task_identifier. If cmd.Title passes validation
 // the file is written at tasks/{title}.md; otherwise it falls back to tasks/{task_identifier}.md.
-// If a file for the resolved path already exists the command is a strict no-op (idempotent).
+// If a file already exists at the resolved path the command returns ErrTaskAlreadyExists
+// (a benign Failure on the result topic — no overwrite, no git write).
 // Frontmatter must include "assignee" and "status"; missing fields return a wrapped validation error.
 // Commands whose effective target vault (cmd.TargetVault or the legacy fallback) does not
 // match vaultName are skipped without side effects (no git write, no error, no result event).
@@ -66,15 +65,27 @@ func NewCreateTaskExecutor(
 			if err := validateCreateTaskFrontmatter(ctx, cmd.Frontmatter); err != nil {
 				return nil, nil, errors.Wrapf(ctx, err, "validate frontmatter")
 			}
-			taskDirPath := filepath.Join(gitClient.Path(), taskDir)
-			absPath := resolveCreateTaskPath(ctx, taskDirPath, cmd)
-			if _, err := os.Stat(absPath); err == nil {
+			relPath := resolveCreateTaskRelPath(ctx, taskDir, cmd)
+			if existing, err := gitClient.ReadFile(ctx, relPath); err == nil {
+				// File present at the title path → collision. Write nothing; return the
+				// sentinel so the CQRS framework emits a benign Failure on the result topic.
 				glog.Infof(
-					"create-task: task file already exists at %s for %s, skipping (idempotent)",
-					absPath, cmd.TaskIdentifier,
+					"create-task: title path %s already occupied (%d bytes), returning ErrTaskAlreadyExists for %s",
+					relPath,
+					len(existing),
+					cmd.TaskIdentifier,
 				)
-				return nil, nil, nil
+				return nil, nil, errors.Wrapf(
+					ctx, task.ErrTaskAlreadyExists, "title path %s occupied", relPath,
+				)
+			} else if !isNotFoundReadError(err) {
+				// Transient / unexpected git-rest read error → propagate, do NOT write.
+				return nil, nil, errors.Wrapf(
+					ctx, err, "check existing task file at %s for %s", relPath, cmd.TaskIdentifier,
+				)
 			}
+			// err is a "not found" read error → title path is free, proceed to write.
+
 			content, err := buildCreateTaskContent(ctx, cmd)
 			if err != nil {
 				return nil, nil, errors.Wrapf(
@@ -84,6 +95,7 @@ func NewCreateTaskExecutor(
 					cmd.TaskIdentifier,
 				)
 			}
+			absPath := filepath.Join(gitClient.Path(), relPath)
 			if err := gitClient.AtomicWriteAndCommitPush(
 				ctx,
 				absPath,
@@ -98,22 +110,24 @@ func NewCreateTaskExecutor(
 				)
 			}
 			glog.V(2).
-				Infof("create-task: created task file at %s for %s", absPath, cmd.TaskIdentifier)
+				Infof("create-task: created task file at %s for %s", relPath, cmd.TaskIdentifier)
 			return nil, nil, nil
 		},
 	)
 }
 
-// resolveCreateTaskPath returns the absolute path where the task file should be written.
-// If cmd.Title passes validation and the title-derived path is unoccupied (or occupied by
-// the same task), the title path is returned. Otherwise a WARN is logged and the UUID path
-// is returned as fallback so the task is always materialized.
-func resolveCreateTaskPath(
+// resolveCreateTaskRelPath returns the repo-root-relative path where the task
+// file should be written. If cmd.Title passes validation and contains no path
+// separators, the title-derived path is returned; otherwise a WARN is logged and
+// the UUID-derived path is returned as fallback so the task is always materialized.
+// Filename-collision detection is the caller's job (via gitClient.ReadFile) — this
+// function no longer reads the vault or compares task_identifier.
+func resolveCreateTaskRelPath(
 	ctx context.Context,
-	taskDirPath string,
+	taskDir string,
 	cmd task.CreateCommand,
 ) string {
-	uuidPath := filepath.Join(taskDirPath, string(cmd.TaskIdentifier)+".md")
+	uuidRelPath := filepath.Join(taskDir, string(cmd.TaskIdentifier)+".md")
 
 	// Re-validate the command (defense-in-depth: sender may have been bypassed).
 	if err := cmd.Validate(ctx); err != nil {
@@ -121,10 +135,8 @@ func resolveCreateTaskPath(
 			"create-task: Title validation failed for task %s (%v); falling back to UUID path",
 			cmd.TaskIdentifier, err,
 		)
-		return uuidPath
+		return uuidRelPath
 	}
-
-	titlePath := filepath.Join(taskDirPath, cmd.Title+".md")
 
 	// Reject titles containing path separators to prevent path traversal.
 	if strings.ContainsAny(cmd.Title, "/\\") {
@@ -132,60 +144,23 @@ func resolveCreateTaskPath(
 			"create-task: Title %q contains path separator; falling back to UUID path",
 			cmd.Title,
 		)
-		return uuidPath
+		return uuidRelPath
 	}
 
-	// Check if a file already exists at the title-derived path.
-	existing, err := os.ReadFile(
-		titlePath,
-	) // #nosec G304 -- titlePath is guarded by strings.ContainsAny check above; defense-in-depth
-	if err != nil {
-		if os.IsNotExist(err) {
-			// Title path is free — use it.
-			return titlePath
-		}
-		// Unexpected read error: fall back to UUID path and log.
-		glog.Warningf(
-			"create-task: could not read %s (%v); falling back to UUID path for task %s",
-			titlePath, err, cmd.TaskIdentifier,
-		)
-		return uuidPath
-	}
+	return filepath.Join(taskDir, cmd.Title+".md")
+}
 
-	// File exists at title path — extract + parse frontmatter to check task_identifier.
-	frontmatterStr, extractErr := result.ExtractFrontmatter(ctx, existing)
-	if extractErr != nil {
-		glog.Warningf(
-			"create-task: could not extract frontmatter at %s (%v); treating as collision, falling back to UUID path for task %s",
-			titlePath,
-			extractErr,
-			cmd.TaskIdentifier,
-		)
-		return uuidPath
+// isNotFoundReadError reports whether a gitClient.ReadFile error means the file
+// does not exist (git-rest returns HTTP 404). git-rest's Get does not expose a
+// typed not-found sentinel, so this matches the "404" status embedded in the
+// wrapped error message produced by gitRestClient.Get
+// ("GET <path> returned 404: ..."). A nil error is NOT a not-found error and must
+// be handled by the caller before calling this helper.
+func isNotFoundReadError(err error) bool {
+	if err == nil {
+		return false
 	}
-	fm, parseErr := parseTaskFrontmatter(frontmatterStr)
-	if parseErr != nil {
-		glog.Warningf(
-			"create-task: could not parse frontmatter at %s (%v); treating as collision, falling back to UUID path for task %s",
-			titlePath,
-			parseErr,
-			cmd.TaskIdentifier,
-		)
-		return uuidPath
-	}
-	existingID, _ := fm.String("task_identifier")
-	if lib.TaskIdentifier(existingID) == cmd.TaskIdentifier {
-		// Same task owns this file — idempotent.
-		return titlePath
-	}
-	// Different task_identifier at the title path — collision.
-	glog.Warningf(
-		"create-task: title path %s is already occupied by task %q (current task: %s); falling back to UUID path",
-		titlePath,
-		existingID,
-		cmd.TaskIdentifier,
-	)
-	return uuidPath
+	return strings.Contains(err.Error(), "returned 404")
 }
 
 func validateCreateTaskFrontmatter(ctx context.Context, fm lib.TaskFrontmatter) error {
