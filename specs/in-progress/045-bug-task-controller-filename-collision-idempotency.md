@@ -150,3 +150,17 @@ Cost: every hourly recurring-task-creator tick continues to overwrite every exis
 
 - Should same-`task_identifier` replay be silently skipped (`ErrCommandObjectSkipped` — no result, no event) while different-id title-collision returns the sentinel (Failure)? Cleaner publisher behavior — no Failure noise on the normal hourly tick — but adds a frontmatter re-parse round-trip. **Recommend: no — filename-only check is simpler; recurring-task-creator's prom counter handles the Failure noise and gives explicit observability into replay rate.**
 - Should the executor log at INFO or WARN on collision? **Recommend: INFO — collision is expected during the manual-trigger and stale-replay paths; WARN would be alert noise.**
+
+## Verification Result
+
+**Verified:** 2026-06-20T17:59:26Z (HEAD 19ef379, release v0.69.0)
+**Binary:** installed dark-factory v0.182.0 (/Users/bborbe/Documents/workspaces/go/bin/dark-factory)
+**Scenario:** Three dev `/trigger` replays + one prod `/trigger` against feature-merged controllers; observed file creation on first-tick, byte-preserving no-op on operator-edited replay, sentinel-only path on prod 36-task replay.
+**Evidence:**
+- AC1: `lib/command/task/errors.go:18: var ErrTaskAlreadyExists = stderrors.New("task file already exists at title path")`; `go doc ./command/task ErrTaskAlreadyExists` prints stable GoDoc.
+- AC2-5: `cd task/controller && make test` → `52 Passed | 0 Failed`; explicit Ginkgo `It` rows present: `returns ErrTaskAlreadyExists and does not write (AC2)`, `writes exactly once and returns nil when ReadFile reports not-found (AC3)`, `returns ErrTaskAlreadyExists and does not write (AC4)`, `propagates the wrapped error and does not write (AC5)`.
+- AC6: `make precommit` clean in both `task/controller` and `lib` (`ready to commit`).
+- AC7 dev: image tag `dev` deployed on `sts/agent-task-controller-personal`; trigger #1 → vault commit `0e906ba7a` (1× `git-rest: create`); trigger #3 against operator-edited file (3fbf1cfb0, 467 bytes) → controller log `title path … already occupied (467 bytes), returning ErrTaskAlreadyExists`, ZERO `git-rest: update` commits.
+- AC7 prod: image tag `prod` deployed; trigger published 36 → ZERO `git-rest: update` commits; controller log shows 36× `ErrTaskAlreadyExists`.
+- Spec-text note: AC7 `deploy_check:` references `deploy/agent-task-controller-personal`, but actual workload is `sts/agent-task-controller-personal`; behavior verified via STS variant — spec text needs editing in a follow-up but does not block this completion.
+**Verdict:** PASS
