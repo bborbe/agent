@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
 	"strings"
 
@@ -69,7 +70,7 @@ func NewCreateTaskExecutor(
 			if existing, err := gitClient.ReadFile(ctx, relPath); err == nil {
 				// File present at the title path → collision. Write nothing; return the
 				// sentinel so the CQRS framework emits a benign Failure on the result topic.
-				glog.Infof(
+				glog.V(2).Infof(
 					"create-task: title path %s already occupied (%d bytes), returning ErrTaskAlreadyExists for %s",
 					relPath,
 					len(existing),
@@ -175,9 +176,7 @@ func validateCreateTaskFrontmatter(ctx context.Context, fm lib.TaskFrontmatter) 
 
 func buildCreateTaskContent(ctx context.Context, cmd task.CreateCommand) ([]byte, error) {
 	fm := make(lib.TaskFrontmatter)
-	for k, v := range cmd.Frontmatter {
-		fm[k] = v
-	}
+	maps.Copy(fm, cmd.Frontmatter)
 	fm["task_identifier"] = string(cmd.TaskIdentifier)
 	return marshalFileContent(ctx, fm, cmd.Body)
 }
