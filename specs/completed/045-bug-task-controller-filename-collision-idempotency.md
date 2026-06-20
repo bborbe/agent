@@ -1,9 +1,10 @@
 ---
-status: verifying
+status: completed
 approved: "2026-06-20T14:57:22Z"
 generating: "2026-06-20T14:57:54Z"
 prompted: "2026-06-20T15:05:45Z"
 verifying: "2026-06-20T15:17:03Z"
+completed: "2026-06-20T18:00:07Z"
 branch: dark-factory/bug-task-controller-filename-collision-idempotency
 ---
 
