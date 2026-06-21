@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.69.0
 
 - feat: export ErrTaskAlreadyExists sentinel from lib/command/task so cross-repo callers can match filename-collision results via errors.Is
 - fix(task/controller): create-task executor checks filename existence via git-rest ReadFile instead of local os.Stat/os.ReadFile, and returns the new lib/command/task.ErrTaskAlreadyExists sentinel on collision so replayed CreateCommands no longer overwrite already-materialized recurring task files (stripping claude_session_id/phase)
