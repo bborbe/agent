@@ -28,7 +28,7 @@ require (
 	github.com/bborbe/collection v1.20.13 // indirect
 	github.com/bborbe/http v1.26.12 // indirect
 	github.com/bborbe/k8s v1.14.2 // indirect
-	github.com/bborbe/kv v1.21.1 // indirect
+	github.com/bborbe/kv v1.21.2 // indirect
 	github.com/bborbe/log v1.6.14 // indirect
 	github.com/bborbe/math v1.3.10 // indirect
 	github.com/bborbe/metrics v0.5.4 // indirect
@@ -87,14 +87,14 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/crypto v0.52.0 // indirect
+	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/mod v0.36.0 // indirect
-	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/term v0.43.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/term v0.44.0 // indirect
+	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.45.0 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
