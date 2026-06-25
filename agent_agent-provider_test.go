@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 
-	"github.com/bborbe/agent"
+	lib "github.com/bborbe/agent"
 )
 
 var _ = Describe("AgentProvider", func() {

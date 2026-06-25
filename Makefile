@@ -1,4 +1,3 @@
-include ../Makefile.variables
 include tools.env
 
 export ROOTDIR ?= $(shell git rev-parse --show-toplevel)

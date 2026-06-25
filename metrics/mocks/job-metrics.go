@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bborbe/agent"
+	lib "github.com/bborbe/agent"
 	"github.com/bborbe/agent/metrics"
 )
 

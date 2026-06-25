@@ -12,7 +12,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/bborbe/agent"
+	lib "github.com/bborbe/agent"
 	"github.com/bborbe/agent/command/task"
 )
 
