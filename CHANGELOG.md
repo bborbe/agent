@@ -8,6 +8,32 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.70.0
+
+**BREAKING — repo restructure: SDK promoted from `lib/` to repo root; module identity changed.**
+
+- Module: `github.com/bborbe/agent/lib` → `github.com/bborbe/agent` (flat — no `/lib/` in import path)
+- Repo shape: was monorepo with `lib/` (SDK) + `agent/{claude,code,gemini,pi}/` (4 reference agents as Go sub-modules) + `task/{controller,executor}/` (2 services as Go sub-modules); now just the SDK at root
+- All 6 extracted to standalone repos: `bborbe/agent-claude`, `bborbe/agent-code`, `bborbe/agent-gemini`, `bborbe/agent-pi`, `bborbe/agent-task-controller`, `bborbe/agent-task-executor`
+- Per-service docs moved to their new repos: `controller-design.md`, `job-creator-design.md`, `task-service-design.md`, 4 result-writeback scenarios → `bborbe/agent-task-controller`; `agent-crd-specification.md` → `bborbe/agent-task-executor`; `creating-claude-agents.md` → `bborbe/agent-claude`
+- Deleted monorepo-shared Makefiles + env files (served the extracted services): `Makefile`, `Makefile.{docker,env,folder,k8s,precommit,variables}`, `common.env`, `dev.env`, `prod.env`
+- Deleted `scripts/buca-all.sh` (meta-runner for monorepo services; each new repo has own buca now)
+- Kept dark-factory artifacts (`prompts/`, `specs/`) as monorepo archaeology — too many to split cleanly
+
+### Migration
+
+For consumers importing `github.com/bborbe/agent/lib/X`:
+
+1. **go.mod** — bump to `github.com/bborbe/agent v0.70.0`
+2. **imports** — rewrite `github.com/bborbe/agent/lib/X` → `github.com/bborbe/agent/X` across all `*.go` files:
+   ```
+   find . -name '*.go' -exec sed -i '' 's|github.com/bborbe/agent/lib|github.com/bborbe/agent|g' {} +
+   ```
+3. **vendor + tidy** — `rm go.sum && go mod tidy` (forces fresh resolution of the new module path)
+4. **verify** — `go build ./... && go test ./...`
+
+The old import path `github.com/bborbe/agent/lib v0.69.0` (and earlier) continues to resolve via historical tags for any consumer not yet migrated — no rush, but the SDK now ships only at the new path.
+
 ## v0.69.0
 
 - feat: export ErrTaskAlreadyExists sentinel from lib/command/task so cross-repo callers can match filename-collision results via errors.Is
