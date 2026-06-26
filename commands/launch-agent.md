@@ -1,7 +1,7 @@
 ---
 description: Interview-driven scaffolding for a new bborbe agent — clones a template repo, generates Config CRD + vault page + first scenario
 argument-hint: "[agent name] [--shape claude|code|gemini|pi]"
-allowed-tools: [Task, Read, Write, Edit, Bash, AskUserQuestion, mcp__semantic-search__search_related, mcp__semantic-search__check_duplicates]
+allowed-tools: [Task, Read, Write, Edit, Bash, AskUserQuestion, mcp__semantic-search__search_related]
 ---
 
 <objective>

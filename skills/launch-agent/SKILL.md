@@ -37,7 +37,17 @@ Walk through `references/interview.md` conversationally. Use `AskUserQuestion` f
 - Part 7 (Safety): consent gates, error handling per class, security boundaries
 - Part 8 (Acceptance): per-phase acceptance criteria, overall DoD
 
-After Part 2 (name picked), normalize the agent name: `kebab-case`, no `agent-` prefix (the new repo will be `bborbe/agent-<name>`).
+After Part 2 (name picked), normalize the agent name:
+
+1. Lowercase, strip leading/trailing whitespace
+2. Replace runs of `[^a-z0-9-]` with single `-`
+3. Strip leading/trailing `-`
+4. Drop any leading `agent-` prefix (the new repo will be `bborbe/agent-<name>`)
+5. **Reject** if final name contains any of: `$`, backtick, `;`, `|`, `<`, `>`, `&`, `(`, `)`, `\`, `..`, `/` — these can't appear in valid GitHub repo names and would be dangerous in shell interpolation later
+6. **Reject** if name is empty after normalization, starts with `.`, or matches `agent` exactly (reserved for the SDK repo)
+7. **Reject** if length > 50 chars (GitHub repo name limit + safety margin)
+
+On rejection, surface the issue to the user via `AskUserQuestion` and ask for a different name.
 
 **Gate 1**: confirm captured intent with the user before proceeding to shape pick:
 > "Captured: <one-paragraph summary of name + purpose + trigger + key constraints>. Proceed to shape recommendation?"
@@ -117,7 +127,9 @@ The Config CRD declares: `assignee`, `image`, `heartbeat`, `taskTypes`, `resourc
 
 ## Phase 6 — Write vault artifacts
 
-In the Personal vault (`~/Documents/Obsidian/Personal/`):
+**Path safety guard**: before any vault write, verify the agent name (already normalized in Phase 1) does not contain `..`, `/`, or null bytes. The Phase 1 normalizer should have caught these, but treat as defense-in-depth — if the check fails here, abort with `🔴 unexpected path-unsafe name: <name>` and do not write anything.
+
+Vault root: `~/Documents/Obsidian/Personal/` (resolve via `vault-cli config list --output json` for the configured Personal vault path; don't hardcode if it differs).
 
 1. **Knowledge page**: render `references/vault-page-template.md` → `50 Knowledge Base/<Name> Agent.md`
 2. **Goal**: render `references/goal-template.md` → `23 Goals/Build <Name> Agent.md`
@@ -142,7 +154,18 @@ obsidian-git autocommits the vault changes — no manual action.
 
 ## Phase 8 — Print deploy checklist
 
-Output a numbered checklist (don't execute, just print):
+**Placeholder-leak guard FIRST**: scan all rendered files (new repo + vault artifacts) for any remaining `<UPPERCASE_PLACEHOLDER>` tokens (e.g. `<NAME>`, `<SHAPE>`, `<YYYY-MM-DD>`, `<CPU>`). Pattern: `<[A-Z][A-Z0-9_]*>`.
+
+```bash
+grep -rln --include='*.md' --include='*.yaml' --include='*.yml' -E '<[A-Z][A-Z0-9_]*>' \
+  ~/Documents/workspaces/agent-<name>/ \
+  "~/Documents/Obsidian/Personal/50 Knowledge Base/<Name> Agent.md" \
+  "~/Documents/Obsidian/Personal/23 Goals/Build <Name> Agent.md"
+```
+
+If ANY hit found: HALT with the file paths + offending tokens listed. DO NOT print the deploy checklist — the operator would see broken output. Recovery: fix the missing field manually (operator), then re-run Phase 8.
+
+**Only after the leak scan returns empty**, output the numbered checklist (don't execute, just print):
 
 ```
 🟢 Agent scaffold complete: bborbe/agent-<name>

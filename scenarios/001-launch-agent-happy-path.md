@@ -117,6 +117,59 @@ If scaffolding halts mid-phase, the SKILL.md `output_format` section prints a pa
 - **Customization sed failed**: source-shape name had unexpected chars → manual fixup in local clone, commit, push
 - **Vault write failed**: notesmd-cli unavailable or vault-cli config missing → fix and re-run Phase 6 manually using the templates
 
+## Error-path scenarios (additional validation)
+
+The happy-path above proves the success flow. The following two scenarios validate that error paths halt cleanly without leaving partial state.
+
+### Scenario 1b: name collision
+
+**Setup**: pick a name that already exists as a repo, e.g. `agent-claude` (a real template).
+
+**Steps**:
+1. Invoke `/launch-agent agent-claude` (or another known-existing name)
+2. Walk Phase 1+2 normally
+3. **Expected at Phase 3**: `gh repo create` fails with "Name already exists on this account"
+
+**Pass criteria**:
+- [ ] Skill halts at Phase 3 with a clear error message naming the collision
+- [ ] No local clone created (`ls ~/Documents/workspaces/agent-claude` should still show the real one, not a partial scaffold)
+- [ ] No vault artifacts written (Phase 6 is after Phase 3)
+- [ ] User can re-invoke with a different name without manual cleanup
+
+### Scenario 1c: shell-metachar name rejection
+
+**Setup**: any session.
+
+**Steps**:
+1. Invoke `/launch-agent 'foo;rm-rf'` (semicolon — shell metachar)
+2. Walk Phase 1 normally up to the name capture
+
+**Expected at Phase 1 normalization**:
+- Skill rejects the name with a message like "Name contains invalid characters: `;`. Names must be lowercase alphanumeric + hyphens only."
+- Skill prompts for a different name via `AskUserQuestion`
+
+**Pass criteria**:
+- [ ] No `gh repo create` is attempted with the bad name
+- [ ] No local file is created with `;` or `..` in any path
+- [ ] User can correct + continue without aborting the whole session
+
+### Scenario 1d: placeholder leak
+
+**Setup**: artificially break a template reference by removing a placeholder substitution in one of the rendered files (simulate the skill missing a field).
+
+**Steps**:
+1. Complete the happy path through Phase 7
+2. Manually edit one of the rendered files (e.g. `Build Test Launch Agent.md`) to reintroduce a `<NAME>` placeholder
+3. Manually trigger Phase 8 (or re-invoke `/launch-agent --resume` if implemented; otherwise re-run from a controlled state)
+
+**Expected**:
+- Phase 8's placeholder-leak scan finds the `<NAME>` and HALTS with the file path + offending token
+- Deploy checklist is NOT printed
+
+**Pass criteria**:
+- [ ] HALT message names the file + token
+- [ ] Operator sees the actionable hint (manually fix the missing field) — no broken deploy checklist printed
+
 ## Cleanup
 
 After scenario passes:
