@@ -21,7 +21,7 @@ Tags: [[AI Agent]] [[Agent Page Writing Guide]] [[Autonomous Agent Workflow]]
 
 **Task types** (per Config CRD `spec.taskTypes`): `<NAME>`, `healthcheck`. The executor dispatches by `task_type`; `healthcheck` routes to the shared liveness handler.
 
-## Goal
+## Purpose
 
 <!-- from interview Part 1 (Motivation) — what this agent achieves -->
 - <GOAL_BULLET_1>
@@ -71,7 +71,7 @@ Tags: [[AI Agent]] [[Agent Page Writing Guide]] [[Autonomous Agent Workflow]]
 - **Template**: scaffolded from `bborbe/agent-<SHAPE>` via `/launch-agent` on <YYYY-MM-DD>
 - **Deploy**: `BRANCH=<dev|prod> make buca` from a clean deployment worktree
 
-## Goal (vault)
+## Tracked goal
 
 - [[Build <NAME> Agent]] — the SMART goal tracking this agent's rollout
 

@@ -12,7 +12,7 @@ status: next
 page_type: goal
 priority: 3
 category: agent/infrastructure
-timeline: <YYYY-MM-DD> to <YYYY-MM-DD+28>
+timeline: <TIMELINE_START> to <TIMELINE_END>   # ISO dates; typical span 7-28 days
 themes:
   - "[[Leverage Autonomous Agents]]"
 ---

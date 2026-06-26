@@ -89,6 +89,20 @@ git clone git@github.com:bborbe/agent-<name>.git ~/Documents/workspaces/agent-<n
 cd ~/Documents/workspaces/agent-<name>
 ```
 
+### Phase 3 — gh API error handling
+
+`gh repo create` can fail for several reasons; each needs a different response:
+
+| gh failure | Cause | Response |
+|---|---|---|
+| `Name already exists on this account` | name collision | HALT — surface to user; offer `AskUserQuestion` to pick a different name OR abort. Do NOT auto-suffix the name (collision usually means the user picked the wrong existing repo's name). |
+| `HTTP 403: rate limit exceeded` | gh API quota burned | HALT — surface the reset window from `gh api rate_limit`. Recovery: wait for window reset, re-invoke `/launch-agent`. |
+| `HTTP 401: Bad credentials` | `gh auth status` is bad | HALT — surface "run `gh auth login` then re-invoke". |
+| `HTTP 404` on `--template` source | template repo doesn't exist or isn't flagged `is_template: true` | HALT — surface "verify `gh api repos/bborbe/agent-<shape> --jq .is_template` returns true; if not, run `gh api repos/bborbe/agent-<shape> --method PATCH --field is_template=true`". |
+| `git clone` fails after repo created | SSH key issue / network blip | HALT — `gh repo delete bborbe/agent-<name> --yes` to clean up the empty remote, then user investigates SSH + re-invokes. |
+
+Always print the raw `gh` stderr so the user has the actual diagnostic. The table above documents the common cases; novel failures get reported verbatim.
+
 ## Phase 4 — Customize the clone
 
 Mechanical renames across the cloned template. **Sed assumption**: this skill runs in a macOS Claude Code session, so all `sed -i ''` calls use BSD syntax (empty `''` argument before the script). Linux/GNU users invoking the same skill would need to drop the `''`. All sed scripts use `|` as the delimiter to avoid escaping path slashes.
@@ -167,10 +181,12 @@ obsidian-git autocommits the vault changes — no manual action.
 
 ## Phase 8 — Print deploy checklist
 
-**Placeholder-leak guard FIRST**: scan all rendered files (new repo + vault artifacts) for any remaining `<UPPERCASE_PLACEHOLDER>` tokens (e.g. `<NAME>`, `<SHAPE>`, `<YYYY-MM-DD>`, `<CPU>`). Pattern: `<[A-Z][A-Z0-9_]*>`.
+**Placeholder-leak guard FIRST**: scan all rendered files (new repo + vault artifacts) for any remaining `<PLACEHOLDER>` tokens. The regex must catch all template-placeholder shapes used in references/: ALL_CAPS_UNDERSCORE, hyphen-containing date forms, and mixed-case identifiers.
+
+Pattern: `<[A-Z][A-Za-z0-9_+-]*>` — uppercase-leading (matches all our placeholders), permits any case afterward + hyphens + plus + underscore.
 
 ```bash
-grep -rln --include='*.md' --include='*.yaml' --include='*.yml' -E '<[A-Z][A-Z0-9_]*>' \
+grep -rln --include='*.md' --include='*.yaml' --include='*.yml' -E '<[A-Z][A-Za-z0-9_+-]*>' \
   ~/Documents/workspaces/agent-<name>/ \
   "~/Documents/Obsidian/Personal/50 Knowledge Base/<Name> Agent.md" \
   "~/Documents/Obsidian/Personal/23 Goals/Build <Name> Agent.md"
