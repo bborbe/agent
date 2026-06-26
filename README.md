@@ -5,7 +5,27 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/bborbe/agent)](https://goreportcard.com/report/github.com/bborbe/agent)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bborbe/agent)
 
-**SDK for the bborbe agent platform.** Shared types, schemas, and runtime helpers consumed by every agent + task-system service in the ecosystem.
+**SDK + Claude Code plugin for the bborbe agent platform.**
+
+- **Go SDK** — shared types, schemas, and runtime helpers consumed by every agent + task-system service in the ecosystem
+- **Claude Code plugin** — `/launch-agent` slash command for interview-driven scaffolding of new agents
+
+## Quick start
+
+**Install the plugin** (in Claude Code):
+
+```
+claude plugin marketplace add bborbe/agent
+claude plugin install agent
+```
+
+**Scaffold a new agent**:
+
+```
+/launch-agent <name>
+```
+
+Walks you through the [[Agent Design Guide]] interview, recommends a reference shape (claude/code/gemini/pi), clones the matching template repo via `gh repo create --template`, customizes the clone, writes vault artifacts (knowledge page, goal, scenario, NEXT-DIRECTIONS), and prints a deploy checklist. See `commands/launch-agent.md` for the workflow.
 
 ## What's in here
 
@@ -61,6 +81,19 @@ import (
 This repo was a monorepo through 2026-06-24, hosting `task/controller/`, `task/executor/`, and 4 reference agents under `agent/{claude,code,gemini,pi}/` as Go sub-modules + the SDK under `lib/`. On 2026-06-25 each service and reference agent was extracted to its own repo (see Consumers table above), the SDK was promoted from `lib/` to the repo root, and the module identity collapsed from `github.com/bborbe/agent/lib` to `github.com/bborbe/agent`. See [CHANGELOG.md](CHANGELOG.md) `## v0.70.0` for the migration guide.
 
 Older import path `github.com/bborbe/agent/lib/...` continues to resolve via historical tags (latest `v0.69.0`) for any consumer not yet migrated; new development happens at the flat path.
+
+## Plugin layout
+
+`.claude-plugin/`, `commands/`, `agents/`, `skills/`, `scenarios/` at repo root — same convention as [bborbe/coding](https://github.com/bborbe/coding) and [bborbe/dark-factory](https://github.com/bborbe/dark-factory).
+
+| Path | Role |
+|---|---|
+| `.claude-plugin/plugin.json` + `marketplace.json` | Plugin metadata |
+| `commands/launch-agent.md` | The `/launch-agent` slash command (thin dispatcher to the skill) |
+| `agents/agent-shape-picker.md` | Sonnet subagent: use case → shape recommendation with reasoning |
+| `skills/launch-agent/SKILL.md` | 8-phase orchestrator (interview → shape → clone → customize → render templates → commit → checklist) |
+| `skills/launch-agent/references/` | shapes.md + interview.md + 4 output templates (config-crd, vault-page, goal, scenario) + next-directions |
+| `scenarios/001-launch-agent-happy-path.md` | End-to-end smoke test of the scaffolding flow |
 
 ## Architecture references
 
