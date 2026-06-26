@@ -105,18 +105,20 @@ Always print the raw `gh` stderr so the user has the actual diagnostic. The tabl
 
 ## Phase 4 — Customize the clone
 
-Mechanical renames across the cloned template. **Sed assumption**: this skill runs in a macOS Claude Code session, so all `sed -i ''` calls use BSD syntax (empty `''` argument before the script). Linux/GNU users invoking the same skill would need to drop the `''`. All sed scripts use `|` as the delimiter to avoid escaping path slashes.
+Mechanical renames across the cloned template. **Portable sed**: use `sed -i.bak '<script>' <file> && rm -f <file>.bak` — works on both BSD (macOS) and GNU (Linux) sed. The `.bak` form needs no in-place flag-argument quirk and the cleanup keeps the working tree free of `.bak` artifacts. All sed scripts use `|` as the delimiter to avoid escaping path slashes.
+
+For files that may not exist in every template (some shapes don't have a `Makefile.precommit`, some don't have a `k8s/` dir), wrap the sed in a `[ -f "<file>" ] &&` existence guard so a missing file is a no-op rather than a silent failure.
 
 1. **`go.mod`**: change `module github.com/bborbe/agent-<shape>` → `module github.com/bborbe/agent-<name>`
-2. **`.go` files**: `find . -name '*.go' -exec sed -i '' 's|github.com/bborbe/agent-<shape>|github.com/bborbe/agent-<name>|g' {} +`
-3. **`Makefile`**: `sed -i '' 's|SERVICE = agent-<shape>|SERVICE = agent-<name>|' Makefile`
-4. **`Makefile.precommit`**: `sed -i '' 's|github.com/bborbe/agent-<shape>|github.com/bborbe/agent-<name>|' Makefile.precommit`
-5. **`example.env`**: `sed -i '' 's|bborbe/agent-<shape>|bborbe/agent-<name>|' example.env`
-6. **k8s/ YAMLs**: rename files + resources to `agent-<name>`:
+2. **`.go` files**: `find . -name '*.go' -exec sed -i.bak 's|github.com/bborbe/agent-<shape>|github.com/bborbe/agent-<name>|g' {} +` then `find . -name '*.go.bak' -delete`
+3. **`Makefile`**: `[ -f Makefile ] && sed -i.bak 's|SERVICE = agent-<shape>|SERVICE = agent-<name>|' Makefile && rm -f Makefile.bak`
+4. **`Makefile.precommit`**: `[ -f Makefile.precommit ] && sed -i.bak 's|github.com/bborbe/agent-<shape>|github.com/bborbe/agent-<name>|' Makefile.precommit && rm -f Makefile.precommit.bak`
+5. **`example.env`**: `[ -f example.env ] && sed -i.bak 's|bborbe/agent-<shape>|bborbe/agent-<name>|' example.env && rm -f example.env.bak`
+6. **k8s/ YAMLs** (skip if `k8s/` doesn't exist): rename files + resources to `agent-<name>`:
    - `git mv k8s/agent-<shape>.yaml k8s/agent-<name>.yaml`
    - `git mv k8s/agent-<shape>-secret.yaml k8s/agent-<name>-secret.yaml`
    - `git mv k8s/agent-<shape>-pvc.yaml k8s/agent-<name>-pvc.yaml` (if shape has one)
-   - `sed -i '' 's|agent-<shape>|agent-<name>|g' k8s/*.yaml`
+   - `sed -i.bak 's|agent-<shape>|agent-<name>|g' k8s/*.yaml && rm -f k8s/*.bak`
 7. **README.md**: rewrite the top section to reflect the new agent's purpose (use captured Part 1 + Part 2 from interview)
 8. **CHANGELOG.md**: reset to `# Changelog\n\n## v0.0.0\n\n- Initial scaffold from bborbe/agent-<shape> template via /launch-agent on YYYY-MM-DD`
 9. **`agent/.claude/CLAUDE.md`** (if shape has one): adapt the per-agent CLAUDE.md to the new agent's domain
@@ -186,10 +188,11 @@ obsidian-git autocommits the vault changes — no manual action.
 Pattern: `<[A-Z][A-Za-z0-9_+-]*>` — uppercase-leading (matches all our placeholders), permits any case afterward + hyphens + plus + underscore.
 
 ```bash
+# Use $HOME (not quoted ~) — tilde inside quotes is NOT shell-expanded.
 grep -rln --include='*.md' --include='*.yaml' --include='*.yml' -E '<[A-Z][A-Za-z0-9_+-]*>' \
-  ~/Documents/workspaces/agent-<name>/ \
-  "~/Documents/Obsidian/Personal/50 Knowledge Base/<Name> Agent.md" \
-  "~/Documents/Obsidian/Personal/23 Goals/Build <Name> Agent.md"
+  $HOME/Documents/workspaces/agent-<name>/ \
+  "$HOME/Documents/Obsidian/Personal/50 Knowledge Base/<Name> Agent.md" \
+  "$HOME/Documents/Obsidian/Personal/23 Goals/Build <Name> Agent.md"
 ```
 
 If ANY hit found: HALT with the file paths + offending tokens listed. DO NOT print the deploy checklist — the operator would see broken output. Recovery: fix the missing field manually (operator), then re-run Phase 8.
