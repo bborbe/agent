@@ -1,6 +1,7 @@
 ---
 name: launch-agent
 description: Interview-driven scaffolding for a new bborbe agent — clones the matching reference template, generates Config CRD + vault page + goal + scenario, prints deploy checklist. Invoked by the /launch-agent slash command.
+tools: [Task, Read, Write, Edit, Bash, AskUserQuestion, mcp__semantic-search__search_related]
 ---
 
 <role>
@@ -71,12 +72,14 @@ Present to user via `AskUserQuestion`:
 
 ## Phase 3 — Create GitHub repo from template
 
+**Description sanitization**: before interpolating the purpose statement from Part 1.1 into the `--description` flag, strip shell metacharacters: `$`, backtick, `;`, `&`, `|`, `<`, `>`, `(`, `)`, `\`, double-quote, single-quote, newline. Long-form text is fine; just the active characters get removed. Truncate to 200 chars (GitHub's repo description limit + safety margin).
+
 Use `gh repo create` with the `--template` flag:
 
 ```bash
 gh repo create bborbe/agent-<name> --public \
   --template bborbe/agent-<shape> \
-  --description "<one-line purpose from interview>"
+  --description "<sanitized one-line purpose>"
 ```
 
 Then clone:
@@ -104,16 +107,26 @@ Mechanical renames across the cloned template. **Sed assumption**: this skill ru
 8. **CHANGELOG.md**: reset to `# Changelog\n\n## v0.0.0\n\n- Initial scaffold from bborbe/agent-<shape> template via /launch-agent on YYYY-MM-DD`
 9. **`agent/.claude/CLAUDE.md`** (if shape has one): adapt the per-agent CLAUDE.md to the new agent's domain
 
-Refresh + verify build (delegate the `make precommit` invocation to the `simple-bash-runner` subagent via the `Task` tool to keep the verbose output out of the conversation):
+Refresh the module graph (in the cloned dir):
 
 ```bash
 rm go.sum && go mod tidy
-# Then: Task tool, subagent_type='simple-bash-runner', prompt='cd <path> && make precommit'
 ```
 
-If `make precommit` **reformats files** (gofmt, goimports, license headers): treat as success — git diff will show the formatting changes, which get included in the Phase 7 initial commit. The customize phase isn't done until the working tree settles.
+**MANDATORY enforceable check**: invoke the `Task` tool with `subagent_type: 'coding:simple-bash-runner'` to run `cd ~/Documents/workspaces/agent-<name> && make precommit`. This is NOT a documentation suggestion — the skill MUST issue the Task tool call. Without it, the Phase 4 stop-on-failure contract below is unenforceable.
 
-If `make precommit` **fails** (test failure, lint error, security finding): **stop scaffolding**. The template's build was green at extraction time, so a failure here means the customize step broke something (e.g. a sed pattern matched too aggressively). See `output_format` below for recovery — DO NOT continue to Phase 5.
+```
+Task(
+  subagent_type: 'coding:simple-bash-runner',
+  prompt: 'cd ~/Documents/workspaces/agent-<name> && make precommit',
+  description: 'verify scaffold builds'
+)
+```
+
+Parse the Task result:
+
+- **PASS** (whether or not it reformatted files): continue to Phase 5. Any reformatting changes are now in the working tree; git diff will show them, and they'll land in the Phase 7 initial commit.
+- **FAIL** (test failure, lint error, security finding): **HALT scaffolding**. The template's build was green at extraction time, so a failure here means the customize step broke something (e.g. a sed pattern matched too aggressively). DO NOT continue to Phase 5. Follow `output_format` Phase 4 failure recovery (printed below).
 
 ## Phase 5 — Generate Config CRD instance
 
@@ -211,18 +224,28 @@ If anything failed mid-phase, end with:
 
 ### Phase 4 (customize / make precommit) failure recovery
 
-When Phase 4's `make precommit` fails (lint error, test failure, security finding), the local clone is half-customized. Recover with:
+When Phase 4's `make precommit` fails (lint error, test failure, security finding), the local clone is half-customized AND the GitHub repo was created in Phase 3. Print this exact cleanup block to the user so they can copy-paste it verbatim:
 
-1. **Inspect what broke**: `cd ~/Documents/workspaces/agent-<name> && git diff` shows the customize changes; precommit output names the failing check.
-2. **If a sed pattern over-matched** (e.g. rewrote something it shouldn't have): manually revert the bad change in the affected file, re-run `make precommit`. If clean, continue to Phase 5 manually.
-3. **If unfixable in <5 min**, abort the scaffold cleanly:
-   ```bash
-   cd ~/Documents/workspaces && rm -rf agent-<name>            # remove local clone
-   gh repo delete bborbe/agent-<name> --yes                    # remove remote (created in Phase 3)
-   # Vault artifacts were not yet written (Phase 6 is post-Phase-4); nothing to revert there.
-   ```
-   Then re-invoke `/launch-agent` with adjusted answers (e.g. pick a different shape, or sharper name).
-4. **Report the failure** in your output so the user understands what to fix in the template repo for next time — this is often a template bug, not a per-agent issue.
+```bash
+# Full rollback (run these in order — both are irreversible):
+rm -rf ~/Documents/workspaces/agent-<name>
+gh repo delete bborbe/agent-<name> --yes
+# Vault artifacts were NOT written (Phase 6 is post-Phase-4); nothing to revert there.
+```
+
+Then offer the user a choice via `AskUserQuestion`:
+
+1. **Investigate first** (recommended for repeated failures — may be a template bug)
+   - User runs `cd ~/Documents/workspaces/agent-<name> && git diff` to see the customize changes
+   - User identifies the over-matching sed pattern OR template issue
+   - Manually revert in the affected file, re-run `make precommit`, continue manually from Phase 5
+2. **Rollback + retry** (recommended for typos / wrong shape pick — quickly recoverable)
+   - Run the rollback block above
+   - Re-invoke `/launch-agent` with adjusted answers
+3. **Rollback + abandon** (one-off scaffold attempt that didn't pan out)
+   - Run the rollback block above, no re-invoke
+
+In all cases, report the failing precommit output verbatim in the halt message so the user has the diagnostic info.
 
 </output_format>
 

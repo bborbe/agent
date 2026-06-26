@@ -95,7 +95,7 @@ Four reference templates exist on GitHub as `is_template: true`. Picking the rig
 
 ## When the use case spans shapes
 
-If the agent has phases that genuinely need different tiers (e.g. planning = Claude, execution = Go, review = Pi), see [[Mixed-Shape Pattern B Agents]] in the vault. The `claude` template's per-phase tool scoping accommodates this — swap the model per phase via env var rather than picking a different base template.
+If the agent has phases that genuinely need different tiers (e.g. planning = Claude, execution = Go, review = Pi): the `claude` template's per-phase tool scoping accommodates this — swap the model per phase via env var rather than picking a different base template. Pick `claude` as the base, then customize per-phase model selection during domain-logic implementation (post-scaffold work).
 
 ## Reference
 

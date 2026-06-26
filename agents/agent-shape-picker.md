@@ -5,6 +5,7 @@ tools:
   - Read
   - mcp__semantic-search__search_related
 model: sonnet
+temperature: 0
 color: blue
 ---
 
