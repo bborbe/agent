@@ -12,13 +12,13 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 **Repo becomes dual-purpose: SDK + Claude Code plugin.**
 
-- `.claude-plugin/plugin.json` + `marketplace.json` published — install via `claude plugin marketplace add bborbe/agent && claude plugin install agent`
-- `commands/launch-agent.md` — `/launch-agent <name>` slash command for interview-driven scaffolding of new agents
-- `agents/agent-shape-picker.md` — Sonnet subagent that classifies a use case into one of the 4 reference shapes (claude/code/gemini/pi) with reasoning
-- `skills/launch-agent/SKILL.md` — 8-phase workflow orchestrator (interview → shape pick → `gh repo create --template` → customize clone → render Config CRD → write vault artifacts → commit/push → deploy checklist)
-- `skills/launch-agent/references/` — 7 reference files: `shapes.md` (decision matrix), `interview.md` (~45-Q conversational script covering all 8 parts of the Agent Design Guide), 4 output templates (`config-crd-template.yaml`, `vault-page-template.md`, `goal-template.md`, `scenario-template.md`), and `next-directions-template.md` (v0/v1/v2/v3 deferred-not-cut structure mirroring Anthropic's launch-your-agent NEXT-DIRECTIONS pattern)
-- `scenarios/001-launch-agent-happy-path.md` — end-to-end smoke test (manual walkthrough; verify steps are scriptable)
-- README updated for dual-purpose: Quick start (install + first scaffold) + Plugin layout table
+- feat: Publish `.claude-plugin/plugin.json` + `marketplace.json` — install via `claude plugin marketplace add bborbe/agent && claude plugin install agent`
+- feat: Add `commands/launch-agent.md` — `/launch-agent <name>` slash command for interview-driven scaffolding of new agents
+- feat: Add `agents/agent-shape-picker.md` — Sonnet subagent that classifies a use case into one of the 4 reference shapes (claude/code/gemini/pi) with reasoning
+- feat: Add `skills/launch-agent/SKILL.md` — 8-phase workflow orchestrator (interview → shape pick → `gh repo create --template` → customize clone → render Config CRD → write vault artifacts → commit/push → deploy checklist)
+- feat: Add `skills/launch-agent/references/` — 7 reference files: `shapes.md` (decision matrix), `interview.md` (~45-Q conversational script covering all 8 parts of the Agent Design Guide), 4 output templates (`config-crd-template.yaml`, `vault-page-template.md`, `goal-template.md`, `scenario-template.md`), and `next-directions-template.md` (v0/v1/v2/v3 deferred-not-cut structure mirroring Anthropic's launch-your-agent NEXT-DIRECTIONS pattern)
+- test: Add `scenarios/001-launch-agent-happy-path.md` — end-to-end smoke test (manual walkthrough; verify steps are scriptable)
+- docs: Update README for dual-purpose — Quick start (install + first scaffold) + Plugin layout table
 
 Mirrors `anthropics/launch-your-agent` shape: one repo carries both the primitives (SDK here / `cma-primitives.md` there) and the plugin that scaffolds consumers of those primitives.
 
