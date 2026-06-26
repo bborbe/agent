@@ -1,0 +1,11 @@
+{
+  "name": "agent",
+  "description": "/launch-agent slash command — interview-driven scaffolding for the bborbe agent platform (clone template repo, generate Config CRD + vault page + scenario)",
+  "version": "0.71.0",
+  "author": {
+    "name": "Benjamin Borbe"
+  },
+  "homepage": "https://github.com/bborbe/agent",
+  "repository": "https://github.com/bborbe/agent",
+  "license": "BSD-2-Clause"
+}
