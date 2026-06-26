@@ -78,7 +78,7 @@ cd ~/Documents/workspaces/agent-<name>
 
 ## Phase 4 — Customize the clone
 
-Mechanical renames across the cloned template:
+Mechanical renames across the cloned template. **Sed assumption**: this skill runs in a macOS Claude Code session, so all `sed -i ''` calls use BSD syntax (empty `''` argument before the script). Linux/GNU users invoking the same skill would need to drop the `''`. All sed scripts use `|` as the delimiter to avoid escaping path slashes.
 
 1. **`go.mod`**: change `module github.com/bborbe/agent-<shape>` → `module github.com/bborbe/agent-<name>`
 2. **`.go` files**: `find . -name '*.go' -exec sed -i '' 's|github.com/bborbe/agent-<shape>|github.com/bborbe/agent-<name>|g' {} +`
@@ -94,14 +94,16 @@ Mechanical renames across the cloned template:
 8. **CHANGELOG.md**: reset to `# Changelog\n\n## v0.0.0\n\n- Initial scaffold from bborbe/agent-<shape> template via /launch-agent on YYYY-MM-DD`
 9. **`agent/.claude/CLAUDE.md`** (if shape has one): adapt the per-agent CLAUDE.md to the new agent's domain
 
-Refresh + verify build:
+Refresh + verify build (delegate the `make precommit` invocation to the `simple-bash-runner` subagent via the `Task` tool to keep the verbose output out of the conversation):
 
 ```bash
 rm go.sum && go mod tidy
-make precommit   # delegate to simple-bash-runner agent
+# Then: Task tool, subagent_type='simple-bash-runner', prompt='cd <path> && make precommit'
 ```
 
-If precommit reformats files, accept the changes; if it fails, **stop and report** — don't try to fix template-side issues.
+If `make precommit` **reformats files** (gofmt, goimports, license headers): treat as success — git diff will show the formatting changes, which get included in the Phase 7 initial commit. The customize phase isn't done until the working tree settles.
+
+If `make precommit` **fails** (test failure, lint error, security finding): **stop scaffolding**. The template's build was green at extraction time, so a failure here means the customize step broke something (e.g. a sed pattern matched too aggressively). See `output_format` below for recovery — DO NOT continue to Phase 5.
 
 ## Phase 5 — Generate Config CRD instance
 
@@ -183,6 +185,21 @@ If anything failed mid-phase, end with:
 
    Recovery: <one-line how-to-resume>
 ```
+
+### Phase 4 (customize / make precommit) failure recovery
+
+When Phase 4's `make precommit` fails (lint error, test failure, security finding), the local clone is half-customized. Recover with:
+
+1. **Inspect what broke**: `cd ~/Documents/workspaces/agent-<name> && git diff` shows the customize changes; precommit output names the failing check.
+2. **If a sed pattern over-matched** (e.g. rewrote something it shouldn't have): manually revert the bad change in the affected file, re-run `make precommit`. If clean, continue to Phase 5 manually.
+3. **If unfixable in <5 min**, abort the scaffold cleanly:
+   ```bash
+   cd ~/Documents/workspaces && rm -rf agent-<name>            # remove local clone
+   gh repo delete bborbe/agent-<name> --yes                    # remove remote (created in Phase 3)
+   # Vault artifacts were not yet written (Phase 6 is post-Phase-4); nothing to revert there.
+   ```
+   Then re-invoke `/launch-agent` with adjusted answers (e.g. pick a different shape, or sharper name).
+4. **Report the failure** in your output so the user understands what to fix in the template repo for next time — this is often a template bug, not a per-agent issue.
 
 </output_format>
 

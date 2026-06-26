@@ -95,6 +95,8 @@ Validates the `/launch-agent` slash command produces a working scaffolded agent:
     ```
     Should PASS — confirms the customize phase didn't break the template's build.
 
+    **If precommit reformatted files** (gofmt/goimports/license headers): the skill's Phase 4 already accepts and includes those in the initial commit (Phase 7). Verify with `git log -1 --stat` — the reformat changes should be part of the initial commit, not sitting uncommitted. If they ARE uncommitted: `git add -A && git commit --amend --no-edit && git push --force-with-lease` to fold them in (only valid because this is the initial commit on a fresh repo).
+
 ## Pass criteria
 
 - [ ] All 8 phases complete without errors
