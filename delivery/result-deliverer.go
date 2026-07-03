@@ -69,16 +69,18 @@ func (d *fileResultDeliverer) DeliverResult(
 // NewKafkaResultDeliverer creates a agentlib.ResultDeliverer that publishes task updates to Kafka.
 // taskID must be non-empty; if empty, use NewNoopResultDeliverer instead.
 // originalContent is the original task markdown; the generator produces the complete updated content.
+// topicPrefix selects the Kafka topic prefix (e.g. base.TopicPrefixFromBranch(branch) to
+// preserve the legacy dev/prod topic names, or "" for unprefixed topics).
 func NewKafkaResultDeliverer(
 	syncProducer libkafka.SyncProducer,
-	branch base.Branch,
+	topicPrefix base.TopicPrefix,
 	taskID agentlib.TaskIdentifier,
 	originalContent string,
 	generator ContentGenerator,
 	currentDateTime libtime.CurrentDateTimeGetter,
 ) agentlib.ResultDeliverer {
 	return NewKafkaResultDelivererWithSender(
-		cdb.NewCommandObjectSender(syncProducer, branch, log.DefaultSamplerFactory),
+		cdb.NewCommandObjectSender(syncProducer, topicPrefix, log.DefaultSamplerFactory),
 		taskID,
 		originalContent,
 		generator,

@@ -8,6 +8,14 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+**Adopt cqrs v0.6.0 explicit `TopicPrefix` — quant/prod topic names unchanged.**
+
+- feat: Bump `github.com/bborbe/cqrs` v0.5.2 → v0.6.0 — topic construction now takes an explicit `base.TopicPrefix` (empty = unprefixed) instead of `base.Branch`
+- BREAKING: `delivery.NewKafkaResultDeliverer` param `branch base.Branch` → `topicPrefix base.TopicPrefix`; callers preserving legacy names pass `base.TopicPrefixFromBranch(branch)`
+- test: Freeze golden `agent-task-v1` topic names — `develop-`/`master-` prefixes byte-identical across the bump; empty-prefix Octopus names (`agent-task-v1-*`) locked
+
 ## v0.71.0
 
 **Repo becomes dual-purpose: SDK + Claude Code plugin.**
