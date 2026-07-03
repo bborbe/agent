@@ -9,7 +9,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/bborbe/cqrs/base"
 	cqrsmocks "github.com/bborbe/cqrs/mocks"
+	libkafka "github.com/bborbe/kafka"
+	kafkamocks "github.com/bborbe/kafka/mocks"
 	libtime "github.com/bborbe/time"
 	timemocks "github.com/bborbe/time/mocks"
 	. "github.com/onsi/ginkgo/v2"
@@ -555,5 +558,75 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(fm["status"]).To(Equal("in_progress"))
 			Expect(fm["assignee"]).To(Equal(""))
 		})
+	})
+})
+
+var _ = Describe("NewKafkaResultDeliverer (topic prefix wiring)", func() {
+	// This exercises the REAL delivery.NewKafkaResultDeliverer constructor (not
+	// NewKafkaResultDelivererWithSender) with a real cdb.NewCommandObjectSender fed a
+	// fake libkafka.SyncProducer, so a fat-fingered topicPrefix (e.g. always "") would
+	// be caught: the sender publishes a command, so the topic uses the CommandTopic
+	// ("request") suffix. Golden topic strings are frozen in agent_cdb-schema_test.go.
+	var (
+		ctx             context.Context
+		syncProducer    *kafkamocks.KafkaSyncProducer
+		clock           *timemocks.CurrentDateTimeGetter
+		generator       *libmocks.AgentContentGenerator
+		taskID          agentlib.TaskIdentifier
+		originalContent string
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		syncProducer = &kafkamocks.KafkaSyncProducer{}
+		syncProducer.SendMessageReturns(int32(0), int64(123), nil)
+		clock = &timemocks.CurrentDateTimeGetter{}
+		clock.NowReturns(libtime.DateTime(time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)))
+		generator = &libmocks.AgentContentGenerator{}
+		generator.GenerateReturns(
+			"---\nstatus: completed\nphase: done\n---\n\nBody.\n\n## Result\n\nok\n",
+			nil,
+		)
+		taskID = agentlib.TaskIdentifier("task-abc-123")
+		originalContent = "---\ntitle: My Task\nstatus: in_progress\n---\n\nBody.\n"
+	})
+
+	It(
+		"publishes to the develop-prefixed request topic when topicPrefix is derived from branch dev",
+		func() {
+			deliverer := delivery.NewKafkaResultDeliverer(
+				syncProducer,
+				base.TopicPrefixFromBranch(base.Branch("dev")),
+				taskID,
+				originalContent,
+				generator,
+				clock,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusDone,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(syncProducer.SendMessageCallCount()).To(Equal(1))
+			_, msg := syncProducer.SendMessageArgsForCall(0)
+			Expect(msg.Topic).To(Equal(libkafka.Topic("develop-agent-task-v1-request").String()))
+		},
+	)
+
+	It("publishes to the unprefixed request topic when topicPrefix is empty", func() {
+		deliverer := delivery.NewKafkaResultDeliverer(
+			syncProducer,
+			base.TopicPrefix(""),
+			taskID,
+			originalContent,
+			generator,
+			clock,
+		)
+		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			Status: agentlib.AgentStatusDone,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(syncProducer.SendMessageCallCount()).To(Equal(1))
+		_, msg := syncProducer.SendMessageArgsForCall(0)
+		Expect(msg.Topic).To(Equal(libkafka.Topic("agent-task-v1-request").String()))
 	})
 })
