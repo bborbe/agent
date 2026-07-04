@@ -108,7 +108,7 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with (.Values.recurringTaskCreator.affinity | default .Values.affinity) }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -175,7 +175,7 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
-      {{- with .Values.image.pullSecrets }}
+      {{- with (.Values.recurringTaskCreator.pullSecrets | default .Values.image.pullSecrets) }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}

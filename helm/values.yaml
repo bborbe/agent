@@ -77,74 +77,107 @@ executor:
       cpu: 500m
       memory: 50Mi
 
-# Controller: the StatefulSet that watches vault tasks, syncs a git-rest vault,
-# and publishes work to Kafka. Reuses the shared image.registry / keel / affinity
-# / pullSecrets values; only its own coordinates live here.
-controller:
-  enabled: true
-  image:
-    repository: bborbe/agent-task-controller
-    # tag defaults to Chart.appVersion when empty.
-    tag: ""
-  logLevel: "2"
-  # Vault name this controller drives. Required. Also derives the default
-  # GIT_REST_URL (http://vault-obsidian-<vaultName>:9090) when gitRestUrl is empty.
-  vaultName: ""
-  # Explicit git-rest base URL. Empty = derive from vaultName as
-  # http://vault-obsidian-<vaultName>:9090.
-  # IMPORTANT: that derivation hard-codes the quant service naming convention
-  # (a `vault-obsidian-<vault>` Service on port 9090). If your git-rest/Obsidian
-  # API Service is named differently the controller will fail to reach it with no
-  # install-time warning — set this explicitly on any non-quant cluster.
-  gitRestUrl: ""
-  # Sub-path inside the vault holding task files. Empty = vault root.
-  taskDir: ""
-  # Stage label forwarded as BRANCH env. Empty = unset.
-  branch: ""
-  # Explicit Kafka topic prefix. Empty = unprefixed. Quant sets develop / master.
-  topicPrefix: ""
-  # Kafka bootstrap brokers. Required.
-  kafkaBrokers: ""
-  # Auto-inject a task identifier into created tasks. String "true"/"false".
-  autoInjectTaskIdentifier: "false"
-  # Vault poll interval. Default 60s.
-  pollInterval: "60s"
-  # BoltDB persistent volume (volumeClaimTemplates). storageClassName defaults to
-  # "" = the cluster's default StorageClass (portable). quant sets "local-path"
-  # in its values overlay; that requires the Local Path Provisioner and is
-  # single-node oriented — do NOT default it here or multi-node clusters fail to
-  # bind the PVC.
-  storage:
-    size: 1Gi
-    storageClassName: ""
-  sentry:
-    # Sentry proxy cluster URL. Optional.
-    proxy: ""
-    # Sentry DSN secret value. When set (and existingSecret empty), the chart
-    # creates the Secret; quant resolves it from teamvault via --set-string.
-    dsn: ""
-  # Gateway secret value (key gateway-secret). Same Secret as sentry-dsn.
-  gatewaySecret: ""
-  # Name of a pre-existing Secret providing keys sentry-dsn + gateway-secret.
-  # When set, the chart does NOT create the Secret.
-  existingSecret: ""
-  # Pod-level securityContext. Empty by default — clusters opt in.
-  podSecurityContext: {}
-  # Container-level securityContext. Same safe hardening defaults as the executor.
-  securityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: false
-    capabilities:
-      drop: [ALL]
-    seccompProfile:
-      type: RuntimeDefault
-  resources:
-    requests:
-      cpu: 20m
-      memory: 20Mi
-    limits:
-      cpu: 500m
-      memory: 50Mi
+# Controllers: values-driven LIST of StatefulSets, each watching one vault's
+# tasks, syncing a git-rest vault, and publishing work to Kafka. Each entry emits
+# an `agent-task-controller-<name>` StatefulSet + Service + Secret. The real quant
+# cluster runs two (openclaw + personal); a generic install adds the controllers
+# it needs. Reuses the shared image.registry / keel / affinity / pullSecrets
+# values; only per-controller coordinates live here. Empty by default so an
+# executor-only install renders no controllers.
+controllers: []
+  # - name: openclaw               # instance name → workload agent-task-controller-<name>
+  #   enabled: true
+  #   image:
+  #     repository: bborbe/agent-task-controller
+  #     tag: ""                     # empty => Chart.appVersion
+  #   logLevel: "2"
+  #   # Vault name this controller drives. Required. Also derives the default
+  #   # GIT_REST_URL (http://vault-obsidian-<vaultName>:9090) when gitRestUrl is empty.
+  #   vaultName: openclaw
+  #   # Explicit git-rest base URL. Empty = derive from vaultName as
+  #   # http://vault-obsidian-<vaultName>:9090.
+  #   # IMPORTANT: that derivation hard-codes the quant service naming convention
+  #   # (a `vault-obsidian-<vault>` Service on port 9090). If your git-rest/Obsidian
+  #   # API Service is named differently the controller will fail to reach it with no
+  #   # install-time warning — set this explicitly on any non-quant cluster.
+  #   gitRestUrl: ""
+  #   # Sub-path inside the vault holding task files. Empty = vault root.
+  #   taskDir: ""
+  #   # Stage label forwarded as BRANCH env. Empty = unset.
+  #   branch: ""
+  #   # Explicit Kafka topic prefix. Empty = unprefixed. Quant sets develop / master.
+  #   topicPrefix: ""
+  #   # Kafka bootstrap brokers. Required.
+  #   kafkaBrokers: kafka:9092
+  #   # Auto-inject a task identifier into created tasks. String "true"/"false".
+  #   autoInjectTaskIdentifier: "false"
+  #   # Vault poll interval. Default 60s.
+  #   pollInterval: "60s"
+  #   # BoltDB persistent volume (volumeClaimTemplates). storageClassName defaults to
+  #   # "" = the cluster's default StorageClass (portable). quant sets "local-path"
+  #   # in its values overlay; that requires the Local Path Provisioner and is
+  #   # single-node oriented — do NOT default it here or multi-node clusters fail to
+  #   # bind the PVC.
+  #   storage:
+  #     size: 1Gi
+  #     storageClassName: ""
+  #   sentry:
+  #     # Sentry proxy cluster URL. Optional.
+  #     proxy: ""
+  #     # Sentry DSN secret value. When set (and existingSecret empty), the chart
+  #     # creates the Secret; quant resolves it from teamvault via --set-string.
+  #     dsn: ""
+  #   # Gateway secret value (key gateway-secret). Same Secret as sentry-dsn.
+  #   gatewaySecret: ""
+  #   # Name of a pre-existing Secret providing keys sentry-dsn + gateway-secret.
+  #   # When set, the chart does NOT create the Secret.
+  #   existingSecret: ""
+  #   # Pod-level securityContext. Empty by default — clusters opt in.
+  #   podSecurityContext: {}
+  #   # Container-level securityContext. Same safe hardening defaults as the executor.
+  #   securityContext:
+  #     allowPrivilegeEscalation: false
+  #     readOnlyRootFilesystem: false
+  #     capabilities:
+  #       drop: [ALL]
+  #     seccompProfile:
+  #       type: RuntimeDefault
+  #   resources:
+  #     requests: {cpu: 20m, memory: 20Mi}
+  #     limits: {cpu: 500m, memory: 50Mi}
+  # - name: personal
+  #   enabled: true
+  #   image:
+  #     repository: bborbe/agent-task-controller
+  #     tag: ""
+  #   logLevel: "2"
+  #   vaultName: personal
+  #   gitRestUrl: ""
+  #   taskDir: ""
+  #   branch: ""
+  #   topicPrefix: ""
+  #   kafkaBrokers: kafka:9092
+  #   autoInjectTaskIdentifier: "false"
+  #   pollInterval: "60s"
+  #   storage:
+  #     size: 1Gi
+  #     storageClassName: ""
+  #   sentry:
+  #     proxy: ""
+  #     dsn: ""
+  #   gatewaySecret: ""
+  #   existingSecret: ""
+  #   podSecurityContext: {}
+  #   securityContext:
+  #     allowPrivilegeEscalation: false
+  #     readOnlyRootFilesystem: false
+  #     capabilities:
+  #       drop: [ALL]
+  #     seccompProfile:
+  #       type: RuntimeDefault
+  #   resources:
+  #     requests: {cpu: 20m, memory: 20Mi}
+  #     limits: {cpu: 500m, memory: 50Mi}
 
 # Leaf agents: values-driven list. Each entry emits a Config CR + Secret + PVC +
 # PriorityClass (cluster-scoped) + ResourceQuota (caps concurrent pods). Empty by
@@ -160,14 +193,23 @@ agents: []
   #   taskTypes: [llm, healthcheck]
   #   triggerPhases: [planning, execution, ai_review]
   #   triggerStatuses: [in_progress]
-  #   volumeMountPath: /home/claude/.claude   # where the PVC mounts in the job pod
+  #   secretName: agent-claude    # OPTIONAL: Config.spec.secretName. Defaults to
+  #                               # `name`. Set when the existing Secret has a
+  #                               # different name (e.g. agent-backtest-agent → agent-backtest).
+  #   volumeMountPath: /home/claude/.claude   # OPTIONAL. When set → volumeClaim +
+  #                               # PVC are emitted. OMIT entirely for a stateless
+  #                               # agent (no PVC, no volumeClaim) — e.g. a backtest runner.
+  #   volumeClaim: agent-claude   # OPTIONAL: PVC name. Defaults to `name`.
   #   storageSize: 1Gi            # PVC size (default 1Gi)
+  #   storageClassName: ""        # OPTIONAL PVC class; empty => cluster default (omitted)
   #   env:                        # plain env injected into the Config
   #     ALLOWED_TOOLS: WebSearch,WebFetch,Read,Grep
-  #   secretEnv:                  # rendered into a per-agent Secret (base64)
+  #   secretEnv:                  # OPTIONAL: rendered into a per-agent Secret (base64).
+  #                               # OMIT to reference an existing (e.g. teamvault-managed)
+  #                               # Secret via secretName instead of creating one.
   #     SENTRY_DSN: dummy
   #     ANTHROPIC_AUTH_TOKEN: dummy
-  #   resources:
+  #   resources:                  # OPTIONAL — omit for an agent with no resource block
   #     requests: {cpu: 500m, memory: 1Gi, ephemeral-storage: 2Gi}
   #     limits: {cpu: 500m, memory: 1Gi, ephemeral-storage: 2Gi}
   #   priorityValue: 500          # PriorityClass value (default 500)
@@ -200,6 +242,13 @@ recurringTaskCreator:
   # Name of a pre-existing Secret providing key sentry-dsn. When set, no Secret
   # is created.
   existingSecret: ""
+  # Node affinity override. Empty = fall back to the global .Values.affinity.
+  # recurring-task-creator often pins to a different node pool than the executor/
+  # controllers (e.g. quant: node_type=agent here vs node_type=<stage> globally).
+  affinity: {}
+  # Image pull secret override. Empty = fall back to the global image.pullSecrets.
+  # (quant's recurring uses `docker-quant` while the rest use `docker`.)
+  pullSecrets: []
   # Pod-level securityContext. fsGroup 65534 (nobody) so the emptyDir /tmp is
   # group-writable by the non-root user.
   podSecurityContext:

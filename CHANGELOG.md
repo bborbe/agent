@@ -8,6 +8,22 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+- BREAKING(helm): replace the single `controller:` values block with a `controllers:` list so multiple per-vault controllers (e.g. openclaw + personal) install from one release; each entry renders `agent-task-controller-<name>` StatefulSet + Service + Secret. Chart 0.2.0 → 0.3.0.
+  - **Migration (0.2.0 → 0.3.0):** `controllers:` defaults to `[]` (empty), so an existing install that set `controller.enabled: true` renders ZERO controllers until migrated. Move the old block into a one-item list and add a `name`:
+    ```yaml
+    # before (0.2.0)          # after (0.3.0)
+    controller:               controllers:
+      enabled: true             - name: main        # NEW: names the objects
+      vaultName: myvault          enabled: true
+      kafkaBrokers: ...           vaultName: myvault
+      ...                         kafkaBrokers: ...
+                                  ...
+    ```
+  - **Object rename:** the StatefulSet/Service/Secret/ServiceAccount are now `agent-task-controller-<name>` (were `agent-task-controller`). External RBAC, NetworkPolicies, or tooling that referenced the old fixed name must be updated to the new per-name form. On the quant crossover use `--take-ownership`; the old kubectl-managed objects already carry per-vault names so no rename is needed there.
+- helm(agents): make per-agent `volumeMountPath`/`volumeClaim`/PVC and `resources` optional (a stateless agent that declares no `volumeMountPath` gets no PVC), and add an optional `secretName` override (for agents whose existing Secret name differs from the agent name). Lets a cluster reference existing (e.g. teamvault-managed) Secrets by leaving `secretEnv` empty.
+- helm(recurring-task-creator): add `recurringTaskCreator.affinity` and `recurringTaskCreator.pullSecrets` overrides (fall back to the globals) — recurring often pins a different node pool / pull secret than the executor + controllers.
+
 ## v0.74.1
 - Add `helm/README.md`: third-party install guide — prerequisites, `helm install` from the OCI registry, full values reference, a "generic cluster" divergence section (no keel/mirror/TeamVault/Strimzi), and the two-chart (core + maintainer) story.
 
