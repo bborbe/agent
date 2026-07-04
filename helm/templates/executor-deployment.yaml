@@ -19,6 +19,7 @@ metadata:
     {{- end }}
 spec:
   replicas: 1
+  progressDeadlineSeconds: 600
   selector:
     matchLabels:
       app: agent-task-executor
@@ -36,6 +37,10 @@ spec:
         app: agent-task-executor
     spec:
       serviceAccountName: agent-task-executor
+      {{- with .Values.executor.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
@@ -44,6 +49,10 @@ spec:
         - name: service
           image: {{ include "agent-platform.executor.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.executor.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           args:
             - -v={{ .Values.executor.logLevel }}
           env:
@@ -54,8 +63,10 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.executor.existingSecret | default "agent-task-executor" }}
                   key: sentry-dsn
+            {{- with .Values.executor.sentry.proxy }}
             - name: SENTRY_PROXY
-              value: {{ .Values.executor.sentry.proxy | quote }}
+              value: {{ . | quote }}
+            {{- end }}
             - name: BRANCH
               value: {{ .Values.executor.branch | quote }}
             - name: TOPIC_PREFIX

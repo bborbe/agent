@@ -56,6 +56,19 @@ executor:
   # Name of a pre-existing Secret providing key `sentry-dsn`. When set, the chart
   # does NOT create the Secret and reads SENTRY_DSN from this one.
   existingSecret: ""
+  # Pod-level securityContext. Empty by default — runAsNonRoot/runAsUser/fsGroup
+  # depend on what the image supports, so clusters opt in (e.g. runAsNonRoot: true,
+  # runAsUser: 65534, fsGroup: 65534).
+  podSecurityContext: {}
+  # Container-level securityContext. Safe hardening defaults that don't depend on
+  # the image's user; override as needed.
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop: [ALL]
+    seccompProfile:
+      type: RuntimeDefault
   resources:
     requests:
       cpu: 20m
