@@ -8,6 +8,12 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+- Extend the Helm chart beyond the executor: add the agent-task-controller StatefulSet (+ Service + Secret), the values-driven leaf agents (`agents` list → Config CR + Secret + PVC + PriorityClass + ResourceQuota per agent), and the optional recurring-task-creator StatefulSet (+ RBAC + Service + Secret + double-gated Strimzi KafkaUser).
+- Ship the `configs.agent.benjamin-borbe.de` CRD via `crds/` so leaf Config CRs apply on first install (the executor keeps the schema current at runtime).
+- Add `agent.controller.image`, `agent.recurringTaskCreator.image`, and `agent.controller.gitRestUrl` helpers; expand `values.yaml` with `controller`, `agents`, and `recurringTaskCreator` blocks (public docker.io defaults, per-cluster overrides).
+- Bump chart version 0.1.0 → 0.2.0.
+
 ## v0.73.0
 
 - feat: add `helm/` chart (`agent`) — first component is the

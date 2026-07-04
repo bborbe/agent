@@ -3,12 +3,14 @@ name: agent
 description: bborbe agent framework — event-driven, Kafka-based, K8s-native task platform (controller, executor, and example agents)
 type: application
 # Chart version — bumped on chart changes, independent of appVersion.
-version: 0.1.0
+version: 0.2.0
 # Default image tag for the framework components when values don't override.
 appVersion: "0.3.1"
 home: https://github.com/bborbe/agent
 sources:
   - https://github.com/bborbe/agent
   - https://github.com/bborbe/agent-task-executor
+  - https://github.com/bborbe/agent-task-controller
+  - https://github.com/bborbe/recurring-task-creator
 maintainers:
   - name: Benjamin Borbe
