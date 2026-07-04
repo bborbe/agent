@@ -1,30 +1,32 @@
-{{- if .Values.controller.enabled }}
+{{- range $c := .Values.controllers }}
+{{- if $c.enabled }}
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: agent-task-controller
-  namespace: {{ include "agent.namespace" . }}
+  name: agent-task-controller-{{ $c.name }}
+  namespace: {{ include "agent.namespace" $ }}
   labels:
-    app: agent-task-controller
-    {{- include "agent.labels" . | nindent 4 }}
+    app: agent-task-controller-{{ $c.name }}
+    {{- include "agent.labels" $ | nindent 4 }}
   annotations:
-    {{- if .Values.keel.enabled }}
+    {{- if $.Values.keel.enabled }}
     keel.sh/policy: force
     keel.sh/trigger: poll
     keel.sh/match-tag: "true"
-    keel.sh/pollSchedule: {{ .Values.keel.pollSchedule | quote }}
+    keel.sh/pollSchedule: {{ $.Values.keel.pollSchedule | quote }}
     {{- end }}
-    {{- with .Values.rolloutNonce }}
+    {{- with $.Values.rolloutNonce }}
     random: {{ . | quote }}
     {{- end }}
 spec:
   replicas: 1
-  serviceName: agent-task-controller
+  serviceName: agent-task-controller-{{ $c.name }}
   updateStrategy:
     type: RollingUpdate
   selector:
     matchLabels:
-      app: agent-task-controller
+      app: agent-task-controller-{{ $c.name }}
   template:
     metadata:
       annotations:
@@ -32,67 +34,67 @@ spec:
         prometheus.io/port: "9090"
         prometheus.io/scheme: http
         prometheus.io/scrape: "true"
-        {{- with .Values.rolloutNonce }}
+        {{- with $.Values.rolloutNonce }}
         random: {{ . | quote }}
         {{- end }}
       labels:
-        app: agent-task-controller
+        app: agent-task-controller-{{ $c.name }}
     spec:
-      {{- with .Values.controller.podSecurityContext }}
+      {{- with $c.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with $.Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - name: service
-          image: {{ include "agent.controller.image" . | quote }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- with .Values.controller.securityContext }}
+          image: {{ printf "%s/%s:%s" $.Values.image.registry (($c.image | default dict).repository | default "bborbe/agent-task-controller") (($c.image | default dict).tag | default $.Chart.AppVersion) | quote }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          {{- with $c.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           args:
-            - -v={{ .Values.controller.logLevel }}
+            - -v={{ $c.logLevel }}
           env:
             - name: LISTEN
               value: ':9090'
             - name: SENTRY_DSN
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.controller.existingSecret | default "agent-task-controller" }}
+                  name: {{ $c.existingSecret | default (printf "agent-task-controller-%s" $c.name) }}
                   key: sentry-dsn
             - name: GATEWAY_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.controller.existingSecret | default "agent-task-controller" }}
+                  name: {{ $c.existingSecret | default (printf "agent-task-controller-%s" $c.name) }}
                   key: gateway-secret
-            {{- with .Values.controller.sentry.proxy }}
+            {{- with ($c.sentry | default dict).proxy }}
             - name: SENTRY_PROXY
               value: {{ . | quote }}
             {{- end }}
             - name: BRANCH
-              value: {{ .Values.controller.branch | quote }}
+              value: {{ $c.branch | quote }}
             - name: TOPIC_PREFIX
-              value: {{ .Values.controller.topicPrefix | quote }}
+              value: {{ $c.topicPrefix | quote }}
             - name: KAFKA_BROKERS
-              value: {{ required "controller.kafkaBrokers is required" .Values.controller.kafkaBrokers | quote }}
+              value: {{ required "controllers[].kafkaBrokers is required" $c.kafkaBrokers | quote }}
             - name: GIT_REST_URL
-              value: {{ include "agent.controller.gitRestUrl" . | quote }}
+              value: {{ $c.gitRestUrl | default (printf "http://vault-obsidian-%s:9090" (required "controllers[].vaultName is required" $c.vaultName)) | quote }}
             - name: VAULT_NAME
-              value: {{ required "controller.vaultName is required" .Values.controller.vaultName | quote }}
+              value: {{ required "controllers[].vaultName is required" $c.vaultName | quote }}
             - name: POLL_INTERVAL
-              value: {{ .Values.controller.pollInterval | default "60s" | quote }}
+              value: {{ $c.pollInterval | default "60s" | quote }}
             - name: TASK_DIR
-              value: {{ .Values.controller.taskDir | quote }}
+              value: {{ $c.taskDir | quote }}
             - name: DATA_DIR
               value: '/data/bolt'
             - name: NO_SYNC
               value: "false"
             - name: AUTO_INJECT_TASK_IDENTIFIER
-              value: {{ .Values.controller.autoInjectTaskIdentifier | quote }}
+              value: {{ $c.autoInjectTaskIdentifier | quote }}
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
@@ -117,11 +119,11 @@ spec:
             initialDelaySeconds: 5
             timeoutSeconds: 5
           resources:
-            {{- toYaml .Values.controller.resources | nindent 12 }}
+            {{- toYaml $c.resources | nindent 12 }}
           volumeMounts:
             - name: datadir
               mountPath: /data
-      {{- with .Values.image.pullSecrets }}
+      {{- with $.Values.image.pullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -130,12 +132,13 @@ spec:
         name: datadir
       spec:
         accessModes: [ReadWriteOnce]
-        {{- with .Values.controller.storage.storageClassName }}
+        {{- with ($c.storage | default dict).storageClassName }}
         # Omitted when empty so the cluster's DEFAULT StorageClass is used;
         # an explicit "" would instead disable dynamic provisioning.
         storageClassName: {{ . }}
         {{- end }}
         resources:
           requests:
-            storage: {{ .Values.controller.storage.size }}
+            storage: {{ ($c.storage | default dict).size | default "1Gi" }}
+{{- end }}
 {{- end }}

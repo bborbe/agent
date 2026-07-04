@@ -15,9 +15,11 @@ spec:
   priorityClassName: {{ $agent.name }}
   image: {{ printf "%s/%s:%s" $.Values.image.registry $agent.image ($agent.tag | default $.Chart.AppVersion) | quote }}
   heartbeat: {{ $agent.heartbeat | quote }}
-  secretName: {{ $agent.name }}
-  volumeClaim: {{ $agent.name }}
+  secretName: {{ $agent.secretName | default $agent.name }}
+  {{- if $agent.volumeMountPath }}
+  volumeClaim: {{ $agent.volumeClaim | default $agent.name }}
   volumeMountPath: {{ $agent.volumeMountPath | quote }}
+  {{- end }}
   {{- with $agent.env }}
   env:
     {{- toYaml . | nindent 4 }}
@@ -46,19 +48,26 @@ data:
   {{ $k }}: {{ $v | b64enc }}
   {{- end }}
 {{- end }}
+{{- if $agent.volumeMountPath }}
 ---
+# PVC only when the agent mounts a volume (some agents — e.g. a stateless
+# backtest runner — declare no volumeMountPath and get no claim).
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ $agent.name }}
+  name: {{ $agent.volumeClaim | default $agent.name }}
   namespace: {{ include "agent.namespace" $ }}
   labels:
     {{- include "agent.labels" $ | nindent 4 }}
 spec:
   accessModes: [ReadWriteOnce]
+  {{- with $agent.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
   resources:
     requests:
       storage: {{ $agent.storageSize | default "1Gi" }}
+{{- end }}
 ---
 # PriorityClass is cluster-scoped (no namespace). Named per-agent so the
 # ResourceQuota below can cap concurrent pods of exactly this agent.
