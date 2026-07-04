@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.74.1
 - Add `helm/README.md`: third-party install guide — prerequisites, `helm install` from the OCI registry, full values reference, a "generic cluster" divergence section (no keel/mirror/TeamVault/Strimzi), and the two-chart (core + maintainer) story.
 
 ## v0.74.0
