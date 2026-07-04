@@ -8,6 +8,9 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+- Add `helm/README.md`: third-party install guide — prerequisites, `helm install` from the OCI registry, full values reference, a "generic cluster" divergence section (no keel/mirror/TeamVault/Strimzi), and the two-chart (core + maintainer) story.
+
 ## v0.74.0
 - Extend the Helm chart beyond the executor: add the agent-task-controller StatefulSet (+ Service + Secret), the values-driven leaf agents (`agents` list → Config CR + Secret + PVC + PriorityClass + ResourceQuota per agent), and the optional recurring-task-creator StatefulSet (+ RBAC + Service + Secret + double-gated Strimzi KafkaUser).
 - Ship the `configs.agent.benjamin-borbe.de` CRD via `crds/` so leaf Config CRs apply on first install (the executor keeps the schema current at runtime).
