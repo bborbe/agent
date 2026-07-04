@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.73.0
 
 - feat: add `helm/` chart (`agent-platform`) — first component is the
   agent-task-executor Deployment + SA + RBAC + Service + Secret, templated with
