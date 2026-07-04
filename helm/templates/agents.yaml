@@ -1,0 +1,93 @@
+{{- range $agent := .Values.agents }}
+{{- if $agent.enabled }}
+---
+apiVersion: agent.benjamin-borbe.de/v1
+kind: Config
+metadata:
+  name: {{ $agent.name }}
+  namespace: {{ include "agent.namespace" $ }}
+  labels:
+    {{- include "agent.labels" $ | nindent 4 }}
+spec:
+  assignee: {{ $agent.assignee | quote }}
+  taskTypes:
+    {{- toYaml $agent.taskTypes | nindent 4 }}
+  priorityClassName: {{ $agent.name }}
+  image: {{ printf "%s/%s:%s" $.Values.image.registry $agent.image ($agent.tag | default $.Chart.AppVersion) | quote }}
+  heartbeat: {{ $agent.heartbeat | quote }}
+  secretName: {{ $agent.name }}
+  volumeClaim: {{ $agent.name }}
+  volumeMountPath: {{ $agent.volumeMountPath | quote }}
+  {{- with $agent.env }}
+  env:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  trigger:
+    phases:
+      {{- toYaml $agent.triggerPhases | nindent 6 }}
+    statuses:
+      {{- toYaml $agent.triggerStatuses | nindent 6 }}
+  {{- with $agent.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- if $agent.secretEnv }}
+---
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: {{ $agent.name }}
+  namespace: {{ include "agent.namespace" $ }}
+  labels:
+    {{- include "agent.labels" $ | nindent 4 }}
+data:
+  {{- range $k, $v := $agent.secretEnv }}
+  {{ $k }}: {{ $v | b64enc }}
+  {{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $agent.name }}
+  namespace: {{ include "agent.namespace" $ }}
+  labels:
+    {{- include "agent.labels" $ | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ $agent.storageSize | default "1Gi" }}
+---
+# PriorityClass is cluster-scoped (no namespace). Named per-agent so the
+# ResourceQuota below can cap concurrent pods of exactly this agent.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ $agent.name }}
+  labels:
+    {{- include "agent.labels" $ | nindent 4 }}
+value: {{ $agent.priorityValue | default 500 }}
+globalDefault: false
+preemptionPolicy: Never
+description: "Priority class for agent {{ $agent.name }}"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ $agent.name }}
+  namespace: {{ include "agent.namespace" $ }}
+  labels:
+    {{- include "agent.labels" $ | nindent 4 }}
+spec:
+  hard:
+    pods: "{{ $agent.concurrency | default 1 }}"
+  scopeSelector:
+    matchExpressions:
+      - scopeName: PriorityClass
+        operator: In
+        values:
+          - {{ $agent.name }}
+{{- end }}
+{{- end }}

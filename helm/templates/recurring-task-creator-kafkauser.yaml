@@ -1,0 +1,18 @@
+{{- if .Values.recurringTaskCreator.enabled }}
+{{- if .Values.recurringTaskCreator.kafkaUser.enabled }}
+# Strimzi KafkaUser lives in the Strimzi operator's namespace (not the app
+# namespace) and is labelled with the target Kafka cluster. Off by default —
+# non-Strimzi clusters manage Kafka auth outside the chart.
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: {{ include "agent.namespace" . }}-recurring-task-creator
+  namespace: {{ .Values.recurringTaskCreator.kafkaUser.strimziNamespace | default "strimzi" }}
+  labels:
+    strimzi.io/cluster: {{ .Values.recurringTaskCreator.kafkaUser.cluster | default "my-cluster" }}
+    {{- include "agent.labels" . | nindent 4 }}
+spec:
+  authentication:
+    type: tls
+{{- end }}
+{{- end }}

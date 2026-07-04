@@ -1,0 +1,141 @@
+{{- if .Values.controller.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: agent-task-controller
+  namespace: {{ include "agent.namespace" . }}
+  labels:
+    app: agent-task-controller
+    {{- include "agent.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.keel.enabled }}
+    keel.sh/policy: force
+    keel.sh/trigger: poll
+    keel.sh/match-tag: "true"
+    keel.sh/pollSchedule: {{ .Values.keel.pollSchedule | quote }}
+    {{- end }}
+    {{- with .Values.rolloutNonce }}
+    random: {{ . | quote }}
+    {{- end }}
+spec:
+  replicas: 1
+  serviceName: agent-task-controller
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: agent-task-controller
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9090"
+        prometheus.io/scheme: http
+        prometheus.io/scrape: "true"
+        {{- with .Values.rolloutNonce }}
+        random: {{ . | quote }}
+        {{- end }}
+      labels:
+        app: agent-task-controller
+    spec:
+      {{- with .Values.controller.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: service
+          image: {{ include "agent.controller.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.controller.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          args:
+            - -v={{ .Values.controller.logLevel }}
+          env:
+            - name: LISTEN
+              value: ':9090'
+            - name: SENTRY_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.controller.existingSecret | default "agent-task-controller" }}
+                  key: sentry-dsn
+            - name: GATEWAY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.controller.existingSecret | default "agent-task-controller" }}
+                  key: gateway-secret
+            {{- with .Values.controller.sentry.proxy }}
+            - name: SENTRY_PROXY
+              value: {{ . | quote }}
+            {{- end }}
+            - name: BRANCH
+              value: {{ .Values.controller.branch | quote }}
+            - name: TOPIC_PREFIX
+              value: {{ .Values.controller.topicPrefix | quote }}
+            - name: KAFKA_BROKERS
+              value: {{ required "controller.kafkaBrokers is required" .Values.controller.kafkaBrokers | quote }}
+            - name: GIT_REST_URL
+              value: {{ include "agent.controller.gitRestUrl" . | quote }}
+            - name: VAULT_NAME
+              value: {{ required "controller.vaultName is required" .Values.controller.vaultName | quote }}
+            - name: POLL_INTERVAL
+              value: {{ .Values.controller.pollInterval | default "60s" | quote }}
+            - name: TASK_DIR
+              value: {{ .Values.controller.taskDir | quote }}
+            - name: DATA_DIR
+              value: '/data/bolt'
+            - name: NO_SYNC
+              value: "false"
+            - name: AUTO_INJECT_TASK_IDENTIFIER
+              value: {{ .Values.controller.autoInjectTaskIdentifier | quote }}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - containerPort: 9090
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9090
+              scheme: HTTP
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+            successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 9090
+              scheme: HTTP
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.controller.resources | nindent 12 }}
+          volumeMounts:
+            - name: datadir
+              mountPath: /data
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: datadir
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with .Values.controller.storage.storageClassName }}
+        # Omitted when empty so the cluster's DEFAULT StorageClass is used;
+        # an explicit "" would instead disable dynamic provisioning.
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.controller.storage.size }}
+{{- end }}
