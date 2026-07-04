@@ -130,7 +130,11 @@ spec:
         name: datadir
       spec:
         accessModes: [ReadWriteOnce]
-        storageClassName: {{ .Values.controller.storage.storageClassName }}
+        {{- with .Values.controller.storage.storageClassName }}
+        # Omitted when empty so the cluster's DEFAULT StorageClass is used;
+        # an explicit "" would instead disable dynamic provisioning.
+        storageClassName: {{ . }}
+        {{- end }}
         resources:
           requests:
             storage: {{ .Values.controller.storage.size }}

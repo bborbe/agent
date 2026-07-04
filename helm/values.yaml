@@ -90,8 +90,12 @@ controller:
   # Vault name this controller drives. Required. Also derives the default
   # GIT_REST_URL (http://vault-obsidian-<vaultName>:9090) when gitRestUrl is empty.
   vaultName: ""
-  # Explicit git-rest base URL. Empty = derive from vaultName (public default:
-  # in-cluster obsidian git-rest service). Set to override on a divergent cluster.
+  # Explicit git-rest base URL. Empty = derive from vaultName as
+  # http://vault-obsidian-<vaultName>:9090.
+  # IMPORTANT: that derivation hard-codes the quant service naming convention
+  # (a `vault-obsidian-<vault>` Service on port 9090). If your git-rest/Obsidian
+  # API Service is named differently the controller will fail to reach it with no
+  # install-time warning — set this explicitly on any non-quant cluster.
   gitRestUrl: ""
   # Sub-path inside the vault holding task files. Empty = vault root.
   taskDir: ""
@@ -105,11 +109,14 @@ controller:
   autoInjectTaskIdentifier: "false"
   # Vault poll interval. Default 60s.
   pollInterval: "60s"
-  # BoltDB persistent volume (volumeClaimTemplates). storageClassName is
-  # cluster-specific — local-path suits single-node / quant; override elsewhere.
+  # BoltDB persistent volume (volumeClaimTemplates). storageClassName defaults to
+  # "" = the cluster's default StorageClass (portable). quant sets "local-path"
+  # in its values overlay; that requires the Local Path Provisioner and is
+  # single-node oriented — do NOT default it here or multi-node clusters fail to
+  # bind the PVC.
   storage:
     size: 1Gi
-    storageClassName: local-path
+    storageClassName: ""
   sentry:
     # Sentry proxy cluster URL. Optional.
     proxy: ""
@@ -218,6 +225,10 @@ recurringTaskCreator:
   # Strimzi KafkaUser for mTLS Kafka auth. Off by default — non-Strimzi clusters
   # manage Kafka credentials outside the chart. cluster/strimziNamespace are the
   # Strimzi operator's Kafka CR name + namespace.
+  # NOTE: the KafkaUser is created in `strimziNamespace` (default "strimzi"), NOT
+  # the app namespace — if Strimzi runs elsewhere and this is wrong, the user is
+  # created in the wrong place and mTLS auth silently fails. It also means
+  # `kubectl get kafkausers -n <app-ns>` won't list it; look in strimziNamespace.
   kafkaUser:
     enabled: false
     cluster: my-cluster
