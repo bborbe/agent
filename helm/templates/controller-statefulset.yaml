@@ -81,6 +81,10 @@ spec:
               value: {{ $c.topicPrefix | quote }}
             - name: KAFKA_BROKERS
               value: {{ required "controllers[].kafkaBrokers is required" $c.kafkaBrokers | quote }}
+            # GIT_REST_URL: explicit controllers[].gitRestUrl wins; otherwise
+            # derived as http://vault-obsidian-<vaultName>:9090 — a quant service
+            # naming convention. On any cluster whose git-rest Service is named
+            # differently, set controllers[].gitRestUrl explicitly (see values.yaml).
             - name: GIT_REST_URL
               value: {{ $c.gitRestUrl | default (printf "http://vault-obsidian-%s:9090" (required "controllers[].vaultName is required" $c.vaultName)) | quote }}
             - name: VAULT_NAME
