@@ -8,6 +8,17 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat: add `helm/` chart (`agent-platform`) — first component is the
+  agent-task-executor Deployment + SA + RBAC + Service + Secret, templated with
+  values for image registry/tag, namespace, kafka brokers, empty-able topic
+  prefix, keel annotations, node affinity, and private-registry pull secrets, so
+  one chart installs on quant (mirror + keel) or a generic cluster (public
+  docker.io). Consumed via a keel-pattern values dir in the quant config repo.
+  First slice of the reusable two-chart architecture (see agent-task-executor
+  publish-only convergence).
+
 ## v0.72.0
 
 **Adopt cqrs v0.6.0 explicit `TopicPrefix` — quant/prod topic names unchanged.**

@@ -1,0 +1,94 @@
+{{- if .Values.executor.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-task-executor
+  namespace: {{ include "agent-platform.namespace" . }}
+  labels:
+    app: agent-task-executor
+    {{- include "agent-platform.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.keel.enabled }}
+    keel.sh/policy: force
+    keel.sh/trigger: poll
+    keel.sh/match-tag: "true"
+    keel.sh/pollSchedule: {{ .Values.keel.pollSchedule | quote }}
+    {{- end }}
+    {{- with .Values.rolloutNonce }}
+    random: {{ . | quote }}
+    {{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-task-executor
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9090"
+        prometheus.io/scheme: http
+        prometheus.io/scrape: "true"
+        {{- with .Values.rolloutNonce }}
+        random: {{ . | quote }}
+        {{- end }}
+      labels:
+        app: agent-task-executor
+    spec:
+      serviceAccountName: agent-task-executor
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: service
+          image: {{ include "agent-platform.executor.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - -v={{ .Values.executor.logLevel }}
+          env:
+            - name: LISTEN
+              value: ':9090'
+            - name: SENTRY_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.executor.existingSecret | default "agent-task-executor" }}
+                  key: sentry-dsn
+            - name: SENTRY_PROXY
+              value: {{ .Values.executor.sentry.proxy | quote }}
+            - name: BRANCH
+              value: {{ .Values.executor.branch | quote }}
+            - name: TOPIC_PREFIX
+              value: {{ .Values.executor.topicPrefix | quote }}
+            - name: KAFKA_BROKERS
+              value: {{ required "executor.kafkaBrokers is required" .Values.executor.kafkaBrokers | quote }}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - containerPort: 9090
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9090
+              scheme: HTTP
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+            successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 9090
+              scheme: HTTP
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.executor.resources | nindent 12 }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

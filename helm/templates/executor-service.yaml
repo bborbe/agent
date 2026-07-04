@@ -1,0 +1,19 @@
+{{- if .Values.executor.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-task-executor
+  namespace: {{ include "agent-platform.namespace" . }}
+  labels:
+    app: agent-task-executor
+    {{- include "agent-platform.labels" . | nindent 4 }}
+  annotations:
+    admin/port: '9090'
+    admin/path: ''
+spec:
+  ports:
+    - name: http
+      port: 9090
+  selector:
+    app: agent-task-executor
+{{- end }}

@@ -1,0 +1,65 @@
+# agent-platform chart values.
+#
+# Required per install: namespace, image registry/tag, executor.kafkaBrokers.
+# Structural cluster divergence (keel, node affinity, private-registry pull
+# secrets, empty-able topic prefix) is expressed as values so one chart installs
+# on any cluster. Quant sets keel + node affinity + a mirror registry + pull
+# secret; a generic cluster leaves those empty and pulls the public docker.io
+# image directly.
+
+# Namespace the components deploy into. Required (no default — the cluster owns it).
+namespace: ""
+
+# Image coordinates. Default to the public Docker Hub image; a self-sufficient
+# cluster overrides registry to its in-cluster mirror.
+image:
+  registry: docker.io
+  # Repository is per-component; the executor's is set here. registry/repository:tag.
+  pullPolicy: IfNotPresent
+  # Private-registry pull secret(s), e.g. [{name: docker}]. Empty for public docker.io.
+  pullSecrets: []
+
+# keel auto-redeploy annotations (quant polls the registry). Off by default —
+# versioned deploys don't need it; bump image.tag + re-apply instead.
+keel:
+  enabled: false
+  pollSchedule: "@every 1m"
+
+# Node affinity passthrough (quant pins pods to a node_type=<namespace> node).
+# Empty = no affinity (generic clusters). Set the full affinity object here.
+affinity: {}
+
+# Extra pod annotation used by quant to force a rollout (value of RANDOM). Empty = omit.
+rolloutNonce: ""
+
+executor:
+  enabled: true
+  image:
+    repository: bborbe/agent-task-executor
+    # tag defaults to Chart.appVersion when empty.
+    tag: ""
+  logLevel: "2"
+  # Kafka bootstrap brokers. Required.
+  kafkaBrokers: ""
+  # Explicit Kafka topic prefix. Empty = unprefixed (per-stage-cluster / Octopus).
+  # Quant sets "develop" (dev) / "master" (prod).
+  topicPrefix: ""
+  # Stage label forwarded as BRANCH env (non-topic uses: image tag hints, stage filters).
+  branch: ""
+  sentry:
+    # Sentry proxy cluster URL. Optional.
+    proxy: ""
+    # Sentry DSN secret value. When set, the chart creates a Secret; quant resolves
+    # this from teamvault and passes it via --set-string. Leave empty + set
+    # existingSecret to reference a Secret managed outside the chart.
+    dsn: ""
+  # Name of a pre-existing Secret providing key `sentry-dsn`. When set, the chart
+  # does NOT create the Secret and reads SENTRY_DSN from this one.
+  existingSecret: ""
+  resources:
+    requests:
+      cpu: 20m
+      memory: 20Mi
+    limits:
+      cpu: 500m
+      memory: 50Mi
