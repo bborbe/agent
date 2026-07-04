@@ -57,7 +57,7 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           args:
-            - -v={{ $c.logLevel }}
+            - -v={{ $c.logLevel | default "2" }}
           env:
             - name: LISTEN
               value: ':9090'
