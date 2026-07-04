@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
-- feat: add `helm/` chart (`agent-platform`) — first component is the
+- feat: add `helm/` chart (`agent`) — first component is the
   agent-task-executor Deployment + SA + RBAC + Service + Secret, templated with
   values for image registry/tag, namespace, kafka brokers, empty-able topic
   prefix, keel annotations, node affinity, and private-registry pull secrets, so

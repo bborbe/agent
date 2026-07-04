@@ -1,5 +1,5 @@
 apiVersion: v2
-name: agent-platform
+name: agent
 description: bborbe agent framework — event-driven, Kafka-based, K8s-native task platform (controller, executor, and example agents)
 type: application
 # Chart version — bumped on chart changes, independent of appVersion.
