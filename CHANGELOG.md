@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.75.0
 - BREAKING(helm): replace the single `controller:` values block with a `controllers:` list so multiple per-vault controllers (e.g. openclaw + personal) install from one release; each entry renders `agent-task-controller-<name>` StatefulSet + Service + Secret. Chart 0.2.0 → 0.3.0.
   - **Migration (0.2.0 → 0.3.0):** `controllers:` defaults to `[]` (empty), so an existing install that set `controller.enabled: true` renders ZERO controllers until migrated. Move the old block into a one-item list and add a `name`:
     ```yaml
