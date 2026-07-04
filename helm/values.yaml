@@ -1,4 +1,4 @@
-# agent-platform chart values.
+# agent chart values.
 #
 # Required per install: namespace, image registry/tag, executor.kafkaBrokers.
 # Structural cluster divergence (keel, node affinity, private-registry pull

@@ -3,10 +3,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: agent-task-executor
-  namespace: {{ include "agent-platform.namespace" . }}
+  namespace: {{ include "agent.namespace" . }}
   labels:
     app: agent-task-executor
-    {{- include "agent-platform.labels" . | nindent 4 }}
+    {{- include "agent.labels" . | nindent 4 }}
   annotations:
     {{- if .Values.keel.enabled }}
     keel.sh/policy: force
@@ -47,7 +47,7 @@ spec:
       {{- end }}
       containers:
         - name: service
-          image: {{ include "agent-platform.executor.image" . | quote }}
+          image: {{ include "agent.executor.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- with .Values.executor.securityContext }}
           securityContext:
