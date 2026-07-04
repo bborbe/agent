@@ -28,3 +28,4 @@ pkg.test
 task/controller/controller
 task/executor/executor
 vendor
+/CLAUDE.md
