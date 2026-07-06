@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.76.1
 
 - helm: harden mTLS cert volume `defaultMode` `420` (0644) → `288` (0440) — drops world-read on the mounted client key while keeping group-read so a non-root pod (`runAsUser`+`fsGroup`) can still read it (`0400` would deny it). Chart 0.4.0 → 0.4.1. Matches the `bborbe/maintainer` chart fix.
 

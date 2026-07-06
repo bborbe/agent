@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "/launch-agent slash command — interview-driven scaffolding for the bborbe agent platform",
-    "version": "0.76.0"
+    "version": "0.76.1"
   },
   "plugins": [
     {
       "name": "agent",
       "description": "/launch-agent slash command — interview-driven scaffolding for the bborbe agent platform",
       "source": "./",
-      "version": "0.76.0",
+      "version": "0.76.1",
       "strict": true
     }
   ]
