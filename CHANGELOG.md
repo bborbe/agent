@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- helm: optional mTLS Kafka support (default off) for executor, controllers, and recurring-task-creator. When `<component>.kafkaUser.enabled: true` the chart emits a Strimzi `KafkaUser` CR (`type: tls`) in `strimziNamespace` AND mounts the client cert/key + cluster CA at the fixed `/client-cert/file`, `/client-key/file`, `/server-cert/file` paths that `github.com/bborbe/kafka` reads for `tls://` brokers. New per-component values `kafkaUser.{userName,clientSecret,caCertSecret}` (secrets referenced by name only — Strimzi issues them, an external syncer places them in the app namespace). Default renders byte-identical to before → plaintext clusters (quant) unaffected. Adds executor + controller `KafkaUser` templates and the cert mount recurring-task-creator previously lacked. Chart 0.3.1 → 0.4.0. Unblocks the Octopus per-stage-Strimzi (mTLS) deploy.
+
 ## v0.75.1
 
 - helm(controller): default `controllers[].logLevel` to `"2"` so a controller entry that omits it renders `-v=2` instead of the empty `-v=` that glog rejects (which crashlooped the pod printing usage). Matches the executor's existing default. Chart 0.3.0 → 0.3.1.

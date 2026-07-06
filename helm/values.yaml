@@ -76,6 +76,26 @@ executor:
     limits:
       cpu: 500m
       memory: 50Mi
+  # Strimzi KafkaUser + mTLS client-cert mounts for the executor. Off by default
+  # → plaintext Kafka, no KafkaUser, no cert volumes (quant). When enabled the
+  # chart emits a KafkaUser CR (type: tls) in strimziNamespace AND mounts the
+  # client cert/key + cluster CA at the fixed paths /client-cert/file,
+  # /client-key/file, /server-cert/file that github.com/bborbe/kafka reads when
+  # kafkaBrokers uses the tls:// scheme. Set kafkaBrokers to tls://…:9093 too.
+  # The chart references the secrets by name only — Strimzi issues the user secret
+  # and an external syncer must place it (+ the CA) into this namespace.
+  kafkaUser:
+    enabled: false
+    # Strimzi Kafka CR name (KafkaUser label) + the operator's namespace.
+    cluster: my-cluster
+    strimziNamespace: strimzi
+    # KafkaUser CR name. Empty = derived "<namespace>-agent-task-executor".
+    userName: ""
+    # Secret (in this namespace) holding user.crt/user.key. Empty = same as the
+    # KafkaUser name (Strimzi names the issued secret after the user).
+    clientSecret: ""
+    # Secret (in this namespace) holding the cluster CA as ca.crt.
+    caCertSecret: my-cluster-cluster-ca-cert
 
 # Controllers: values-driven LIST of StatefulSets, each watching one vault's
 # tasks, syncing a git-rest vault, and publishing work to Kafka. Each entry emits
@@ -107,8 +127,20 @@ controllers: []
   #   branch: ""
   #   # Explicit Kafka topic prefix. Empty = unprefixed. Quant sets develop / master.
   #   topicPrefix: ""
-  #   # Kafka bootstrap brokers. Required.
+  #   # Kafka bootstrap brokers. Required. Use tls://…:9093 with kafkaUser below.
   #   kafkaBrokers: kafka:9092
+  #   # Per-controller Strimzi KafkaUser + mTLS client-cert mounts. Off by default
+  #   # → plaintext, no CR, no cert volumes. When enabled: emits a KafkaUser CR
+  #   # (type: tls) in strimziNamespace AND mounts client cert/key + cluster CA at
+  #   # /client-cert/file, /client-key/file, /server-cert/file. Secrets referenced
+  #   # by name only (Strimzi issues them; an external syncer places them here).
+  #   kafkaUser:
+  #     enabled: false
+  #     cluster: my-cluster
+  #     strimziNamespace: strimzi
+  #     userName: ""       # empty = derived "<namespace>-agent-task-controller-<name>"
+  #     clientSecret: ""   # empty = same as the KafkaUser name
+  #     caCertSecret: my-cluster-cluster-ca-cert
   #   # Auto-inject a task identifier into created tasks. String "true"/"false".
   #   autoInjectTaskIdentifier: "false"
   #   # Vault poll interval. Default 60s.
@@ -278,7 +310,17 @@ recurringTaskCreator:
   # the app namespace — if Strimzi runs elsewhere and this is wrong, the user is
   # created in the wrong place and mTLS auth silently fails. It also means
   # `kubectl get kafkausers -n <app-ns>` won't list it; look in strimziNamespace.
+  # When enabled the chart ALSO mounts the client cert/key + cluster CA at the
+  # fixed /client-cert/file, /client-key/file, /server-cert/file paths (set
+  # kafkaBrokers to tls://…:9093). Secrets are referenced by name only.
   kafkaUser:
     enabled: false
     cluster: my-cluster
     strimziNamespace: strimzi
+    # KafkaUser CR name. Empty = derived "<namespace>-recurring-task-creator".
+    userName: ""
+    # Secret (in this namespace) holding user.crt/user.key. Empty = same as the
+    # KafkaUser name (Strimzi names the issued secret after the user).
+    clientSecret: ""
+    # Secret (in this namespace) holding the cluster CA as ca.crt.
+    caCertSecret: my-cluster-cluster-ca-cert

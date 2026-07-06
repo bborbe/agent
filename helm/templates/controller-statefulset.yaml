@@ -127,6 +127,15 @@ spec:
           volumeMounts:
             - name: datadir
               mountPath: /data
+            {{- if (($c.kafkaUser | default dict).enabled) }}
+            {{- include "agent.kafkaCertVolumeMounts" $ | nindent 12 }}
+            {{- end }}
+      {{- if (($c.kafkaUser | default dict).enabled) }}
+      {{- $ku := $c.kafkaUser }}
+      {{- $userName := $ku.userName | default (printf "%s-agent-task-controller-%s" (include "agent.namespace" $) $c.name) }}
+      volumes:
+        {{- include "agent.kafkaCertVolumes" (dict "clientSecret" ($ku.clientSecret | default $userName) "caCertSecret" ($ku.caCertSecret | default "my-cluster-cluster-ca-cert")) | nindent 8 }}
+      {{- end }}
       {{- with $.Values.image.pullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}

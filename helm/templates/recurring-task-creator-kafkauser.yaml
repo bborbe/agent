@@ -6,7 +6,7 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaUser
 metadata:
-  name: {{ include "agent.namespace" . }}-recurring-task-creator
+  name: {{ .Values.recurringTaskCreator.kafkaUser.userName | default (printf "%s-recurring-task-creator" (include "agent.namespace" .)) }}
   namespace: {{ .Values.recurringTaskCreator.kafkaUser.strimziNamespace | default "strimzi" }}
   labels:
     strimzi.io/cluster: {{ .Values.recurringTaskCreator.kafkaUser.cluster | default "my-cluster" }}

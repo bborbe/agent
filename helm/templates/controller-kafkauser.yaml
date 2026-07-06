@@ -1,0 +1,24 @@
+{{- range $c := .Values.controllers }}
+{{- if $c.enabled }}
+{{- if (($c.kafkaUser | default dict).enabled) }}
+{{- $ku := $c.kafkaUser }}
+---
+# Strimzi KafkaUser for this controller's mTLS Kafka auth (one per enabled
+# controller). Lives in the Strimzi operator's namespace, labelled with the
+# target Kafka cluster. Off by default. Strimzi issues a same-named Secret with
+# user.crt/user.key; an external syncer places it (+ the cluster CA) into the app
+# namespace where the controller pod mounts it (see controllers[].kafkaUser).
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: {{ $ku.userName | default (printf "%s-agent-task-controller-%s" (include "agent.namespace" $) $c.name) }}
+  namespace: {{ $ku.strimziNamespace | default "strimzi" }}
+  labels:
+    strimzi.io/cluster: {{ $ku.cluster | default "my-cluster" }}
+    {{- include "agent.labels" $ | nindent 4 }}
+spec:
+  authentication:
+    type: tls
+{{- end }}
+{{- end }}
+{{- end }}
