@@ -1,0 +1,22 @@
+{{- if .Values.executor.enabled }}
+{{- if .Values.executor.kafkaUser.enabled }}
+{{- $ku := .Values.executor.kafkaUser }}
+# Strimzi KafkaUser for the executor's mTLS Kafka auth. Lives in the Strimzi
+# operator's namespace (not the app namespace) and is labelled with the target
+# Kafka cluster. Off by default — non-Strimzi clusters manage Kafka auth outside
+# the chart. Strimzi issues a Secret of the same name holding user.crt/user.key;
+# an external syncer places it (+ the cluster CA) into the app namespace where the
+# executor pod mounts it (see executor.kafkaUser.clientSecret / caCertSecret).
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: {{ $ku.userName | default (printf "%s-agent-task-executor" (include "agent.namespace" .)) }}
+  namespace: {{ $ku.strimziNamespace | default "strimzi" }}
+  labels:
+    strimzi.io/cluster: {{ $ku.cluster | default "my-cluster" }}
+    {{- include "agent.labels" . | nindent 4 }}
+spec:
+  authentication:
+    type: tls
+{{- end }}
+{{- end }}

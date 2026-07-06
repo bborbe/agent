@@ -172,9 +172,17 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if .Values.recurringTaskCreator.kafkaUser.enabled }}
+            {{- include "agent.kafkaCertVolumeMounts" . | nindent 12 }}
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if .Values.recurringTaskCreator.kafkaUser.enabled }}
+        {{- $ku := .Values.recurringTaskCreator.kafkaUser }}
+        {{- $userName := $ku.userName | default (printf "%s-recurring-task-creator" (include "agent.namespace" .)) }}
+        {{- include "agent.kafkaCertVolumes" (dict "clientSecret" ($ku.clientSecret | default $userName) "caCertSecret" ($ku.caCertSecret | default "my-cluster-cluster-ca-cert")) | nindent 8 }}
+        {{- end }}
       {{- with (.Values.recurringTaskCreator.pullSecrets | default .Values.image.pullSecrets) }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}

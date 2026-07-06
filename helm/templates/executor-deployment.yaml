@@ -98,6 +98,16 @@ spec:
             timeoutSeconds: 5
           resources:
             {{- toYaml .Values.executor.resources | nindent 12 }}
+          {{- if .Values.executor.kafkaUser.enabled }}
+          volumeMounts:
+            {{- include "agent.kafkaCertVolumeMounts" . | nindent 12 }}
+          {{- end }}
+      {{- if .Values.executor.kafkaUser.enabled }}
+      {{- $ku := .Values.executor.kafkaUser }}
+      {{- $userName := $ku.userName | default (printf "%s-agent-task-executor" (include "agent.namespace" .)) }}
+      volumes:
+        {{- include "agent.kafkaCertVolumes" (dict "clientSecret" ($ku.clientSecret | default $userName) "caCertSecret" ($ku.caCertSecret | default "my-cluster-cluster-ca-cert")) | nindent 8 }}
+      {{- end }}
       {{- with .Values.image.pullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}

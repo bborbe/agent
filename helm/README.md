@@ -23,7 +23,11 @@ One chart installs on any cluster; everything that differs between clusters is a
 - **Kubernetes** ≥ 1.25 (the Config CRD uses `x-kubernetes-validations` CEL rules).
 - **Kafka** reachable from the namespace. On quant/Octopus this is Strimzi; the chart
   only needs the bootstrap broker address (`executor.kafkaBrokers`,
-  `controller.kafkaBrokers`). mTLS/`KafkaUser` is optional (see recurring-task-creator).
+  `controller.kafkaBrokers`). mTLS is optional per component via `<component>.kafkaUser.enabled`
+  (default off): it emits a Strimzi `KafkaUser` (`type: tls`) and mounts the client cert/key +
+  cluster CA at `/client-cert/file`, `/client-key/file`, `/server-cert/file` — use with a
+  `tls://…:9093` broker. Secrets are referenced by name only (Strimzi issues them; an external
+  syncer must place them in the app namespace).
 - **Image pull access** to the images — either the public `docker.io/bborbe/*`
   (no credentials) or an in-cluster mirror (set `image.registry` + `image.pullSecrets`).
 - **Sentry DSN** (optional) — supply as a plain Kubernetes Secret (`existingSecret`) or
@@ -98,6 +102,12 @@ agents: []
 | `executor.sentry.proxy` | `""` | Sentry proxy URL (optional). |
 | `executor.sentry.dsn` | `""` | Sentry DSN; when set the chart creates the Secret. |
 | `executor.existingSecret` | `""` | Name of a pre-existing Secret with key `sentry-dsn`; when set the chart creates no Secret. |
+| `executor.kafkaUser.enabled` | `false` | Emit a Strimzi `KafkaUser` + mount mTLS client certs. Off = plaintext, no CR, no volumes. |
+| `executor.kafkaUser.cluster` | `my-cluster` | Strimzi Kafka CR name (KafkaUser `strimzi.io/cluster` label). |
+| `executor.kafkaUser.strimziNamespace` | `strimzi` | Namespace the KafkaUser CR is created in (the Strimzi operator's, not the app ns). |
+| `executor.kafkaUser.userName` | `""` | KafkaUser CR name. Empty = `<namespace>-agent-task-executor`. |
+| `executor.kafkaUser.clientSecret` | `""` | Secret (app ns) with `user.crt`/`user.key`. Empty = same as the KafkaUser name. |
+| `executor.kafkaUser.caCertSecret` | `my-cluster-cluster-ca-cert` | Secret (app ns) with the cluster CA as `ca.crt`. |
 | `executor.podSecurityContext` / `securityContext` | `{}` / hardened | Pod/container security contexts. |
 | `executor.resources` | 20m/20Mi → 500m/50Mi | Requests/limits. |
 
@@ -114,6 +124,7 @@ agents: []
 | `controller.taskDir` | `""` | Task directory inside the vault. |
 | `controller.autoInjectTaskIdentifier` | `"false"` | Auto-inject a task identifier. |
 | `controller.pollInterval` | `"60s"` | Vault poll interval. |
+| `controller.kafkaUser.*` | off | Per-controller mTLS `KafkaUser` + cert mounts — same fields as `executor.kafkaUser` (`enabled`/`cluster`/`strimziNamespace`/`userName`/`clientSecret`/`caCertSecret`). Derived user name = `<namespace>-agent-task-controller-<name>`. |
 | `controller.storage.size` | `1Gi` | BoltDB PVC size. |
 | `controller.storage.storageClassName` | `""` | Empty = cluster default StorageClass (portable). Set explicitly only for a specific class (quant uses `local-path`, which needs the Local Path Provisioner). |
 | `controller.sentry.*` / `existingSecret` | `""` | Sentry DSN, same pattern as executor. |
@@ -166,8 +177,9 @@ follow this exact shape; `agent-pi` uses `PROVIDER_API_KEY` instead of
 | `recurringTaskCreator.kafkaBrokers` | `""` | Kafka bootstrap brokers. |
 | `recurringTaskCreator.stage` / `topicPrefix` / `dryRun` | `""` / `""` / `"false"` | Runtime config. |
 | `recurringTaskCreator.sentry.*` | `""` | Sentry DSN, same pattern. |
-| `recurringTaskCreator.kafkaUser.enabled` | `false` | Emit a Strimzi `KafkaUser` (mTLS clusters only). |
+| `recurringTaskCreator.kafkaUser.enabled` | `false` | Emit a Strimzi `KafkaUser` + mount mTLS client certs (mTLS clusters only). |
 | `recurringTaskCreator.kafkaUser.cluster` / `strimziNamespace` | `my-cluster` / `strimzi` | Strimzi cluster + namespace. |
+| `recurringTaskCreator.kafkaUser.userName` / `clientSecret` / `caCertSecret` | `""` / `""` / `my-cluster-cluster-ca-cert` | As `executor.kafkaUser`. Derived user name = `<namespace>-recurring-task-creator`. |
 
 ---
 
