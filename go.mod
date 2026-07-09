@@ -1,6 +1,6 @@
 module github.com/bborbe/agent
 
-go 1.26.4
+go 1.26.5
 
 require (
 	github.com/bborbe/collection v1.20.17
