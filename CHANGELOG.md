@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- helm: when `executor.kafkaUser.enabled`, pass the executor's own client-cert + CA secret names to the executor as `JOB_KAFKA_CLIENT_CERT_SECRET` / `JOB_KAFKA_CA_CERT_SECRET` env, so it mounts mTLS Kafka certs into the per-task agent Jobs it spawns (agent-task-executor ≥ v0.4.0). Fixes spawned agent Jobs (pr-reviewer, github-releaser) crashing on `open /client-cert/file: no such file` against mTLS Kafka. Default off (`kafkaUser` disabled) → no env, spawned Jobs unchanged. Chart 0.4.1 → 0.5.0.
+
 ## v0.76.1
 
 - helm: harden mTLS cert volume `defaultMode` `420` (0644) → `288` (0440) — drops world-read on the mounted client key while keeping group-read so a non-root pod (`runAsUser`+`fsGroup`) can still read it (`0400` would deny it). Chart 0.4.0 → 0.4.1. Matches the `bborbe/maintainer` chart fix.

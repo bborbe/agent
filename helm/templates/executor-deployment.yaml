@@ -77,6 +77,18 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            {{- if .Values.executor.kafkaUser.enabled }}
+            {{- $ku := .Values.executor.kafkaUser }}
+            {{- $userName := $ku.userName | default (printf "%s-agent-task-executor" (include "agent.namespace" .)) }}
+            # mTLS Kafka: the spawned agent Jobs also connect Kafka, so hand the
+            # executor its own client-cert + CA secret names to mount into each Job
+            # (agent-task-executor >= v0.4.0 JOB_KAFKA_* support). Empty when kafkaUser
+            # is disabled → plaintext, spawned Jobs unchanged.
+            - name: JOB_KAFKA_CLIENT_CERT_SECRET
+              value: {{ $ku.clientSecret | default $userName | quote }}
+            - name: JOB_KAFKA_CA_CERT_SECRET
+              value: {{ $ku.caCertSecret | default "my-cluster-cluster-ca-cert" | quote }}
+            {{- end }}
           ports:
             - containerPort: 9090
               name: http
