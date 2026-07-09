@@ -87,7 +87,7 @@ spec:
             - name: JOB_KAFKA_CLIENT_CERT_SECRET
               value: {{ $ku.clientSecret | default $userName | quote }}
             - name: JOB_KAFKA_CA_CERT_SECRET
-              value: {{ $ku.caCertSecret | default "my-cluster-cluster-ca-cert" | quote }}
+              value: {{ $ku.caCertSecret | quote }}
             {{- end }}
           ports:
             - containerPort: 9090
