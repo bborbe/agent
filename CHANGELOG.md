@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+- suppress no-fix advisory GO-2026-5932 (golang.org/x/crypto/openpgp unmaintained) in govulncheck + osv-scanner so precommit is green
+- launch-agent: flexible repo naming — suggest-with-override (`<slug>-agent` / `github-<slug>-agent` for GitHub-triggered, freely overridable) instead of forcing `bborbe/agent-<name>`; aligns with the post-split fleet convention (github-pr-review-agent, github-releaser-agent)
+
 ## v0.77.0
 
 - helm: when `executor.kafkaUser.enabled`, pass the executor's own client-cert + CA secret names to the executor as `JOB_KAFKA_CLIENT_CERT_SECRET` / `JOB_KAFKA_CA_CERT_SECRET` env, so it mounts mTLS Kafka certs into the per-task agent Jobs it spawns (agent-task-executor ≥ v0.4.0). Fixes spawned agent Jobs (pr-reviewer, github-releaser) crashing on `open /client-cert/file: no such file` against mTLS Kafka. Default off (`kafkaUser` disabled) → no env, spawned Jobs unchanged. Chart 0.4.1 → 0.5.0.
