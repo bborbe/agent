@@ -16,7 +16,7 @@ Conversational walk through the [[Agent Design Guide]]'s 8 parts. Use `AskUserQu
 ## Part 2 — Identity (5 Q)
 
 1. **Role** (open): What does the agent do? (short kebab-able label, e.g. `dark-factory`, `pr-review`)
-2. **Repo name** (suggest-with-override, per SKILL.md § naming): normalize the role to a slug, **suggest** `<slug>-agent` (or `github-<slug>-agent` for GitHub-triggered), and let the user overwrite with any valid repo name (e.g. `github-dark-factory-agent`). The chosen value is `<name>` = `bborbe/<name>`. No forced `agent-` prefix.
+2. **Repo name** (suggest-with-override, per SKILL.md § naming): normalize the role to a slug, strip any trailing `-agent`, **suggest** `<core>-agent`, and let the user overwrite with any valid repo name (e.g. `github-dark-factory-agent` — `github-` repo prefix is valid). The chosen value is `<name>` = `bborbe/<name>`. No forced `agent-` prefix, no double `-agent`.
 3. **Purpose statement** (open): 1-2 sentence purpose for the README and Config CRD description.
 4. **Runtime tier** (`AskUserQuestion`): Which provider/cost tier?
    - Anthropic Max subscription (Claude Code, included quota)

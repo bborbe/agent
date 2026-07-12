@@ -38,18 +38,19 @@ Walk through `references/interview.md` conversationally. Use `AskUserQuestion` f
 - Part 7 (Safety): consent gates, error handling per class, security boundaries
 - Part 8 (Acceptance): per-phase acceptance criteria, overall DoD
 
-After Part 2 (role captured), derive the **repo name** via suggest-with-override. The repo name IS the GitHub repo basename (`bborbe/<name>`) — do NOT force an `agent-` prefix; the fleet convention is a `-agent` SUFFIX (`github-pr-review-agent`, `github-releaser-agent`), often with a `github-` prefix for GitHub-triggered agents.
+After Part 2 (role captured), derive the **repo name** via suggest-with-override. The repo name IS the GitHub repo basename (`bborbe/<name>`) — do NOT force an `agent-` prefix; the fleet convention is a `-agent` SUFFIX (`github-pr-review-agent`, `github-releaser-agent`).
 
 1. **Normalize the role** the user gave into a kebab slug: lowercase, strip leading/trailing whitespace, replace runs of `[^a-z0-9-]` with a single `-`, strip leading/trailing `-`. Call this `<slug>` (e.g. `dark factory` → `dark-factory`).
-2. **Compute a suggested repo name** `<suggested>`:
-   - If `<slug>` already ends in `-agent`, use it as-is.
-   - Else if the agent is GitHub-triggered (Part 3 trigger source is a GitHub watcher/PR/repo signal), suggest `github-<slug>-agent`.
-   - Else suggest `<slug>-agent`.
+2. **Compute the suggested repo name** `<suggested>` — robustly, so re-running on an already-suffixed name is idempotent:
+   - `<core>` = `<slug>` with a single trailing `-agent` removed if present (so `pr-review` and `pr-review-agent` both give core `pr-review` — no double suffix).
+   - `<suggested>` = `<core>-agent`.
+   - Do NOT auto-prepend `github-`; if the user wants the `github-<x>-agent` form (valid — see note below), they add it via the override in step 3. This keeps the suggestion a single, predictable shape.
 3. **Offer it via `AskUserQuestion`**, `<suggested>` as the recommended option, plus an "Other" free-text so the user can **overwrite with any repo name they want** (e.g. `github-dark-factory-agent`, or a bare `foo`). The user's choice — suggested or override — becomes `<name>`, used verbatim as the repo basename everywhere below.
 4. **Validate `<name>`** (the final chosen value):
    - **Reject** if it contains any of: `$`, backtick, `;`, `|`, `<`, `>`, `&`, `(`, `)`, `\`, `..`, `/` — invalid in GitHub repo names and unsafe in later shell interpolation.
    - **Reject** if empty, starts with `.`, or equals `agent` exactly (reserved for the SDK repo).
    - **Reject** if length > 50 chars (GitHub repo name limit + safety margin).
+   - **Do NOT reject a `github-` prefix.** GitHub reserves `github` only for org/user *account* names, not repo names — `bborbe/github-pr-review-agent` and `bborbe/github-releaser-agent` already exist. `github-<x>-agent` is a valid, in-use repo name and the operator may choose it via override.
 
 On rejection, surface the issue via `AskUserQuestion` and re-offer (suggested name + Other).
 
