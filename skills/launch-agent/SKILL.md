@@ -38,17 +38,20 @@ Walk through `references/interview.md` conversationally. Use `AskUserQuestion` f
 - Part 7 (Safety): consent gates, error handling per class, security boundaries
 - Part 8 (Acceptance): per-phase acceptance criteria, overall DoD
 
-After Part 2 (name picked), normalize the agent name:
+After Part 2 (role captured), derive the **repo name** via suggest-with-override. The repo name IS the GitHub repo basename (`bborbe/<name>`) — do NOT force an `agent-` prefix; the fleet convention is a `-agent` SUFFIX (`github-pr-review-agent`, `github-releaser-agent`), often with a `github-` prefix for GitHub-triggered agents.
 
-1. Lowercase, strip leading/trailing whitespace
-2. Replace runs of `[^a-z0-9-]` with single `-`
-3. Strip leading/trailing `-`
-4. Drop any leading `agent-` prefix (the new repo will be `bborbe/agent-<name>`)
-5. **Reject** if final name contains any of: `$`, backtick, `;`, `|`, `<`, `>`, `&`, `(`, `)`, `\`, `..`, `/` — these can't appear in valid GitHub repo names and would be dangerous in shell interpolation later
-6. **Reject** if name is empty after normalization, starts with `.`, or matches `agent` exactly (reserved for the SDK repo)
-7. **Reject** if length > 50 chars (GitHub repo name limit + safety margin)
+1. **Normalize the role** the user gave into a kebab slug: lowercase, strip leading/trailing whitespace, replace runs of `[^a-z0-9-]` with a single `-`, strip leading/trailing `-`. Call this `<slug>` (e.g. `dark factory` → `dark-factory`).
+2. **Compute a suggested repo name** `<suggested>`:
+   - If `<slug>` already ends in `-agent`, use it as-is.
+   - Else if the agent is GitHub-triggered (Part 3 trigger source is a GitHub watcher/PR/repo signal), suggest `github-<slug>-agent`.
+   - Else suggest `<slug>-agent`.
+3. **Offer it via `AskUserQuestion`**, `<suggested>` as the recommended option, plus an "Other" free-text so the user can **overwrite with any repo name they want** (e.g. `github-dark-factory-agent`, or a bare `foo`). The user's choice — suggested or override — becomes `<name>`, used verbatim as the repo basename everywhere below.
+4. **Validate `<name>`** (the final chosen value):
+   - **Reject** if it contains any of: `$`, backtick, `;`, `|`, `<`, `>`, `&`, `(`, `)`, `\`, `..`, `/` — invalid in GitHub repo names and unsafe in later shell interpolation.
+   - **Reject** if empty, starts with `.`, or equals `agent` exactly (reserved for the SDK repo).
+   - **Reject** if length > 50 chars (GitHub repo name limit + safety margin).
 
-On rejection, surface the issue to the user via `AskUserQuestion` and ask for a different name.
+On rejection, surface the issue via `AskUserQuestion` and re-offer (suggested name + Other).
 
 **Gate 1**: confirm captured intent with the user before proceeding to shape pick:
 > "Captured: <one-paragraph summary of name + purpose + trigger + key constraints>. Proceed to shape recommendation?"
@@ -77,7 +80,7 @@ Present to user via `AskUserQuestion`:
 Use `gh repo create` with the `--template` flag:
 
 ```bash
-gh repo create bborbe/agent-<name> --public \
+gh repo create bborbe/<name> --public \
   --template bborbe/agent-<shape> \
   --description "<sanitized one-line purpose>"
 ```
@@ -85,8 +88,8 @@ gh repo create bborbe/agent-<name> --public \
 Then clone:
 
 ```bash
-git clone git@github.com:bborbe/agent-<name>.git ~/Documents/workspaces/agent-<name>
-cd ~/Documents/workspaces/agent-<name>
+git clone git@github.com:bborbe/<name>.git ~/Documents/workspaces/<name>
+cd ~/Documents/workspaces/<name>
 ```
 
 ### Phase 3 — gh API error handling
@@ -99,7 +102,7 @@ cd ~/Documents/workspaces/agent-<name>
 | `HTTP 403: rate limit exceeded` | gh API quota burned | HALT — surface the reset window from `gh api rate_limit`. Recovery: wait for window reset, re-invoke `/launch-agent`. |
 | `HTTP 401: Bad credentials` | `gh auth status` is bad | HALT — surface "run `gh auth login` then re-invoke". |
 | `HTTP 404` on `--template` source | template repo doesn't exist or isn't flagged `is_template: true` | HALT — surface "verify `gh api repos/bborbe/agent-<shape> --jq .is_template` returns true; if not, run `gh api repos/bborbe/agent-<shape> --method PATCH --field is_template=true`". |
-| `git clone` fails after repo created | SSH key issue / network blip | HALT — `gh repo delete bborbe/agent-<name> --yes` to clean up the empty remote, then user investigates SSH + re-invokes. |
+| `git clone` fails after repo created | SSH key issue / network blip | HALT — `gh repo delete bborbe/<name> --yes` to clean up the empty remote, then user investigates SSH + re-invokes. |
 
 Always print the raw `gh` stderr so the user has the actual diagnostic. The table above documents the common cases; novel failures get reported verbatim.
 
@@ -109,16 +112,16 @@ Mechanical renames across the cloned template. **Portable sed**: use `sed -i.bak
 
 For files that may not exist in every template (some shapes don't have a `Makefile.precommit`, some don't have a `k8s/` dir), wrap the sed in a `[ -f "<file>" ] &&` existence guard so a missing file is a no-op rather than a silent failure.
 
-1. **`go.mod`**: change `module github.com/bborbe/agent-<shape>` → `module github.com/bborbe/agent-<name>`
-2. **`.go` files**: `find . -name '*.go' -exec sed -i.bak 's|github.com/bborbe/agent-<shape>|github.com/bborbe/agent-<name>|g' {} +` then `find . -name '*.go.bak' -delete`
-3. **`Makefile`**: `[ -f Makefile ] && sed -i.bak 's|SERVICE = agent-<shape>|SERVICE = agent-<name>|' Makefile && rm -f Makefile.bak`
-4. **`Makefile.precommit`**: `[ -f Makefile.precommit ] && sed -i.bak 's|github.com/bborbe/agent-<shape>|github.com/bborbe/agent-<name>|' Makefile.precommit && rm -f Makefile.precommit.bak`
-5. **`example.env`**: `[ -f example.env ] && sed -i.bak 's|bborbe/agent-<shape>|bborbe/agent-<name>|' example.env && rm -f example.env.bak`
-6. **k8s/ YAMLs** (skip if `k8s/` doesn't exist): rename files + resources to `agent-<name>`:
-   - `git mv k8s/agent-<shape>.yaml k8s/agent-<name>.yaml`
-   - `git mv k8s/agent-<shape>-secret.yaml k8s/agent-<name>-secret.yaml`
-   - `git mv k8s/agent-<shape>-pvc.yaml k8s/agent-<name>-pvc.yaml` (if shape has one)
-   - `sed -i.bak 's|agent-<shape>|agent-<name>|g' k8s/*.yaml && rm -f k8s/*.bak`
+1. **`go.mod`**: change `module github.com/bborbe/agent-<shape>` → `module github.com/bborbe/<name>`
+2. **`.go` files**: `find . -name '*.go' -exec sed -i.bak 's|github.com/bborbe/agent-<shape>|github.com/bborbe/<name>|g' {} +` then `find . -name '*.go.bak' -delete`
+3. **`Makefile`**: `[ -f Makefile ] && sed -i.bak 's|SERVICE = agent-<shape>|SERVICE = <name>|' Makefile && rm -f Makefile.bak`
+4. **`Makefile.precommit`**: `[ -f Makefile.precommit ] && sed -i.bak 's|github.com/bborbe/agent-<shape>|github.com/bborbe/<name>|' Makefile.precommit && rm -f Makefile.precommit.bak`
+5. **`example.env`**: `[ -f example.env ] && sed -i.bak 's|bborbe/agent-<shape>|bborbe/<name>|' example.env && rm -f example.env.bak`
+6. **k8s/ YAMLs** (skip if `k8s/` doesn't exist): rename files + resources to `<name>`:
+   - `git mv k8s/agent-<shape>.yaml k8s/<name>.yaml`
+   - `git mv k8s/agent-<shape>-secret.yaml k8s/<name>-secret.yaml`
+   - `git mv k8s/agent-<shape>-pvc.yaml k8s/<name>-pvc.yaml` (if shape has one)
+   - `sed -i.bak 's|agent-<shape>|<name>|g' k8s/*.yaml && rm -f k8s/*.bak`
 7. **README.md**: rewrite the top section to reflect the new agent's purpose (use captured Part 1 + Part 2 from interview)
 8. **CHANGELOG.md**: reset to `# Changelog\n\n## v0.0.0\n\n- Initial scaffold from bborbe/agent-<shape> template via /launch-agent on YYYY-MM-DD`
 9. **`agent/.claude/CLAUDE.md`** (if shape has one): adapt the per-agent CLAUDE.md to the new agent's domain
@@ -129,12 +132,12 @@ Refresh the module graph (in the cloned dir):
 rm go.sum && go mod tidy
 ```
 
-**MANDATORY enforceable check**: invoke the `Task` tool with `subagent_type: 'coding:simple-bash-runner'` to run `cd ~/Documents/workspaces/agent-<name> && make precommit`. This is NOT a documentation suggestion — the skill MUST issue the Task tool call. Without it, the Phase 4 stop-on-failure contract below is unenforceable.
+**MANDATORY enforceable check**: invoke the `Task` tool with `subagent_type: 'coding:simple-bash-runner'` to run `cd ~/Documents/workspaces/<name> && make precommit`. This is NOT a documentation suggestion — the skill MUST issue the Task tool call. Without it, the Phase 4 stop-on-failure contract below is unenforceable.
 
 ```
 Task(
   subagent_type: 'coding:simple-bash-runner',
-  prompt: 'cd ~/Documents/workspaces/agent-<name> && make precommit',
+  prompt: 'cd ~/Documents/workspaces/<name> && make precommit',
   description: 'verify scaffold builds'
 )
 ```
@@ -149,7 +152,7 @@ Parse the Task result:
 Render `references/config-crd-template.yaml` with the captured values into:
 
 ```
-~/Documents/workspaces/agent-<name>/k8s/agent-<name>-config.yaml
+~/Documents/workspaces/<name>/k8s/<name>-config.yaml
 ```
 
 The Config CRD declares: `assignee`, `image`, `heartbeat`, `taskTypes`, `resources`, `env`, `secretName`, `volumeClaim` (if applicable). Fill from interview answers.
@@ -162,8 +165,8 @@ Vault root: `~/Documents/Obsidian/Personal/` (resolve via `vault-cli config list
 
 1. **Knowledge page**: render `references/vault-page-template.md` → `50 Knowledge Base/<Name> Agent.md`
 2. **Goal**: render `references/goal-template.md` → `23 Goals/Build <Name> Agent.md`
-3. **First scenario**: render `references/scenario-template.md` → `~/Documents/workspaces/agent-<name>/scenarios/001-<happy-path-name>.md`
-4. **NEXT-DIRECTIONS**: render `references/next-directions-template.md` → `~/Documents/workspaces/agent-<name>/NEXT-DIRECTIONS.md` capturing v1/v2/v3 deferrals surfaced during the interview
+3. **First scenario**: render `references/scenario-template.md` → `~/Documents/workspaces/<name>/scenarios/001-<happy-path-name>.md`
+4. **NEXT-DIRECTIONS**: render `references/next-directions-template.md` → `~/Documents/workspaces/<name>/NEXT-DIRECTIONS.md` capturing v1/v2/v3 deferrals surfaced during the interview
 5. **Agent Hub update**: add row to the "Planned Agents" table in `50 Knowledge Base/Agent Hub.md` (or move existing row to "Production Agents" if the agent was already on the planned list)
 
 ## Phase 7 — Commit + push initial state
@@ -171,7 +174,7 @@ Vault root: `~/Documents/Obsidian/Personal/` (resolve via `vault-cli config list
 In the new repo:
 
 ```bash
-cd ~/Documents/workspaces/agent-<name>
+cd ~/Documents/workspaces/<name>
 git add -A
 git commit -m "scaffold via /launch-agent (template: agent-<shape>, $(date +%Y-%m-%d))"
 git push
@@ -190,7 +193,7 @@ Pattern: `<[A-Z][A-Za-z0-9_+-]*>` — uppercase-leading (matches all our placeho
 ```bash
 # Use $HOME (not quoted ~) — tilde inside quotes is NOT shell-expanded.
 grep -rln --include='*.md' --include='*.yaml' --include='*.yml' -E '<[A-Z][A-Za-z0-9_+-]*>' \
-  $HOME/Documents/workspaces/agent-<name>/ \
+  $HOME/Documents/workspaces/<name>/ \
   "$HOME/Documents/Obsidian/Personal/50 Knowledge Base/<Name> Agent.md" \
   "$HOME/Documents/Obsidian/Personal/23 Goals/Build <Name> Agent.md"
 ```
@@ -200,16 +203,16 @@ If ANY hit found: HALT with the file paths + offending tokens listed. DO NOT pri
 **Only after the leak scan returns empty**, output the numbered checklist (don't execute, just print):
 
 ```
-🟢 Agent scaffold complete: bborbe/agent-<name>
-   Repo: https://github.com/bborbe/agent-<name>
+🟢 Agent scaffold complete: bborbe/<name>
+   Repo: https://github.com/bborbe/<name>
    Goal: obsidian://open?vault=Personal&file=23%20Goals%2FBuild%20<Name>%20Agent
 
 Next steps (operator decisions):
-1. Review the generated Config CRD: ~/Documents/workspaces/agent-<name>/k8s/agent-<name>-config.yaml
+1. Review the generated Config CRD: ~/Documents/workspaces/<name>/k8s/<name>-config.yaml
 2. Implement domain logic in pkg/factory/factory.go + pkg/prompts/ (template provides scaffolding only)
 3. Run `make precommit` locally to verify
 4. Build + deploy: `BRANCH=dev make buca`
-5. Apply Config CRD: `kubectlquant -n dev apply -f k8s/agent-<name>-config.yaml`
+5. Apply Config CRD: `kubectlquant -n dev apply -f k8s/<name>-config.yaml`
 6. Run the first scenario: `dark-factory:run-scenario scenarios/001-<happy-path-name>.md`
 7. If green, promote to prod: `BRANCH=prod make buca` + apply Config CRD in prod namespace
 ```
@@ -247,15 +250,15 @@ When Phase 4's `make precommit` fails (lint error, test failure, security findin
 
 ```bash
 # Full rollback (run these in order — both are irreversible):
-rm -rf ~/Documents/workspaces/agent-<name>
-gh repo delete bborbe/agent-<name> --yes
+rm -rf ~/Documents/workspaces/<name>
+gh repo delete bborbe/<name> --yes
 # Vault artifacts were NOT written (Phase 6 is post-Phase-4); nothing to revert there.
 ```
 
 Then offer the user a choice via `AskUserQuestion`:
 
 1. **Investigate first** (recommended for repeated failures — may be a template bug)
-   - User runs `cd ~/Documents/workspaces/agent-<name> && git diff` to see the customize changes
+   - User runs `cd ~/Documents/workspaces/<name> && git diff` to see the customize changes
    - User identifies the over-matching sed pattern OR template issue
    - Manually revert in the affected file, re-run `make precommit`, continue manually from Phase 5
 2. **Rollback + retry** (recommended for typos / wrong shape pick — quickly recoverable)

@@ -10,6 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 - suppress no-fix advisory GO-2026-5932 (golang.org/x/crypto/openpgp unmaintained) in govulncheck + osv-scanner so precommit is green
+- launch-agent: flexible repo naming — suggest-with-override (`<slug>-agent` / `github-<slug>-agent` for GitHub-triggered, freely overridable) instead of forcing `bborbe/agent-<name>`; aligns with the post-split fleet convention (github-pr-review-agent, github-releaser-agent)
 
 ## v0.77.0
 

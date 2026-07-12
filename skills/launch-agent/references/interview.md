@@ -15,17 +15,17 @@ Conversational walk through the [[Agent Design Guide]]'s 8 parts. Use `AskUserQu
 
 ## Part 2 — Identity (5 Q)
 
-1. **Name** (open): Proposed agent name? (kebab-case; will become `bborbe/agent-<name>` repo)
-2. **Normalize the name** (silent): strip spaces, lowercase, replace non-alphanumeric with `-`; drop any leading `agent-` prefix.
+1. **Role** (open): What does the agent do? (short kebab-able label, e.g. `dark-factory`, `pr-review`)
+2. **Repo name** (suggest-with-override, per SKILL.md § naming): normalize the role to a slug, **suggest** `<slug>-agent` (or `github-<slug>-agent` for GitHub-triggered), and let the user overwrite with any valid repo name (e.g. `github-dark-factory-agent`). The chosen value is `<name>` = `bborbe/<name>`. No forced `agent-` prefix.
 3. **Purpose statement** (open): 1-2 sentence purpose for the README and Config CRD description.
 4. **Runtime tier** (`AskUserQuestion`): Which provider/cost tier?
    - Anthropic Max subscription (Claude Code, included quota)
    - Sonnet API (pay-per-token)
    - Local Qwen (on-cluster, no external API)
    - MiniMax (cheap, Tier-D quality)
-5. **Domain & repo** (silent): always `bborbe/agent-<name>`; document where the new repo lives.
+5. **Domain & repo** (silent): `bborbe/<name>` (the chosen basename); document where the new repo lives.
 
-→ Confirm: "Captured: agent-<name> on <runtime tier>. Proceed?"
+→ Confirm: "Captured: <name> on <runtime tier>. Proceed?"
 
 ## Part 3 — Integration (5 Q)
 

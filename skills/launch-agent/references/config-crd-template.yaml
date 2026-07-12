@@ -1,5 +1,5 @@
 # Config CRD instance for a new agent. Apply with:
-#   kubectlquant -n <namespace> apply -f k8s/agent-<name>-config.yaml
+#   kubectlquant -n <namespace> apply -f k8s/<name>-config.yaml
 #
 # Renders from `/launch-agent` interview answers. Placeholders are <ANGLE_BRACKETED> — replace
 # during scaffolding; do NOT leave any in the final output.
@@ -11,7 +11,7 @@ metadata:
   namespace: <NAMESPACE>           # dev | prod (typically rolled out to dev first)
 spec:
   assignee: <NAME>                 # task frontmatter `assignee: <NAME>` routes here
-  image: docker.quant.benjamin-borbe.de:443/agent-<NAME>:<BRANCH>
+  image: docker.quant.benjamin-borbe.de:443/<NAME>:<BRANCH>
   heartbeat: 15m                   # re-spawn interval for in_progress tasks; raise for long-running phases
 
   # task_type values this agent handles (from interview Part 4)
@@ -32,8 +32,8 @@ spec:
     # <KEY>: "<VALUE_OR_TEAMVAULT_LOOKUP_KEY>"
 
   # k8s Secret containing teamvault-resolved creds (from interview Part 7.3)
-  secretName: agent-<NAME>         # see k8s/agent-<NAME>-secret.yaml for the teamvault references
+  secretName: <NAME>         # see k8s/<NAME>-secret.yaml for the teamvault references
 
   # PVC for persistent per-agent state (Claude OAuth, memory, etc.). Omit if stateless.
-  volumeClaim: <PVC_NAME>          # e.g. agent-<NAME>-claude-oauth; remove block if none
+  volumeClaim: <PVC_NAME>          # e.g. <NAME>-claude-oauth; remove block if none
   volumeMountPath: /home/claude/.claude

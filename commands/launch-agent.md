@@ -1,6 +1,6 @@
 ---
 description: Interview-driven scaffolding for a new bborbe agent — clones a template repo, generates Config CRD + vault page + first scenario
-argument-hint: "[agent name] [--shape claude|code|gemini|pi]"
+argument-hint: "[role or repo-name] [--shape claude|code|gemini|pi]"
 allowed-tools: [Task, Read, Write, Edit, Bash, AskUserQuestion, mcp__semantic-search__search_related]
 ---
 
@@ -10,7 +10,7 @@ Scaffold a new bborbe agent end-to-end via interview + template clone. Delegate 
 
 <process>
 1. **Parse arguments** from `$ARGUMENTS`:
-   - First positional token (if any): proposed agent name (will be normalized by the skill)
+   - First positional token (if any): proposed role or repo-name seed. The skill suggests `<slug>-agent` (or `github-<slug>-agent` for GitHub-triggered) and lets the user overwrite with any valid repo name — no forced `agent-` prefix
    - `--shape <shape>`: explicit shape pick (skip the shape-picker subagent)
    - No args: skill runs the full interview from scratch
 
@@ -22,7 +22,7 @@ Scaffold a new bborbe agent end-to-end via interview + template clone. Delegate 
    - Read references (shapes.md, interview.md, templates)
    - Run [[Agent Design Guide]] 45-Q interview (conversational, AskUserQuestion for enumerable choices)
    - Recommend shape via `agent-shape-picker` subagent if `--shape` not provided
-   - `gh repo create bborbe/agent-<name> --public --template bborbe/agent-<shape>`
+   - `gh repo create bborbe/<name> --public --template bborbe/agent-<shape>`
    - Clone, rename Go module path + package names + Config kind across files
    - Generate `Config.yaml` (CRD instance), `agent/<name>/.claude/CLAUDE.md`, `README.md` adapted
    - Write vault artifacts: `50 Knowledge Base/<Name> Agent.md`, `23 Goals/Build <Name> Agent.md`, `24 Tasks/Bootstrap <Name> Agent.md`, scenario stub
@@ -32,7 +32,7 @@ Scaffold a new bborbe agent end-to-end via interview + template clone. Delegate 
 <success_criteria>
 - Skill invoked successfully
 - New repo created on GitHub via `--template` flag
-- Local clone exists at `~/Documents/workspaces/agent-<name>/`
+- Local clone exists at `~/Documents/workspaces/<name>/`
 - Vault artifacts created in the configured vault (Personal)
 - Deploy checklist printed
 </success_criteria>

@@ -66,8 +66,8 @@ Tags: [[AI Agent]] [[Agent Page Writing Guide]] [[Autonomous Agent Workflow]]
 
 ## Code
 
-- **Repo**: [bborbe/agent-<NAME>](https://github.com/bborbe/agent-<NAME>)
-- **Source path**: `~/Documents/workspaces/agent-<NAME>/`
+- **Repo**: [bborbe/<NAME>](https://github.com/bborbe/<NAME>)
+- **Source path**: `~/Documents/workspaces/<NAME>/`
 - **Template**: scaffolded from `bborbe/agent-<SHAPE>` via `/launch-agent` on <YYYY-MM-DD>
 - **Deploy**: `BRANCH=<dev|prod> make buca` from a clean deployment worktree
 
@@ -84,7 +84,7 @@ Tags: [[AI Agent]] [[Agent Page Writing Guide]] [[Autonomous Agent Workflow]]
 
 ## NEXT-DIRECTIONS
 
-See `~/Documents/workspaces/agent-<NAME>/NEXT-DIRECTIONS.md` for v1/v2/v3 deferred upgrades captured during the interview.
+See `~/Documents/workspaces/<NAME>/NEXT-DIRECTIONS.md` for v1/v2/v3 deferred upgrades captured during the interview.
 
 ## Related
 

@@ -9,7 +9,7 @@ Placeholders: `<ANGLE_BRACKETED>` — replace during scaffolding; remove unused 
 ---
 
 ```markdown
-# NEXT-DIRECTIONS — agent-<NAME>
+# NEXT-DIRECTIONS — <NAME>
 
 Deferred-not-cut work captured during `/launch-agent` interview on <YYYY-MM-DD>. Each entry has a clear mechanism so future-you (or a sub-agent) can pick it up without re-deriving the context.
 

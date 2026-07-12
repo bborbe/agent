@@ -12,7 +12,7 @@ Placeholders: `<ANGLE_BRACKETED>` — replace during scaffolding.
 **Purpose**: prove the agent works end-to-end on a happy-path input. Run before any deploy; run again after any non-trivial change.
 
 **Setup**:
-- Agent `bborbe/agent-<NAME>` deployed to <STAGE> (dev typically)
+- Agent `bborbe/<NAME>` deployed to <STAGE> (dev typically)
 - Config CRD applied: `kubectlquant -n <STAGE> get config.agent.benjamin-borbe.de <NAME>` shows it
 - Producer ready to emit a task (or operator creates one manually via vault edit)
 
@@ -42,7 +42,7 @@ Placeholders: `<ANGLE_BRACKETED>` — replace during scaffolding.
 
 3. **Observe executor spawn**:
    ```bash
-   kubectlquant -n <STAGE> get pods | grep "agent-<NAME>-<TASK_ID_PREFIX>"
+   kubectlquant -n <STAGE> get pods | grep "<NAME>-<TASK_ID_PREFIX>"
    ```
    Expected: a Job pod appears within 30s of the controller publish.
 

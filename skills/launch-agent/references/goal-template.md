@@ -24,7 +24,7 @@ Tags: [[Goal]] [[Agent Hub]]
 
 # Impact
 
-**Approach**: scaffold `bborbe/agent-<NAME>` from the `<SHAPE>` template via `/launch-agent` (interview captured <YYYY-MM-DD>), implement <SHAPE>-specific domain logic in `pkg/factory/factory.go` + `pkg/prompts/`, deploy to dev → smoke → prod.
+**Approach**: scaffold `bborbe/<NAME>` from the `<SHAPE>` template via `/launch-agent` (interview captured <YYYY-MM-DD>), implement <SHAPE>-specific domain logic in `pkg/factory/factory.go` + `pkg/prompts/`, deploy to dev → smoke → prod.
 
 - **Strategic**: <FROM_INTERVIEW_PART_1_PROBLEM>  <!-- why this agent matters -->
 - **Theme alignment**: Direct enabler of [[Leverage Autonomous Agents]] — agent #N in the production catalog.
@@ -39,7 +39,7 @@ Tags: [[Goal]] [[Agent Hub]]
 
 # Success Criteria
 
-- [ ] `bborbe/agent-<NAME>` exists, builds green on CI
+- [ ] `bborbe/<NAME>` exists, builds green on CI
 - [ ] Domain logic implemented in `pkg/factory/factory.go` + `pkg/prompts/<phase>.md`
 - [ ] Deployed to dev; first task processed end-to-end (scenario 001 green)
 - [ ] Deployed to prod; <SUCCESS_MEASURE_FROM_INTERVIEW_PART_1.4> verified for 1 week
