@@ -29,3 +29,7 @@ reason = "go.etcd.io/bbolt v1.4.3 dep, no fix available"
 [[IgnoredVulns]]
 id = "GHSA-xmrv-pmrh-hhx2"
 reason = "aws-sdk-go-v2 s3/eventstream, upgrade pending"
+
+[[IgnoredVulns]]
+id = "GO-2026-5932"
+reason = "golang.org/x/crypto/openpgp unmaintained, no fix will ship — advisory deprecates the package"

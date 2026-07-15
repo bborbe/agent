@@ -1,0 +1,326 @@
+# agent chart values.
+#
+# Required per install: namespace, image registry/tag, executor.kafkaBrokers.
+# Structural cluster divergence (keel, node affinity, private-registry pull
+# secrets, empty-able topic prefix) is expressed as values so one chart installs
+# on any cluster. Quant sets keel + node affinity + a mirror registry + pull
+# secret; a generic cluster leaves those empty and pulls the public docker.io
+# image directly.
+
+# Namespace the components deploy into. Required (no default — the cluster owns it).
+namespace: ""
+
+# Image coordinates. Default to the public Docker Hub image; a self-sufficient
+# cluster overrides registry to its in-cluster mirror.
+image:
+  registry: docker.io
+  # Repository is per-component; the executor's is set here. registry/repository:tag.
+  pullPolicy: IfNotPresent
+  # Private-registry pull secret(s), e.g. [{name: docker}]. Empty for public docker.io.
+  pullSecrets: []
+
+# keel auto-redeploy annotations (quant polls the registry). Off by default —
+# versioned deploys don't need it; bump image.tag + re-apply instead.
+keel:
+  enabled: false
+  pollSchedule: "@every 1m"
+
+# Node affinity passthrough (quant pins pods to a node_type=<namespace> node).
+# Empty = no affinity (generic clusters). Set the full affinity object here.
+affinity: {}
+
+# Extra pod annotation used by quant to force a rollout (value of RANDOM). Empty = omit.
+rolloutNonce: ""
+
+executor:
+  enabled: true
+  image:
+    repository: bborbe/agent-task-executor
+    # tag defaults to Chart.appVersion when empty.
+    tag: ""
+  logLevel: "2"
+  # Kafka bootstrap brokers. Required.
+  kafkaBrokers: ""
+  # Explicit Kafka topic prefix. Empty = unprefixed (per-stage-cluster / Octopus).
+  # Quant sets "develop" (dev) / "master" (prod).
+  topicPrefix: ""
+  # Stage label forwarded as BRANCH env (non-topic uses: image tag hints, stage filters).
+  branch: ""
+  sentry:
+    # Sentry proxy cluster URL. Optional.
+    proxy: ""
+    # Sentry DSN secret value. When set, the chart creates a Secret; quant resolves
+    # this from teamvault and passes it via --set-string. Leave empty + set
+    # existingSecret to reference a Secret managed outside the chart.
+    dsn: ""
+  # Name of a pre-existing Secret providing key `sentry-dsn`. When set, the chart
+  # does NOT create the Secret and reads SENTRY_DSN from this one.
+  existingSecret: ""
+  # Pod-level securityContext. Empty by default — runAsNonRoot/runAsUser/fsGroup
+  # depend on what the image supports, so clusters opt in (e.g. runAsNonRoot: true,
+  # runAsUser: 65534, fsGroup: 65534).
+  podSecurityContext: {}
+  # Container-level securityContext. Safe hardening defaults that don't depend on
+  # the image's user; override as needed.
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop: [ALL]
+    seccompProfile:
+      type: RuntimeDefault
+  resources:
+    requests:
+      cpu: 20m
+      memory: 20Mi
+    limits:
+      cpu: 500m
+      memory: 50Mi
+  # Strimzi KafkaUser + mTLS client-cert mounts for the executor. Off by default
+  # → plaintext Kafka, no KafkaUser, no cert volumes (quant). When enabled the
+  # chart emits a KafkaUser CR (type: tls) in strimziNamespace AND mounts the
+  # client cert/key + cluster CA at the fixed paths /client-cert/file,
+  # /client-key/file, /server-cert/file that github.com/bborbe/kafka reads when
+  # kafkaBrokers uses the tls:// scheme. Set kafkaBrokers to tls://…:9093 too.
+  # The chart references the secrets by name only — Strimzi issues the user secret
+  # and an external syncer must place it (+ the CA) into this namespace.
+  kafkaUser:
+    enabled: false
+    # Strimzi Kafka CR name (KafkaUser label) + the operator's namespace.
+    cluster: my-cluster
+    strimziNamespace: strimzi
+    # KafkaUser CR name. Empty = derived "<namespace>-agent-task-executor".
+    userName: ""
+    # Secret (in this namespace) holding user.crt/user.key. Empty = same as the
+    # KafkaUser name (Strimzi names the issued secret after the user).
+    clientSecret: ""
+    # Secret (in this namespace) holding the cluster CA as ca.crt.
+    caCertSecret: my-cluster-cluster-ca-cert
+
+# Controllers: values-driven LIST of StatefulSets, each watching one vault's
+# tasks, syncing a git-rest vault, and publishing work to Kafka. Each entry emits
+# an `agent-task-controller-<name>` StatefulSet + Service + Secret. The real quant
+# cluster runs two (openclaw + personal); a generic install adds the controllers
+# it needs. Reuses the shared image.registry / keel / affinity / pullSecrets
+# values; only per-controller coordinates live here. Empty by default so an
+# executor-only install renders no controllers.
+controllers: []
+  # - name: openclaw               # instance name → workload agent-task-controller-<name>
+  #   enabled: true
+  #   image:
+  #     repository: bborbe/agent-task-controller
+  #     tag: ""                     # empty => Chart.appVersion
+  #   logLevel: "2"
+  #   # Vault name this controller drives. Required. Also derives the default
+  #   # GIT_REST_URL (http://vault-obsidian-<vaultName>:9090) when gitRestUrl is empty.
+  #   vaultName: openclaw
+  #   # Explicit git-rest base URL. Empty = derive from vaultName as
+  #   # http://vault-obsidian-<vaultName>:9090.
+  #   # IMPORTANT: that derivation hard-codes the quant service naming convention
+  #   # (a `vault-obsidian-<vault>` Service on port 9090). If your git-rest/Obsidian
+  #   # API Service is named differently the controller will fail to reach it with no
+  #   # install-time warning — set this explicitly on any non-quant cluster.
+  #   gitRestUrl: ""
+  #   # Sub-path inside the vault holding task files. Empty = vault root.
+  #   taskDir: ""
+  #   # Stage label forwarded as BRANCH env. Empty = unset.
+  #   branch: ""
+  #   # Explicit Kafka topic prefix. Empty = unprefixed. Quant sets develop / master.
+  #   topicPrefix: ""
+  #   # Kafka bootstrap brokers. Required. Use tls://…:9093 with kafkaUser below.
+  #   kafkaBrokers: kafka:9092
+  #   # Per-controller Strimzi KafkaUser + mTLS client-cert mounts. Off by default
+  #   # → plaintext, no CR, no cert volumes. When enabled: emits a KafkaUser CR
+  #   # (type: tls) in strimziNamespace AND mounts client cert/key + cluster CA at
+  #   # /client-cert/file, /client-key/file, /server-cert/file. Secrets referenced
+  #   # by name only (Strimzi issues them; an external syncer places them here).
+  #   kafkaUser:
+  #     enabled: false
+  #     cluster: my-cluster
+  #     strimziNamespace: strimzi
+  #     userName: ""       # empty = derived "<namespace>-agent-task-controller-<name>"
+  #     clientSecret: ""   # empty = same as the KafkaUser name
+  #     caCertSecret: my-cluster-cluster-ca-cert
+  #   # Auto-inject a task identifier into created tasks. String "true"/"false".
+  #   autoInjectTaskIdentifier: "false"
+  #   # Vault poll interval. Default 60s.
+  #   pollInterval: "60s"
+  #   # BoltDB persistent volume (volumeClaimTemplates). storageClassName defaults to
+  #   # "" = the cluster's default StorageClass (portable). quant sets "local-path"
+  #   # in its values overlay; that requires the Local Path Provisioner and is
+  #   # single-node oriented — do NOT default it here or multi-node clusters fail to
+  #   # bind the PVC.
+  #   storage:
+  #     size: 1Gi
+  #     storageClassName: ""
+  #   sentry:
+  #     # Sentry proxy cluster URL. Optional.
+  #     proxy: ""
+  #     # Sentry DSN secret value. When set (and existingSecret empty), the chart
+  #     # creates the Secret; quant resolves it from teamvault via --set-string.
+  #     dsn: ""
+  #   # Gateway secret value (key gateway-secret). Same Secret as sentry-dsn.
+  #   gatewaySecret: ""
+  #   # Name of a pre-existing Secret providing keys sentry-dsn + gateway-secret.
+  #   # When set, the chart does NOT create the Secret.
+  #   existingSecret: ""
+  #   # Pod-level securityContext. Empty by default — clusters opt in.
+  #   podSecurityContext: {}
+  #   # Container-level securityContext. Same safe hardening defaults as the executor.
+  #   securityContext:
+  #     allowPrivilegeEscalation: false
+  #     readOnlyRootFilesystem: false
+  #     capabilities:
+  #       drop: [ALL]
+  #     seccompProfile:
+  #       type: RuntimeDefault
+  #   resources:
+  #     requests: {cpu: 20m, memory: 20Mi}
+  #     limits: {cpu: 500m, memory: 50Mi}
+  # - name: personal
+  #   enabled: true
+  #   image:
+  #     repository: bborbe/agent-task-controller
+  #     tag: ""
+  #   logLevel: "2"
+  #   vaultName: personal
+  #   gitRestUrl: ""
+  #   taskDir: ""
+  #   branch: ""
+  #   topicPrefix: ""
+  #   kafkaBrokers: kafka:9092
+  #   autoInjectTaskIdentifier: "false"
+  #   pollInterval: "60s"
+  #   storage:
+  #     size: 1Gi
+  #     storageClassName: ""
+  #   sentry:
+  #     proxy: ""
+  #     dsn: ""
+  #   gatewaySecret: ""
+  #   existingSecret: ""
+  #   podSecurityContext: {}
+  #   securityContext:
+  #     allowPrivilegeEscalation: false
+  #     readOnlyRootFilesystem: false
+  #     capabilities:
+  #       drop: [ALL]
+  #     seccompProfile:
+  #       type: RuntimeDefault
+  #   resources:
+  #     requests: {cpu: 20m, memory: 20Mi}
+  #     limits: {cpu: 500m, memory: 50Mi}
+
+# Leaf agents: values-driven list. Each entry emits a Config CR + Secret + PVC +
+# PriorityClass (cluster-scoped) + ResourceQuota (caps concurrent pods). Empty by
+# default — a base install ships the framework; each cluster adds the agents it
+# runs. Uncomment and copy the example (real agent-claude shape) per agent.
+agents: []
+  # - name: agent-claude          # object name + PriorityClass + PVC + Secret name
+  #   enabled: true
+  #   assignee: claude-agent      # Config.spec.assignee (who claims matching tasks)
+  #   image: bborbe/agent-claude  # repo only; registry from image.registry
+  #   tag: v0.1.1                 # empty => Chart.appVersion
+  #   heartbeat: 5m               # liveness heartbeat interval
+  #   taskTypes: [llm, healthcheck]
+  #   triggerPhases: [planning, execution, ai_review]
+  #   triggerStatuses: [in_progress]
+  #   secretName: agent-claude    # OPTIONAL: Config.spec.secretName. Defaults to
+  #                               # `name`. Set when the existing Secret has a
+  #                               # different name (e.g. agent-backtest-agent → agent-backtest).
+  #   volumeMountPath: /home/claude/.claude   # OPTIONAL. When set → volumeClaim +
+  #                               # PVC are emitted. OMIT entirely for a stateless
+  #                               # agent (no PVC, no volumeClaim) — e.g. a backtest runner.
+  #   volumeClaim: agent-claude   # OPTIONAL: PVC name. Defaults to `name`.
+  #   storageSize: 1Gi            # PVC size (default 1Gi)
+  #   storageClassName: ""        # OPTIONAL PVC class; empty => cluster default (omitted)
+  #   env:                        # plain env injected into the Config
+  #     ALLOWED_TOOLS: WebSearch,WebFetch,Read,Grep
+  #   secretEnv:                  # OPTIONAL: rendered into a per-agent Secret (base64).
+  #                               # OMIT to reference an existing (e.g. teamvault-managed)
+  #                               # Secret via secretName instead of creating one.
+  #     SENTRY_DSN: dummy
+  #     ANTHROPIC_AUTH_TOKEN: dummy
+  #   resources:                  # OPTIONAL — omit for an agent with no resource block
+  #     requests: {cpu: 500m, memory: 1Gi, ephemeral-storage: 2Gi}
+  #     limits: {cpu: 500m, memory: 1Gi, ephemeral-storage: 2Gi}
+  #   priorityValue: 500          # PriorityClass value (default 500)
+  #   concurrency: 1              # max concurrent pods via ResourceQuota (default 1)
+
+# recurring-task-creator: cron-like StatefulSet that reads Schedule CRs and
+# publishes recurring tasks to Kafka. Off by default — only clusters running the
+# recurring pipeline enable it. Reuses shared image.registry / keel / affinity.
+recurringTaskCreator:
+  enabled: false
+  image:
+    repository: bborbe/recurring-task-creator
+    # tag defaults to Chart.appVersion when empty.
+    tag: ""
+  logLevel: "2"
+  # Stage label (STAGE env). Empty = unset.
+  stage: ""
+  # Explicit Kafka topic prefix. Empty = unprefixed.
+  topicPrefix: ""
+  # Kafka bootstrap brokers. Required when enabled.
+  kafkaBrokers: ""
+  # Dry-run mode (string "true"/"false"). "false" = actually publish.
+  dryRun: "false"
+  sentry:
+    # Sentry proxy cluster URL. Optional.
+    proxy: ""
+    # Sentry DSN secret value. When set (and existingSecret empty), chart creates
+    # the Secret providing key sentry-dsn.
+    dsn: ""
+  # Name of a pre-existing Secret providing key sentry-dsn. When set, no Secret
+  # is created.
+  existingSecret: ""
+  # Node affinity override. Empty = fall back to the global .Values.affinity.
+  # recurring-task-creator often pins to a different node pool than the executor/
+  # controllers (e.g. quant: node_type=agent here vs node_type=<stage> globally).
+  affinity: {}
+  # Image pull secret override. Empty = fall back to the global image.pullSecrets.
+  # (quant's recurring uses `docker-quant` while the rest use `docker`.)
+  pullSecrets: []
+  # Pod-level securityContext. fsGroup 65534 (nobody) so the emptyDir /tmp is
+  # group-writable by the non-root user.
+  podSecurityContext:
+    fsGroup: 65534
+  # Container-level securityContext. Hardened + runs strictly as non-root nobody
+  # with a read-only root filesystem (writes only to the /tmp emptyDir).
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 65534
+    capabilities:
+      drop: [ALL]
+    seccompProfile:
+      type: RuntimeDefault
+  resources:
+    requests:
+      cpu: 20m
+      memory: 20Mi
+    limits:
+      cpu: 200m
+      memory: 100Mi
+  # Strimzi KafkaUser for mTLS Kafka auth. Off by default — non-Strimzi clusters
+  # manage Kafka credentials outside the chart. cluster/strimziNamespace are the
+  # Strimzi operator's Kafka CR name + namespace.
+  # NOTE: the KafkaUser is created in `strimziNamespace` (default "strimzi"), NOT
+  # the app namespace — if Strimzi runs elsewhere and this is wrong, the user is
+  # created in the wrong place and mTLS auth silently fails. It also means
+  # `kubectl get kafkausers -n <app-ns>` won't list it; look in strimziNamespace.
+  # When enabled the chart ALSO mounts the client cert/key + cluster CA at the
+  # fixed /client-cert/file, /client-key/file, /server-cert/file paths (set
+  # kafkaBrokers to tls://…:9093). Secrets are referenced by name only.
+  kafkaUser:
+    enabled: false
+    cluster: my-cluster
+    strimziNamespace: strimzi
+    # KafkaUser CR name. Empty = derived "<namespace>-recurring-task-creator".
+    userName: ""
+    # Secret (in this namespace) holding user.crt/user.key. Empty = same as the
+    # KafkaUser name (Strimzi names the issued secret after the user).
+    clientSecret: ""
+    # Secret (in this namespace) holding the cluster CA as ca.crt.
+    caCertSecret: my-cluster-cluster-ca-cert

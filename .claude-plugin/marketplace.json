@@ -1,0 +1,19 @@
+{
+  "name": "agent",
+  "owner": {
+    "name": "Benjamin Borbe"
+  },
+  "metadata": {
+    "description": "/launch-agent slash command — interview-driven scaffolding for the bborbe agent platform",
+    "version": "0.77.1"
+  },
+  "plugins": [
+    {
+      "name": "agent",
+      "description": "/launch-agent slash command — interview-driven scaffolding for the bborbe agent platform",
+      "source": "./",
+      "version": "0.77.1",
+      "strict": true
+    }
+  ]
+}

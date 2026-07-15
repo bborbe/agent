@@ -1,4 +1,0 @@
-export BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD)
-export HOSTNAME ?= $(shell hostname -s)
-export ROOTDIR ?= $(shell git rev-parse --show-toplevel)
-export TEAMVAULT ?= ~/.teamvault.json

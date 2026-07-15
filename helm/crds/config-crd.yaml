@@ -1,0 +1,66 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: configs.agent.benjamin-borbe.de
+spec:
+  group: agent.benjamin-borbe.de
+  names:
+    kind: Config
+    listKind: ConfigList
+    plural: configs
+    singular: config
+    shortNames: [cfg]
+  scope: Namespaced
+  preserveUnknownFields: false
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [assignee, image, heartbeat]
+              x-kubernetes-validations:
+                - rule: "(has(self.taskType) && size(self.taskType) > 0) || (has(self.taskTypes) && size(self.taskTypes) > 0)"
+                  message: "at least one of spec.taskType or spec.taskTypes must be non-empty"
+              properties:
+                assignee: {type: string, minLength: 1}
+                image: {type: string, minLength: 1}
+                heartbeat: {type: string, pattern: "^[0-9]+(s|m|h)$"}
+                taskType: {type: string, pattern: "^[a-z0-9-]+$", maxLength: 63}
+                taskTypes:
+                  type: array
+                  items: {type: string, pattern: "^[a-z0-9-]+$", maxLength: 63}
+                resources:
+                  type: object
+                  properties:
+                    requests:
+                      type: object
+                      properties:
+                        cpu: {type: string}
+                        memory: {type: string}
+                        ephemeral-storage: {type: string}
+                    limits:
+                      type: object
+                      properties:
+                        cpu: {type: string}
+                        memory: {type: string}
+                        ephemeral-storage: {type: string}
+                env:
+                  type: object
+                  additionalProperties: {type: string}
+                secretName: {type: string}
+                volumeClaim: {type: string}
+                volumeMountPath: {type: string}
+                priorityClassName: {type: string, pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"}
+                imagePullSecret: {type: string}
+                zombieSweeperIntervalSeconds: {type: integer, minimum: 10}
+                zombieJobTimeoutSeconds: {type: integer, minimum: 30}
+                trigger:
+                  type: object
+                  properties:
+                    phases: {type: array, items: {type: string}}
+                    statuses: {type: array, items: {type: string}}

@@ -1,0 +1,127 @@
+{{- if .Values.executor.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-task-executor
+  namespace: {{ include "agent.namespace" . }}
+  labels:
+    app: agent-task-executor
+    {{- include "agent.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.keel.enabled }}
+    keel.sh/policy: force
+    keel.sh/trigger: poll
+    keel.sh/match-tag: "true"
+    keel.sh/pollSchedule: {{ .Values.keel.pollSchedule | quote }}
+    {{- end }}
+    {{- with .Values.rolloutNonce }}
+    random: {{ . | quote }}
+    {{- end }}
+spec:
+  replicas: 1
+  progressDeadlineSeconds: 600
+  selector:
+    matchLabels:
+      app: agent-task-executor
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9090"
+        prometheus.io/scheme: http
+        prometheus.io/scrape: "true"
+        {{- with .Values.rolloutNonce }}
+        random: {{ . | quote }}
+        {{- end }}
+      labels:
+        app: agent-task-executor
+    spec:
+      serviceAccountName: agent-task-executor
+      {{- with .Values.executor.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: service
+          image: {{ include "agent.executor.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.executor.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          args:
+            - -v={{ .Values.executor.logLevel }}
+          env:
+            - name: LISTEN
+              value: ':9090'
+            - name: SENTRY_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.executor.existingSecret | default "agent-task-executor" }}
+                  key: sentry-dsn
+            {{- with .Values.executor.sentry.proxy }}
+            - name: SENTRY_PROXY
+              value: {{ . | quote }}
+            {{- end }}
+            - name: BRANCH
+              value: {{ .Values.executor.branch | quote }}
+            - name: TOPIC_PREFIX
+              value: {{ .Values.executor.topicPrefix | quote }}
+            - name: KAFKA_BROKERS
+              value: {{ required "executor.kafkaBrokers is required" .Values.executor.kafkaBrokers | quote }}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{- if .Values.executor.kafkaUser.enabled }}
+            {{- $ku := .Values.executor.kafkaUser }}
+            {{- $userName := $ku.userName | default (printf "%s-agent-task-executor" (include "agent.namespace" .)) }}
+            # mTLS Kafka: the spawned agent Jobs also connect Kafka, so hand the
+            # executor its own client-cert + CA secret names to mount into each Job
+            # (agent-task-executor >= v0.4.0 JOB_KAFKA_* support). Empty when kafkaUser
+            # is disabled → plaintext, spawned Jobs unchanged.
+            - name: JOB_KAFKA_CLIENT_CERT_SECRET
+              value: {{ $ku.clientSecret | default $userName | quote }}
+            - name: JOB_KAFKA_CA_CERT_SECRET
+              value: {{ $ku.caCertSecret | quote }}
+            {{- end }}
+          ports:
+            - containerPort: 9090
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9090
+              scheme: HTTP
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+            successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 9090
+              scheme: HTTP
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.executor.resources | nindent 12 }}
+          {{- if .Values.executor.kafkaUser.enabled }}
+          volumeMounts:
+            {{- include "agent.kafkaCertVolumeMounts" . | nindent 12 }}
+          {{- end }}
+      {{- if .Values.executor.kafkaUser.enabled }}
+      {{- $ku := .Values.executor.kafkaUser }}
+      {{- $userName := $ku.userName | default (printf "%s-agent-task-executor" (include "agent.namespace" .)) }}
+      volumes:
+        {{- include "agent.kafkaCertVolumes" (dict "clientSecret" ($ku.clientSecret | default $userName) "caCertSecret" ($ku.caCertSecret | default "my-cluster-cluster-ca-cert")) | nindent 8 }}
+      {{- end }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

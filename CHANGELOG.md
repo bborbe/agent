@@ -8,6 +8,114 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## v0.77.1
+- suppress no-fix advisory GO-2026-5932 (golang.org/x/crypto/openpgp unmaintained) in govulncheck + osv-scanner so precommit is green
+- launch-agent: flexible repo naming — suggest-with-override (`<slug>-agent` / `github-<slug>-agent` for GitHub-triggered, freely overridable) instead of forcing `bborbe/agent-<name>`; aligns with the post-split fleet convention (github-pr-review-agent, github-releaser-agent)
+
+## v0.77.0
+
+- helm: when `executor.kafkaUser.enabled`, pass the executor's own client-cert + CA secret names to the executor as `JOB_KAFKA_CLIENT_CERT_SECRET` / `JOB_KAFKA_CA_CERT_SECRET` env, so it mounts mTLS Kafka certs into the per-task agent Jobs it spawns (agent-task-executor ≥ v0.4.0). Fixes spawned agent Jobs (pr-reviewer, github-releaser) crashing on `open /client-cert/file: no such file` against mTLS Kafka. Default off (`kafkaUser` disabled) → no env, spawned Jobs unchanged. Chart 0.4.1 → 0.5.0.
+- chore: bump Go 1.26.4 → 1.26.5 to clear stdlib advisory GO-2026-5856 (blocks precommit/CI).
+
+## v0.76.1
+
+- helm: harden mTLS cert volume `defaultMode` `420` (0644) → `288` (0440) — drops world-read on the mounted client key while keeping group-read so a non-root pod (`runAsUser`+`fsGroup`) can still read it (`0400` would deny it). Chart 0.4.0 → 0.4.1. Matches the `bborbe/maintainer` chart fix.
+
+## v0.76.0
+
+- helm: optional mTLS Kafka support (default off) for executor, controllers, and recurring-task-creator. When `<component>.kafkaUser.enabled: true` the chart emits a Strimzi `KafkaUser` CR (`type: tls`) in `strimziNamespace` AND mounts the client cert/key + cluster CA at the fixed `/client-cert/file`, `/client-key/file`, `/server-cert/file` paths that `github.com/bborbe/kafka` reads for `tls://` brokers. New per-component values `kafkaUser.{userName,clientSecret,caCertSecret}` (secrets referenced by name only — Strimzi issues them, an external syncer places them in the app namespace). Default renders byte-identical to before → plaintext clusters (quant) unaffected. Adds executor + controller `KafkaUser` templates and the cert mount recurring-task-creator previously lacked. Chart 0.3.1 → 0.4.0. Unblocks the Octopus per-stage-Strimzi (mTLS) deploy.
+
+## v0.75.1
+
+- helm(controller): default `controllers[].logLevel` to `"2"` so a controller entry that omits it renders `-v=2` instead of the empty `-v=` that glog rejects (which crashlooped the pod printing usage). Matches the executor's existing default. Chart 0.3.0 → 0.3.1.
+- chore(deps): bump bborbe/* libs (collection, cqrs, errors, kafka, log, metrics, time, validation, vault-cli, http, k8s, kv, math, parse, run, sentry, strimzi)
+- chore(deps): bump go-openapi/swag, klauspost/compress, prometheus/procfs, k8s.io/kube-openapi, k8s.io/utils
+
+## v0.75.0
+- BREAKING(helm): replace the single `controller:` values block with a `controllers:` list so multiple per-vault controllers (e.g. openclaw + personal) install from one release; each entry renders `agent-task-controller-<name>` StatefulSet + Service + Secret. Chart 0.2.0 → 0.3.0.
+  - **Migration (0.2.0 → 0.3.0):** `controllers:` defaults to `[]` (empty), so an existing install that set `controller.enabled: true` renders ZERO controllers until migrated. Move the old block into a one-item list and add a `name`:
+    ```yaml
+    # before (0.2.0)          # after (0.3.0)
+    controller:               controllers:
+      enabled: true             - name: main        # NEW: names the objects
+      vaultName: myvault          enabled: true
+      kafkaBrokers: ...           vaultName: myvault
+      ...                         kafkaBrokers: ...
+                                  ...
+    ```
+  - **Object rename:** the StatefulSet/Service/Secret/ServiceAccount are now `agent-task-controller-<name>` (were `agent-task-controller`). External RBAC, NetworkPolicies, or tooling that referenced the old fixed name must be updated to the new per-name form. On the quant crossover use `--take-ownership`; the old kubectl-managed objects already carry per-vault names so no rename is needed there.
+- helm(agents): make per-agent `volumeMountPath`/`volumeClaim`/PVC and `resources` optional (a stateless agent that declares no `volumeMountPath` gets no PVC), and add an optional `secretName` override (for agents whose existing Secret name differs from the agent name). Lets a cluster reference existing (e.g. teamvault-managed) Secrets by leaving `secretEnv` empty.
+- helm(recurring-task-creator): add `recurringTaskCreator.affinity` and `recurringTaskCreator.pullSecrets` overrides (fall back to the globals) — recurring often pins a different node pool / pull secret than the executor + controllers.
+
+## v0.74.1
+- Add `helm/README.md`: third-party install guide — prerequisites, `helm install` from the OCI registry, full values reference, a "generic cluster" divergence section (no keel/mirror/TeamVault/Strimzi), and the two-chart (core + maintainer) story.
+
+## v0.74.0
+- Extend the Helm chart beyond the executor: add the agent-task-controller StatefulSet (+ Service + Secret), the values-driven leaf agents (`agents` list → Config CR + Secret + PVC + PriorityClass + ResourceQuota per agent), and the optional recurring-task-creator StatefulSet (+ RBAC + Service + Secret + double-gated Strimzi KafkaUser).
+- Ship the `configs.agent.benjamin-borbe.de` CRD via `crds/` so leaf Config CRs apply on first install (the executor keeps the schema current at runtime).
+- Add `agent.controller.image`, `agent.recurringTaskCreator.image`, and `agent.controller.gitRestUrl` helpers; expand `values.yaml` with `controller`, `agents`, and `recurringTaskCreator` blocks (public docker.io defaults, per-cluster overrides).
+- Bump chart version 0.1.0 → 0.2.0.
+- Reusability hardening (review): default `controller.storage.storageClassName` to `""` and omit the field when empty so the cluster's default StorageClass is used (explicit `""` would disable dynamic provisioning) — `local-path` is now a quant-overlay-only choice; document the `gitRestUrl` `vault-obsidian-<vault>:9090` naming assumption and the KafkaUser `strimziNamespace` placement/debugging caveats.
+
+## v0.73.0
+
+- feat: add `helm/` chart (`agent`) — first component is the
+  agent-task-executor Deployment + SA + RBAC + Service + Secret, templated with
+  values for image registry/tag, namespace, kafka brokers, empty-able topic
+  prefix, keel annotations, node affinity, and private-registry pull secrets, so
+  one chart installs on quant (mirror + keel) or a generic cluster (public
+  docker.io). Consumed via a keel-pattern values dir in the quant config repo.
+  First slice of the reusable two-chart architecture (see agent-task-executor
+  publish-only convergence).
+
+## v0.72.0
+
+**Adopt cqrs v0.6.0 explicit `TopicPrefix` — quant/prod topic names unchanged.**
+
+- feat: Bump `github.com/bborbe/cqrs` v0.5.2 → v0.6.0 — topic construction now takes an explicit `base.TopicPrefix` (empty = unprefixed) instead of `base.Branch`
+- BREAKING: `delivery.NewKafkaResultDeliverer` param `branch base.Branch` → `topicPrefix base.TopicPrefix`; callers preserving legacy names pass `base.TopicPrefixFromBranch(branch)`
+- test: Freeze golden `agent-task-v1` topic names — `develop-`/`master-` prefixes byte-identical across the bump; empty-prefix Octopus names (`agent-task-v1-*`) locked
+
+## v0.71.0
+
+**Repo becomes dual-purpose: SDK + Claude Code plugin.**
+
+- feat: Publish `.claude-plugin/plugin.json` + `marketplace.json` — install via `claude plugin marketplace add bborbe/agent && claude plugin install agent`
+- feat: Add `commands/launch-agent.md` — `/launch-agent <name>` slash command for interview-driven scaffolding of new agents
+- feat: Add `agents/agent-shape-picker.md` — Sonnet subagent that classifies a use case into one of the 4 reference shapes (claude/code/gemini/pi) with reasoning
+- feat: Add `skills/launch-agent/SKILL.md` — 8-phase workflow orchestrator (interview → shape pick → `gh repo create --template` → customize clone → render Config CRD → write vault artifacts → commit/push → deploy checklist)
+- feat: Add `skills/launch-agent/references/` — 7 reference files: `shapes.md` (decision matrix), `interview.md` (~45-Q conversational script covering all 8 parts of the Agent Design Guide), 4 output templates (`config-crd-template.yaml`, `vault-page-template.md`, `goal-template.md`, `scenario-template.md`), and `next-directions-template.md` (v0/v1/v2/v3 deferred-not-cut structure mirroring Anthropic's launch-your-agent NEXT-DIRECTIONS pattern)
+- test: Add `scenarios/001-launch-agent-happy-path.md` — end-to-end smoke test (manual walkthrough; verify steps are scriptable)
+- docs: Update README for dual-purpose — Quick start (install + first scaffold) + Plugin layout table
+
+Mirrors `anthropics/launch-your-agent` shape: one repo carries both the primitives (SDK here / `cma-primitives.md` there) and the plugin that scaffolds consumers of those primitives.
+
+## v0.70.0
+
+**BREAKING — repo restructure: SDK promoted from `lib/` to repo root; module identity changed.**
+
+- Module: `github.com/bborbe/agent/lib` → `github.com/bborbe/agent` (flat — no `/lib/` in import path)
+- Repo shape: was monorepo with `lib/` (SDK) + `agent/{claude,code,gemini,pi}/` (4 reference agents as Go sub-modules) + `task/{controller,executor}/` (2 services as Go sub-modules); now just the SDK at root
+- All 6 extracted to standalone repos: `bborbe/agent-claude`, `bborbe/agent-code`, `bborbe/agent-gemini`, `bborbe/agent-pi`, `bborbe/agent-task-controller`, `bborbe/agent-task-executor`
+- Per-service docs moved to their new repos: `controller-design.md`, `job-creator-design.md`, `task-service-design.md`, 4 result-writeback scenarios → `bborbe/agent-task-controller`; `agent-crd-specification.md` → `bborbe/agent-task-executor`; `creating-claude-agents.md` → `bborbe/agent-claude`
+- Deleted monorepo-shared Makefiles + env files (served the extracted services): `Makefile`, `Makefile.{docker,env,folder,k8s,precommit,variables}`, `common.env`, `dev.env`, `prod.env`
+- Deleted `scripts/buca-all.sh` (meta-runner for monorepo services; each new repo has own buca now)
+- Kept dark-factory artifacts (`prompts/`, `specs/`) as monorepo archaeology — too many to split cleanly
+
+### Migration
+
+For consumers importing `github.com/bborbe/agent/lib/X`:
+
+1. **go.mod** — bump to `github.com/bborbe/agent v0.70.0`
+2. **imports** — rewrite `github.com/bborbe/agent/lib/X` → `github.com/bborbe/agent/X` across all `*.go` files:
+   ```
+   find . -name '*.go' -exec sed -i '' 's|github.com/bborbe/agent/lib|github.com/bborbe/agent|g' {} +
+   ```
+3. **vendor + tidy** — `rm go.sum && go mod tidy` (forces fresh resolution of the new module path)
+4. **verify** — `go build ./... && go test ./...`
+
+The old import path `github.com/bborbe/agent/lib v0.69.0` (and earlier) continues to resolve via historical tags for any consumer not yet migrated — no rush, but the SDK now ships only at the new path.
+
 ## v0.69.0
 
 - feat: export ErrTaskAlreadyExists sentinel from lib/command/task so cross-repo callers can match filename-collision results via errors.Is

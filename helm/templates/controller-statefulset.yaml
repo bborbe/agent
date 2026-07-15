@@ -1,0 +1,157 @@
+{{- range $c := .Values.controllers }}
+{{- if $c.enabled }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: agent-task-controller-{{ $c.name }}
+  namespace: {{ include "agent.namespace" $ }}
+  labels:
+    app: agent-task-controller-{{ $c.name }}
+    {{- include "agent.labels" $ | nindent 4 }}
+  annotations:
+    {{- if $.Values.keel.enabled }}
+    keel.sh/policy: force
+    keel.sh/trigger: poll
+    keel.sh/match-tag: "true"
+    keel.sh/pollSchedule: {{ $.Values.keel.pollSchedule | quote }}
+    {{- end }}
+    {{- with $.Values.rolloutNonce }}
+    random: {{ . | quote }}
+    {{- end }}
+spec:
+  replicas: 1
+  serviceName: agent-task-controller-{{ $c.name }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: agent-task-controller-{{ $c.name }}
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9090"
+        prometheus.io/scheme: http
+        prometheus.io/scrape: "true"
+        {{- with $.Values.rolloutNonce }}
+        random: {{ . | quote }}
+        {{- end }}
+      labels:
+        app: agent-task-controller-{{ $c.name }}
+    spec:
+      {{- with $c.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: service
+          image: {{ printf "%s/%s:%s" $.Values.image.registry (($c.image | default dict).repository | default "bborbe/agent-task-controller") (($c.image | default dict).tag | default $.Chart.AppVersion) | quote }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          {{- with $c.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          args:
+            - -v={{ $c.logLevel | default "2" }}
+          env:
+            - name: LISTEN
+              value: ':9090'
+            - name: SENTRY_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $c.existingSecret | default (printf "agent-task-controller-%s" $c.name) }}
+                  key: sentry-dsn
+            - name: GATEWAY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $c.existingSecret | default (printf "agent-task-controller-%s" $c.name) }}
+                  key: gateway-secret
+            {{- with ($c.sentry | default dict).proxy }}
+            - name: SENTRY_PROXY
+              value: {{ . | quote }}
+            {{- end }}
+            - name: BRANCH
+              value: {{ $c.branch | quote }}
+            - name: TOPIC_PREFIX
+              value: {{ $c.topicPrefix | quote }}
+            - name: KAFKA_BROKERS
+              value: {{ required "controllers[].kafkaBrokers is required" $c.kafkaBrokers | quote }}
+            # GIT_REST_URL: explicit controllers[].gitRestUrl wins; otherwise
+            # derived as http://vault-obsidian-<vaultName>:9090 — a quant service
+            # naming convention. On any cluster whose git-rest Service is named
+            # differently, set controllers[].gitRestUrl explicitly (see values.yaml).
+            - name: GIT_REST_URL
+              value: {{ $c.gitRestUrl | default (printf "http://vault-obsidian-%s:9090" (required "controllers[].vaultName is required" $c.vaultName)) | quote }}
+            - name: VAULT_NAME
+              value: {{ required "controllers[].vaultName is required" $c.vaultName | quote }}
+            - name: POLL_INTERVAL
+              value: {{ $c.pollInterval | default "60s" | quote }}
+            - name: TASK_DIR
+              value: {{ $c.taskDir | quote }}
+            - name: DATA_DIR
+              value: '/data/bolt'
+            - name: NO_SYNC
+              value: "false"
+            - name: AUTO_INJECT_TASK_IDENTIFIER
+              value: {{ $c.autoInjectTaskIdentifier | quote }}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - containerPort: 9090
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9090
+              scheme: HTTP
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+            successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 9090
+              scheme: HTTP
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml $c.resources | nindent 12 }}
+          volumeMounts:
+            - name: datadir
+              mountPath: /data
+            {{- if (($c.kafkaUser | default dict).enabled) }}
+            {{- include "agent.kafkaCertVolumeMounts" $ | nindent 12 }}
+            {{- end }}
+      {{- if (($c.kafkaUser | default dict).enabled) }}
+      {{- $ku := $c.kafkaUser }}
+      {{- $userName := $ku.userName | default (printf "%s-agent-task-controller-%s" (include "agent.namespace" $) $c.name) }}
+      volumes:
+        {{- include "agent.kafkaCertVolumes" (dict "clientSecret" ($ku.clientSecret | default $userName) "caCertSecret" ($ku.caCertSecret | default "my-cluster-cluster-ca-cert")) | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: datadir
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with ($c.storage | default dict).storageClassName }}
+        # Omitted when empty so the cluster's DEFAULT StorageClass is used;
+        # an explicit "" would instead disable dynamic provisioning.
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ ($c.storage | default dict).size | default "1Gi" }}
+{{- end }}
+{{- end }}

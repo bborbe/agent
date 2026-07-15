@@ -1,0 +1,22 @@
+{{- range $c := .Values.controllers }}
+{{- if $c.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-task-controller-{{ $c.name }}
+  namespace: {{ include "agent.namespace" $ }}
+  labels:
+    app: agent-task-controller-{{ $c.name }}
+    {{- include "agent.labels" $ | nindent 4 }}
+  annotations:
+    admin/port: '9090'
+    admin/path: ''
+spec:
+  ports:
+    - name: http
+      port: 9090
+  selector:
+    app: agent-task-controller-{{ $c.name }}
+{{- end }}
+{{- end }}

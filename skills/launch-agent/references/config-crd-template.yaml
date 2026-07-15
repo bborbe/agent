@@ -1,0 +1,39 @@
+# Config CRD instance for a new agent. Apply with:
+#   kubectlquant -n <namespace> apply -f k8s/<name>-config.yaml
+#
+# Renders from `/launch-agent` interview answers. Placeholders are <ANGLE_BRACKETED> — replace
+# during scaffolding; do NOT leave any in the final output.
+
+apiVersion: agent.benjamin-borbe.de/v1
+kind: Config
+metadata:
+  name: <NAME>                     # kebab-case, matches assignee field
+  namespace: <NAMESPACE>           # dev | prod (typically rolled out to dev first)
+spec:
+  assignee: <NAME>                 # task frontmatter `assignee: <NAME>` routes here
+  image: docker.quant.benjamin-borbe.de:443/<NAME>:<BRANCH>
+  heartbeat: 15m                   # re-spawn interval for in_progress tasks; raise for long-running phases
+
+  # task_type values this agent handles (from interview Part 4)
+  taskTypes:
+    - <NAME>                       # canonical task type
+    - healthcheck                  # always include for liveness probe
+
+  # k8s resources (from interview Part 6.2)
+  resources:
+    cpu: <CPU>                     # e.g. 250m / 500m / 1000m
+    memory: <MEM>                  # e.g. 256Mi / 512Mi / 1Gi
+
+  # env vars exposed to the Job's main container
+  env:
+    ALLOWED_TOOLS: "<TOOL_LIST>"   # e.g. "Bash,Read,Edit,Grep"
+    LOGLEVEL: "2"
+    # Domain-specific env vars from interview Part 5 (Inputs):
+    # <KEY>: "<VALUE_OR_TEAMVAULT_LOOKUP_KEY>"
+
+  # k8s Secret containing teamvault-resolved creds (from interview Part 7.3)
+  secretName: <NAME>         # see k8s/<NAME>-secret.yaml for the teamvault references
+
+  # PVC for persistent per-agent state (Claude OAuth, memory, etc.). Omit if stateless.
+  volumeClaim: <PVC_NAME>          # e.g. <NAME>-claude-oauth; remove block if none
+  volumeMountPath: /home/claude/.claude
