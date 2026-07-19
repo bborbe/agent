@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- Bump `golang.org/x/text` to v0.39.0 (CVE-2026-56852)
+
 ## v0.77.1
 - suppress no-fix advisory GO-2026-5932 (golang.org/x/crypto/openpgp unmaintained) in govulncheck + osv-scanner so precommit is green
 - launch-agent: flexible repo naming — suggest-with-override (`<slug>-agent` / `github-<slug>-agent` for GitHub-triggered, freely overridable) instead of forcing `bborbe/agent-<name>`; aligns with the post-split fleet convention (github-pr-review-agent, github-releaser-agent)
