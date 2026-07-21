@@ -18,11 +18,11 @@ Conversational walk through the [[Agent Design Guide]]'s 8 parts. Use `AskUserQu
 1. **Role** (open): What does the agent do? (short kebab-able label, e.g. `dark-factory`, `pr-review`)
 2. **Repo name** (suggest-with-override, per SKILL.md § naming): normalize the role to a slug, strip any trailing `-agent`, **suggest** `<core>-agent`, and let the user overwrite with any valid repo name (e.g. `github-dark-factory-agent` — `github-` repo prefix is valid). The chosen value is `<name>` = `bborbe/<name>`. No forced `agent-` prefix, no double `-agent`.
 3. **Purpose statement** (open): 1-2 sentence purpose for the README and Config CRD description.
-4. **Runtime tier** (`AskUserQuestion`): Which provider/cost tier?
-   - Anthropic Max subscription (Claude Code, included quota)
-   - Sonnet API (pay-per-token)
-   - Local Qwen (on-cluster, no external API)
-   - MiniMax (cheap, Tier-D quality)
+4. **Runtime tier** (`AskUserQuestion`): Which provider/cost tier? **Default = MiniMax** (the fleet standard — stateless token auth, no PVC; see §7.2c). All non-Max tiers render the stateless `ANTHROPIC_AUTH_TOKEN` Secret + `ANTHROPIC_BASE_URL`/`ANTHROPIC_MODEL` env block. Only the Max tier adds the OAuth-PVC exception (interactive `claude login` seeding + refresh runbook + oauth-probe — flag this cost when the user picks it).
+   - MiniMax (cheap, Tier-D quality) — **recommended default; stateless token**
+   - Sonnet API (pay-per-token) — stateless token, stronger judgment/repair
+   - Local Qwen (on-cluster, no external API) — stateless token
+   - Anthropic Max subscription (Claude Code, included quota) — **OAuth-PVC exception**; adds seeding + runbook + probe overhead
 5. **Domain & repo** (silent): `bborbe/<name>` (the chosen basename); document where the new repo lives.
 
 → Confirm: "Captured: <name> on <runtime tier>. Proceed?"
@@ -91,7 +91,8 @@ Conversational walk through the [[Agent Design Guide]]'s 8 parts. Use `AskUserQu
    - Yes, for writes only (read-only autonomous, write gated)
    - Yes, for all actions (advisory only, never executes)
 2. **Error handling per class** (open): for each failure mode (transient infra, semantic error, rate limit, missing dependency), what's the response?
-3. **Security boundaries** (open): what secrets does the agent need? (teamvault keys, OAuth tokens) — list the teamvault key names (NOT raw secrets).
+3. **Security boundaries** (open): what secrets does the agent need? (teamvault keys — list key names, NOT raw secrets). Render the Secret per [[Agent Design Guide]] §7.2c: `ANTHROPIC_AUTH_TOKEN` (inline TeamVault ID `MOPmQL` for the shared MiniMax token — inline because it's the same across stages) + `SENTRY_DSN` + any domain creds. Use env-indirection (`{{ "MY_KEY" | env | ... }}` + `dev.env`/`prod.env`) ONLY for IDs that differ per stage.
+   - **If the agent touches GitHub** (`AskUserQuestion` — GitHub-integrating?): it authenticates as a **GitHub App, never a PAT** (§7.2a). Create a per-stage App PAIR now: prod = `Ben's <Role>`, dev = `Ben's <Role> Dev` (plain ` Dev` suffix, NOT `[Dev]`). Least-privilege per the §7.2a permission table (watcher = read-only; agent that pushes = Contents R/W + PR R/W, no Workflows). Capture per App: App ID + Installation ID (public — go in CR env), PEM → TeamVault (per-stage ID → env-indirection in the Secret). Note the App pair in NEXT-DIRECTIONS so the deploy checklist reminds the operator to install dev→canary / prod→bborbe/*.
 4. **Assumptions** (open): what does the agent assume about its environment that must remain true? (Kafka topic exists, vault is mounted RW, git-rest is reachable, etc.)
 5. **Data privacy** (open): does the agent read/write any PII or sensitive data? If yes, where does it land?
 

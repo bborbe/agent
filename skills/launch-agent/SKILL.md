@@ -276,7 +276,7 @@ In all cases, report the failing precommit output verbatim in the halt message s
 - `references/shapes.md` — shape decision matrix
 - `references/interview.md` — 45-Q script
 - `references/{config-crd,vault-page,goal,scenario,next-directions}-template.{yaml,md}` — output templates
-- [[Agent Design Guide]] — full 45-Q checklist (source of truth)
+- [[Agent Design Guide]] — full 45-Q checklist (source of truth); esp. §7.2a (GitHub App naming `Ben's <Role>` / `Ben's <Role> Dev`, per-stage least-privilege) + §7.2c (fleet LLM auth = stateless `ANTHROPIC_AUTH_TOKEN` Secret, NOT an OAuth PVC) — the two conventions the scaffold defaults must honor
 - [[Quick-Launch New Agents]] — parent goal
 - [[Claude Managed Agents - Ideas for bborbe Framework]] — architectural rationale + interview-first pattern
 - `anthropics/launch-your-agent` — Anthropic's analogous skill (different runtime, same shape)
