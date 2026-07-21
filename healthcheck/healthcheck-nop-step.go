@@ -27,7 +27,10 @@ func (s *nopStep) ShouldRun(_ context.Context, _ *agentlib.Markdown) (bool, erro
 
 func (s *nopStep) Run(_ context.Context, _ *agentlib.Markdown) (*agentlib.Result, error) {
 	return &agentlib.Result{
-		Status:  agentlib.AgentStatusDone,
-		Message: "ok",
+		Status: agentlib.AgentStatusDone,
+		// Explicit terminal phase: Done with empty NextPhase is an in-place save
+		// (stay in current phase) — healthcheck tasks must actually complete.
+		NextPhase: "done",
+		Message:   "ok",
 	}, nil
 }

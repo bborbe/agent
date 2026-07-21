@@ -139,10 +139,21 @@ func (d *kafkaResultDeliverer) DeliverResult(
 	// max_triggers, not a phase loop.
 	switch result.Status {
 	case agentlib.AgentStatusDone:
+		if result.NextPhase == "" {
+			// Done without NextPhase is an in-place save (see agentlib.Result.NextPhase:
+			// "Empty means stay in current phase"): keep status: in_progress and preserve
+			// the phase from incoming frontmatter (already copied from fmMap above) —
+			// exactly like the AgentStatusInProgress branch. Terminating a task requires
+			// an explicit NextPhase: "done". Without this, mid-phase saves from
+			// Done+ContinueToNext preflight steps marked live tasks completed.
+			frontmatter["status"] = "in_progress"
+			// phase intentionally not modified — preserves incoming phase
+			break
+		}
 		resolvedPhase := resolveNextPhase(d.taskID, result.NextPhase)
 		frontmatter["phase"] = resolvedPhase
 		// Only mark the task completed when the resolved phase is terminal (done).
-		// Requested transitions to planning/in_progress/ai_review/human_review keep
+		// Requested transitions to planning/execution/ai_review/human_review keep
 		// the task at status: in_progress so the controller re-triggers on the
 		// new phase. Without this, multi-phase agents stall after their first phase.
 		if resolvedPhase == "done" {
@@ -207,17 +218,15 @@ func (d *kafkaResultDeliverer) DeliverResult(
 	return nil
 }
 
-// resolveNextPhase returns the validated phase string for a done agent result.
-// An empty NextPhase defaults to "done" (existing behavior). An invalid value
-// is logged with task-id context and also falls back to "done" — we never refuse
-// to write a result just because the agent requested a bogus phase.
+// resolveNextPhase returns the validated phase string for a done agent result
+// with a non-empty requested NextPhase (empty NextPhase is an in-place save and
+// never reaches this function). An invalid value is logged with task-id context
+// and falls back to "done" — we never refuse to write a result just because the
+// agent requested a bogus phase.
 func resolveNextPhase(
 	taskID agentlib.TaskIdentifier,
 	requested string,
 ) string {
-	if requested == "" {
-		return "done"
-	}
 	canonical, ok := domain.NormalizeTaskPhase(requested)
 	if !ok {
 		glog.Warningf("task %s: ignoring invalid NextPhase %q: unknown phase", taskID, requested)

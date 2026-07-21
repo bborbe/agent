@@ -27,18 +27,54 @@ var _ = Describe("FallbackContentGenerator", func() {
 	})
 
 	Context("with frontmatter and body", func() {
-		It("sets status=completed and phase=done for done result", func() {
+		It("sets status=completed and phase=done for done result with NextPhase=done", func() {
 			original := "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Task\n\nRun a backtest.\n"
 			result := agentlib.AgentResultInfo{
-				Status: agentlib.AgentStatusDone,
-				Output: "## Result\n\n- Strategy: foo\n",
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "done",
+				Output:    "## Result\n\n- Strategy: foo\n",
 			}
 			generated, err := generator.Generate(ctx, original, result)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(generated).To(ContainSubstring("status: completed"))
+			Expect(generated).To(ContainSubstring("phase: done"))
 			Expect(generated).To(ContainSubstring("## Result"))
 			Expect(generated).To(ContainSubstring("Strategy: foo"))
 		})
+
+		It(
+			"treats done result with empty NextPhase as in-place save (status in_progress, phase preserved)",
+			func() {
+				original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\n---\n\n## Task\n\nRun a backtest.\n"
+				result := agentlib.AgentResultInfo{
+					Status: agentlib.AgentStatusDone,
+					Output: "## Result\n\n- Strategy: foo\n",
+				}
+				generated, err := generator.Generate(ctx, original, result)
+				Expect(err).NotTo(HaveOccurred())
+				fm, _ := delivery.ParseMarkdownFrontmatter(generated)
+				Expect(fm["status"]).To(Equal("in_progress"))
+				Expect(fm["phase"]).To(Equal("planning"))
+				Expect(fm["phase"]).NotTo(Equal("done"))
+			},
+		)
+
+		It(
+			"sets phase=execution and status=in_progress for done result with NextPhase=execution",
+			func() {
+				original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\n---\n\n## Task\n\nRun a backtest.\n"
+				result := agentlib.AgentResultInfo{
+					Status:    agentlib.AgentStatusDone,
+					NextPhase: "execution",
+					Output:    "## Result\n\n- Strategy: foo\n",
+				}
+				generated, err := generator.Generate(ctx, original, result)
+				Expect(err).NotTo(HaveOccurred())
+				fm, _ := delivery.ParseMarkdownFrontmatter(generated)
+				Expect(fm["status"]).To(Equal("in_progress"))
+				Expect(fm["phase"]).To(Equal("execution"))
+			},
+		)
 
 		It(
 			"sets status=in_progress, clears assignee, preserves phase for failed result with ## Failure section",
@@ -317,17 +353,35 @@ var _ = Describe("PassthroughContentGenerator", func() {
 	})
 
 	It(
-		"returns result.Output verbatim with status=completed frontmatter on AgentStatusDone",
+		"returns result.Output verbatim with status=completed frontmatter on AgentStatusDone with NextPhase=done",
 		func() {
 			result := agentlib.AgentResultInfo{
-				Status: agentlib.AgentStatusDone,
-				Output: "---\ntitle: My Task\n---\n\n## Review\n\nLooks good.\n",
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "done",
+				Output:    "---\ntitle: My Task\n---\n\n## Review\n\nLooks good.\n",
 			}
 			generated, err := generator.Generate(ctx, "", result)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(generated).To(ContainSubstring("status: completed"))
 			Expect(generated).To(ContainSubstring("## Review"))
 			Expect(generated).To(ContainSubstring("Looks good."))
+			Expect(generated).NotTo(ContainSubstring("## Failure"))
+		},
+	)
+
+	It(
+		"treats AgentStatusDone with empty NextPhase as in-place save (status in_progress, phase preserved)",
+		func() {
+			result := agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusDone,
+				Output: "---\ntitle: My Task\nstatus: in_progress\nphase: planning\n---\n\n## Review\n\nDraft.\n",
+			}
+			generated, err := generator.Generate(ctx, "", result)
+			Expect(err).NotTo(HaveOccurred())
+			fm, _ := delivery.ParseMarkdownFrontmatter(generated)
+			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["phase"]).To(Equal("planning"))
+			Expect(fm["phase"]).NotTo(Equal("done"))
 			Expect(generated).NotTo(ContainSubstring("## Failure"))
 		},
 	)

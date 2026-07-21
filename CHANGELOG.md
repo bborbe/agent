@@ -8,6 +8,12 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- deliverer: `AgentStatusDone` with empty `NextPhase` is now an in-place save (`status: in_progress`, phase preserved) instead of terminating the task (`phase: done`, `status: completed`) — enforces the documented `Result.NextPhase` contract ("Empty means stay in current phase"). Fixes multi-step agents whose Done+ContinueToNext preflight steps marked live tasks completed mid-run (observed: github-update-go-agent planning preflight republish, ~13 min false-completed window). Applies to both the Kafka deliverer and the content generators (`applyStatusFrontmatter`), which previously clobbered phase to `done` unconditionally.
+- **Semantic change (minor bump):** steps that relied on the empty→`done` fallback to complete tasks must now return an explicit `NextPhase: "done"`. In-repo call sites updated: all four `healthcheck` steps (claude, gemini, nop, pi) now emit `NextPhase: "done"`. Config-driven steps (`claude.NewAgentStep`, `pi.NewStep`, `agentlib.NewParseStep`) and single-shot LLM results (`claude.TaskRunner` JSON without `next_phase`) inherit the new semantics — terminal steps must configure/emit `next_phase: "done"` explicitly.
+- `AgentResultInfo` gains `ContinueToNext` (forwarded from `Result.ContinueToNext` by `StepRunner`), so deliverers can distinguish mid-run preflight saves.
+
 ## v0.78.0
 
 - launch-agent: default new agents to stateless LLM token auth (Agent Design Guide §7.2c) instead of the OAuth-PVC shape; interview Part 2 runtime tier + Part 7 security now cover GitHub App naming (§7.2a) and per-stage App pairs; config-crd-template demotes the PVC to an opt-in exception
