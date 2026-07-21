@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.78.0
 
 - launch-agent: default new agents to stateless LLM token auth (Agent Design Guide §7.2c) instead of the OAuth-PVC shape; interview Part 2 runtime tier + Part 7 security now cover GitHub App naming (§7.2a) and per-stage App pairs; config-crd-template demotes the PVC to an opt-in exception
 
