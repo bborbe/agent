@@ -135,7 +135,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			nil,
 		)
 		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
-			Status: agentlib.AgentStatusDone,
+			Status:    agentlib.AgentStatusDone,
+			NextPhase: "done",
 		})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
@@ -195,14 +196,63 @@ var _ = Describe("KafkaResultDeliverer", func() {
 		},
 	)
 
-	It("sets phase=done when done result has empty NextPhase", func() {
+	It(
+		"treats done result with empty NextPhase as in-place save (phase preserved, status in_progress)",
+		func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+			Expect(ok).To(BeTrue())
+			fm, ok := frontmatter.(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			// Empty NextPhase means "stay in current phase" (agentlib.Result contract) —
+			// never terminal. Regression: preflight steps publishing Done+ContinueToNext
+			// with empty NextPhase marked live tasks phase: done / status: completed.
+			Expect(fm["phase"]).To(Equal("planning"))
+			Expect(fm["phase"]).NotTo(Equal("done"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+		},
+	)
+
+	It(
+		"treats done result with empty NextPhase and ContinueToNext as in-place save (phase preserved, status in_progress)",
+		func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: execution\n---\n\nBody.\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:         agentlib.AgentStatusDone,
+				NextPhase:      "",
+				ContinueToNext: true,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+			Expect(ok).To(BeTrue())
+			fm, ok := frontmatter.(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["phase"]).To(Equal("execution"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+		},
+	)
+
+	It("sets phase=execution when done result requests NextPhase=execution", func() {
 		generator.GenerateReturns(
-			"---\nstatus: completed\nphase: done\n---\n\nBody.\n",
+			"---\nstatus: in_progress\nphase: execution\n---\n\nBody.\n",
 			nil,
 		)
 		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
 			Status:    agentlib.AgentStatusDone,
-			NextPhase: "",
+			NextPhase: "execution",
 		})
 		Expect(err).NotTo(HaveOccurred())
 		_, cmdObj := sender.SendCommandObjectArgsForCall(0)
@@ -210,8 +260,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 		Expect(ok).To(BeTrue())
 		fm, ok := frontmatter.(map[string]interface{})
 		Expect(ok).To(BeTrue())
-		Expect(fm["phase"]).To(Equal("done"))
-		Expect(fm["status"]).To(Equal("completed"))
+		Expect(fm["phase"]).To(Equal("execution"))
+		Expect(fm["status"]).To(Equal("in_progress"))
 	})
 
 	It(

@@ -108,7 +108,7 @@ default (failed):
 
 ### Happy path
 
-1. Task `phase: in_progress`, agent emits `done` → `phase: done`, `status: completed`. Terminal.
+1. Task `phase: in_progress`, agent emits `done` with explicit `NextPhase: "done"` → `phase: done`, `status: completed`. Terminal. (`done` with empty `NextPhase` is an in-place save: `status: in_progress`, phase unchanged — used between steps of a multi-step phase.)
 
 ### Agent emits `needs_input` (spec 010)
 

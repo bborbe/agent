@@ -36,8 +36,16 @@ type AgentResultInfo struct {
 	Message string // human-readable status; used by failure/needs_input paths
 	// NextPhase is the task phase the agent requests the controller to write
 	// when Status == AgentStatusDone. Ignored on Failed/NeedsInput (failure
-	// paths always escalate to human_review). Empty means "use default"
-	// (phase: done on Status: done). Valid values are vault-cli TaskPhase
-	// enum strings: planning, in_progress, ai_review, human_review, done.
+	// paths always escalate to human_review). Empty means "stay in current
+	// phase" — an in-place save between steps of a multi-step phase; the
+	// task keeps status: in_progress and its phase untouched. Terminating a
+	// task requires an explicit NextPhase: "done". Valid values are vault-cli
+	// TaskPhase enum strings: planning, execution, ai_review, human_review,
+	// done ("in_progress" is a legacy alias for execution).
 	NextPhase string
+	// ContinueToNext mirrors Result.ContinueToNext: whether the StepRunner
+	// proceeds to the next step in the same Job invocation. Informational
+	// for deliverers — a Done result with empty NextPhase is an in-place
+	// save regardless of this flag.
+	ContinueToNext bool
 }

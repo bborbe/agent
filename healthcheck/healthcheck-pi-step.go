@@ -47,7 +47,10 @@ func (s *piStep) Run(ctx context.Context, _ *agentlib.Markdown) (*agentlib.Resul
 		}, nil
 	}
 	return &agentlib.Result{
-		Status:  agentlib.AgentStatusDone,
-		Message: trimmed,
+		Status: agentlib.AgentStatusDone,
+		// Explicit terminal phase: Done with empty NextPhase is an in-place save
+		// (stay in current phase) — healthcheck tasks must actually complete.
+		NextPhase: "done",
+		Message:   trimmed,
 	}, nil
 }

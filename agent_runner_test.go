@@ -41,6 +41,30 @@ var _ = Describe("StepRunner", func() {
 			Expect(deliverer.DeliverResultCallCount()).To(Equal(1))
 		})
 
+		It("forwards ContinueToNext to the deliverer", func() {
+			deliverer := &mocks.AgentResultDeliverer{}
+
+			step := &mocks.AgentStep{}
+			step.NameReturns("preflight-step")
+			step.ShouldRunReturns(true, nil)
+			step.RunReturns(&lib.Result{
+				Status:         lib.AgentStatusDone,
+				ContinueToNext: true,
+			}, nil)
+
+			md := &lib.Markdown{}
+			runner := lib.NewStepRunner(deliverer, step)
+
+			_, err := runner.Run(ctx, md)
+			Expect(err).To(BeNil())
+			Expect(deliverer.DeliverResultCallCount()).To(Equal(1))
+			_, info := deliverer.DeliverResultArgsForCall(0)
+			Expect(info.Status).To(Equal(lib.AgentStatusDone))
+			Expect(info.NextPhase).To(Equal(""))
+			Expect(info.ContinueToNext).To(BeTrue(),
+				"deliverer must see ContinueToNext so Done+empty NextPhase preflight saves are distinguishable")
+		})
+
 		It("returns error when step.Run returns error", func() {
 			deliverer := &mocks.AgentResultDeliverer{}
 

@@ -53,6 +53,8 @@ var _ = Describe("NewGeminiStep", func() {
 			Expect(err).To(BeNil())
 			Expect(result).NotTo(BeNil())
 			Expect(result.Status).To(Equal(agentlib.AgentStatusDone))
+			Expect(result.NextPhase).To(Equal("done"),
+				"healthcheck must request explicit terminal phase — empty NextPhase is an in-place save")
 			Expect(result.Message).To(Equal("pong"))
 		})
 

@@ -8,6 +8,12 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- deliverer: `AgentStatusDone` with empty `NextPhase` is now an in-place save (`status: in_progress`, phase preserved) instead of terminating the task (`phase: done`, `status: completed`) — enforces the documented `Result.NextPhase` contract ("Empty means stay in current phase"). Fixes multi-step agents whose Done+ContinueToNext preflight steps marked live tasks completed mid-run (observed: github-update-go-agent planning preflight republish, ~13 min false-completed window). Applies to both the Kafka deliverer and the content generators (`applyStatusFrontmatter`), which previously clobbered phase to `done` unconditionally.
+- **Semantic change (minor bump):** steps that relied on the empty→`done` fallback to complete tasks must now return an explicit `NextPhase: "done"`. In-repo call sites updated: all four `healthcheck` steps (claude, gemini, nop, pi) now emit `NextPhase: "done"`. Config-driven steps (`claude.NewAgentStep`, `pi.NewStep`, `agentlib.NewParseStep`) and single-shot LLM results (`claude.TaskRunner` JSON without `next_phase`) inherit the new semantics — terminal steps must configure/emit `next_phase: "done"` explicitly.
+- `AgentResultInfo` gains `ContinueToNext` (forwarded from `Result.ContinueToNext` by `StepRunner`), so deliverers can distinguish mid-run preflight saves.
+
 ## v0.77.2
 
 - Bump `golang.org/x/text` to v0.39.0 (CVE-2026-56852)

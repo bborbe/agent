@@ -35,7 +35,7 @@ func (g *fallbackContentGenerator) Generate(
 	originalContent string,
 	result agentlib.AgentResultInfo,
 ) (string, error) {
-	updated := applyStatusFrontmatter(originalContent, result.Status)
+	updated := applyStatusFrontmatter(originalContent, result)
 	if result.Status == agentlib.AgentStatusFailed {
 		section := buildFailureSection(result)
 		return ReplaceOrAppendSection(updated, "## Failure", section), nil
@@ -47,12 +47,29 @@ func (g *fallbackContentGenerator) Generate(
 	return ReplaceOrAppendSection(updated, "## Result", section), nil
 }
 
-// applyStatusFrontmatter updates status+phase frontmatter fields based on agent result status.
-func applyStatusFrontmatter(content string, status agentlib.AgentStatus) string {
-	switch status {
+// applyStatusFrontmatter updates status+phase frontmatter fields based on agent result
+// status and requested NextPhase.
+func applyStatusFrontmatter(content string, result agentlib.AgentResultInfo) string {
+	switch result.Status {
 	case agentlib.AgentStatusDone:
-		content = SetFrontmatterField(content, "status", "completed")
-		content = SetFrontmatterField(content, "phase", "done")
+		if result.NextPhase == "" {
+			// Done without NextPhase is an in-place save (see agentlib.Result.NextPhase:
+			// "Empty means stay in current phase"): keep status: in_progress, preserve
+			// phase from existing content. Terminating a task requires an explicit
+			// NextPhase: "done".
+			content = SetFrontmatterField(content, "status", "in_progress")
+			// phase intentionally not modified — preserves the current phase
+			break
+		}
+		resolvedPhase := resolveNextPhase("", result.NextPhase)
+		content = SetFrontmatterField(content, "phase", resolvedPhase)
+		// Only mark the task completed when the resolved phase is terminal (done) —
+		// mirrors the kafkaResultDeliverer frontmatter override.
+		if resolvedPhase == "done" {
+			content = SetFrontmatterField(content, "status", "completed")
+		} else {
+			content = SetFrontmatterField(content, "status", "in_progress")
+		}
 	case agentlib.AgentStatusNeedsInput:
 		// task-level failure: agent ran cleanly but task is impossible/underspecified.
 		// Clear assignee so the task surfaces in the operator inbox; preserve phase from
@@ -121,9 +138,11 @@ func buildMinimalResultSection(result agentlib.AgentResultInfo) string {
 // the agent-produced content directly.
 //
 // Status/phase frontmatter is still applied here so file delivery sets
-// status: completed / phase: done on success without each agent having to
-// mutate the frontmatter map manually. The Kafka deliverer overrides
-// status/phase again after this generator runs (same end state).
+// status: completed / phase: done on success (Done + explicit NextPhase:
+// "done") without each agent having to mutate the frontmatter map manually;
+// Done without NextPhase is an in-place save that leaves the phase untouched.
+// The Kafka deliverer overrides status/phase again after this generator runs
+// (same end state).
 //
 // On AgentStatusFailed or AgentStatusNeedsInput, the passthrough generator
 // splices a ## Failure section into result.Output so operators always see the
@@ -140,7 +159,7 @@ func (g *passthroughContentGenerator) Generate(
 	_ string,
 	result agentlib.AgentResultInfo,
 ) (string, error) {
-	updated := applyStatusFrontmatter(result.Output, result.Status)
+	updated := applyStatusFrontmatter(result.Output, result)
 	if result.Status == agentlib.AgentStatusFailed ||
 		result.Status == agentlib.AgentStatusNeedsInput {
 		// result.Output is unreliable on early-step failures — agents return
@@ -172,7 +191,7 @@ func (g *sectionContentGenerator) Generate(
 	originalContent string,
 	result agentlib.AgentResultInfo,
 ) (string, error) {
-	updated := applyStatusFrontmatter(originalContent, result.Status)
+	updated := applyStatusFrontmatter(originalContent, result)
 	if result.Status == agentlib.AgentStatusFailed {
 		section := buildFailureSection(result)
 		return ReplaceOrAppendSection(updated, "## Failure", section), nil

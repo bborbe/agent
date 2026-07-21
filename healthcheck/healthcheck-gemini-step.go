@@ -52,7 +52,10 @@ func (s *geminiStep) Run(ctx context.Context, _ *agentlib.Markdown) (*agentlib.R
 		}, nil
 	}
 	return &agentlib.Result{
-		Status:  agentlib.AgentStatusDone,
-		Message: reply.OK,
+		Status: agentlib.AgentStatusDone,
+		// Explicit terminal phase: Done with empty NextPhase is an in-place save
+		// (stay in current phase) — healthcheck tasks must actually complete.
+		NextPhase: "done",
+		Message:   reply.OK,
 	}, nil
 }
