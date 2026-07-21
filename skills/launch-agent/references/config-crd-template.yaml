@@ -43,10 +43,13 @@ spec:
   secretName: <NAME>
 
   # ── OAuth PVC (OPT-IN EXCEPTION — most agents do NOT need this) ──────────────
-  # Only add the two lines below if you chose the Max-subscription OAuth tier in the
-  # interview (Part 2 runtime tier). It buys flat-rate usage but costs: interactive
-  # `claude login` seeding per namespace, the Agent - Refresh Claude OAuth Login runbook,
-  # an oauth-probe task type, and local-path PVC node-pinning. Stateless token auth
-  # (the env block above) needs NO volume — delete these lines for the default case.
-  # volumeClaim: <NAME>-claude-oauth
-  # volumeMountPath: /home/claude/.claude
+  # Only if you chose the Max-subscription OAuth tier in the interview (Part 2 runtime
+  # tier). It buys flat-rate usage but costs: interactive `claude login` seeding per
+  # namespace, the Agent - Refresh Claude OAuth Login runbook, an oauth-probe task type,
+  # and local-path PVC node-pinning. Stateless token auth (the env block above) needs
+  # NO volume — for the default case, leave the block below entirely commented out.
+  #
+  # To enable: uncomment BOTH lines together (a volumeClaim without volumeMountPath, or
+  # vice-versa, is invalid and the Config CR is silently rejected):
+  #   volumeClaim: <NAME>-claude-oauth
+  #   volumeMountPath: /home/claude/.claude
