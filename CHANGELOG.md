@@ -14,6 +14,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 - **Semantic change (minor bump):** steps that relied on the empty→`done` fallback to complete tasks must now return an explicit `NextPhase: "done"`. In-repo call sites updated: all four `healthcheck` steps (claude, gemini, nop, pi) now emit `NextPhase: "done"`. Config-driven steps (`claude.NewAgentStep`, `pi.NewStep`, `agentlib.NewParseStep`) and single-shot LLM results (`claude.TaskRunner` JSON without `next_phase`) inherit the new semantics — terminal steps must configure/emit `next_phase: "done"` explicitly.
 - `AgentResultInfo` gains `ContinueToNext` (forwarded from `Result.ContinueToNext` by `StepRunner`), so deliverers can distinguish mid-run preflight saves.
 
+## v0.78.0
+
+- launch-agent: default new agents to stateless LLM token auth (Agent Design Guide §7.2c) instead of the OAuth-PVC shape; interview Part 2 runtime tier + Part 7 security now cover GitHub App naming (§7.2a) and per-stage App pairs; config-crd-template demotes the PVC to an opt-in exception
+
 ## v0.77.2
 
 - Bump `golang.org/x/text` to v0.39.0 (CVE-2026-56852)

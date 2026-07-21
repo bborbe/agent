@@ -28,12 +28,28 @@ spec:
   env:
     ALLOWED_TOOLS: "<TOOL_LIST>"   # e.g. "Bash,Read,Edit,Grep"
     LOGLEVEL: "2"
+    # LLM auth — FLEET DEFAULT is stateless token, NOT an OAuth PVC.
+    # Per [[Agent Design Guide]] §7.2c: every running Claude-based agent authenticates
+    # via ANTHROPIC_AUTH_TOKEN in its Secret + these two plain env vars. Keep this block
+    # unless you deliberately chose the Max-subscription OAuth-PVC exception below.
+    ANTHROPIC_BASE_URL: https://api.minimax.io/anthropic   # MiniMax default; swap for your provider
+    ANTHROPIC_MODEL: MiniMax-M2.7-highspeed
     # Domain-specific env vars from interview Part 5 (Inputs):
     # <KEY>: "<VALUE_OR_TEAMVAULT_LOOKUP_KEY>"
 
-  # k8s Secret containing teamvault-resolved creds (from interview Part 7.3)
-  secretName: <NAME>         # see k8s/<NAME>-secret.yaml for the teamvault references
+  # k8s Secret containing teamvault-resolved creds (from interview Part 7.3).
+  # Includes ANTHROPIC_AUTH_TOKEN (the LLM token, §7.2c) + SENTRY_DSN + any domain creds.
+  # See k8s/<NAME>-secret.yaml for the teamvault references.
+  secretName: <NAME>
 
-  # PVC for persistent per-agent state (Claude OAuth, memory, etc.). Omit if stateless.
-  volumeClaim: <PVC_NAME>          # e.g. <NAME>-claude-oauth; remove block if none
-  volumeMountPath: /home/claude/.claude
+  # ── OAuth PVC (OPT-IN EXCEPTION — most agents do NOT need this) ──────────────
+  # Only if you chose the Max-subscription OAuth tier in the interview (Part 2 runtime
+  # tier). It buys flat-rate usage but costs: interactive `claude login` seeding per
+  # namespace, the Agent - Refresh Claude OAuth Login runbook, an oauth-probe task type,
+  # and local-path PVC node-pinning. Stateless token auth (the env block above) needs
+  # NO volume — for the default case, leave the block below entirely commented out.
+  #
+  # To enable: uncomment BOTH lines together (a volumeClaim without volumeMountPath, or
+  # vice-versa, is invalid and the Config CR is silently rejected):
+  #   volumeClaim: <NAME>-claude-oauth
+  #   volumeMountPath: /home/claude/.claude
