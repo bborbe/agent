@@ -280,6 +280,185 @@ exit 0
 	})
 })
 
+var _ = Describe("claudeRunner usage capture", func() {
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	// writeShim creates a temp dir, writes a "claude" shell script with the given body,
+	// prepends the dir to PATH, and registers cleanup via DeferCleanup.
+	writeShim := func(body string) {
+		shimDir := GinkgoT().TempDir()
+		shimPath := filepath.Join(shimDir, "claude")
+		script := "#!/bin/sh\n" + body
+		err := os.WriteFile(shimPath, []byte(script), 0755) //nolint:gosec
+		Expect(err).NotTo(HaveOccurred())
+		originalPath := os.Getenv("PATH")
+		DeferCleanup(func() {
+			Expect(os.Setenv("PATH", originalPath)).To(Succeed())
+		})
+		Expect(os.Setenv("PATH", shimDir+":"+originalPath)).To(Succeed())
+	}
+
+	Context("malformed usage numbers must not kill the event (schema-drift guard)", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo '{"type":"result","result":"kept-text","num_turns":"7","usage":{"input_tokens":100.0,"output_tokens":"bad","cache_read_input_tokens":50}}'
+exit 0`,
+			)
+		})
+
+		It("does not return an error", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).NotTo(BeNil())
+		})
+
+		It("keeps the result text from the event", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Result).To(Equal("kept-text"))
+		})
+
+		It("captures the well-formed cache_read_input_tokens field", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.CacheReadTokens).To(Equal(int64(50)))
+		})
+
+		It("treats unconvertible output_tokens as zero", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.OutputTokens).To(Equal(int64(0)))
+		})
+	})
+
+	Context("full usage (AC1)", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo '{"type":"result","result":"task-output-text","num_turns":7,"usage":{"input_tokens":100,"output_tokens":200,"cache_creation_input_tokens":300,"cache_read_input_tokens":400}}'
+exit 0`,
+			)
+		})
+
+		It("returns no error", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).NotTo(BeNil())
+		})
+
+		It("returns the result text", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Result).To(Equal("task-output-text"))
+		})
+
+		It("captures all five usage fields", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.InputTokens).To(Equal(int64(100)))
+			Expect(result.OutputTokens).To(Equal(int64(200)))
+			Expect(result.CacheCreationTokens).To(Equal(int64(300)))
+			Expect(result.CacheReadTokens).To(Equal(int64(400)))
+			Expect(result.NumTurns).To(Equal(int64(7)))
+		})
+	})
+
+	Context("no usage object and no turn count (AC2)", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo '{"type":"result","result":"plain-output"}'
+exit 0`,
+			)
+		})
+
+		It("returns no error", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).NotTo(BeNil())
+		})
+
+		It("returns the result text", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Result).To(Equal("plain-output"))
+		})
+
+		It("all five usage fields are zero", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.InputTokens).To(Equal(int64(0)))
+			Expect(result.OutputTokens).To(Equal(int64(0)))
+			Expect(result.CacheCreationTokens).To(Equal(int64(0)))
+			Expect(result.CacheReadTokens).To(Equal(int64(0)))
+			Expect(result.NumTurns).To(Equal(int64(0)))
+		})
+	})
+
+	Context("partial usage fields (AC3)", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo '{"type":"result","result":"partial-output","usage":{"input_tokens":11,"cache_read_input_tokens":22}}'
+exit 0`,
+			)
+		})
+
+		It("captures only the provided fields", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.InputTokens).To(Equal(int64(11)))
+			Expect(result.CacheReadTokens).To(Equal(int64(22)))
+			Expect(result.OutputTokens).To(Equal(int64(0)))
+			Expect(result.CacheCreationTokens).To(Equal(int64(0)))
+			Expect(result.NumTurns).To(Equal(int64(0)))
+		})
+	})
+
+	Context("two result events both carrying usage — last wins (AC4)", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo '{"type":"result","result":"first-text","num_turns":1,"usage":{"input_tokens":1,"output_tokens":2,"cache_creation_input_tokens":3,"cache_read_input_tokens":4}}'
+echo '{"type":"result","result":"second-text","num_turns":9,"usage":{"input_tokens":10,"output_tokens":20,"cache_creation_input_tokens":30,"cache_read_input_tokens":40}}'
+exit 0`,
+			)
+		})
+
+		It("result text and usage both come from the last event", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Result).To(Equal("second-text"))
+			Expect(result.InputTokens).To(Equal(int64(10)))
+			Expect(result.OutputTokens).To(Equal(int64(20)))
+			Expect(result.CacheCreationTokens).To(Equal(int64(30)))
+			Expect(result.CacheReadTokens).To(Equal(int64(40)))
+			Expect(result.NumTurns).To(Equal(int64(9)))
+		})
+	})
+
+	Context("usage last-wins is independent of result-text last-wins (AC5)", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo '{"type":"result","result":"kept-text","num_turns":2,"usage":{"input_tokens":5,"output_tokens":6,"cache_creation_input_tokens":7,"cache_read_input_tokens":8}}'
+echo '{"type":"result","result":"","num_turns":4,"usage":{"input_tokens":50,"output_tokens":60,"cache_creation_input_tokens":70,"cache_read_input_tokens":80}}'
+exit 0`,
+			)
+		})
+
+		It("keeps the first event result text and the second event usage", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Result).To(Equal("kept-text"))
+			Expect(result.InputTokens).To(Equal(int64(50)))
+			Expect(result.OutputTokens).To(Equal(int64(60)))
+			Expect(result.CacheCreationTokens).To(Equal(int64(70)))
+			Expect(result.CacheReadTokens).To(Equal(int64(80)))
+			Expect(result.NumTurns).To(Equal(int64(4)))
+		})
+	})
+})
+
 var _ = Describe("claudeRunner AllowedTools buildCommand branch", func() {
 	var ctx context.Context
 
