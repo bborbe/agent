@@ -1,7 +1,13 @@
 ---
-status: draft
+status: completed
 spec: [046-job-usage-metrics]
+summary: Added RecordUsage(JobUsage) to JobMetrics interface with agent_job_tokens_total and agent_job_turns_total counters, all tests pass at 100% coverage
+execution_id: agent-usage-metrics-exec-207-spec-046-job-usage-metrics
+dark-factory-version: v0.192.9
 created: "2026-08-01T22:05:00Z"
+queued: "2026-08-01T22:34:00Z"
+started: "2026-08-01T22:34:02Z"
+completed: "2026-08-02T12:36:07Z"
 branch: dark-factory/job-usage-metrics
 ---
 

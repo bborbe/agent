@@ -9,7 +9,7 @@ import (
 	"github.com/bborbe/agent/metrics"
 )
 
-type JobMetrics struct {
+type FakeJobMetrics struct {
 	RecordDurationStub        func(time.Duration)
 	recordDurationMutex       sync.RWMutex
 	recordDurationArgsForCall []struct {
@@ -20,11 +20,16 @@ type JobMetrics struct {
 	recordRunArgsForCall []struct {
 		arg1 lib.AgentStatus
 	}
+	RecordUsageStub        func(metrics.JobUsage)
+	recordUsageMutex       sync.RWMutex
+	recordUsageArgsForCall []struct {
+		arg1 metrics.JobUsage
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *JobMetrics) RecordDuration(arg1 time.Duration) {
+func (fake *FakeJobMetrics) RecordDuration(arg1 time.Duration) {
 	fake.recordDurationMutex.Lock()
 	fake.recordDurationArgsForCall = append(fake.recordDurationArgsForCall, struct {
 		arg1 time.Duration
@@ -37,26 +42,26 @@ func (fake *JobMetrics) RecordDuration(arg1 time.Duration) {
 	}
 }
 
-func (fake *JobMetrics) RecordDurationCallCount() int {
+func (fake *FakeJobMetrics) RecordDurationCallCount() int {
 	fake.recordDurationMutex.RLock()
 	defer fake.recordDurationMutex.RUnlock()
 	return len(fake.recordDurationArgsForCall)
 }
 
-func (fake *JobMetrics) RecordDurationCalls(stub func(time.Duration)) {
+func (fake *FakeJobMetrics) RecordDurationCalls(stub func(time.Duration)) {
 	fake.recordDurationMutex.Lock()
 	defer fake.recordDurationMutex.Unlock()
 	fake.RecordDurationStub = stub
 }
 
-func (fake *JobMetrics) RecordDurationArgsForCall(i int) time.Duration {
+func (fake *FakeJobMetrics) RecordDurationArgsForCall(i int) time.Duration {
 	fake.recordDurationMutex.RLock()
 	defer fake.recordDurationMutex.RUnlock()
 	argsForCall := fake.recordDurationArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *JobMetrics) RecordRun(arg1 lib.AgentStatus) {
+func (fake *FakeJobMetrics) RecordRun(arg1 lib.AgentStatus) {
 	fake.recordRunMutex.Lock()
 	fake.recordRunArgsForCall = append(fake.recordRunArgsForCall, struct {
 		arg1 lib.AgentStatus
@@ -69,26 +74,58 @@ func (fake *JobMetrics) RecordRun(arg1 lib.AgentStatus) {
 	}
 }
 
-func (fake *JobMetrics) RecordRunCallCount() int {
+func (fake *FakeJobMetrics) RecordRunCallCount() int {
 	fake.recordRunMutex.RLock()
 	defer fake.recordRunMutex.RUnlock()
 	return len(fake.recordRunArgsForCall)
 }
 
-func (fake *JobMetrics) RecordRunCalls(stub func(lib.AgentStatus)) {
+func (fake *FakeJobMetrics) RecordRunCalls(stub func(lib.AgentStatus)) {
 	fake.recordRunMutex.Lock()
 	defer fake.recordRunMutex.Unlock()
 	fake.RecordRunStub = stub
 }
 
-func (fake *JobMetrics) RecordRunArgsForCall(i int) lib.AgentStatus {
+func (fake *FakeJobMetrics) RecordRunArgsForCall(i int) lib.AgentStatus {
 	fake.recordRunMutex.RLock()
 	defer fake.recordRunMutex.RUnlock()
 	argsForCall := fake.recordRunArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *JobMetrics) Invocations() map[string][][]interface{} {
+func (fake *FakeJobMetrics) RecordUsage(arg1 metrics.JobUsage) {
+	fake.recordUsageMutex.Lock()
+	fake.recordUsageArgsForCall = append(fake.recordUsageArgsForCall, struct {
+		arg1 metrics.JobUsage
+	}{arg1})
+	stub := fake.RecordUsageStub
+	fake.recordInvocation("RecordUsage", []interface{}{arg1})
+	fake.recordUsageMutex.Unlock()
+	if stub != nil {
+		fake.RecordUsageStub(arg1)
+	}
+}
+
+func (fake *FakeJobMetrics) RecordUsageCallCount() int {
+	fake.recordUsageMutex.RLock()
+	defer fake.recordUsageMutex.RUnlock()
+	return len(fake.recordUsageArgsForCall)
+}
+
+func (fake *FakeJobMetrics) RecordUsageCalls(stub func(metrics.JobUsage)) {
+	fake.recordUsageMutex.Lock()
+	defer fake.recordUsageMutex.Unlock()
+	fake.RecordUsageStub = stub
+}
+
+func (fake *FakeJobMetrics) RecordUsageArgsForCall(i int) metrics.JobUsage {
+	fake.recordUsageMutex.RLock()
+	defer fake.recordUsageMutex.RUnlock()
+	argsForCall := fake.recordUsageArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeJobMetrics) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
@@ -98,7 +135,7 @@ func (fake *JobMetrics) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *JobMetrics) recordInvocation(key string, args []interface{}) {
+func (fake *FakeJobMetrics) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -110,4 +147,4 @@ func (fake *JobMetrics) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ metrics.JobMetrics = new(JobMetrics)
+var _ metrics.JobMetrics = new(FakeJobMetrics)

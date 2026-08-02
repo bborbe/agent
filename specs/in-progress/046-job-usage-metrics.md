@@ -1,11 +1,12 @@
 ---
-status: prompted
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-08-01T21:52:23Z"
 generating: "2026-08-01T21:52:24Z"
 prompted: "2026-08-01T22:06:19Z"
+verifying: "2026-08-01T22:31:54Z"
 branch: dark-factory/job-usage-metrics
 ---
 
