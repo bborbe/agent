@@ -16,15 +16,36 @@ import (
 
 // counterfeiter:generate -o mocks/job-metrics.go --fake-name JobMetrics . JobMetrics
 
-// Token type label values for agent_job_tokens_total. These are compile-time
-// constants: no caller-supplied or session-supplied value ever becomes a label,
-// so the family's cardinality is fixed at four series.
+// TokenType is the value of the type label on agent_job_tokens_total. The set is
+// closed: no caller-supplied or session-supplied value ever becomes a label, so
+// the family's cardinality is fixed at len(AvailableTokenTypes) series.
+type TokenType string
+
+// String returns the label value as a plain string.
+func (t TokenType) String() string {
+	return string(t)
+}
+
 const (
-	tokenTypeInput         = "input"
-	tokenTypeOutput        = "output"
-	tokenTypeCacheRead     = "cache_read"
-	tokenTypeCacheCreation = "cache_creation"
+	// TokenTypeInput counts fresh (non-cached) input tokens.
+	TokenTypeInput TokenType = "input"
+	// TokenTypeOutput counts generated output tokens.
+	TokenTypeOutput TokenType = "output"
+	// TokenTypeCacheRead counts input tokens served from the prompt cache.
+	TokenTypeCacheRead TokenType = "cache_read"
+	// TokenTypeCacheCreation counts input tokens written into the prompt cache.
+	TokenTypeCacheCreation TokenType = "cache_creation"
 )
+
+// AvailableTokenTypes is the closed set of token types. Iterating it is what
+// guarantees every label combination is pre-initialized, so rate() evaluates to
+// zero rather than no-data before the first job runs.
+var AvailableTokenTypes = []TokenType{
+	TokenTypeInput,
+	TokenTypeOutput,
+	TokenTypeCacheRead,
+	TokenTypeCacheCreation,
+}
 
 // JobUsage is the LLM token and turn summary of one finished agent job.
 // The zero value is valid and records nothing but zeros.
@@ -106,10 +127,9 @@ func NewJobMetrics(
 	counter.WithLabelValues(string(agentlib.AgentStatusNeedsInput)).Add(0)
 	// Pre-initialize the token series and the turn counter so rate() evaluates to
 	// zero (not no-data) for a process that has not yet run a job.
-	tokenCounter.WithLabelValues(tokenTypeInput).Add(0)
-	tokenCounter.WithLabelValues(tokenTypeOutput).Add(0)
-	tokenCounter.WithLabelValues(tokenTypeCacheRead).Add(0)
-	tokenCounter.WithLabelValues(tokenTypeCacheCreation).Add(0)
+	for _, tokenType := range AvailableTokenTypes {
+		tokenCounter.WithLabelValues(tokenType.String()).Add(0)
+	}
 	turnCounter.Add(0)
 	return &jobMetrics{
 		counter:         counter,
@@ -141,10 +161,10 @@ func (m *jobMetrics) RecordDuration(d time.Duration) {
 }
 
 func (m *jobMetrics) RecordUsage(usage JobUsage) {
-	m.addTokens(tokenTypeInput, usage.InputTokens)
-	m.addTokens(tokenTypeOutput, usage.OutputTokens)
-	m.addTokens(tokenTypeCacheRead, usage.CacheReadTokens)
-	m.addTokens(tokenTypeCacheCreation, usage.CacheCreationTokens)
+	m.addTokens(TokenTypeInput, usage.InputTokens)
+	m.addTokens(TokenTypeOutput, usage.OutputTokens)
+	m.addTokens(TokenTypeCacheRead, usage.CacheReadTokens)
+	m.addTokens(TokenTypeCacheCreation, usage.CacheCreationTokens)
 	if usage.Turns >= 0 {
 		m.turnCounter.Add(float64(usage.Turns))
 	}
@@ -154,11 +174,11 @@ func (m *jobMetrics) RecordUsage(usage JobUsage) {
 // skipped: prometheus.Counter.Add panics on a negative delta, and the counts
 // originate from a subprocess's stdout, so a hostile or buggy value must not be
 // able to take the job down.
-func (m *jobMetrics) addTokens(tokenType string, count int64) {
+func (m *jobMetrics) addTokens(tokenType TokenType, count int64) {
 	if count < 0 {
 		return
 	}
-	m.tokenCounter.WithLabelValues(tokenType).Add(float64(count))
+	m.tokenCounter.WithLabelValues(tokenType.String()).Add(float64(count))
 }
 
 // BuildJobMetricsName returns the standardized PushGateway job name for an

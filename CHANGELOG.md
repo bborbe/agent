@@ -12,6 +12,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 - feat: claude: `ClaudeResult` now carries the CLI session's token counts (input, output, cache-creation, cache-read) and turn count, parsed from the terminal result event's usage summary; absent or partial usage parses as zeros without error
 - feat: metrics: `JobMetrics` gains `RecordUsage(JobUsage)`, backed by two new pre-initialized counters `agent_job_tokens_total` (label `type`: input, output, cache_read, cache_creation) and `agent_job_turns_total`; negative values are skipped instead of panicking
+- feat: metrics: exported `TokenType` newtype with `TokenTypeInput` / `TokenTypeOutput` / `TokenTypeCacheRead` / `TokenTypeCacheCreation` and the `AvailableTokenTypes` collection, so the token-label set is type-checked and pre-initialization iterates the closed set
 
 ## v0.79.0
 
