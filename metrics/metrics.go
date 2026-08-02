@@ -14,7 +14,7 @@ import (
 	agentlib "github.com/bborbe/agent"
 )
 
-// counterfeiter:generate -o mocks/job-metrics.go --fake-name JobMetrics . JobMetrics
+//counterfeiter:generate -o mocks/job-metrics.go --fake-name JobMetrics . JobMetrics
 
 // TokenType is the value of the type label on agent_job_tokens_total. The set is
 // closed: no caller-supplied or session-supplied value ever becomes a label, so
