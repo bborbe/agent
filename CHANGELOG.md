@@ -8,6 +8,12 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat: claude: `ClaudeResult` now carries the CLI session's token counts (input, output, cache-creation, cache-read) and turn count, parsed from the terminal result event's usage summary; absent or partial usage parses as zeros without error
+- feat: metrics: `JobMetrics` gains `RecordUsage(JobUsage)`, backed by two new pre-initialized counters `agent_job_tokens_total` (label `type`: input, output, cache_read, cache_creation) and `agent_job_turns_total`; negative values are skipped instead of panicking
+- feat: metrics: exported `TokenType` newtype with `TokenTypeInput` / `TokenTypeOutput` / `TokenTypeCacheRead` / `TokenTypeCacheCreation` and the `AvailableTokenTypes` collection, so the token-label set is type-checked and pre-initialization iterates the closed set
+
 ## v0.79.0
 
 - deliverer: `AgentStatusDone` with empty `NextPhase` is now an in-place save (`status: in_progress`, phase preserved) instead of terminating the task (`phase: done`, `status: completed`) — enforces the documented `Result.NextPhase` contract ("Empty means stay in current phase"). Fixes multi-step agents whose Done+ContinueToNext preflight steps marked live tasks completed mid-run (observed: github-update-go-agent planning preflight republish, ~13 min false-completed window). Applies to both the Kafka deliverer and the content generators (`applyStatusFrontmatter`), which previously clobbered phase to `done` unconditionally.

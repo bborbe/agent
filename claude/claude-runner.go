@@ -58,7 +58,7 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 		return nil, errors.Wrap(ctx, err, "start claude CLI")
 	}
 
-	resultText, tail := scanOutput(ctx, stdoutPipe)
+	resultText, usage, tail := scanOutput(ctx, stdoutPipe)
 
 	if err := cmd.Wait(); err != nil {
 		var tailMsg string
@@ -74,7 +74,14 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 		return nil, errors.New(ctx, "no result event found in claude CLI output")
 	}
 
-	return &ClaudeResult{Result: resultText}, nil
+	return &ClaudeResult{
+		Result:              resultText,
+		InputTokens:         usage.inputTokens,
+		OutputTokens:        usage.outputTokens,
+		CacheCreationTokens: usage.cacheCreationTokens,
+		CacheReadTokens:     usage.cacheReadTokens,
+		NumTurns:            usage.numTurns,
+	}, nil
 }
 
 func (r *claudeRunner) buildCommand(
@@ -137,19 +144,59 @@ func appendTail(tail []string, line []byte) []string {
 	return tail
 }
 
-// scanOutput reads stream-json lines from stdout, logs events, and returns the result text and a bounded tail of all non-empty lines.
+// parseUsage extracts token counts from a raw usage JSON block and the num_turns field
+// from the parent event. Each token field is unmarshalled individually from a map so that a
+// decode error on one field does not roll back valid values from other fields.
+// Malformed values degrade to 0 without error, per the best-effort telemetry contract.
+func parseUsage(usageRaw json.RawMessage, numTurns json.Number) sessionUsage {
+	var usage sessionUsage
+	var usageMap map[string]json.RawMessage
+	if err := json.Unmarshal(usageRaw, &usageMap); err != nil {
+		return usage
+	}
+
+	var inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens json.Number
+
+	//nolint:errcheck // Intentional: malformed fields degrade to 0, which is the correct behaviour.
+	if v, ok := usageMap["input_tokens"]; ok {
+		json.Unmarshal(v, &inputTokens)
+	}
+	//nolint:errcheck
+	if v, ok := usageMap["output_tokens"]; ok {
+		json.Unmarshal(v, &outputTokens)
+	}
+	//nolint:errcheck
+	if v, ok := usageMap["cache_creation_input_tokens"]; ok {
+		json.Unmarshal(v, &cacheCreationTokens)
+	}
+	//nolint:errcheck
+	if v, ok := usageMap["cache_read_input_tokens"]; ok {
+		json.Unmarshal(v, &cacheReadTokens)
+	}
+
+	usage.inputTokens = numberToInt64(inputTokens)
+	usage.outputTokens = numberToInt64(outputTokens)
+	usage.cacheCreationTokens = numberToInt64(cacheCreationTokens)
+	usage.cacheReadTokens = numberToInt64(cacheReadTokens)
+	usage.numTurns = numberToInt64(numTurns)
+	return usage
+}
+
+// scanOutput reads stream-json lines from stdout, logs events, and returns the result
+// text, the captured usage summary, and a bounded tail of all non-empty lines.
 func scanOutput(
 	ctx context.Context,
 	reader interface{ Read([]byte) (int, error) },
-) (string, []string) {
+) (string, sessionUsage, []string) {
 	var resultText string
+	var usage sessionUsage
 	var tail []string
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
-			return "", nil
+			return "", sessionUsage{}, nil
 		default:
 		}
 
@@ -158,13 +205,32 @@ func scanOutput(
 
 		tail = appendTail(tail, line)
 
+		// Two-pass unmarshal: first extract type/result safely (never fails on schema issues),
+		// then attempt full unmarshal for usage fields (may fail on e.g. json.Number receiving
+		// a string). The first pass always succeeds for syntactically valid JSON, ensuring
+		// resultText survives schema drift in the usage subtree.
+		var holder resultHolder
+		if err := json.Unmarshal(line, &holder); err != nil {
+			continue
+		}
+
+		if holder.Type == "result" && holder.Result != "" {
+			resultText = holder.Result
+		}
+
+		// Full unmarshal: may fail due to schema-level issues in usage fields.
+		// On failure we still keep the resultText captured above.
 		var event claudeEvent
 		if err := json.Unmarshal(line, &event); err != nil {
 			continue
 		}
 
-		if event.Type == "result" && event.Result != "" {
-			resultText = event.Result
+		// Usage capture is deliberately gated on the presence of a usage object, NOT
+		// on a non-empty result text: a later result event carrying fresh usage but an
+		// empty result string must update the numbers while leaving the previously
+		// captured text intact. Last usage object wins.
+		if event.Type == "result" && len(event.Usage) > 0 {
+			usage = parseUsage(event.Usage, event.NumTurns)
 		}
 
 		for _, c := range event.Message.Content {
@@ -176,7 +242,7 @@ func scanOutput(
 			}
 		}
 	}
-	return resultText, tail
+	return resultText, usage, tail
 }
 
 // buildSubprocessEnv constructs the env var slice for the Claude CLI subprocess.
