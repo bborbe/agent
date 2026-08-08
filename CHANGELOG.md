@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- Add `docs/agent-network-security.md` — network posture reference for agent Jobs: K3s enforces NetworkPolicy natively via embedded kube-router (no CNI change needed, verified on the hosts), the two-direction threat model, why a central egress proxy rather than a sidecar, and the traps that have already cost time.
+
 ## v0.80.0
 
 - feat: claude: `ClaudeResult` now carries the CLI session's token counts (input, output, cache-creation, cache-read) and turn count, parsed from the terminal result event's usage summary; absent or partial usage parses as zeros without error
