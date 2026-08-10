@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/bborbe/errors"
 	"github.com/golang/glog"
@@ -55,7 +56,15 @@ func (e *execPluginCommander) Run(
 	var errOut bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errOut
+	runStart := time.Now()
 	if err := cmd.Run(); err != nil {
+		glog.Infof(
+			"%s %s failed after %s: %v",
+			name,
+			strings.Join(args, " "),
+			time.Since(runStart),
+			err,
+		)
 		return "", errors.Wrapf(
 			ctx,
 			err,
@@ -65,6 +74,13 @@ func (e *execPluginCommander) Run(
 			errOut.String(),
 		)
 	}
+	glog.Infof(
+		"%s %s returned %d bytes in %s",
+		name,
+		strings.Join(args, " "),
+		out.Len(),
+		time.Since(runStart),
+	)
 	return out.String(), nil
 }
 

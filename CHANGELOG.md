@@ -11,7 +11,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 ## Unreleased
 
 - refactor: claude: add V0 boundary logging to `AgentStep.Run` for the claude runner subprocess call — logs invoke (prompt size), failure (duration + error), and success (result size + duration) mirroring `pi/pi-step.go` pattern
-- refactor: claude: add V0 boundary logging to `PluginInstaller.ensureOne` for all external commands it invokes (`plugin list`, `marketplace add`, `plugin install`, `marketplace update`, `plugin update`)
+- refactor: claude: add V0 boundary logging to plugin installation — `execPluginCommander.Run` logs the command, its outcome and duration at the subprocess boundary, and `PluginInstaller.ensureOne` logs which spec and action it is performing (`plugin list`, `marketplace add`, `plugin install`, `marketplace update`, `plugin update`)
 
 ## v0.80.1
 
