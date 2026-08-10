@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.80.2
 
 - refactor: claude: add V0 boundary logging to `AgentStep.Run` for the claude runner subprocess call — logs invoke (prompt size), failure (duration + error), and success (result size + duration) mirroring `pi/pi-step.go` pattern
 - refactor: claude: add V0 boundary logging to plugin installation — `execPluginCommander.Run` logs the command, its outcome and duration at the subprocess boundary, and `PluginInstaller.ensureOne` logs which spec and action it is performing (`plugin list`, `marketplace add`, `plugin install`, `marketplace update`, `plugin update`)
