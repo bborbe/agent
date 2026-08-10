@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/bborbe/errors"
 	"github.com/golang/glog"
@@ -55,7 +56,15 @@ func (e *execPluginCommander) Run(
 	var errOut bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errOut
+	runStart := time.Now()
 	if err := cmd.Run(); err != nil {
+		glog.Infof(
+			"%s %s failed after %s: %v",
+			name,
+			strings.Join(args, " "),
+			time.Since(runStart),
+			err,
+		)
 		return "", errors.Wrapf(
 			ctx,
 			err,
@@ -65,6 +74,13 @@ func (e *execPluginCommander) Run(
 			errOut.String(),
 		)
 	}
+	glog.Infof(
+		"%s %s returned %d bytes in %s",
+		name,
+		strings.Join(args, " "),
+		out.Len(),
+		time.Since(runStart),
+	)
 	return out.String(), nil
 }
 
@@ -99,6 +115,7 @@ func (i *pluginInstaller) ensureOne(ctx context.Context, spec PluginSpec) error 
 	alias := path.Base(spec.Marketplace)
 	updateForm := spec.Name + "@" + alias
 
+	glog.Infof("spec=%s action=%s", spec.Name, "claude plugin list")
 	output, err := i.commander.Run(ctx, "claude", "plugin", "list")
 	if err != nil {
 		return errors.Wrapf(ctx, err, "list plugins")
@@ -113,15 +130,18 @@ func (i *pluginInstaller) ensureOne(ctx context.Context, spec PluginSpec) error 
 	}
 
 	if !installed {
+		glog.Infof("spec=%s action=%s", spec.Name, "marketplace add")
 		if err := i.runHard(ctx, "claude", "plugin", "marketplace", "add", spec.Marketplace); err != nil {
 			return errors.Wrap(ctx, err, "run marketplace add: "+spec.Marketplace)
 		}
+		glog.Infof("spec=%s action=%s", spec.Name, "plugin install")
 		if err := i.runHard(ctx, "claude", "plugin", "install", spec.Name); err != nil {
 			return errors.Wrap(ctx, err, "run plugin install: "+spec.Name)
 		}
 		return nil
 	}
 
+	glog.Infof("spec=%s action=%s", spec.Name, "marketplace update")
 	if _, err := i.commander.Run(ctx, "claude", "plugin", "marketplace", "update", alias); err != nil {
 		glog.Warningf(
 			"marketplace update failed plugin=%s cmd=%s err=%v",
@@ -130,6 +150,7 @@ func (i *pluginInstaller) ensureOne(ctx context.Context, spec PluginSpec) error 
 			err,
 		)
 	}
+	glog.Infof("spec=%s action=%s", spec.Name, "plugin update")
 	if _, err := i.commander.Run(ctx, "claude", "plugin", "update", updateForm); err != nil {
 		glog.Warningf(
 			"plugin update failed plugin=%s cmd=%s err=%v",
