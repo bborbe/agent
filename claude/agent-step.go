@@ -7,8 +7,10 @@ package claude
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/bborbe/errors"
+	"github.com/golang/glog"
 
 	agentlib "github.com/bborbe/agent"
 )
@@ -81,13 +83,27 @@ func (s *agentStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.R
 
 	prompt := BuildPrompt(s.cfg.Instructions.String(), s.cfg.EnvContext, taskContent)
 
+	glog.Infof("%s: invoking claude runner (prompt=%d bytes)", s.cfg.Name, len(prompt))
+	runStart := time.Now()
 	result, runErr := s.cfg.Runner.Run(ctx, prompt)
 	if runErr != nil {
+		glog.Infof(
+			"%s: claude runner failed after %s: %v",
+			s.cfg.Name,
+			time.Since(runStart),
+			runErr,
+		)
 		return &agentlib.Result{
 			Status:  agentlib.AgentStatusFailed,
 			Message: fmt.Sprintf("%s claude run failed: %v", s.cfg.Name, runErr),
 		}, nil
 	}
+	glog.Infof(
+		"%s: claude runner returned %d bytes in %s",
+		s.cfg.Name,
+		len(result.Result),
+		time.Since(runStart),
+	)
 
 	md.ReplaceSection(agentlib.Section{
 		Heading: s.cfg.OutputSection,

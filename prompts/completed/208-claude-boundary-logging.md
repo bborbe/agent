@@ -1,8 +1,12 @@
 ---
-status: approved
-summary: Add V0 outcome logging to the claude CLI subprocess boundary and to plugin install commands, mirroring the existing pi runner
+status: completed
+summary: Add V0 boundary logging to AgentStep.Run and PluginInstaller.ensureOne for external subprocess calls, mirroring pi/pi-step.go pattern
+execution_id: repo-exec-208-claude-boundary-logging
+dark-factory-version: v0.193.0
 created: "2026-08-10T07:29:43Z"
 queued: "2026-08-10T07:29:43Z"
+started: "2026-08-10T07:35:50Z"
+completed: "2026-08-10T07:38:25Z"
 ---
 
 <summary>
