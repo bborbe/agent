@@ -16,6 +16,9 @@ spec:
   image: {{ printf "%s/%s:%s" $.Values.image.registry $agent.image ($agent.tag | default $.Chart.AppVersion) | quote }}
   heartbeat: {{ $agent.heartbeat | quote }}
   secretName: {{ $agent.secretName | default $agent.name }}
+  {{- if $agent.maxConcurrentJobs }}
+  maxConcurrentJobs: {{ $agent.maxConcurrentJobs }}
+  {{- end }}
   {{- if $agent.volumeMountPath }}
   volumeClaim: {{ $agent.volumeClaim | default $agent.name }}
   volumeMountPath: {{ $agent.volumeMountPath | quote }}

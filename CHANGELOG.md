@@ -8,6 +8,12 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(helm): render `maxConcurrentJobs` on the agent Config CRD when `agents[].maxConcurrentJobs` is set; chart 0.5.0→0.5.1. Emitted only when present, so no existing agent's rendered Config changes. Consumed by `agent-task-executor` ≥ v0.4.8 ([#13](https://github.com/bborbe/agent-task-executor/pull/13)) to cap that agent's concurrent Jobs; older executors ignore the field.
+
+  Needed because 20 `github-update-go` Jobs spawned within 40s on 2026-08-10 all exceeded their 1800s `activeDeadlineSeconds` through mutual contention. Measured uncontended, one such Job takes 669s (`cron`) to 903s (`kafka`), so the deadline is adequate and the concurrency is not.
+
 ## v0.80.2
 
 - refactor: claude: add V0 boundary logging to `AgentStep.Run` for the claude runner subprocess call — logs invoke (prompt size), failure (duration + error), and success (result size + duration) mirroring `pi/pi-step.go` pattern
