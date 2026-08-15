@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.81.1
 
 - chore: bump go directive from 1.26.5 to 1.26.6
 - security: bump `golang.org/x/mod` from v0.37.0 to v0.40.0 (GO-2026-6179, GO-2026-6180), which was failing `make vulncheck`
