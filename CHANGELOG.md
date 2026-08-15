@@ -8,6 +8,12 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- chore: bump go directive from 1.26.5 to 1.26.6
+- security: bump `golang.org/x/mod` from v0.37.0 to v0.40.0 (GO-2026-6179, GO-2026-6180), which was failing `make vulncheck`
+- fix(helm): declare `maxConcurrentJobs` in the Config CRD schema; chart 0.5.1→0.5.2. v0.81.0 added the template rendering but not the CRD property, and the schema is structural with no `x-kubernetes-preserve-unknown-fields` — so the API server pruned the field before any executor could read it. Setting `agents[].maxConcurrentJobs` looked applied and did nothing. Surfaced 2026-08-15 in prod: 84 `github-update-go` tasks emitted against a `pods: "1"` ResourceQuota, all Jobs created anyway, each burning its 1800s `activeDeadlineSeconds` waiting for a slot, 16 Kafka commands expired, 50 tasks stranded on stale `current_job` locks, pipeline silent 17h, 1 of 84 repos updated.
+
 ## v0.81.0
 
 - feat(helm): render `maxConcurrentJobs` on the agent Config CRD when `agents[].maxConcurrentJobs` is set; chart 0.5.0→0.5.1. Emitted only when present, so no existing agent's rendered Config changes. Consumed by `agent-task-executor` ≥ v0.4.8 ([#13](https://github.com/bborbe/agent-task-executor/pull/13)) to cap that agent's concurrent Jobs; older executors ignore the field.

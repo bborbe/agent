@@ -59,6 +59,7 @@ spec:
                 imagePullSecret: {type: string}
                 zombieSweeperIntervalSeconds: {type: integer, minimum: 10}
                 zombieJobTimeoutSeconds: {type: integer, minimum: 30}
+                maxConcurrentJobs: {type: integer, minimum: 0}
                 trigger:
                   type: object
                   properties:
