@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(delivery): record `previous_assignee` on `needs_input` escalation too (spec 027). The retry-vs-escalate fix (v0.81.2) records the pre-clear owner only on cap-exhaustion; `needs_input` (task-wrong, permanent) cleared `assignee` without the stamp, so the operator inbox couldn't show which agent parked the task. Both deliverer paths now stamp `previous_assignee` on every assignee-clear.
+
 ## v0.81.2
 
 - fix(delivery): resolve the retry-vs-escalate contradiction in the result deliverer. `failed` results now preserve `assignee` so the `trigger_count` / `max_triggers` retry path stays routable (the comment promised retry, but clearing `assignee` made the task unroutable and the retry silently never fired — the 2026-08-10 silent job-failure wedge in `agent-task-executor`). Only at cap exhaustion does a `failed` task escalate: `assignee` cleared to "" (operator-inbox signal), `previous_assignee` recorded (spec 027), phase left as the resume cursor. `needs_input` unchanged (immediate escalation). Applies to both the Kafka and file result-deliverer paths.

@@ -145,6 +145,28 @@ var _ = Describe("FallbackContentGenerator", func() {
 		)
 
 		It(
+			"records previous_assignee and clears assignee for needs_input result with an incoming owner",
+			func() {
+				original := "---\ntitle: My Task\nstatus: in_progress\nphase: ai_review\nassignee: some-agent\n---\n\n## Task\n\nRun a backtest.\n"
+				generated, err := generator.Generate(ctx, original, agentlib.AgentResultInfo{
+					Status:  agentlib.AgentStatusNeedsInput,
+					Message: "no date range in task",
+				})
+				Expect(err).NotTo(HaveOccurred())
+				fm, body := delivery.ParseMarkdownFrontmatter(generated)
+				Expect(fm["status"]).To(Equal("in_progress"))
+				Expect(fm["phase"]).To(Equal("ai_review"))
+				Expect(fm["phase"]).NotTo(Equal("human_review"))
+				// SetFrontmatterField emits `assignee: ` (empty) — parses back as missing key.
+				_, assigneePresent := fm["assignee"]
+				Expect(assigneePresent).To(BeFalse(), "assignee should be cleared")
+				Expect(fm["previous_assignee"]).To(Equal("some-agent"))
+				Expect(body).To(ContainSubstring("## Result"))
+				Expect(body).NotTo(ContainSubstring("## Failure"))
+			},
+		)
+
+		It(
 			"clears assignee and preserves phase for needs_input result with no initial phase",
 			func() {
 				original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\nassignee: some-agent\n---\n\n## Task\n\nRun a backtest.\n"

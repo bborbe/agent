@@ -224,6 +224,32 @@ var _ = Describe("KafkaResultDeliverer", func() {
 	)
 
 	It(
+		"records previous_assignee and clears assignee on needs_input with an incoming owner",
+		func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: planning\nassignee: github-update-go-agent\n---\n\nBody.\n\n## Result\n\nneeds more info\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusNeedsInput,
+				Message: "no date range in task",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+			Expect(ok).To(BeTrue())
+			fm, ok := frontmatter.(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["phase"]).To(Equal("planning"))
+			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["assignee"]).To(Equal(""))
+			Expect(fm["previous_assignee"]).To(Equal("github-update-go-agent"))
+		},
+	)
+
+	It(
 		"treats done result with empty NextPhase as in-place save (phase preserved, status in_progress)",
 		func() {
 			generator.GenerateReturns(

@@ -72,9 +72,12 @@ func applyStatusFrontmatter(content string, result agentlib.AgentResultInfo) str
 		}
 	case agentlib.AgentStatusNeedsInput:
 		// task-level failure: agent ran cleanly but task is impossible/underspecified.
-		// Clear assignee so the task surfaces in the operator inbox; preserve phase from
-		// existing content — phase: human_review is reserved for Result.NextPhase handoffs.
+		// Clear assignee so the task surfaces in the operator inbox; record the pre-clear
+		// owner (spec 027); preserve phase — human_review is reserved for Result.NextPhase.
 		content = SetFrontmatterField(content, "status", "in_progress")
+		if prev := getFrontmatterField(content, "assignee"); prev != "" {
+			content = SetFrontmatterField(content, "previous_assignee", prev)
+		}
 		content = SetFrontmatterField(content, "assignee", "")
 		// phase is preserved from existing content — do NOT set to human_review
 	case agentlib.AgentStatusInProgress:
