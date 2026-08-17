@@ -83,16 +83,46 @@ func applyStatusFrontmatter(content string, result agentlib.AgentResultInfo) str
 		// without triggering a phase transition.
 		content = SetFrontmatterField(content, "status", "in_progress")
 		// phase intentionally not modified — preserves the agent's current phase for in-place save
+	case agentlib.AgentStatusFailed:
+		// Infra failure (transient — crash, timeout, OOM): preserve assignee so the task
+		// stays routable and trigger_count / max_triggers retries can fire. At cap
+		// exhaustion the task escalates to the operator inbox: assignee cleared,
+		// previous_assignee recorded (spec 027), phase as the resume cursor.
+		content = SetFrontmatterField(content, "status", "in_progress")
+		if triggerCountAtCap(content) {
+			if prev := getFrontmatterField(content, "assignee"); prev != "" {
+				content = SetFrontmatterField(content, "previous_assignee", prev)
+			}
+			content = SetFrontmatterField(content, "assignee", "")
+		}
+		// phase is preserved from existing content — do NOT set to human_review
 	default:
-		// Agent returned status: failed (or unknown). Clear assignee so the task
-		// surfaces in the operator inbox; preserve phase from existing content. Retry
-		// is the controller's job via trigger_count / max_triggers, not a phase loop.
-		// The ## Failure body section carries the reason for the human reviewer.
+		// Unknown status: defensive — surface to the operator like a cap exhaustion.
 		content = SetFrontmatterField(content, "status", "in_progress")
 		content = SetFrontmatterField(content, "assignee", "")
 		// phase is preserved from existing content — do NOT set to human_review
 	}
 	return content
+}
+
+// triggerCountAtCap reports whether the task's trigger_count has reached its
+// max_triggers budget. Used by the failed-result path to decide retry (assignee
+// preserved) vs escalation (assignee cleared, previous_assignee recorded).
+func triggerCountAtCap(content string) bool {
+	fm, _ := ParseMarkdownFrontmatter(content)
+	frontmatter := agentlib.TaskFrontmatter{}
+	for k, v := range fm {
+		frontmatter[k] = v
+	}
+	return frontmatter.TriggerCount() >= frontmatter.MaxTriggers()
+}
+
+// getFrontmatterField reads a string field from YAML frontmatter.
+// Returns "" when the field is absent or holds a non-string value.
+func getFrontmatterField(content, key string) string {
+	fm, _ := ParseMarkdownFrontmatter(content)
+	v, _ := fm[key].(string)
+	return v
 }
 
 // buildFailureSection renders a `## Failure` block with a human-readable

@@ -149,9 +149,9 @@ var _ = Describe("KafkaResultDeliverer", func() {
 		Expect(fm["status"]).To(Equal("completed"))
 	})
 
-	It("publishes failed result with phase unchanged from incoming and assignee cleared", func() {
+	It("preserves assignee on failed result below the trigger cap (retry stays routable)", func() {
 		generator.GenerateReturns(
-			"---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
+			"---\nstatus: in_progress\nphase: planning\nassignee: github-update-go-agent\ntrigger_count: 2\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
 			nil,
 		)
 		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
@@ -168,8 +168,35 @@ var _ = Describe("KafkaResultDeliverer", func() {
 		Expect(fm["phase"]).To(Equal("planning"))
 		Expect(fm["phase"]).NotTo(Equal("human_review"))
 		Expect(fm["status"]).To(Equal("in_progress"))
-		Expect(fm["assignee"]).To(Equal(""))
+		Expect(fm["assignee"]).To(Equal("github-update-go-agent"))
+		Expect(fm).NotTo(HaveKey("previous_assignee"))
 	})
+
+	It(
+		"escalates on failed result at the trigger cap (assignee cleared, previous_assignee recorded)",
+		func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: planning\nassignee: github-update-go-agent\ntrigger_count: 3\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusFailed,
+				Message: "task runner failed: timeout",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+			Expect(ok).To(BeTrue())
+			fm, ok := frontmatter.(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["phase"]).To(Equal("planning"))
+			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["assignee"]).To(Equal(""))
+			Expect(fm["previous_assignee"]).To(Equal("github-update-go-agent"))
+		},
+	)
 
 	It(
 		"publishes needs_input result with phase unchanged from incoming and assignee cleared",
@@ -569,9 +596,9 @@ var _ = Describe("KafkaResultDeliverer", func() {
 	})
 
 	Context("AgentStatusFailed with incoming phase: in_progress", func() {
-		It("preserves phase: in_progress and clears assignee", func() {
+		It("preserves phase: in_progress and assignee below the trigger cap", func() {
 			generator.GenerateReturns(
-				"---\nstatus: in_progress\nphase: in_progress\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
+				"---\nstatus: in_progress\nphase: in_progress\nassignee: github-update-go-agent\ntrigger_count: 1\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
 				nil,
 			)
 			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
@@ -585,14 +612,15 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(fm["phase"]).To(Equal("in_progress"))
 			Expect(fm["phase"]).NotTo(Equal("human_review"))
 			Expect(fm["status"]).To(Equal("in_progress"))
-			Expect(fm["assignee"]).To(Equal(""))
+			Expect(fm["assignee"]).To(Equal("github-update-go-agent"))
+			Expect(fm).NotTo(HaveKey("previous_assignee"))
 		})
 	})
 
 	Context("AgentStatusFailed with incoming phase: ai_review", func() {
-		It("preserves phase: ai_review and clears assignee", func() {
+		It("preserves phase: ai_review and assignee below the trigger cap", func() {
 			generator.GenerateReturns(
-				"---\nstatus: in_progress\nphase: ai_review\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
+				"---\nstatus: in_progress\nphase: ai_review\nassignee: github-update-go-agent\ntrigger_count: 1\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
 				nil,
 			)
 			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
@@ -606,7 +634,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(fm["phase"]).To(Equal("ai_review"))
 			Expect(fm["phase"]).NotTo(Equal("human_review"))
 			Expect(fm["status"]).To(Equal("in_progress"))
-			Expect(fm["assignee"]).To(Equal(""))
+			Expect(fm["assignee"]).To(Equal("github-update-go-agent"))
+			Expect(fm).NotTo(HaveKey("previous_assignee"))
 		})
 	})
 })
