@@ -212,6 +212,11 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 		}
 	case agentlib.AgentStatusNeedsInput:
 		frontmatter["status"] = "in_progress"
+		// Task-wrong (permanent): the agent already did the work, so the task surfaces
+		// in the operator inbox immediately. Record the pre-clear owner (spec 027).
+		if prev := string(frontmatter.Assignee()); prev != "" {
+			frontmatter["previous_assignee"] = prev
+		}
 		frontmatter["assignee"] = ""
 		// phase is preserved from incoming frontmatter (already copied from fmMap above)
 	case agentlib.AgentStatusInProgress:
