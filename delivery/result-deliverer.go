@@ -130,56 +130,7 @@ func (d *kafkaResultDeliverer) DeliverResult(
 		frontmatter[k] = v
 	}
 
-	// Set status/assignee from result.Status directly. The content generator may not
-	// have frontmatter to update (TASK_CONTENT is body-only), so we set it explicitly.
-	// Failed and needs_input results clear assignee (operator inbox surfaces empty-assignee
-	// tasks) and leave phase unchanged. Only the AgentStatusDone branch may write
-	// phase: human_review, and only when the agent itself requested it via Result.NextPhase.
-	// Retry of failed tasks is the controller's responsibility via trigger_count /
-	// max_triggers, not a phase loop.
-	switch result.Status {
-	case agentlib.AgentStatusDone:
-		if result.NextPhase == "" {
-			// Done without NextPhase is an in-place save (see agentlib.Result.NextPhase:
-			// "Empty means stay in current phase"): keep status: in_progress and preserve
-			// the phase from incoming frontmatter (already copied from fmMap above) —
-			// exactly like the AgentStatusInProgress branch. Terminating a task requires
-			// an explicit NextPhase: "done". Without this, mid-phase saves from
-			// Done+ContinueToNext preflight steps marked live tasks completed.
-			frontmatter["status"] = "in_progress"
-			// phase intentionally not modified — preserves incoming phase
-			break
-		}
-		resolvedPhase := resolveNextPhase(d.taskID, result.NextPhase)
-		frontmatter["phase"] = resolvedPhase
-		// Only mark the task completed when the resolved phase is terminal (done).
-		// Requested transitions to planning/execution/ai_review/human_review keep
-		// the task at status: in_progress so the controller re-triggers on the
-		// new phase. Without this, multi-phase agents stall after their first phase.
-		if resolvedPhase == "done" {
-			frontmatter["status"] = "completed"
-		} else {
-			frontmatter["status"] = "in_progress"
-		}
-	case agentlib.AgentStatusNeedsInput:
-		frontmatter["status"] = "in_progress"
-		frontmatter["assignee"] = ""
-		// phase is preserved from incoming frontmatter (already copied from fmMap above)
-	case agentlib.AgentStatusInProgress:
-		// Step-level progress save: keep status: in_progress, preserve phase from incoming
-		// task frontmatter (already copied from fmMap above). NextPhase ignored on this status —
-		// log a warning if the agent set both.
-		if result.NextPhase != "" {
-			glog.Warningf("task %s: ignoring NextPhase %q on Status: in_progress (in-place save)",
-				d.taskID, result.NextPhase)
-		}
-		frontmatter["status"] = "in_progress"
-		// phase intentionally not modified — preserves incoming phase
-	default:
-		frontmatter["status"] = "in_progress"
-		frontmatter["assignee"] = ""
-		// phase is preserved from incoming frontmatter (already copied from fmMap above)
-	}
+	d.applyResultFrontmatter(frontmatter, result)
 
 	now := d.currentDateTime.Now()
 	task := agentlib.Task{
@@ -216,6 +167,84 @@ func (d *kafkaResultDeliverer) DeliverResult(
 		return errors.Wrap(ctx, err, "publish task update failed")
 	}
 	return nil
+}
+
+// applyResultFrontmatter merges result.Status into the task frontmatter — status,
+// assignee, and phase — per the retry-vs-escalate contract. Extracted into a helper
+// so DeliverResult stays under the funlen limit.
+//
+// Retry-vs-escalate (spec 010/021): failed is an infra failure (transient — crash,
+// timeout, OOM), so preserve assignee and keep the task routable; retry is the
+// controller's responsibility via trigger_count / max_triggers, and it can only
+// fire while assignee is set. Only at cap exhaustion does the task escalate:
+// assignee cleared to "" (the operator-inbox signal), previous_assignee recorded
+// (spec 027), phase left as the resume cursor.
+//
+// needs_input is task-wrong, not transient — the agent already did the work, so the
+// task surfaces in the operator inbox immediately (assignee cleared, phase unchanged).
+// Only the AgentStatusDone branch may write phase: human_review, and only when the
+// agent itself requested it via Result.NextPhase.
+func (d *kafkaResultDeliverer) applyResultFrontmatter(
+	frontmatter agentlib.TaskFrontmatter,
+	result agentlib.AgentResultInfo,
+) {
+	switch result.Status {
+	case agentlib.AgentStatusDone:
+		if result.NextPhase == "" {
+			// Done without NextPhase is an in-place save (see agentlib.Result.NextPhase:
+			// "Empty means stay in current phase"): keep status: in_progress and preserve
+			// the phase from incoming frontmatter — exactly like the InProgress branch.
+			// Terminating a task requires an explicit NextPhase: "done".
+			frontmatter["status"] = "in_progress"
+			// phase intentionally not modified — preserves incoming phase
+			break
+		}
+		resolvedPhase := resolveNextPhase(d.taskID, result.NextPhase)
+		frontmatter["phase"] = resolvedPhase
+		// Only mark the task completed when the resolved phase is terminal (done).
+		// Requested transitions to planning/execution/ai_review/human_review keep
+		// the task at status: in_progress so the controller re-triggers on the
+		// new phase. Without this, multi-phase agents stall after their first phase.
+		if resolvedPhase == "done" {
+			frontmatter["status"] = "completed"
+		} else {
+			frontmatter["status"] = "in_progress"
+		}
+	case agentlib.AgentStatusNeedsInput:
+		frontmatter["status"] = "in_progress"
+		frontmatter["assignee"] = ""
+		// phase is preserved from incoming frontmatter (already copied from fmMap above)
+	case agentlib.AgentStatusInProgress:
+		// Step-level progress save: keep status: in_progress, preserve phase from incoming
+		// task frontmatter. NextPhase ignored on this status — log a warning if set both.
+		if result.NextPhase != "" {
+			glog.Warningf("task %s: ignoring NextPhase %q on Status: in_progress (in-place save)",
+				d.taskID, result.NextPhase)
+		}
+		frontmatter["status"] = "in_progress"
+		// phase intentionally not modified — preserves incoming phase
+	case agentlib.AgentStatusFailed:
+		// Infra failure (transient): preserve assignee so the trigger_count / max_triggers
+		// retry path stays reachable — clearing it here would make the task unroutable and
+		// the retry silently never happen. Only at cap exhaustion does the task escalate
+		// to the operator inbox.
+		frontmatter["status"] = "in_progress"
+		if frontmatter.TriggerCount() >= frontmatter.MaxTriggers() {
+			if prev := string(frontmatter.Assignee()); prev != "" {
+				frontmatter["previous_assignee"] = prev
+			}
+			frontmatter["assignee"] = ""
+		}
+		// phase is preserved from incoming frontmatter (already copied from fmMap above)
+	default:
+		// Unknown status: defensive — surface to the operator like a cap exhaustion.
+		frontmatter["status"] = "in_progress"
+		if prev := string(frontmatter.Assignee()); prev != "" {
+			frontmatter["previous_assignee"] = prev
+		}
+		frontmatter["assignee"] = ""
+		// phase is preserved from incoming frontmatter (already copied from fmMap above)
+	}
 }
 
 // resolveNextPhase returns the validated phase string for a done agent result

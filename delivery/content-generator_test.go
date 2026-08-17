@@ -77,9 +77,9 @@ var _ = Describe("FallbackContentGenerator", func() {
 		)
 
 		It(
-			"sets status=in_progress, clears assignee, preserves phase for failed result with ## Failure section",
+			"sets status=in_progress, preserves assignee below the trigger cap, keeps phase for failed result with ## Failure section",
 			func() {
-				original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\nassignee: some-agent\n---\n\n## Task\n\nRun a backtest.\n"
+				original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\nassignee: some-agent\ntrigger_count: 1\n---\n\n## Task\n\nRun a backtest.\n"
 				generated, err := generator.Generate(ctx, original, agentlib.AgentResultInfo{
 					Status:  agentlib.AgentStatusFailed,
 					Message: "claude CLI failed: exit status 1",
@@ -89,14 +89,35 @@ var _ = Describe("FallbackContentGenerator", func() {
 				Expect(fm["status"]).To(Equal("in_progress"))
 				Expect(fm["phase"]).To(Equal("planning"))
 				Expect(fm["phase"]).NotTo(Equal("human_review"))
-				// SetFrontmatterField emits `assignee: ` (key, colon, space, empty value, newline).
-				// ParseMarkdownFrontmatter's underlying yaml.Unmarshal decodes that key with no
-				// scalar into a Go nil; ParseMarkdownFrontmatter then omits nil values from the
-				// returned map. So an "empty assignee" surfaces as a missing key in fm.
+				// Below the trigger cap the task stays routable — assignee preserved so
+				// trigger_count / max_triggers retries can fire.
+				Expect(fm["assignee"]).To(Equal("some-agent"))
+				Expect(fm).NotTo(HaveKey("previous_assignee"))
+				Expect(body).To(ContainSubstring("## Failure"))
+				Expect(body).To(ContainSubstring("claude CLI failed: exit status 1"))
+				Expect(body).NotTo(ContainSubstring("## Result"))
+			},
+		)
+
+		It(
+			"escalates on failed result at the trigger cap: clears assignee, records previous_assignee, keeps phase",
+			func() {
+				original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\nassignee: some-agent\ntrigger_count: 3\n---\n\n## Task\n\nRun a backtest.\n"
+				generated, err := generator.Generate(ctx, original, agentlib.AgentResultInfo{
+					Status:  agentlib.AgentStatusFailed,
+					Message: "claude CLI failed: exit status 1",
+				})
+				Expect(err).NotTo(HaveOccurred())
+				fm, body := delivery.ParseMarkdownFrontmatter(generated)
+				Expect(fm["status"]).To(Equal("in_progress"))
+				Expect(fm["phase"]).To(Equal("planning"))
+				Expect(fm["phase"]).NotTo(Equal("human_review"))
+				// At the cap the task escalates to the operator inbox: assignee cleared,
+				// previous_assignee records the pre-clear owner (spec 027). SetFrontmatterField
+				// emits `assignee: ` (empty), which parses back as a missing key.
 				_, assigneePresent := fm["assignee"]
-				Expect(
-					assigneePresent,
-				).To(BeFalse(), "assignee should be cleared (parsed as missing key when empty)")
+				Expect(assigneePresent).To(BeFalse(), "assignee should be cleared")
+				Expect(fm["previous_assignee"]).To(Equal("some-agent"))
 				Expect(body).To(ContainSubstring("## Failure"))
 				Expect(body).To(ContainSubstring("claude CLI failed: exit status 1"))
 				Expect(body).NotTo(ContainSubstring("## Result"))
@@ -334,8 +355,9 @@ var _ = Describe("PassthroughContentGenerator", func() {
 			Expect(fm["status"]).To(Equal("in_progress"))
 			Expect(fm["phase"]).To(Equal("planning"))
 			Expect(fm["phase"]).NotTo(Equal("human_review"))
-			_, assigneePresent := fm["assignee"]
-			Expect(assigneePresent).To(BeFalse(), "assignee should be cleared")
+			// Below the trigger cap the assignee is preserved — the task stays routable
+			// so trigger_count / max_triggers retries can fire.
+			Expect(fm["assignee"]).To(Equal("some-agent"))
 		},
 	)
 
