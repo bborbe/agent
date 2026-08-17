@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.81.3
 
 - fix(delivery): record `previous_assignee` on `needs_input` escalation too (spec 027). The retry-vs-escalate fix (v0.81.2) records the pre-clear owner only on cap-exhaustion; `needs_input` (task-wrong, permanent) cleared `assignee` without the stamp, so the operator inbox couldn't show which agent parked the task. Both deliverer paths now stamp `previous_assignee` on every assignee-clear.
 
