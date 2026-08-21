@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [049-claude-runner-persists-partial-output]
+summary: 'Recorded spec 049''s Partial field in a new top ## Unreleased CHANGELOG section and proved the change fully additive: all three ClaudeRunner callers compile with unmodified specs passing, make generate leaves every counterfeiter-generated mock byte-identical (MOCKS UNCHANGED), and make precommit passes with exit 0 (ROOTDIR=/workspace supplied because the Makefile derives ROOTDIR from git, which the hideGit mask breaks)'
+execution_id: agent-pr-reviewer-salvage-exec-209-spec-049-compat-hygiene-changelog
+dark-factory-version: dev
 created: "2026-08-21T10:20:00Z"
 queued: "2026-08-21T11:03:51Z"
+started: "2026-08-21T11:16:11Z"
+completed: "2026-08-21T11:19:29Z"
 branch: dark-factory/claude-runner-persists-partial-output
 ---
 
