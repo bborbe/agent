@@ -45,7 +45,10 @@ type taskRunner[T AgentResultLike] struct {
 func (r *taskRunner[T]) Run(ctx context.Context, taskContent string) (*T, error) {
 	taskContent = strings.TrimSpace(taskContent)
 	if taskContent == "" {
-		return r.deliver(ctx, newErrorResult[T](AgentStatusNeedsInput, "task content is empty"))
+		return r.deliver(
+			ctx,
+			newErrorResult[T](AgentStatusNeedsInput, "task content is empty"),
+		), nil
 	}
 
 	prompt := BuildPrompt(
@@ -61,7 +64,7 @@ func (r *taskRunner[T]) Run(ctx context.Context, taskContent string) (*T, error)
 		return r.deliver(
 			ctx,
 			newErrorResult[T](AgentStatusFailed, fmt.Sprintf("claude CLI failed: %v", err)),
-		)
+		), nil
 	}
 
 	jsonBlob, ok := extractLastJSONObject(result.Result)
@@ -69,24 +72,24 @@ func (r *taskRunner[T]) Run(ctx context.Context, taskContent string) (*T, error)
 		return r.deliver(ctx, newErrorResult[T](AgentStatusFailed, fmt.Sprintf(
 			"parse claude result failed (no JSON object found): %s",
 			result.Result,
-		)))
+		))), nil
 	}
 	var agentResult T
 	if err := json.Unmarshal([]byte(jsonBlob), &agentResult); err != nil {
 		return r.deliver(ctx, newErrorResult[T](AgentStatusFailed, fmt.Sprintf(
 			"parse claude result failed: %v (raw: %s)",
 			err, result.Result,
-		)))
+		))), nil
 	}
 
-	return r.deliver(ctx, agentResult)
+	return r.deliver(ctx, agentResult), nil
 }
 
-func (r *taskRunner[T]) deliver(ctx context.Context, result T) (*T, error) {
+func (r *taskRunner[T]) deliver(ctx context.Context, result T) *T {
 	if err := r.deliverer.DeliverResult(ctx, result); err != nil {
 		glog.Warningf("deliver result failed: %v", err)
 	}
-	return &result, nil
+	return &result
 }
 
 // newErrorResult creates a T with status and message set via JSON round-trip.
