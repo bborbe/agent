@@ -158,6 +158,11 @@ func appendTail(tail []string, line []byte) []string {
 // appendPartial appends chunk to the bounded partial buffer, keeping at most
 // partialMaxBytes of the most recent bytes and dropping the earliest bytes on
 // overflow.
+//
+// The simple slice-copy is deliberate: the buffer is capped at 16 KiB and
+// cleared on every run, so the O(n) copy on overflow is bounded and trivial
+// (~microseconds); a ring-buffer would add head-index bookkeeping for no
+// measurable gain at this size.
 func appendPartial(partial []byte, chunk string) []byte {
 	partial = append(partial, chunk...)
 	if len(partial) > partialMaxBytes {
