@@ -7,6 +7,9 @@ package claude
 // ClaudeResult holds the parsed output from a Claude Code CLI session.
 type ClaudeResult struct {
 	Result string `json:"result"`
+	// Partial is the assistant text the CLI streamed before the run ended, bounded
+	// to the most recent 16 KiB. Empty when the CLI streamed no assistant text.
+	Partial string `json:"partial,omitempty"`
 	// InputTokens is the count of fresh (non-cached) input tokens the session consumed.
 	InputTokens int64 `json:"input_tokens,omitempty"`
 	// OutputTokens is the count of output tokens the session produced.

@@ -1,6 +1,8 @@
 ---
-status: approved
+status: prompted
 approved: "2026-08-08T20:38:43Z"
+generating: "2026-08-21T08:13:02Z"
+prompted: "2026-08-21T08:45:02Z"
 branch: dark-factory/agent-egress-proxy
 ---
 

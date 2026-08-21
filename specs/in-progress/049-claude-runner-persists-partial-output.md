@@ -1,8 +1,12 @@
 ---
-status: draft
+status: prompted
 tags:
-  - dark-factory
-  - spec
+    - dark-factory
+    - spec
+approved: "2026-08-21T07:45:20Z"
+generating: "2026-08-21T08:45:02Z"
+prompted: "2026-08-21T10:37:36Z"
+branch: dark-factory/claude-runner-persists-partial-output
 ---
 
 ## Summary

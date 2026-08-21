@@ -25,6 +25,12 @@ const (
 	tailJoiner   = " | "
 )
 
+// partialMaxBytes caps the partial captured from the claude CLI stream: at most this
+// many of the most recent bytes of streamed assistant text are kept. It is a frozen
+// package constant (spec 049): a cap that can be disabled is an escape hatch on the
+// salvage feature, so it is deliberately NOT configurable.
+const partialMaxBytes = 16384
+
 //counterfeiter:generate -o ../mocks/claude-claude-runner.go --fake-name ClaudeRunner . ClaudeRunner
 
 // ClaudeRunner spawns a headless Claude Code CLI session with a prompt and MCP tools.
@@ -58,7 +64,7 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 		return nil, errors.Wrap(ctx, err, "start claude CLI")
 	}
 
-	resultText, usage, tail := scanOutput(ctx, stdoutPipe)
+	resultText, usage, partial, tail := scanOutput(ctx, stdoutPipe)
 
 	if err := cmd.Wait(); err != nil {
 		var tailMsg string
@@ -67,15 +73,20 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 		} else {
 			tailMsg = "no stdout captured"
 		}
-		return nil, errors.Wrapf(ctx, err, "claude CLI failed: %s", tailMsg)
+		return &ClaudeResult{
+			Partial: partial,
+		}, errors.Wrapf(ctx, err, "claude CLI failed: %s", tailMsg)
 	}
 
 	if resultText == "" {
-		return nil, errors.New(ctx, "no result event found in claude CLI output")
+		return &ClaudeResult{
+			Partial: partial,
+		}, errors.New(ctx, "no result event found in claude CLI output")
 	}
 
 	return &ClaudeResult{
 		Result:              resultText,
+		Partial:             partial,
 		InputTokens:         usage.inputTokens,
 		OutputTokens:        usage.outputTokens,
 		CacheCreationTokens: usage.cacheCreationTokens,
@@ -144,6 +155,32 @@ func appendTail(tail []string, line []byte) []string {
 	return tail
 }
 
+// appendPartial appends chunk to the bounded partial buffer, keeping at most
+// partialMaxBytes of the most recent bytes and dropping the earliest bytes on
+// overflow.
+func appendPartial(partial []byte, chunk string) []byte {
+	partial = append(partial, chunk...)
+	if len(partial) > partialMaxBytes {
+		partial = partial[len(partial)-partialMaxBytes:]
+	}
+	return partial
+}
+
+// capturePartial appends the plain text content of an assistant event to the
+// bounded partial buffer. Tool payloads (tool_use items carry their payload in
+// Input, not Text), usage telemetry, and the stream-json envelope itself are
+// excluded. On event-schema drift the gate degrades to a no-op without crashing.
+func capturePartial(partial []byte, event claudeEvent) []byte {
+	if event.Type == "assistant" {
+		for _, c := range event.Message.Content {
+			if c.Type == "text" {
+				partial = appendPartial(partial, c.Text)
+			}
+		}
+	}
+	return partial
+}
+
 // parseUsage extracts token counts from a raw usage JSON block and the num_turns field
 // from the parent event. Each token field is unmarshalled individually from a map so that a
 // decode error on one field does not roll back valid values from other fields.
@@ -183,20 +220,22 @@ func parseUsage(usageRaw json.RawMessage, numTurns json.Number) sessionUsage {
 }
 
 // scanOutput reads stream-json lines from stdout, logs events, and returns the result
-// text, the captured usage summary, and a bounded tail of all non-empty lines.
+// text, the captured usage summary, the bounded partial of streamed assistant text,
+// and a bounded tail of all non-empty lines.
 func scanOutput(
 	ctx context.Context,
 	reader interface{ Read([]byte) (int, error) },
-) (string, sessionUsage, []string) {
+) (string, sessionUsage, string, []string) {
 	var resultText string
 	var usage sessionUsage
+	var partial []byte
 	var tail []string
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
-			return "", sessionUsage{}, nil
+			return resultText, usage, string(partial), tail
 		default:
 		}
 
@@ -233,6 +272,8 @@ func scanOutput(
 			usage = parseUsage(event.Usage, event.NumTurns)
 		}
 
+		partial = capturePartial(partial, event)
+
 		for _, c := range event.Message.Content {
 			switch c.Type {
 			case "tool_use":
@@ -242,7 +283,7 @@ func scanOutput(
 			}
 		}
 	}
-	return resultText, usage, tail
+	return resultText, usage, string(partial), tail
 }
 
 // buildSubprocessEnv constructs the env var slice for the Claude CLI subprocess.
