@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.82.0
 
 - feat: claude: `ClaudeResult` now carries `Partial`, the bounded streamed assistant text captured up to the moment a run terminates (killed, cancelled, or missing result event), surfaced alongside the error so partial output can be salvaged instead of lost
 
