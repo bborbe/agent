@@ -1,6 +1,8 @@
 ---
-status: approved
+status: prompted
 approved: "2026-08-08T20:38:38Z"
+generating: "2026-08-21T07:52:06Z"
+prompted: "2026-08-21T08:13:02Z"
 branch: dark-factory/agent-sandbox-namespace
 ---
 

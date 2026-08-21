@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -554,6 +555,158 @@ exit 0`,
 			}).Run(ctx, "test")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Result).To(ContainSubstring("PWD=" + workDir))
+		})
+	})
+})
+
+var _ = Describe("claudeRunner partial capture", func() {
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	// writeShim creates a temp dir, writes a "claude" shell script with the given body,
+	// prepends the dir to PATH, and registers cleanup via DeferCleanup.
+	writeShim := func(body string) {
+		shimDir := GinkgoT().TempDir()
+		shimPath := filepath.Join(shimDir, "claude")
+		script := "#!/bin/sh\n" + body
+		err := os.WriteFile(shimPath, []byte(script), 0755) //nolint:gosec
+		Expect(err).NotTo(HaveOccurred())
+		originalPath := os.Getenv("PATH")
+		DeferCleanup(func() {
+			Expect(os.Setenv("PATH", originalPath)).To(Succeed())
+		})
+		Expect(os.Setenv("PATH", shimDir+":"+originalPath)).To(Succeed())
+	}
+
+	Context("non-zero exit after streaming assistant text (kill path)", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo '{"type":"error","message":"auth-failure: 401 Invalid authentication credentials"}'
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"## Review of the moss PR"}]}}'
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"Findings batch one: all 7 concerns identified."}]}}'
+exit 1`,
+			)
+		})
+
+		It("returns the streamed assistant text as the partial alongside the error", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).To(HaveOccurred())
+			Expect(result).NotTo(BeNil())
+			Expect(result.Partial).To(ContainSubstring("## Review of the moss PR"))
+			Expect(
+				result.Partial,
+			).To(ContainSubstring("Findings batch one: all 7 concerns identified."))
+		})
+
+		It("keeps the tail diagnostic line in the error, not only the partial", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).To(HaveOccurred())
+			Expect(result).NotTo(BeNil())
+			Expect(
+				err.Error(),
+			).To(ContainSubstring("auth-failure: 401 Invalid authentication credentials"))
+		})
+
+		It("partial is plain assistant text, not the stream-json envelope (negative)", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).To(HaveOccurred())
+			Expect(result).NotTo(BeNil())
+			Expect(result.Partial).NotTo(ContainSubstring(`{"type":`))
+		})
+	})
+
+	Context("context cancellation mid-stream", func() {
+		BeforeEach(func() {
+			// Emits one assistant-text line, then blocks so the run is still in
+			// progress when the test cancels the context.
+			writeShim(
+				`echo '{"type":"assistant","message":{"content":[{"type":"text","text":"pre-cancellation-partial-text"}]}}'
+sleep 30`,
+			)
+		})
+
+		It("returns the pre-cancellation partial alongside the error", func() {
+			cancelCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).
+				Run(cancelCtx, "test")
+			Expect(err).To(HaveOccurred())
+			Expect(result).NotTo(BeNil())
+			Expect(result.Partial).NotTo(BeEmpty())
+			Expect(result.Partial).To(ContainSubstring("pre-cancellation-partial-text"))
+		})
+	})
+
+	Context("streaming more assistant text than the cap", func() {
+		BeforeEach(func() {
+			// Emits 1 + 300 + 1 assistant-text lines totalling well over the 16384-byte
+			// cap (~19340 bytes of decoded text): the earliest bytes (the FIRST marker)
+			// must be dropped, the most recent bytes (the LAST marker) must be kept.
+			// Do not "simplify" this fixture to fewer/smaller lines — the total MUST
+			// exceed the cap or the length assertion below cannot hold.
+			writeShim(
+				`echo '{"type":"assistant","message":{"content":[{"type":"text","text":"FIRST-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}]}}'
+i=0
+while [ $i -lt 300 ]; do
+  echo '{"type":"assistant","message":{"content":[{"type":"text","text":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}]}}'
+  i=$((i+1))
+done
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-LAST"}]}}'
+exit 1`,
+			)
+		})
+
+		It("keeps at least 16384 bytes of the most recent text", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).To(HaveOccurred())
+			Expect(result).NotTo(BeNil())
+			Expect(len(result.Partial)).To(BeNumerically(">=", 16384))
+		})
+
+		It("keeps the last streamed line and drops the first streamed line", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).To(HaveOccurred())
+			Expect(result).NotTo(BeNil())
+			Expect(result.Partial).To(ContainSubstring("-LAST"))
+			Expect(result.Partial).NotTo(ContainSubstring("FIRST"))
+		})
+	})
+
+	Context("successful exit with streamed assistant text", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo '{"type":"assistant","message":{"content":[{"type":"text","text":"streamed-review-draft"}]}}'
+echo '{"type":"result","result":"final-task-output"}'
+exit 0`,
+			)
+		})
+
+		It("returns the streamed text as the partial on success too", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).NotTo(BeNil())
+			Expect(result.Result).To(Equal("final-task-output"))
+			Expect(result.Partial).To(ContainSubstring("streamed-review-draft"))
+		})
+	})
+
+	Context("zero exit with no result event after streaming", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo '{"type":"assistant","message":{"content":[{"type":"text","text":"partial-before-missing-result"}]}}'
+exit 0`,
+			)
+		})
+
+		It("returns the partial alongside the missing-result error", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no result event found"))
+			Expect(result).NotTo(BeNil())
+			Expect(result.Partial).To(ContainSubstring("partial-before-missing-result"))
 		})
 	})
 })
