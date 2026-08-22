@@ -137,3 +137,16 @@ Rationale: prompt 1 is the whole mechanism and all its tests. Prompt 2 is verifi
 ## Do-Nothing Option
 
 Doing nothing keeps the current state: large multi-file PRs with a deep investigation phase burn the Job deadline, the streamed partial review is discarded, and the task escalates to `human_review` with a blank `needs_input` and zero findings preserved — exactly the `Seibert-Data/moss` PR #1 outcome (two failed reviews, all 7 concerns missed). The companion salvage feature cannot land at all, because the caller has no partial to persist. Without this library change, every large PR review remains a coin flip that can consume two full job runs and still produce nothing reviewable.
+
+## Verification Result
+
+**Verified:** 2026-08-22T15:22:28Z (HEAD b1fb201)
+**Binary:** /Users/bborbe/Documents/workspaces/go/bin/dark-factory (installed)
+**Scenario:** No scenario (spec declares NO new scenario) — shim-based unit-test verification. One-shot `dark-factory run` swept prompted→verifying; `go test ./claude/...` (37.6s) + `make precommit` (exit 0) + targeted greps run fresh on merged HEAD.
+**Evidence:**
+- `go test ./claude/...` ok (37.592s): kill-path, context-cancellation, envelope-negative, bounded-capture, error-context-preserved Ginkgo specs all green
+- `make precommit` exit 0 (gofmt/generate/test-race+cover/golangci/vet/vuln/trivy/addlicense); `make generate` exit 0; `mocks/claude-claude-runner.go` byte-identical (zero diff)
+- `grep -n 'Partial' claude/claude-result.go` → line 12 `Partial string \`json:"partial,omitempty"\``; cap `partialMaxBytes = 16384` (claude-runner.go:32)
+- `grep -n -i 'partial output' CHANGELOG.md` → line 17 under `## v0.82.0`; fold guard at merge showed only `+## Unreleased`
+- PR bborbe/agent#48 merged (fce6e63), `v0.82.0` tag on release commit 35a8aae; companion `github-pr-review-agent/go.mod` already on `github.com/bborbe/agent v0.82.0`
+**Verdict:** PASS
