@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-08-21T07:45:20Z"
 generating: "2026-08-21T08:45:02Z"
 prompted: "2026-08-21T10:37:36Z"
 verifying: "2026-08-22T15:11:26Z"
+completed: "2026-08-22T15:29:03Z"
 branch: dark-factory/claude-runner-persists-partial-output
 ---
 
