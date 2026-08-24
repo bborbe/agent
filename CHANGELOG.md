@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.83.0
 
 - feat: `command/task` gains `CompleteCommand` + `CompleteCommandSender` ("complete-task") for closing an open vault task as completed on a build red→green transition (spec 076)
 
