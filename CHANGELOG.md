@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.84.0
 
 - feat(helm): add `executors` values list to `helm/values.yaml` — values-driven per-vault executor Deployments (`agent-task-executor-<name>`, single replica = one consumer group / offset domain / dedup state per vault); each entry's optional fields (`image`, `logLevel`, `sentry.proxy`, `existingSecret`, `podSecurityContext`, `securityContext`, `resources`, `branch`, `topicPrefix`, `kafkaBrokers`) fall back to the corresponding `executor.*` value, and `vaultName` (required) becomes the `VAULT_NAME` env. Empty by default so a generic install renders the single legacy executor unchanged. Schema only — template rendering ships in a follow-on change.
 - feat(helm): add a values-driven `executors` list rendering one per-vault `agent-task-executor-<name>` Deployment per enabled entry — `VAULT_NAME` from `vaultName`, per-entry `TOPIC_PREFIX` selecting the `{prefix}-agent-task-v1-event`/`-request` topics; empty list keeps the single legacy executor unchanged; chart 0.5.2→0.6.0
