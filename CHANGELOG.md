@@ -8,6 +8,11 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(helm): add `executors` values list to `helm/values.yaml` — values-driven per-vault executor Deployments (`agent-task-executor-<name>`, single replica = one consumer group / offset domain / dedup state per vault); each entry's optional fields (`image`, `logLevel`, `sentry.proxy`, `existingSecret`, `podSecurityContext`, `securityContext`, `resources`, `branch`, `topicPrefix`, `kafkaBrokers`) fall back to the corresponding `executor.*` value, and `vaultName` (required) becomes the `VAULT_NAME` env. Empty by default so a generic install renders the single legacy executor unchanged. Schema only — template rendering ships in a follow-on change.
+- feat(helm): add a values-driven `executors` list rendering one per-vault `agent-task-executor-<name>` Deployment per enabled entry — `VAULT_NAME` from `vaultName`, per-entry `TOPIC_PREFIX` selecting the `{prefix}-agent-task-v1-event`/`-request` topics; empty list keeps the single legacy executor unchanged; chart 0.5.2→0.6.0
+
 ## v0.83.1
 
 - chore: update Go to 1.27.0 and github.com/bborbe/collection to v1.20.24, github.com/bborbe/cqrs to v0.6.8, github.com/bborbe/errors to v1.5.21, github.com/bborbe/kafka to v1.25.9, github.com/bborbe/log to v1.6.25, github.com/bborbe/metrics to v0.5.15, github.com/bborbe/time to v1.27.10, github.com/bborbe/validation to v1.4.22, github.com/bborbe/vault-cli to v0.116.2, github.com/onsi/ginkgo/v2 to v2.32.1, github.com/prometheus/client_golang to v1.24.1

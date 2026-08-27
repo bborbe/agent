@@ -97,6 +97,87 @@ executor:
     # Secret (in this namespace) holding the cluster CA as ca.crt.
     caCertSecret: my-cluster-cluster-ca-cert
 
+# Executors: values-driven LIST of Deployments, each serving exactly one vault.
+# Each enabled entry emits an `agent-task-executor-<name>` Deployment (single
+# replica = one consumer group / offset domain / dedup state per vault). The real
+# per-vault install adds one entry per vault; a generic install leaves the list
+# empty (executors: []) so the single legacy executor renders unchanged
+# (executor.enabled path). Reuses the shared image.registry / keel / affinity /
+# pullSecrets values; every optional per-entry field falls back to the matching
+# executor.* value.
+executors: []
+  # - name: openclaw               # instance name → workload agent-task-executor-<name>
+  #                               # and pod label vault: <name>. Required. No chart-side
+  #                               # validation; two entries sharing a name render two
+  #                               # same-named manifests (last-write-wins on apply).
+  #   enabled: true                # default true; false skips the entry.
+  #   # Vault this executor serves. REQUIRED — becomes the VAULT_NAME env; empty is
+  #   # rejected at render time. The slug pattern ^[a-z][a-z0-9-]*$ is validated by
+  #   # the executor binary (>= v0.7.0) at startup, NOT by the chart.
+  #   vaultName: openclaw
+  #   # Stage label forwarded as BRANCH env. Default executor.branch.
+  #   branch: ""
+  #   # Explicit Kafka topic prefix. Default executor.topicPrefix. Passes through
+  #   # verbatim — the chart does NOT derive {stage}-{vault}. Per-vault isolation
+  #   # requires setting this to {stage}-{vault} so the executor consumes
+  #   # {prefix}-agent-task-v1-event and publishes {prefix}-agent-task-v1-request.
+  #   topicPrefix: develop-openclaw
+  #   # Kafka bootstrap brokers. Default executor.kafkaBrokers. Use tls://…:9093
+  #   # with the shared executor.kafkaUser block.
+  #   kafkaBrokers: kafka:9092
+  #   image:
+  #     repository: bborbe/agent-task-executor
+  #     tag: ""                     # empty => Chart.appVersion (default executor.image)
+  #   logLevel: "2"                 # default executor.logLevel
+  #   sentry:
+  #     # Sentry proxy cluster URL. Default executor.sentry.proxy. NOTE: sentry.dsn
+  #     # is NOT a per-entry field — the chart never creates per-vault Secrets;
+  #     # SENTRY_DSN is always read from a Secret (see existingSecret below).
+  #     proxy: ""
+  #   # Name of a pre-existing Secret providing key sentry-dsn. Default
+  #   # executor.existingSecret, then the shared agent-task-executor Secret.
+  #   existingSecret: ""
+  #   # Pod-level securityContext. Default executor.podSecurityContext.
+  #   podSecurityContext: {}
+  #   # Container-level securityContext. Default executor.securityContext.
+  #   securityContext:
+  #     allowPrivilegeEscalation: false
+  #     readOnlyRootFilesystem: false
+  #     capabilities:
+  #       drop: [ALL]
+  #     seccompProfile:
+  #       type: RuntimeDefault
+  #   resources:
+  #     requests: {cpu: 20m, memory: 20Mi}
+  #     limits: {cpu: 500m, memory: 50Mi}
+  # - name: personal
+  #   enabled: true
+  #   vaultName: personal
+  #   branch: ""
+  #   topicPrefix: develop-personal
+  #   kafkaBrokers: kafka:9092
+  #   image:
+  #     repository: bborbe/agent-task-executor
+  #     tag: ""
+  #   logLevel: "2"
+  #   sentry:
+  #     proxy: ""
+  #   existingSecret: ""
+  #   podSecurityContext: {}
+  #   securityContext:
+  #     allowPrivilegeEscalation: false
+  #     readOnlyRootFilesystem: false
+  #     capabilities:
+  #       drop: [ALL]
+  #     seccompProfile:
+  #       type: RuntimeDefault
+  #   resources:
+  #     requests: {cpu: 20m, memory: 20Mi}
+  #     limits: {cpu: 500m, memory: 50Mi}
+  # NOTE: there is NO per-entry kafkaUser — executor mTLS stays driven by the
+  # single shared executor.kafkaUser block for all per-vault executors (per-vault
+  # Kafka credentials are a future separate spec).
+
 # Controllers: values-driven LIST of StatefulSets, each watching one vault's
 # tasks, syncing a git-rest vault, and publishing work to Kafka. Each entry emits
 # an `agent-task-controller-<name>` StatefulSet + Service + Secret. The real quant

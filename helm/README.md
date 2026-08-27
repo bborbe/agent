@@ -111,6 +111,52 @@ agents: []
 | `executor.podSecurityContext` / `securityContext` | `{}` / hardened | Pod/container security contexts. |
 | `executor.resources` | 20m/20Mi → 500m/50Mi | Requests/limits. |
 
+### executors (per-vault, values-driven)
+
+`executors` is a values-driven list: each **enabled** entry renders one per-vault
+Deployment `agent-task-executor-<name>` with `replicas: 1`. One executor per vault
+means one consumer group, one offset domain, and one dedup state per vault — adding
+a vault is a values change, not a chart code change. When the list is empty (the
+default) the single legacy `agent-task-executor` Deployment renders unchanged.
+
+| Key | Default | Description |
+|---|---|---|
+| `executors[].name` | — (**required**) | Deployment suffix → `agent-task-executor-<name>` + `vault: <name>` pod label. |
+| `executors[].enabled` | `true` | `false` skips the entry. |
+| `executors[].vaultName` | — (**required**) | Becomes the `VAULT_NAME` env. Slug `^[a-z][a-z0-9-]*$` is validated by the executor binary (≥ v0.7.0) at startup, NOT the chart; empty is rejected at render time. |
+| `executors[].branch` | `executor.branch` | Stage label forwarded as `BRANCH`. |
+| `executors[].topicPrefix` | `executor.topicPrefix` | Kafka topic prefix; passes through verbatim (see per-vault topics below). |
+| `executors[].kafkaBrokers` | `executor.kafkaBrokers` | Kafka bootstrap brokers. Required when not inherited. |
+| `executors[].image.repository` / `image.tag` | `executor.image` | Image repo/tag; empty tag → chart `appVersion`. |
+| `executors[].logLevel` | `executor.logLevel` | Log verbosity. |
+| `executors[].sentry.proxy` | `executor.sentry.proxy` | Sentry proxy URL. |
+| `executors[].existingSecret` | `executor.existingSecret`, then shared `agent-task-executor` | Pre-existing Secret with key `sentry-dsn`. |
+| `executors[].podSecurityContext` / `securityContext` / `resources` | `executor.*` | Pod/container security contexts + resources. |
+
+**Per-vault topics.** With a per-entry `topicPrefix` of `{stage}-{vault}`, the executor
+consumes `{prefix}-agent-task-v1-event` and publishes `{prefix}-agent-task-v1-request`
+(topic naming per `docs/kafka-schema-design.md`); the chart passes `TOPIC_PREFIX`
+through verbatim and does not derive the prefix.
+
+**Empty-list fallback and authoritative list mode.** `executors: []` (the default)
+plus `executor.enabled: true` renders the single legacy `agent-task-executor`
+Deployment with the same env contract as before (no `VAULT_NAME`). A non-empty list
+is authoritative — the legacy Deployment is not rendered regardless of
+`executor.enabled`; an all-disabled list renders no executor Deployment.
+
+A minimal entry:
+
+```yaml
+executors:
+  - name: openclaw
+    vaultName: openclaw
+    topicPrefix: develop-openclaw
+    kafkaBrokers: kafka:9092
+```
+
+There is no per-entry `kafkaUser` — executor mTLS stays driven by the single shared
+`executor.kafkaUser` block for all per-vault executors.
+
 ### controller
 
 | Key | Default | Description |
