@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(claude): `agentStep.ShouldRun` re-runs a step whose previous run failed — a `## Failure` section or a `needs_input`/`failed` output-section body now forces re-dispatch instead of being skipped as if completed; `agentStep.Run` no longer writes a success-looking output section for a `needs_input`/`failed` runner body (spec 051)
+
 ## v0.84.0
 
 - feat(helm): add `executors` values list to `helm/values.yaml` — values-driven per-vault executor Deployments (`agent-task-executor-<name>`, single replica = one consumer group / offset domain / dedup state per vault); each entry's optional fields (`image`, `logLevel`, `sentry.proxy`, `existingSecret`, `podSecurityContext`, `securityContext`, `resources`, `branch`, `topicPrefix`, `kafkaBrokers`) fall back to the corresponding `executor.*` value, and `vaultName` (required) becomes the `VAULT_NAME` env. Empty by default so a generic install renders the single legacy executor unchanged. Schema only — template rendering ships in a follow-on change.

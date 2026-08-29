@@ -88,7 +88,115 @@ var _ = Describe("AgentStep", func() {
 			It("returns false", func() {
 				md := &lib.Markdown{
 					Sections: []lib.Section{
+						{
+							Heading: "## Analysis",
+							Body:    `{"status":"done","message":"analysis complete"}`,
+						},
+					},
+				}
+				shouldRun, err := agentStep.ShouldRun(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(shouldRun).To(BeFalse())
+			})
+
+			It("success body → false", func() {
+				md := &lib.Markdown{
+					Sections: []lib.Section{
+						{
+							Heading: "## Analysis",
+							Body:    `{"status":"done","message":"analysis complete","next_phase":"done"}`,
+						},
+					},
+				}
+				shouldRun, err := agentStep.ShouldRun(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(shouldRun).To(BeFalse())
+			})
+		})
+
+		Context("when a ## Failure section is present", func() {
+			It("returns true", func() {
+				md := &lib.Markdown{
+					Sections: []lib.Section{
+						{
+							Heading: "## Analysis",
+							Body:    `{"status":"done","message":"analysis complete"}`,
+						},
+						{Heading: "## Failure", Body: "- **Reason:** job failed"},
+					},
+				}
+				shouldRun, err := agentStep.ShouldRun(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(shouldRun).To(BeTrue())
+			})
+		})
+
+		Context("when the output section body is a needs_input AgentResult", func() {
+			It("returns true", func() {
+				md := &lib.Markdown{
+					Sections: []lib.Section{
+						{
+							Heading: "## Analysis",
+							Body:    `{"status":"needs_input","message":"permission denied"}`,
+						},
+					},
+				}
+				shouldRun, err := agentStep.ShouldRun(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(shouldRun).To(BeTrue())
+			})
+		})
+
+		Context("when the output section body is a failed AgentResult", func() {
+			It("returns true", func() {
+				md := &lib.Markdown{
+					Sections: []lib.Section{
+						{
+							Heading: "## Analysis",
+							Body:    `{"status":"failed","message":"claude CLI crashed"}`,
+						},
+					},
+				}
+				shouldRun, err := agentStep.ShouldRun(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(shouldRun).To(BeTrue())
+			})
+		})
+
+		Context("when the output section body is unparseable prose", func() {
+			It("returns false", func() {
+				md := &lib.Markdown{
+					Sections: []lib.Section{
 						{Heading: "## Analysis", Body: "already done"},
+					},
+				}
+				shouldRun, err := agentStep.ShouldRun(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(shouldRun).To(BeFalse())
+			})
+		})
+
+		Context("when the output section body has an unknown status", func() {
+			It("returns false", func() {
+				md := &lib.Markdown{
+					Sections: []lib.Section{
+						{
+							Heading: "## Analysis",
+							Body:    `{"status":"in_progress","message":"working"}`,
+						},
+					},
+				}
+				shouldRun, err := agentStep.ShouldRun(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(shouldRun).To(BeFalse())
+			})
+		})
+
+		Context("when the output section body is invalid JSON with balanced braces", func() {
+			It("returns false", func() {
+				md := &lib.Markdown{
+					Sections: []lib.Section{
+						{Heading: "## Analysis", Body: `{"status": }`},
 					},
 				}
 				shouldRun, err := agentStep.ShouldRun(ctx, md)
@@ -124,6 +232,15 @@ var _ = Describe("AgentStep", func() {
 				Expect(result.Status).To(Equal(lib.AgentStatusFailed))
 				Expect(result.Message).To(ContainSubstring("claude CLI crashed"))
 			})
+
+			It("does not write the output section", func() {
+				md := &lib.Markdown{}
+				result, err := agentStep.Run(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result).NotTo(BeNil())
+				_, exists := md.FindSection("## Analysis")
+				Expect(exists).To(BeFalse())
+			})
 		})
 
 		Context("when runner succeeds", func() {
@@ -150,6 +267,66 @@ var _ = Describe("AgentStep", func() {
 				Expect(exists).To(BeTrue())
 				Expect(section.Body).To(Equal(`{"status":"done","message":"analysis complete"}`))
 			})
+		})
+
+		Context("when runner returns a needs_input body", func() {
+			BeforeEach(func() {
+				mockRunner.RunReturns(&claude.ClaudeResult{
+					Result: `{"status":"needs_input","message":"permission denied"}`,
+				}, nil)
+			})
+
+			It("returns Result with NeedsInput status and does not write the section", func() {
+				md := &lib.Markdown{}
+				result, err := agentStep.Run(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result).NotTo(BeNil())
+				Expect(result.Status).To(Equal(lib.AgentStatusNeedsInput))
+				Expect(result.Message).To(ContainSubstring("permission denied"))
+				_, exists := md.FindSection("## Analysis")
+				Expect(exists).To(BeFalse())
+			})
+		})
+
+		Context("when runner returns a failed body", func() {
+			BeforeEach(func() {
+				mockRunner.RunReturns(&claude.ClaudeResult{
+					Result: `{"status":"failed","message":"claude CLI crashed"}`,
+				}, nil)
+			})
+
+			It("returns Result with Failed status and does not write the section", func() {
+				md := &lib.Markdown{}
+				result, err := agentStep.Run(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result).NotTo(BeNil())
+				Expect(result.Status).To(Equal(lib.AgentStatusFailed))
+				Expect(result.Message).To(ContainSubstring("claude CLI crashed"))
+				_, exists := md.FindSection("## Analysis")
+				Expect(exists).To(BeFalse())
+			})
+		})
+
+		Context("when runner returns a needs_input body without a message", func() {
+			BeforeEach(func() {
+				mockRunner.RunReturns(&claude.ClaudeResult{
+					Result: `{"status":"needs_input"}`,
+				}, nil)
+			})
+
+			It(
+				"returns NeedsInput status with a fallback message and does not write the section",
+				func() {
+					md := &lib.Markdown{}
+					result, err := agentStep.Run(ctx, md)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(result).NotTo(BeNil())
+					Expect(result.Status).To(Equal(lib.AgentStatusNeedsInput))
+					Expect(result.Message).NotTo(BeEmpty())
+					_, exists := md.FindSection("## Analysis")
+					Expect(exists).To(BeFalse())
+				},
+			)
 		})
 	})
 })

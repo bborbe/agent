@@ -1,9 +1,10 @@
 ---
-status: verifying
+status: completed
 approved: "2026-08-27T10:52:53Z"
 generating: "2026-08-27T10:53:12Z"
 prompted: "2026-08-27T11:18:22Z"
 verifying: "2026-08-27T11:43:26Z"
+completed: "2026-08-27T21:15:23Z"
 branch: dark-factory/executors-per-vault-list
 ---
 

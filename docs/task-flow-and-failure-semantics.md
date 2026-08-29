@@ -237,6 +237,12 @@ kubectl logs <executor-pod> | grep respawn_after_grace_window
 kubectl logs <executor-pod> | grep 'event=respawn_grace_window'
 ```
 
+## AgentStep output-section idempotency (spec 051)
+
+`claude/agentStep.ShouldRun` skips a step only when its output section (e.g. `## Analysis`) exists AND represents a genuine success. Re-dispatch re-runs the step when the task carries a failure marker — a `## Failure` section, or an output-section body that parses to a `needs_input`/`failed` AgentResult — so a failed run can never permanently poison re-dispatch. Absence of a success section forces a run. Unparseable prose bodies with no `## Failure` marker still skip (prose agents unchanged).
+
+`claude/agentStep.Run` never writes a success-looking output section for a `needs_input`/`failed` runner body: it returns that status and the deliverer writes the `## Failure` marker as today (`delivery/content-generator.go`). Failure-marker detection is in-memory markdown inspection only (the `Step.ShouldRun` "guards must be cheap" contract).
+
 ## References
 
 - `lib/delivery/status.go` — `AgentStatus` enum
