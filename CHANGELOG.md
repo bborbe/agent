@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.84.1
 
 - fix(claude): `agentStep.ShouldRun` re-runs a step whose previous run failed — a `## Failure` section or a `needs_input`/`failed` output-section body now forces re-dispatch instead of being skipped as if completed; `agentStep.Run` no longer writes a success-looking output section for a `needs_input`/`failed` runner body (spec 051)
 
