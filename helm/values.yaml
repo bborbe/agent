@@ -46,6 +46,11 @@ executor:
   topicPrefix: ""
   # Stage label forwarded as BRANCH env (non-topic uses: image tag hints, stage filters).
   branch: ""
+  # Vault this executor serves. Emitted as the VAULT_NAME env; the executor binary
+  # >= v0.7.0 REQUIRES a non-empty value at startup (empty -> crash-loop). The
+  # legacy v0.6.x line ignores it. Empty default keeps v0.6.x installs rendering
+  # unchanged; v0.7+ installs must set it (nuke enforces via check-executor-compat).
+  vaultName: ""
   sentry:
     # Sentry proxy cluster URL. Optional.
     proxy: ""
