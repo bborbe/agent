@@ -69,6 +69,8 @@ spec:
             {{- end }}
             - name: BRANCH
               value: {{ .Values.executor.branch | quote }}
+            - name: VAULT_NAME
+              value: {{ .Values.executor.vaultName | quote }}
             - name: TOPIC_PREFIX
               value: {{ .Values.executor.topicPrefix | quote }}
             - name: KAFKA_BROKERS

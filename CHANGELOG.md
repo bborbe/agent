@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(helm): the singular executor Deployment now emits `VAULT_NAME` from the new `executor.vaultName` value (empty default — the legacy v0.6.x executor line ignores it, so existing installs render unchanged; the v0.7+ line requires a non-empty value at startup, enforced at deploy time by nuke's `check-executor-compat`). Closes the chart gap that made every v0.7+ executor pin structurally undeployable. Chart 0.6.0→0.6.1
+
 ## v0.84.1
 
 - fix(claude): `agentStep.ShouldRun` re-runs a step whose previous run failed — a `## Failure` section or a `needs_input`/`failed` output-section body now forces re-dispatch instead of being skipped as if completed; `agentStep.Run` no longer writes a success-looking output section for a `needs_input`/`failed` runner body (spec 051)
