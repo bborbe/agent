@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- chore: update github.com/bborbe/collection to v1.20.25, github.com/bborbe/cqrs to v0.6.9, github.com/bborbe/errors to v1.6.0, github.com/bborbe/kafka to v1.25.10, github.com/bborbe/metrics to v0.6.0, github.com/bborbe/time to v1.27.11, github.com/bborbe/validation to v1.4.23, github.com/bborbe/vault-cli to v0.118.4, github.com/onsi/gomega to v1.43.0, github.com/prometheus/client_model to v0.6.3
+
 ## v0.85.0
 
 - feat(helm): the singular executor Deployment now emits `VAULT_NAME` from the new `executor.vaultName` value (empty default — the legacy v0.6.x executor line ignores it, so existing installs render unchanged; the v0.7+ line requires a non-empty value at startup, enforced at deploy time by nuke's `check-executor-compat`). Closes the chart gap that made every v0.7+ executor pin structurally undeployable. Chart 0.6.0→0.6.1
