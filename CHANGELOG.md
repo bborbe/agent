@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.85.1
 
 - chore: update github.com/bborbe/collection to v1.20.25, github.com/bborbe/cqrs to v0.6.9, github.com/bborbe/errors to v1.6.0, github.com/bborbe/kafka to v1.25.10, github.com/bborbe/metrics to v0.6.0, github.com/bborbe/time to v1.27.11, github.com/bborbe/validation to v1.4.23, github.com/bborbe/vault-cli to v0.118.4, github.com/onsi/gomega to v1.43.0, github.com/prometheus/client_model to v0.6.3
 
