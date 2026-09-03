@@ -6,6 +6,7 @@ package task_test
 
 import (
 	"context"
+	"encoding/json"
 	stderrors "errors"
 
 	cqrsmocks "github.com/bborbe/cqrs/mocks"
@@ -26,7 +27,7 @@ var _ = Describe("UpdateFrontmatterCommandSender", func() {
 	BeforeEach(func() {
 		ctx = context.Background()
 		fakeSender = &cqrsmocks.CDBCommandObjectSender{}
-		sender = task.NewUpdateFrontmatterCommandSender(fakeSender)
+		sender = task.NewUpdateFrontmatterCommandSender(fakeSender, "")
 	})
 
 	It("validation fails → publisher not called", func() {
@@ -63,5 +64,54 @@ var _ = Describe("UpdateFrontmatterCommandSender", func() {
 		err := sender.SendCommand(ctx, cmd)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("kafka down"))
+	})
+
+	Context("defaultVault substitution", func() {
+		// publishedCmd decodes the embedded UpdateFrontmatterCommand from the most
+		// recent published CommandObject. It captures ctx and fakeSender from the
+		// outer BeforeEach and reads the most recent call.
+		publishedCmd := func() task.UpdateFrontmatterCommand {
+			_, cmdObj := fakeSender.SendCommandObjectArgsForCall(0)
+			var got task.UpdateFrontmatterCommand
+			Expect(cmdObj.Command.Data.MarshalInto(ctx, &got)).To(Succeed())
+			return got
+		}
+
+		It("defaultVault 'personal' fills empty TargetVault", func() {
+			fakeSender.SendCommandObjectReturns(nil)
+			localSender := task.NewUpdateFrontmatterCommandSender(fakeSender, "personal")
+			cmd := task.UpdateFrontmatterCommand{
+				TaskIdentifier: lib.TaskIdentifier("task-1"),
+				Updates:        lib.TaskFrontmatter{"status": "done"},
+			}
+			Expect(localSender.SendCommand(ctx, cmd)).To(Succeed())
+			Expect(publishedCmd().TargetVault).To(Equal("personal"))
+		})
+
+		It("defaultVault does not override explicit TargetVault", func() {
+			fakeSender.SendCommandObjectReturns(nil)
+			localSender := task.NewUpdateFrontmatterCommandSender(fakeSender, "personal")
+			cmd := task.UpdateFrontmatterCommand{
+				TaskIdentifier: lib.TaskIdentifier("task-1"),
+				Updates:        lib.TaskFrontmatter{"status": "done"},
+				TargetVault:    "openclaw",
+			}
+			Expect(localSender.SendCommand(ctx, cmd)).To(Succeed())
+			Expect(publishedCmd().TargetVault).To(Equal("openclaw"))
+		})
+
+		It("both empty → targetVault absent from published payload", func() {
+			fakeSender.SendCommandObjectReturns(nil)
+			localSender := task.NewUpdateFrontmatterCommandSender(fakeSender, "")
+			cmd := task.UpdateFrontmatterCommand{
+				TaskIdentifier: lib.TaskIdentifier("task-1"),
+				Updates:        lib.TaskFrontmatter{"status": "done"},
+			}
+			Expect(localSender.SendCommand(ctx, cmd)).To(Succeed())
+			_, cmdObj := fakeSender.SendCommandObjectArgsForCall(0)
+			data, err := json.Marshal(cmdObj.Command.Data)
+			Expect(err).To(BeNil())
+			Expect(string(data)).NotTo(ContainSubstring("targetVault"))
+		})
 	})
 })

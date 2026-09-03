@@ -23,23 +23,33 @@ type IncrementFrontmatterCommandSender interface {
 	SendCommand(ctx context.Context, cmd IncrementFrontmatterCommand) error
 }
 
-// NewIncrementFrontmatterCommandSender creates an IncrementFrontmatterCommandSender.
+// NewIncrementFrontmatterCommandSender creates an IncrementFrontmatterCommandSender
+// using the given cdb.CommandObjectSender.
+// The defaultVault is substituted into cmd.TargetVault at SendCommand time when
+// cmd.TargetVault is empty; an invalid defaultVault surfaces as a validation
+// error on the first SendCommand call.
 func NewIncrementFrontmatterCommandSender(
 	commandObjectSender cdb.CommandObjectSender,
+	defaultVault string,
 ) IncrementFrontmatterCommandSender {
 	return &incrementFrontmatterCommandSender{
 		commandObjectSender: commandObjectSender,
+		defaultVault:        defaultVault,
 	}
 }
 
 type incrementFrontmatterCommandSender struct {
 	commandObjectSender cdb.CommandObjectSender
+	defaultVault        string
 }
 
 func (s *incrementFrontmatterCommandSender) SendCommand(
 	ctx context.Context,
 	cmd IncrementFrontmatterCommand,
 ) error {
+	if cmd.TargetVault == "" && s.defaultVault != "" {
+		cmd.TargetVault = s.defaultVault
+	}
 	if err := cmd.Validate(ctx); err != nil {
 		return errors.Wrapf(ctx, err, "validate IncrementFrontmatterCommand")
 	}

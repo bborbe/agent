@@ -8,6 +8,11 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat: `command/task` `UpdateFrontmatterCommand` and `IncrementFrontmatterCommand` gain an optional `TargetVault` routing field (`targetVault,omitempty`, slug-validated like create-command), and their senders' constructors take a `defaultVault string` parameter substituted at SendCommand time — empty by default so existing messages stay byte-identical; lets cross-vault consumers skip commands that are not theirs
+- chore: update golang.org/x/crypto to v0.56.0 (clears GO-2026-6355, GO-2026-6354 module-level vulns that failed vulncheck)
+
 ## v0.85.1
 
 - chore: update github.com/bborbe/collection to v1.20.25, github.com/bborbe/cqrs to v0.6.9, github.com/bborbe/errors to v1.6.0, github.com/bborbe/kafka to v1.25.10, github.com/bborbe/metrics to v0.6.0, github.com/bborbe/time to v1.27.11, github.com/bborbe/validation to v1.4.23, github.com/bborbe/vault-cli to v0.118.4, github.com/onsi/gomega to v1.43.0, github.com/prometheus/client_model to v0.6.3

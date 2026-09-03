@@ -24,6 +24,11 @@ type IncrementFrontmatterCommand struct {
 	TaskIdentifier lib.TaskIdentifier `json:"taskIdentifier"`
 	Field          string             `json:"field"`
 	Delta          int                `json:"delta"`
+	// TargetVault is the slug of the Obsidian vault this task belongs in.
+	// Empty value means consumers fall through and process the command (same
+	// semantics as the result path), so legacy unstamped producers keep working.
+	// Wire format uses omitempty so legacy producers that never set it stay byte-compatible.
+	TargetVault string `json:"targetVault,omitempty"`
 }
 
 // Validate enforces IncrementFrontmatterCommand schema rules before publishing.
@@ -31,6 +36,7 @@ type IncrementFrontmatterCommand struct {
 func (cmd IncrementFrontmatterCommand) Validate(ctx context.Context) error {
 	return validation.All{
 		validation.Name("TaskIdentifier", cmd.TaskIdentifier),
+		validation.Name("TargetVault", validateCreateTargetVault(cmd.TargetVault)),
 		validation.Name("Field", validation.HasValidationFunc(func(ctx context.Context) error {
 			if cmd.Field == "" {
 				return errors.Wrap(ctx, validation.Error, "field must not be empty")
