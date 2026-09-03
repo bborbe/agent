@@ -25,7 +25,8 @@ type UpdateFrontmatterCommand struct {
 	Updates        lib.TaskFrontmatter `json:"updates"`
 	Body           *BodySection        `json:"body,omitempty"`
 	// TargetVault is the slug of the Obsidian vault this task belongs in.
-	// Empty value means "use the controller's legacy default (openclaw)".
+	// Empty value means consumers fall through and process the command (same
+	// semantics as the result path), so legacy unstamped producers keep working.
 	// Wire format uses omitempty so legacy producers that never set it stay byte-compatible.
 	TargetVault string `json:"targetVault,omitempty"`
 }
