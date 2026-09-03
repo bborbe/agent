@@ -82,6 +82,37 @@ var _ = Describe("IncrementFrontmatterCommand", func() {
 		Expect(jsonStr).To(ContainSubstring(`"field"`))
 		Expect(jsonStr).To(ContainSubstring(`"delta"`))
 	})
+
+	It("round-trips with empty TargetVault: marshaled JSON has no targetVault key", func() {
+		cmd := task.IncrementFrontmatterCommand{
+			TaskIdentifier: lib.TaskIdentifier("task-novault"),
+			Field:          "trigger_count",
+			Delta:          1,
+		}
+		data, err := json.Marshal(cmd)
+		Expect(err).To(BeNil())
+		Expect(string(data)).NotTo(ContainSubstring("targetVault"))
+
+		var got task.IncrementFrontmatterCommand
+		Expect(json.Unmarshal(data, &got)).To(Succeed())
+		Expect(got.TargetVault).To(BeEmpty())
+	})
+
+	It("round-trips with explicit TargetVault: JSON contains targetVault value", func() {
+		cmd := task.IncrementFrontmatterCommand{
+			TaskIdentifier: lib.TaskIdentifier("task-personal"),
+			Field:          "trigger_count",
+			Delta:          1,
+			TargetVault:    "personal",
+		}
+		data, err := json.Marshal(cmd)
+		Expect(err).To(BeNil())
+		Expect(string(data)).To(ContainSubstring(`"targetVault":"personal"`))
+
+		var got task.IncrementFrontmatterCommand
+		Expect(json.Unmarshal(data, &got)).To(Succeed())
+		Expect(got.TargetVault).To(Equal("personal"))
+	})
 })
 
 var _ = Describe("IncrementFrontmatterCommand.Validate", func() {
@@ -146,4 +177,37 @@ var _ = Describe("IncrementFrontmatterCommand.Validate", func() {
 		}
 		Expect(cmd.Validate(ctx)).To(HaveOccurred())
 	})
+
+	DescribeTable("TargetVault empty value is valid",
+		func(targetVault string) {
+			cmd := task.IncrementFrontmatterCommand{
+				TaskIdentifier: lib.TaskIdentifier("task-1"),
+				Field:          "counter",
+				Delta:          1,
+				TargetVault:    targetVault,
+			}
+			Expect(cmd.Validate(ctx)).To(Succeed())
+		},
+		Entry("empty string", ""),
+		Entry("openclaw", "openclaw"),
+		Entry("personal", "personal"),
+	)
+
+	DescribeTable("TargetVault invalid value is rejected",
+		func(targetVault string) {
+			cmd := task.IncrementFrontmatterCommand{
+				TaskIdentifier: lib.TaskIdentifier("task-1"),
+				Field:          "counter",
+				Delta:          1,
+				TargetVault:    targetVault,
+			}
+			err := cmd.Validate(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("TargetVault"))
+		},
+		Entry("capitalized phrase", "Open Claw"),
+		Entry("uppercase", "UPPER"),
+		Entry("underscore", "a_b"),
+		Entry("leading hyphen", "-lead"),
+	)
 })

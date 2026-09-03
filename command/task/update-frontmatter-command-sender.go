@@ -23,23 +23,33 @@ type UpdateFrontmatterCommandSender interface {
 	SendCommand(ctx context.Context, cmd UpdateFrontmatterCommand) error
 }
 
-// NewUpdateFrontmatterCommandSender creates an UpdateFrontmatterCommandSender.
+// NewUpdateFrontmatterCommandSender creates an UpdateFrontmatterCommandSender
+// using the given cdb.CommandObjectSender.
+// The defaultVault is substituted into cmd.TargetVault at SendCommand time when
+// cmd.TargetVault is empty; an invalid defaultVault surfaces as a validation
+// error on the first SendCommand call.
 func NewUpdateFrontmatterCommandSender(
 	commandObjectSender cdb.CommandObjectSender,
+	defaultVault string,
 ) UpdateFrontmatterCommandSender {
 	return &updateFrontmatterCommandSender{
 		commandObjectSender: commandObjectSender,
+		defaultVault:        defaultVault,
 	}
 }
 
 type updateFrontmatterCommandSender struct {
 	commandObjectSender cdb.CommandObjectSender
+	defaultVault        string
 }
 
 func (s *updateFrontmatterCommandSender) SendCommand(
 	ctx context.Context,
 	cmd UpdateFrontmatterCommand,
 ) error {
+	if cmd.TargetVault == "" && s.defaultVault != "" {
+		cmd.TargetVault = s.defaultVault
+	}
 	if err := cmd.Validate(ctx); err != nil {
 		return errors.Wrapf(ctx, err, "validate UpdateFrontmatterCommand")
 	}

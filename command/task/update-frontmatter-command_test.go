@@ -65,6 +65,35 @@ var _ = Describe("UpdateFrontmatterCommand", func() {
 		Expect(jsonStr).To(ContainSubstring(`"taskIdentifier"`))
 		Expect(jsonStr).To(ContainSubstring(`"updates"`))
 	})
+
+	It("round-trips with empty TargetVault: marshaled JSON has no targetVault key", func() {
+		cmd := task.UpdateFrontmatterCommand{
+			TaskIdentifier: lib.TaskIdentifier("task-novault"),
+			Updates:        lib.TaskFrontmatter{"status": "done"},
+		}
+		data, err := json.Marshal(cmd)
+		Expect(err).To(BeNil())
+		Expect(string(data)).NotTo(ContainSubstring("targetVault"))
+
+		var got task.UpdateFrontmatterCommand
+		Expect(json.Unmarshal(data, &got)).To(Succeed())
+		Expect(got.TargetVault).To(BeEmpty())
+	})
+
+	It("round-trips with explicit TargetVault: JSON contains targetVault value", func() {
+		cmd := task.UpdateFrontmatterCommand{
+			TaskIdentifier: lib.TaskIdentifier("task-personal"),
+			Updates:        lib.TaskFrontmatter{"status": "done"},
+			TargetVault:    "personal",
+		}
+		data, err := json.Marshal(cmd)
+		Expect(err).To(BeNil())
+		Expect(string(data)).To(ContainSubstring(`"targetVault":"personal"`))
+
+		var got task.UpdateFrontmatterCommand
+		Expect(json.Unmarshal(data, &got)).To(Succeed())
+		Expect(got.TargetVault).To(Equal("personal"))
+	})
 })
 
 var _ = Describe("BodySection", func() {
@@ -137,4 +166,35 @@ var _ = Describe("UpdateFrontmatterCommand.Validate", func() {
 			err.Error(),
 		).To(Or(ContainSubstring("UpdatesOrBody"), ContainSubstring("at least one")))
 	})
+
+	DescribeTable("TargetVault empty value is valid",
+		func(targetVault string) {
+			cmd := task.UpdateFrontmatterCommand{
+				TaskIdentifier: lib.TaskIdentifier("task-1"),
+				Updates:        lib.TaskFrontmatter{"status": "done"},
+				TargetVault:    targetVault,
+			}
+			Expect(cmd.Validate(ctx)).To(Succeed())
+		},
+		Entry("empty string", ""),
+		Entry("openclaw", "openclaw"),
+		Entry("personal", "personal"),
+	)
+
+	DescribeTable("TargetVault invalid value is rejected",
+		func(targetVault string) {
+			cmd := task.UpdateFrontmatterCommand{
+				TaskIdentifier: lib.TaskIdentifier("task-1"),
+				Updates:        lib.TaskFrontmatter{"status": "done"},
+				TargetVault:    targetVault,
+			}
+			err := cmd.Validate(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("TargetVault"))
+		},
+		Entry("capitalized phrase", "Open Claw"),
+		Entry("uppercase", "UPPER"),
+		Entry("underscore", "a_b"),
+		Entry("leading hyphen", "-lead"),
+	)
 })
