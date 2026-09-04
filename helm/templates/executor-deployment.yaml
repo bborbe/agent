@@ -91,6 +91,19 @@ spec:
             - name: JOB_KAFKA_CA_CERT_SECRET
               value: {{ $ku.caCertSecret | quote }}
             {{- end }}
+            # git-rest vault reader (executor >= v0.11.0 reconcile loop). Mirrors
+            # the controllers' GIT_REST_URL wiring; the shared executor
+            # (vaultName=shared) must set executor.gitRestUrl explicitly to its
+            # vault's git-rest (e.g. http://vault-obsidian-personal:9090).
+            - name: GITREST_URL
+              value: {{ .Values.executor.gitRestUrl | default (printf "http://vault-obsidian-%s:9090" .Values.executor.vaultName) | quote }}
+            # GITREST_GATEWAY_SECRET is a Secret NAME (data key `gateway-secret`);
+            # the executor reads the value itself via the K8s API at startup
+            # (executor-rbac.yaml grants `secrets: get`). Empty = auth disabled.
+            - name: GITREST_GATEWAY_SECRET
+              value: {{ .Values.executor.gitRestGatewaySecret | quote }}
+            - name: TASK_GLOB
+              value: {{ .Values.executor.taskGlob | default "24 Tasks/*.md" | quote }}
           ports:
             - containerPort: 9090
               name: http
@@ -224,6 +237,18 @@ spec:
             - name: JOB_KAFKA_CA_CERT_SECRET
               value: {{ $ku.caCertSecret | quote }}
             {{- end }}
+            # git-rest vault reader (executor >= v0.11.0 reconcile loop). Mirrors
+            # the controllers' GIT_REST_URL wiring; per-vault executors derive
+            # from their own vaultName, explicit override wins.
+            - name: GITREST_URL
+              value: {{ $e.gitRestUrl | default $.Values.executor.gitRestUrl | default (printf "http://vault-obsidian-%s:9090" $e.vaultName) | quote }}
+            # GITREST_GATEWAY_SECRET is a Secret NAME (data key `gateway-secret`);
+            # the executor reads the value itself via the K8s API at startup
+            # (executor-rbac.yaml grants `secrets: get`). Empty = auth disabled.
+            - name: GITREST_GATEWAY_SECRET
+              value: {{ $e.gitRestGatewaySecret | default $.Values.executor.gitRestGatewaySecret | quote }}
+            - name: TASK_GLOB
+              value: {{ $e.taskGlob | default $.Values.executor.taskGlob | default "24 Tasks/*.md" | quote }}
           ports:
             - containerPort: 9090
               name: http
