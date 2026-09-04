@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.87.0
 
 - feat: helm chart 0.6.2 — wire the executor's git-rest vault reader (`GITREST_URL`, `GITREST_GATEWAY_SECRET`, `TASK_GLOB` env; executor >= v0.11.0) in both the singular and per-vault (`executors:`) templates, mirroring the controllers' `GIT_REST_URL`/`GATEWAY_SECRET` pattern, and grant the executor Role `secrets: get` so it can read the gateway secret by name at startup
 
