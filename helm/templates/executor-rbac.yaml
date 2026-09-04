@@ -53,6 +53,12 @@ rules:
   - apiGroups: [agent.benjamin-borbe.de]
     resources: [configs]
     verbs: [get, list, watch]
+  # git-rest gateway secret read: the executor resolves GITREST_GATEWAY_SECRET
+  # (a Secret NAME) to its `gateway-secret` data value via the K8s API at
+  # startup (executor >= v0.11.0 reconcile loop).
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

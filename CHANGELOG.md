@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat: helm chart 0.6.2 — wire the executor's git-rest vault reader (`GITREST_URL`, `GITREST_GATEWAY_SECRET`, `TASK_GLOB` env; executor >= v0.11.0) in both the singular and per-vault (`executors:`) templates, mirroring the controllers' `GIT_REST_URL`/`GATEWAY_SECRET` pattern, and grant the executor Role `secrets: get` so it can read the gateway secret by name at startup
+
 ## v0.86.0
 
 - feat: `command/task` `UpdateFrontmatterCommand` and `IncrementFrontmatterCommand` gain an optional `TargetVault` routing field (`targetVault,omitempty`, slug-validated like create-command), and their senders' constructors take a `defaultVault string` parameter substituted at SendCommand time — empty by default so existing messages stay byte-identical; lets cross-vault consumers skip commands that are not theirs
