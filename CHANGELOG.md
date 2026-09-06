@@ -12,6 +12,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 - fix: `delivery` `kafkaResultDeliverer` now stamps `target_vault` into the published task frontmatter from the original task content when the generated content lacks it — stub results (failed / needs_input / unsupported-phase with empty or body-only output) no longer drop `target_vault`, so the controller's routing guard skips non-owning results instead of scanning-and-dropping and firing `AgentControllerResultNotFound` (spec 052)
 
+## v0.87.2
+
+- chore: update Go to 1.27.1
+
 ## v0.87.1
 
 - chore: update github.com/bborbe/collection to v1.20.26, github.com/bborbe/cqrs to v0.6.10, github.com/bborbe/kafka to v1.25.11, github.com/bborbe/metrics to v0.6.1, github.com/bborbe/time to v1.27.12, github.com/bborbe/vault-cli to v0.121.1
