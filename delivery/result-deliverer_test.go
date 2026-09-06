@@ -664,6 +664,131 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(fm).NotTo(HaveKey("previous_assignee"))
 		})
 	})
+
+	Context("target_vault echo from originalContent (spec 052)", func() {
+		BeforeEach(func() {
+			originalContent = "---\ntitle: Analyze Sentry issue NUKE-DEV-A4 - 2026-09-05\nstatus: in_progress\ntarget_vault: personal\n---\n\nBody.\n"
+		})
+
+		It("AC1: stamps target_vault on a stub result (empty Output, failed status)", func() {
+			// Stub result: the generator produces status-only frontmatter (the
+			// observed frontmatter keys=1 case from the spec) and the result
+			// has empty Output.
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\n---\n\nBody.\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusFailed,
+				Output:  "",
+				Message: "claude step failed",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["target_vault"]).To(Equal("personal"))
+		})
+
+		Context("AC2: full result already carries target_vault in the generated content", func() {
+			BeforeEach(func() {
+				// Stale originalContent value must never clobber the generated
+				// value — this is what makes the "no overwrite" assertion
+				// meaningful (Failure Modes row 2).
+				originalContent = "---\ntitle: Analyze Sentry issue NUKE-DEV-A4 - 2026-09-05\nstatus: in_progress\ntarget_vault: openclaw\n---\n\nBody.\n"
+			})
+
+			It("preserves the existing value exactly once (no overwrite, no duplicate)", func() {
+				// Full echo: the generated content itself carries target_vault.
+				generator.GenerateReturns(
+					"---\nstatus: completed\nphase: done\ntarget_vault: personal\n---\n\nBody.\n\n## Result\n\nok\n",
+					nil,
+				)
+				err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+					Status:    agentlib.AgentStatusDone,
+					NextPhase: "done",
+				})
+				Expect(err).NotTo(HaveOccurred())
+				_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+				fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				// The generated value (personal) wins; the stale openclaw from
+				// originalContent is never stamped. A Go map cannot hold the key
+				// twice, so "personal" present with the stale value absent proves
+				// no overwrite and no duplicate.
+				Expect(fm["target_vault"]).To(Equal("personal"))
+			})
+		})
+
+		Context("AC3: originalContent without target_vault", func() {
+			BeforeEach(func() {
+				originalContent = "---\ntitle: Legacy task\nstatus: in_progress\n---\n\nBody.\n"
+			})
+
+			It("adds no target_vault key", func() {
+				generator.GenerateReturns(
+					"---\nstatus: in_progress\n---\n\nBody.\n",
+					nil,
+				)
+				err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+					Status: agentlib.AgentStatusFailed,
+					Output: "",
+				})
+				Expect(err).NotTo(HaveOccurred())
+				_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+				fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(fm).NotTo(HaveKey("target_vault"))
+			})
+		})
+
+		Context("AC3: originalContent without frontmatter", func() {
+			BeforeEach(func() {
+				originalContent = "Just body text with no frontmatter delimiters.\n"
+			})
+
+			It("adds no target_vault key", func() {
+				generator.GenerateReturns(
+					"---\nstatus: in_progress\n---\n\nBody.\n",
+					nil,
+				)
+				err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+					Status: agentlib.AgentStatusFailed,
+					Output: "",
+				})
+				Expect(err).NotTo(HaveOccurred())
+				_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+				fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(fm).NotTo(HaveKey("target_vault"))
+			})
+		})
+	})
+
+	Context("real passthrough generator end-to-end (spec 052 reproduction)", func() {
+		It("publishes target_vault on a failed stub with empty Output", func() {
+			originalContent := "---\ntitle: Analyze Sentry issue NUKE-DEV-A4 - 2026-09-05\nstatus: in_progress\ntarget_vault: personal\n---\n\nAnalyze the sentry issue.\n"
+			passthrough := delivery.NewKafkaResultDelivererWithSender(
+				sender,
+				taskID,
+				originalContent,
+				delivery.NewPassthroughContentGenerator(),
+				clock,
+			)
+			err := passthrough.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusFailed,
+				Output:  "",
+				Message: "claude step failed",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			// The real passthrough generator drops target_vault (it ignores
+			// originalContent); the deliverer's stamp must restore it.
+			Expect(fm["target_vault"]).To(Equal("personal"))
+		})
+	})
 })
 
 var _ = Describe("NewKafkaResultDeliverer (topic prefix wiring)", func() {

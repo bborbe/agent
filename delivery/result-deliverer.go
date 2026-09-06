@@ -132,6 +132,8 @@ func (d *kafkaResultDeliverer) DeliverResult(
 
 	d.applyResultFrontmatter(frontmatter, result)
 
+	stampTargetVault(frontmatter, d.originalContent)
+
 	now := d.currentDateTime.Now()
 	task := agentlib.Task{
 		Object: base.Object[base.Identifier]{
@@ -249,6 +251,25 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 		}
 		frontmatter["assignee"] = ""
 		// phase is preserved from incoming frontmatter (already copied from fmMap above)
+	}
+}
+
+// stampTargetVault adds target_vault to the task frontmatter from the original
+// task content when the generated content lacks it. Stub results (failed /
+// needs_input / unsupported-phase, empty or body-only Output) produce
+// status-only generated frontmatter; without target_vault the controller's
+// routing guard (routing.ShouldProcessResult) falls through to legacy routing
+// and the non-owning controller scans-and-drops the result (spec 052). No-op
+// when the generated content already carries target_vault (full results echo
+// unchanged), or when originalContent has no frontmatter / no target_vault
+// (legacy tasks and direct CLI runs keep today's routing).
+func stampTargetVault(frontmatter agentlib.TaskFrontmatter, originalContent string) {
+	if _, ok := frontmatter["target_vault"]; ok {
+		return
+	}
+	originalFM, _ := ParseMarkdownFrontmatter(originalContent)
+	if tv, ok := originalFM["target_vault"].(string); ok && tv != "" {
+		frontmatter["target_vault"] = tv
 	}
 }
 

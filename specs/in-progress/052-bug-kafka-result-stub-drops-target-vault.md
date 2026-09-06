@@ -1,6 +1,9 @@
 ---
-status: draft
-kind: bug
+status: prompted
+approved: "2026-09-06T15:59:19Z"
+generating: "2026-09-06T15:59:20Z"
+prompted: "2026-09-06T16:05:34Z"
+branch: dark-factory/bug-kafka-result-stub-drops-target-vault
 ---
 
 ## Summary
