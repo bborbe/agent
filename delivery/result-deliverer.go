@@ -132,7 +132,7 @@ func (d *kafkaResultDeliverer) DeliverResult(
 
 	d.applyResultFrontmatter(frontmatter, result)
 
-	stampTargetVault(frontmatter, d.originalContent)
+	d.stampTargetVault(frontmatter)
 
 	now := d.currentDateTime.Now()
 	task := agentlib.Task{
@@ -263,11 +263,11 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 // when the generated content already carries target_vault (full results echo
 // unchanged), or when originalContent has no frontmatter / no target_vault
 // (legacy tasks and direct CLI runs keep today's routing).
-func stampTargetVault(frontmatter agentlib.TaskFrontmatter, originalContent string) {
+func (d *kafkaResultDeliverer) stampTargetVault(frontmatter agentlib.TaskFrontmatter) {
 	if _, ok := frontmatter["target_vault"]; ok {
 		return
 	}
-	originalFM, _ := ParseMarkdownFrontmatter(originalContent)
+	originalFM, _ := ParseMarkdownFrontmatter(d.originalContent)
 	if tv, ok := originalFM["target_vault"].(string); ok && tv != "" {
 		frontmatter["target_vault"] = tv
 	}
