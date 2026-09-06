@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix: `delivery` `kafkaResultDeliverer` now stamps `target_vault` into the published task frontmatter from the original task content when the generated content lacks it — stub results (failed / needs_input / unsupported-phase with empty or body-only output) no longer drop `target_vault`, so the controller's routing guard skips non-owning results instead of scanning-and-dropping and firing `AgentControllerResultNotFound` (spec 052)
+
 ## v0.87.2
 
 - chore: update Go to 1.27.1
