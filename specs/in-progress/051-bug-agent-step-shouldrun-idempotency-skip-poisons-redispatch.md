@@ -1,9 +1,7 @@
 ---
-status: verifying
+status: approved
 approved: "2026-08-29T19:07:04Z"
 generating: "2026-08-29T19:10:07Z"
-prompted: "2026-09-06T15:35:11Z"
-verifying: "2026-09-06T15:35:51Z"
 branch: dark-factory/bug-agent-step-shouldrun-idempotency-skip-poisons-redispatch
 ---
 
