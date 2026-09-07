@@ -2,16 +2,20 @@ module github.com/bborbe/agent
 
 go 1.27.1
 
+replace (
+	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20260821135717-be32def86098
+)
+
 require (
 	github.com/bborbe/collection v1.20.26
 	github.com/bborbe/cqrs v0.6.10
 	github.com/bborbe/errors v1.6.1
-	github.com/bborbe/kafka v1.25.15
+	github.com/bborbe/kafka v1.25.16
 	github.com/bborbe/log v1.6.25
-	github.com/bborbe/metrics v0.6.2
+	github.com/bborbe/metrics v0.6.3
 	github.com/bborbe/time v1.27.14
 	github.com/bborbe/validation v1.5.0
-	github.com/bborbe/vault-cli v0.126.1
+	github.com/bborbe/vault-cli v0.126.3
 	github.com/golang/glog v1.2.5
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.32.1
@@ -26,7 +30,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/bborbe/http v1.26.26 // indirect
 	github.com/bborbe/k8s v1.14.19 // indirect
-	github.com/bborbe/kv v1.21.13 // indirect
+	github.com/bborbe/kv v1.21.14 // indirect
 	github.com/bborbe/math v1.4.8 // indirect
 	github.com/bborbe/parse v1.11.3 // indirect
 	github.com/bborbe/run v1.10.2 // indirect
@@ -99,7 +103,7 @@ require (
 	k8s.io/apimachinery v0.37.0 // indirect
 	k8s.io/client-go v0.37.0 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20260821135717-be32def86098 // indirect
+	k8s.io/kube-openapi v0.0.0-20260904170622-9ab3195f2a72 // indirect
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
@@ -109,4 +113,5 @@ require (
 
 exclude (
 	cloud.google.com/go v0.26.0
+	sigs.k8s.io/structured-merge-diff/v7 v7.0.0
 )
