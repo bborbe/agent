@@ -32,7 +32,7 @@ require (
 	github.com/bborbe/k8s v1.14.19 // indirect
 	github.com/bborbe/kv v1.21.14 // indirect
 	github.com/bborbe/math v1.4.8 // indirect
-	github.com/bborbe/parse v1.11.3 // indirect
+	github.com/bborbe/parse v1.11.4 // indirect
 	github.com/bborbe/run v1.10.2 // indirect
 	github.com/bborbe/sentry v1.10.1 // indirect
 	github.com/bborbe/strimzi v1.8.17 // indirect
