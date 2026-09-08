@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.88.0
 
 - feat(helm): add `configMapName` / `configMapMountPath` / `configMapItems` to the Config CRD schema shipped in the chart — mirrors the executor's runtime-reconciled schema so a fresh `helm install` bootstraps a CRD that already accepts the ConfigMap mount (and its key→path items mapping) before the executor reconciles. Chart 0.6.2→0.6.3.
 
