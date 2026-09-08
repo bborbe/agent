@@ -55,6 +55,15 @@ spec:
                 secretName: {type: string}
                 volumeClaim: {type: string}
                 volumeMountPath: {type: string}
+                configMapName: {type: string}
+                configMapMountPath: {type: string}
+                configMapItems:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      key: {type: string}
+                      path: {type: string}
                 priorityClassName: {type: string, pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"}
                 imagePullSecret: {type: string}
                 zombieSweeperIntervalSeconds: {type: integer, minimum: 10}
