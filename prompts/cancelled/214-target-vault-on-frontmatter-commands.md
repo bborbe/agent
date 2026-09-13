@@ -1,12 +1,13 @@
 ---
-status: failed
+cancelled_reason: 'Abandoned, not completed. Failed 2026-09-03 on \"validate completion report: completion report status: partial\" and sat failed for 10 days, blocking every newly approved prompt in this repo via previous-prompt-not-completed (prompt 214 is committed to master). Marked completed 2026-09-13 ONLY to clear that block; that was a bookkeeping workaround, not a success — restored to an honest disposition and the failure reason preserved below.'
+lastFailReason: 'validate completion report: completion report status: partial'
+status: cancelled
 execution_id: agent-target-vault-echo-exec-214-target-vault-on-frontmatter-commands
 dark-factory-version: dev
 created: "2026-09-03T15:26:04Z"
 queued: "2026-09-03T15:26:04Z"
 started: "2026-09-03T15:26:21Z"
 completed: "2026-09-03T15:31:34Z"
-lastFailReason: 'validate completion report: completion report status: partial'
 ---
 # Route frontmatter commands by target vault
 
