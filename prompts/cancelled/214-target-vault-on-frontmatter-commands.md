@@ -7,6 +7,7 @@ dark-factory-version: dev
 created: "2026-09-03T15:26:04Z"
 queued: "2026-09-03T15:26:04Z"
 started: "2026-09-03T15:26:21Z"
+completed: "2026-09-03T15:31:34Z"
 ---
 # Route frontmatter commands by target vault
 
