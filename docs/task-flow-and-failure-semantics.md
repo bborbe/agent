@@ -163,6 +163,28 @@ default (failed):
 1. Two events for the same task arrive quickly.
 2. Executor finds `current_job` label on an active Job → logs warning, does not spawn a duplicate.
 
+### Empty or stale `TASK_GLOB` — the silent-quiet-fleet failure (2026-09-13)
+
+**This one does not look like a failure, which is why it is written down.** A glob that matches nothing produces no error, no crash, and no failed task — the reconcile loop simply evaluates zero files and reports a healthy pass.
+
+1. Executor's `TASK_GLOB` is empty, or names a directory that no longer exists (e.g. a renamed vault folder).
+2. `List(ctx, glob)` returns zero paths — or, for an **empty** pattern, every path in the repo: git-rest treats `?glob=` as match-everything (`ListFiles` appends every `git ls-files` line when the pattern is empty).
+3. The loop logs `event=reconcile evaluated=0 …` at `glog.Infof` and **returns nil**. Nothing escalates, nothing retries.
+4. Tasks accumulate in the vault unprocessed; controllers still read a *different* key (`controllers[].taskDir`) and may report green.
+
+**The two halves differ, and both are now guarded:**
+
+| `TASK_GLOB` | Pre-guard behaviour | Guard |
+|---|---|---|
+| Points at a renamed/dead directory | `evaluated=0` — indistinguishable from a quiet fleet | — |
+| **Empty / unset** | git-rest match-everything over the whole vault | **`ErrTaskGlobEmpty`** — `application.Run` returns it before `rest.InClusterConfig()`, exiting non-zero |
+
+**Why the executor is the only place the guard can live:** zero paths is a legitimate result for a *live* glob, so `gitrestclient.List` cannot distinguish "nothing matched this pass" from "nothing was configured". Only startup knows the glob was never set.
+
+**Operator check.** `evaluated=0` on a vault you believe has open tasks is itself the signal — check the glob before assuming there is no work. Note the env var proves only that config landed; the count is what proves dispatch resumed. A silent fleet, a misconfigured glob, and a genuinely empty queue are all `evaluated=0`, so read `TASK_GLOB`'s rendered value whenever a pipeline looks quiet.
+
+Observed 2026-09-13: the Personal vault renumbered `24 Tasks/` → `25 Tasks/`, and every executor inheriting the chart's `default "24 Tasks/*.md"` dispatched nothing for ~75 minutes with a clean log.
+
 ## Parser Tolerance (spec 010)
 
 Claude occasionally emits narrative prose around its final JSON. The result parser extracts the last balanced `{…}` object before `json.Unmarshal`. Only if no JSON object is present at all is the result treated as `failed` with the raw output in the message.
