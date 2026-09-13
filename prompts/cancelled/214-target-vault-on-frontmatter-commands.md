@@ -1,5 +1,5 @@
 ---
-status: rejected
+status: cancelled
 originalStatus: failed
 execution_id: agent-target-vault-echo-exec-214-target-vault-on-frontmatter-commands
 dark-factory-version: dev
@@ -10,6 +10,7 @@ completed: "2026-09-03T15:31:34Z"
 lastFailReason: 'validate completion report: completion report status: partial'
 rejected: "2026-09-13T14:14:55Z"
 rejectedReason: 'Failed 2026-09-03 on ''validate completion report: completion report status: partial''; sat failed for 10 days, blocking the repo-wide queue for every newly approved prompt (discovered 2026-09-13 when prompt 216 could not start). Owning worktree agent-target-vault-echo has no live session. Content preserved in rejected/ and git history for re-authoring.'
+cancelled: "2026-09-13T14:32:47Z"
 ---
 # Route frontmatter commands by target vault
 
