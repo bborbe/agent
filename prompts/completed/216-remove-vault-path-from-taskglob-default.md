@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: 'Removed the hardcoded `24 Tasks/*.md` taskGlob default from helm/values.yaml and both TASK_GLOB template fallbacks so the glob is consumer-supplied, plus README row, ## Unreleased entry, and chart bump to 0.6.4'
+execution_id: agent-taskglob-default-exec-216-remove-vault-path-from-taskglob-default
+dark-factory-version: v0.193.0
 created: "2026-09-13T13:05:00Z"
 queued: "2026-09-13T14:06:50Z"
+started: "2026-09-13T14:56:21Z"
+completed: "2026-09-13T15:02:06Z"
 ---
 
 # Remove the vault task path from the taskGlob default

@@ -99,6 +99,7 @@ agents: []
 | `executor.kafkaBrokers` | `""` (**required**) | Kafka bootstrap brokers. |
 | `executor.topicPrefix` | `""` | Kafka topic prefix. Empty = unprefixed (per-stage-cluster / Octopus). Quant: `develop`/`master`. |
 | `executor.branch` | `""` | Stage label forwarded as `BRANCH`. |
+| `executor.taskGlob` | `""` | git-rest single-level glob selecting the vault task files the reconcile loop evaluates. Consumer-supplied — the chart asserts no vault folder layout; empty = no glob configured. |
 | `executor.sentry.proxy` | `""` | Sentry proxy URL (optional). |
 | `executor.sentry.dsn` | `""` | Sentry DSN; when set the chart creates the Secret. |
 | `executor.existingSecret` | `""` | Name of a pre-existing Secret with key `sentry-dsn`; when set the chart creates no Secret. |

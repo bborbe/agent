@@ -103,7 +103,7 @@ spec:
             - name: GITREST_GATEWAY_SECRET
               value: {{ .Values.executor.gitRestGatewaySecret | quote }}
             - name: TASK_GLOB
-              value: {{ .Values.executor.taskGlob | default "24 Tasks/*.md" | quote }}
+              value: {{ .Values.executor.taskGlob | quote }}
           ports:
             - containerPort: 9090
               name: http
@@ -248,7 +248,7 @@ spec:
             - name: GITREST_GATEWAY_SECRET
               value: {{ $e.gitRestGatewaySecret | default $.Values.executor.gitRestGatewaySecret | quote }}
             - name: TASK_GLOB
-              value: {{ $e.taskGlob | default $.Values.executor.taskGlob | default "24 Tasks/*.md" | quote }}
+              value: {{ $e.taskGlob | default $.Values.executor.taskGlob | quote }}
           ports:
             - containerPort: 9090
               name: http

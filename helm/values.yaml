@@ -74,8 +74,9 @@ executor:
   # gateway auth disabled.
   gitRestGatewaySecret: ""
   # taskGlob: git-rest single-level glob selecting the vault task files the
-  # reconcile loop evaluates.
-  taskGlob: "24 Tasks/*.md"
+  # reconcile loop evaluates. Consumer-supplied — the chart asserts no vault
+  # folder layout. Empty = no glob configured.
+  taskGlob: ""
   # Pod-level securityContext. Empty by default — runAsNonRoot/runAsUser/fsGroup
   # depend on what the image supports, so clusters opt in (e.g. runAsNonRoot: true,
   # runAsUser: 65534, fsGroup: 65534).
