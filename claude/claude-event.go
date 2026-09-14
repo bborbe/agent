@@ -11,11 +11,12 @@ import (
 
 // claudeEvent represents a single event in the Claude CLI stream-json output.
 type claudeEvent struct {
-	Type     string          `json:"type"`
-	Result   string          `json:"result"`
-	Message  claudeMsg       `json:"message"`
-	Usage    json.RawMessage `json:"usage"`
-	NumTurns json.Number     `json:"num_turns"`
+	Type      string          `json:"type"`
+	Result    string          `json:"result"`
+	Message   claudeMsg       `json:"message"`
+	Usage     json.RawMessage `json:"usage"`
+	NumTurns  json.Number     `json:"num_turns"`
+	SessionID string          `json:"session_id"`
 }
 
 // resultHolder safely extracts type and result from a JSON line without failing

@@ -710,3 +710,130 @@ exit 0`,
 		})
 	})
 })
+
+var _ = Describe("claudeRunner interaction count capture", func() {
+	var (
+		ctx       context.Context
+		configDir string
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		configDir = GinkgoT().TempDir()
+	})
+
+	// writeShim creates a temp dir, writes a "claude" shell script with the given body,
+	// prepends the dir to PATH, and registers cleanup via DeferCleanup.
+	writeShim := func(body string) {
+		shimDir := GinkgoT().TempDir()
+		shimPath := filepath.Join(shimDir, "claude")
+		script := "#!/bin/sh\n" + body
+		err := os.WriteFile(shimPath, []byte(script), 0755) //nolint:gosec
+		Expect(err).NotTo(HaveOccurred())
+		originalPath := os.Getenv("PATH")
+		DeferCleanup(func() {
+			Expect(os.Setenv("PATH", originalPath)).To(Succeed())
+		})
+		Expect(os.Setenv("PATH", shimDir+":"+originalPath)).To(Succeed())
+	}
+
+	run := func() *claude.ClaudeResult {
+		result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+			ClaudeConfigDir: claude.ClaudeConfigDir(configDir),
+		}).Run(ctx, "test")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result).NotTo(BeNil())
+		return result
+	}
+
+	Context("transcript with only machine-marked user entries", func() {
+		BeforeEach(func() {
+			writeShim(`mkdir -p "$CLAUDE_CONFIG_DIR/projects/-tmp"
+printf '%s\n' '{"type":"user","promptSource":"sdk","message":{"role":"user","content":"do the thing"}}' '{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"ok"}]}}' > "$CLAUDE_CONFIG_DIR/projects/-tmp/sess-abc.jsonl"
+echo '{"type":"system","subtype":"init","session_id":"sess-abc"}'
+echo '{"type":"result","result":"task-output-text","num_turns":7,"session_id":"sess-abc","usage":{"input_tokens":1,"output_tokens":2}}'
+exit 0`)
+		})
+
+		It("captures the session id from the stream", func() {
+			Expect(run().SessionID).To(Equal("sess-abc"))
+		})
+
+		It("counts zero for a transcript whose user entries are all machine-marked", func() {
+			result := run()
+			Expect(result.InteractionCount).NotTo(BeNil())
+			Expect(*result.InteractionCount).To(Equal(int64(0)))
+		})
+	})
+
+	Context("transcript with human-marked user entries", func() {
+		BeforeEach(func() {
+			writeShim(`mkdir -p "$CLAUDE_CONFIG_DIR/projects/-tmp"
+printf '%s\n' '{"type":"user","origin":{"kind":"human"},"promptSource":"typed","message":{"role":"user","content":"hi"}}' '{"type":"user","origin":{"kind":"human"},"promptSource":"queued","message":{"role":"user","content":"again"}}' '{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"ok"}]}}' > "$CLAUDE_CONFIG_DIR/projects/-tmp/sess-abc.jsonl"
+echo '{"type":"result","result":"task-output-text","num_turns":7,"session_id":"sess-abc"}'
+exit 0`)
+		})
+
+		It("counts human-marked user entries", func() {
+			result := run()
+			Expect(result.InteractionCount).NotTo(BeNil())
+			Expect(*result.InteractionCount).To(Equal(int64(2)))
+		})
+	})
+
+	Context("transcript cannot be located", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo '{"type":"result","result":"task-output-text","num_turns":7,"session_id":"sess-abc","usage":{"input_tokens":1}}'
+exit 0`,
+			)
+		})
+
+		It("leaves the count absent when the transcript cannot be located", func() {
+			result := run()
+			Expect(result.InteractionCount).To(BeNil())
+			Expect(result.NumTurns).To(Equal(int64(7)))
+		})
+	})
+
+	Context("transcript cannot be parsed", func() {
+		BeforeEach(func() {
+			writeShim(`mkdir -p "$CLAUDE_CONFIG_DIR/projects/-tmp"
+printf '%s\n' '{"type":"user","origin":{"kind":"human"},"message":{"role":"user","content":"hi"}}' 'not json at all' > "$CLAUDE_CONFIG_DIR/projects/-tmp/sess-abc.jsonl"
+echo '{"type":"result","result":"task-output-text","num_turns":7,"session_id":"sess-abc"}'
+exit 0`)
+		})
+
+		It("leaves the count absent when the transcript cannot be parsed", func() {
+			Expect(run().InteractionCount).To(BeNil())
+		})
+	})
+
+	Context("stream reports no session id", func() {
+		BeforeEach(func() {
+			writeShim(`mkdir -p "$CLAUDE_CONFIG_DIR/projects/-tmp"
+printf '%s\n' '{"type":"user","origin":{"kind":"human"},"message":{"role":"user","content":"hi"}}' > "$CLAUDE_CONFIG_DIR/projects/-tmp/sess-abc.jsonl"
+echo '{"type":"result","result":"task-output-text","num_turns":7}'
+exit 0`)
+		})
+
+		It("leaves the count absent when the CLI reported no session id", func() {
+			result := run()
+			Expect(result.SessionID).To(Equal(""))
+			Expect(result.InteractionCount).To(BeNil())
+		})
+	})
+
+	Context("stream reports a session id that is not a plain identifier", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo '{"type":"result","result":"task-output-text","num_turns":7,"session_id":"../../escape"}'
+exit 0`,
+			)
+		})
+
+		It("rejects a session id that is not a plain identifier", func() {
+			Expect(run().InteractionCount).To(BeNil())
+		})
+	})
+})

@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/bborbe/collection"
 	"github.com/bborbe/errors"
 	"github.com/golang/glog"
 
@@ -64,7 +65,7 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 		return nil, errors.Wrap(ctx, err, "start claude CLI")
 	}
 
-	resultText, usage, partial, tail := scanOutput(ctx, stdoutPipe)
+	resultText, usage, partial, tail, sessionID := scanOutput(ctx, stdoutPipe)
 
 	if err := cmd.Wait(); err != nil {
 		var tailMsg string
@@ -92,7 +93,56 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 		CacheCreationTokens: usage.cacheCreationTokens,
 		CacheReadTokens:     usage.cacheReadTokens,
 		NumTurns:            usage.numTurns,
+		SessionID:           sessionID,
+		InteractionCount:    r.countHumanInteractions(ctx, sessionID),
 	}, nil
+}
+
+// resolveConfigDir returns the Claude config directory the CLI subprocess is given,
+// applying the same precedence buildSubprocessEnv applies: explicit config > parent
+// process env > default "~/.claude", with a consumer-provided Env override winning.
+func (r *claudeRunner) resolveConfigDir(ctx context.Context) (string, error) {
+	cfgDir := r.config.ClaudeConfigDir
+	if cfgDir == "" {
+		if envVal := os.Getenv("CLAUDE_CONFIG_DIR"); envVal != "" {
+			cfgDir = ClaudeConfigDir(envVal)
+		}
+	}
+	if cfgDir == "" {
+		cfgDir = "~/.claude"
+	}
+	// The highest-precedence layer of buildSubprocessEnv: a consumer-provided Env
+	// override. The transcript is written where the CLI was told to write it, so the
+	// scan follows the same value. (For an override containing "~" the subprocess gets
+	// the literal string while this resolves it; the scan then finds no transcript and
+	// the count stays absent — never wrong.)
+	if override, ok := r.config.Env["CLAUDE_CONFIG_DIR"]; ok && override != "" {
+		cfgDir = ClaudeConfigDir(override)
+	}
+	resolved, err := cfgDir.Resolve(ctx)
+	if err != nil {
+		return "", errors.Wrap(ctx, err, "resolve ClaudeConfigDir")
+	}
+	return resolved, nil
+}
+
+// countHumanInteractions resolves the Claude config directory and counts the
+// human-authored entries in the session's own transcript. It returns nil — never a
+// zero — when the evidence is unavailable: no session id, an unresolvable config
+// directory, or a transcript that cannot be located, read, or parsed.
+func (r *claudeRunner) countHumanInteractions(ctx context.Context, sessionID string) *int64 {
+	if sessionID == "" {
+		return nil
+	}
+	configDir, err := r.resolveConfigDir(ctx)
+	if err != nil {
+		return nil
+	}
+	count, ok := countHumanAuthoredEntries(ctx, ClaudeConfigDir(configDir), sessionID)
+	if !ok {
+		return nil
+	}
+	return collection.Ptr(count)
 }
 
 func (r *claudeRunner) buildCommand(
@@ -226,12 +276,13 @@ func parseUsage(usageRaw json.RawMessage, numTurns json.Number) sessionUsage {
 
 // scanOutput reads stream-json lines from stdout, logs events, and returns the result
 // text, the captured usage summary, the bounded partial of streamed assistant text,
-// and a bounded tail of all non-empty lines.
+// a bounded tail of all non-empty lines, and the session id the stream reported.
 func scanOutput(
 	ctx context.Context,
 	reader interface{ Read([]byte) (int, error) },
-) (string, sessionUsage, string, []string) {
+) (string, sessionUsage, string, []string, string) {
 	var resultText string
+	var sessionID string
 	var usage sessionUsage
 	var partial []byte
 	var tail []string
@@ -240,7 +291,7 @@ func scanOutput(
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
-			return resultText, usage, string(partial), tail
+			return resultText, usage, string(partial), tail, sessionID
 		default:
 		}
 
@@ -277,6 +328,12 @@ func scanOutput(
 			usage = parseUsage(event.Usage, event.NumTurns)
 		}
 
+		// Last non-empty session id wins, exactly like the usage summary. Not gated
+		// on the result event: the init event carries the id too.
+		if event.SessionID != "" {
+			sessionID = event.SessionID
+		}
+
 		partial = capturePartial(partial, event)
 
 		for _, c := range event.Message.Content {
@@ -288,7 +345,7 @@ func scanOutput(
 			}
 		}
 	}
-	return resultText, usage, string(partial), tail
+	return resultText, usage, string(partial), tail, sessionID
 }
 
 // buildSubprocessEnv constructs the env var slice for the Claude CLI subprocess.
@@ -318,18 +375,9 @@ func (r *claudeRunner) buildSubprocessEnv(ctx context.Context) ([]string, error)
 	}
 
 	// Layer 2: CLAUDE_CONFIG_DIR with precedence config > env > default.
-	cfgDir := r.config.ClaudeConfigDir
-	if cfgDir == "" {
-		if envVal := os.Getenv("CLAUDE_CONFIG_DIR"); envVal != "" {
-			cfgDir = ClaudeConfigDir(envVal)
-		}
-	}
-	if cfgDir == "" {
-		cfgDir = "~/.claude"
-	}
-	resolved, err := cfgDir.Resolve(ctx)
+	resolved, err := r.resolveConfigDir(ctx)
 	if err != nil {
-		return nil, errors.Wrap(ctx, err, "resolve ClaudeConfigDir")
+		return nil, err
 	}
 	env["CLAUDE_CONFIG_DIR"] = resolved
 

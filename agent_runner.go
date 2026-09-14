@@ -68,11 +68,13 @@ func (r *StepRunner) Run(ctx context.Context, md *Markdown) (*Result, error) {
 		}
 
 		if err := r.deliverer.DeliverResult(ctx, AgentResultInfo{
-			Status:         result.Status,
-			Output:         newContent,
-			Message:        result.Message,
-			NextPhase:      result.NextPhase,
-			ContinueToNext: result.ContinueToNext,
+			Status:           result.Status,
+			Output:           newContent,
+			Message:          result.Message,
+			NextPhase:        result.NextPhase,
+			ContinueToNext:   result.ContinueToNext,
+			AgentTurns:       result.AgentTurns,
+			InteractionCount: result.InteractionCount,
 		}); err != nil {
 			return result, errors.Wrapf(ctx, err, "step %q deliver", s.Name())
 		}

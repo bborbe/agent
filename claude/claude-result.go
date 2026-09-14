@@ -21,4 +21,12 @@ type ClaudeResult struct {
 	// NumTurns is the number of conversation turns the session took. Zero when the
 	// CLI reported no usage summary.
 	NumTurns int64 `json:"num_turns,omitempty"`
+	// SessionID is the CLI session identifier the stream reported. Empty when the CLI
+	// reported no session id.
+	SessionID string `json:"session_id,omitempty"`
+	// InteractionCount is the number of human-authored entries the session's own
+	// transcript recorded. Nil when the evidence was unavailable — no session id, no
+	// transcript, or an unreadable or unparseable transcript. A non-nil zero is an
+	// observation: the transcript was read and contained no human-authored entry.
+	InteractionCount *int64 `json:"interaction_count,omitempty"`
 }

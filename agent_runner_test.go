@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/bborbe/collection"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -63,6 +64,50 @@ var _ = Describe("StepRunner", func() {
 			Expect(info.NextPhase).To(Equal(""))
 			Expect(info.ContinueToNext).To(BeTrue(),
 				"deliverer must see ContinueToNext so Done+empty NextPhase preflight saves are distinguishable")
+		})
+
+		It("forwards the run's observed counts to the deliverer", func() {
+			deliverer := &mocks.AgentResultDeliverer{}
+
+			step := &mocks.AgentStep{}
+			step.NameReturns("counted-step")
+			step.ShouldRunReturns(true, nil)
+			step.RunReturns(&lib.Result{
+				Status:           lib.AgentStatusDone,
+				AgentTurns:       collection.Ptr(int64(7)),
+				InteractionCount: collection.Ptr(int64(0)),
+			}, nil)
+
+			md := &lib.Markdown{}
+			runner := lib.NewStepRunner(deliverer, step)
+
+			_, err := runner.Run(ctx, md)
+			Expect(err).To(BeNil())
+			Expect(deliverer.DeliverResultCallCount()).To(Equal(1))
+			_, info := deliverer.DeliverResultArgsForCall(0)
+			Expect(info.AgentTurns).NotTo(BeNil())
+			Expect(*info.AgentTurns).To(Equal(int64(7)))
+			Expect(info.InteractionCount).NotTo(BeNil())
+			Expect(*info.InteractionCount).To(Equal(int64(0)))
+		})
+
+		It("forwards absence as absence", func() {
+			deliverer := &mocks.AgentResultDeliverer{}
+
+			step := &mocks.AgentStep{}
+			step.NameReturns("uncounted-step")
+			step.ShouldRunReturns(true, nil)
+			step.RunReturns(&lib.Result{Status: lib.AgentStatusDone}, nil)
+
+			md := &lib.Markdown{}
+			runner := lib.NewStepRunner(deliverer, step)
+
+			_, err := runner.Run(ctx, md)
+			Expect(err).To(BeNil())
+			Expect(deliverer.DeliverResultCallCount()).To(Equal(1))
+			_, info := deliverer.DeliverResultArgsForCall(0)
+			Expect(info.AgentTurns).To(BeNil())
+			Expect(info.InteractionCount).To(BeNil())
 		})
 
 		It("returns error when step.Run returns error", func() {
