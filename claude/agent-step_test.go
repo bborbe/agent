@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/bborbe/collection"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -304,6 +305,84 @@ var _ = Describe("AgentStep", func() {
 				Expect(result.Message).To(ContainSubstring("claude CLI crashed"))
 				_, exists := md.FindSection("## Analysis")
 				Expect(exists).To(BeFalse())
+			})
+		})
+
+		Context("when the runner reports observed counts", func() {
+			BeforeEach(func() {
+				mockRunner.RunReturns(&claude.ClaudeResult{
+					Result:           `{"status":"done","message":"analysis complete"}`,
+					NumTurns:         7,
+					InteractionCount: collection.Ptr(int64(0)),
+				}, nil)
+			})
+
+			It(
+				"carries the turn total and the evidenced interaction count on a done result",
+				func() {
+					md := &lib.Markdown{}
+					result, err := agentStep.Run(ctx, md)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(result.AgentTurns).NotTo(BeNil())
+					Expect(*result.AgentTurns).To(Equal(int64(7)))
+					Expect(result.InteractionCount).NotTo(BeNil())
+					Expect(*result.InteractionCount).To(Equal(int64(0)))
+				},
+			)
+		})
+
+		Context("when the runner returns an agent-reported failed body with counts", func() {
+			BeforeEach(func() {
+				mockRunner.RunReturns(&claude.ClaudeResult{
+					Result:           `{"status":"failed","message":"claude CLI crashed"}`,
+					NumTurns:         5,
+					InteractionCount: collection.Ptr(int64(2)),
+				}, nil)
+			})
+
+			It("carries both counts on an agent-reported failed body", func() {
+				md := &lib.Markdown{}
+				result, err := agentStep.Run(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Status).To(Equal(lib.AgentStatusFailed))
+				Expect(result.AgentTurns).NotTo(BeNil())
+				Expect(*result.AgentTurns).To(Equal(int64(5)))
+				Expect(result.InteractionCount).NotTo(BeNil())
+				Expect(*result.InteractionCount).To(Equal(int64(2)))
+			})
+		})
+
+		Context("when the runner summary reported no counts", func() {
+			BeforeEach(func() {
+				mockRunner.RunReturns(&claude.ClaudeResult{
+					Result:           `{"status":"done","message":"analysis complete"}`,
+					NumTurns:         0,
+					InteractionCount: nil,
+				}, nil)
+			})
+
+			It("omits the turn count when the summary reported none", func() {
+				md := &lib.Markdown{}
+				result, err := agentStep.Run(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.AgentTurns).To(BeNil())
+				Expect(result.InteractionCount).To(BeNil())
+			})
+		})
+
+		Context("when the runner summary reported a negative turn total", func() {
+			BeforeEach(func() {
+				mockRunner.RunReturns(&claude.ClaudeResult{
+					Result:   `{"status":"done","message":"analysis complete"}`,
+					NumTurns: -3,
+				}, nil)
+			})
+
+			It("treats a negative turn total as no measurement", func() {
+				md := &lib.Markdown{}
+				result, err := agentStep.Run(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.AgentTurns).To(BeNil())
 			})
 		})
 

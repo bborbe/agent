@@ -48,4 +48,15 @@ type AgentResultInfo struct {
 	// for deliverers — a Done result with empty NextPhase is an in-place
 	// save regardless of this flag.
 	ContinueToNext bool
+	// AgentTurns is the number of conversation turns the session that produced this
+	// result took, from the CLI's own end-of-run summary. Nil means no measurement was
+	// reported — a zero or negative summary is treated as no measurement, and the turn
+	// entry is then omitted from the payload entirely.
+	AgentTurns *int64
+	// InteractionCount is the number of human-authored entries the run's own session
+	// transcript recorded. Nil means the evidence was unavailable — the interaction
+	// entry is omitted from the payload. A non-nil zero is an observation: the
+	// transcript was read and contained no human-authored entry. Absence is never
+	// substituted with a zero.
+	InteractionCount *int64
 }

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bborbe/collection"
 	"github.com/bborbe/errors"
 	"github.com/golang/glog"
 
@@ -131,6 +132,20 @@ func parseAgentResultBody(body string) (AgentResult, bool) {
 	return result, true
 }
 
+// runCounts extracts the run's observed counts from the CLI result with the absence
+// rules: a turn total that is not positive is no measurement (nil), and a nil
+// InteractionCount (evidence unavailable) stays nil — absence is never turned into a
+// zero (spec 053).
+func runCounts(result *ClaudeResult) (agentTurns *int64, interactionCount *int64) {
+	if result == nil {
+		return nil, nil
+	}
+	if result.NumTurns > 0 {
+		agentTurns = collection.Ptr(result.NumTurns)
+	}
+	return agentTurns, result.InteractionCount
+}
+
 // Run marshals the task, calls Claude with the step's prompt + tools, and
 // writes the LLM's output under the configured section heading. On a
 // needs_input/failed runner body the step returns that status WITHOUT writing
@@ -166,6 +181,8 @@ func (s *agentStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.R
 		time.Since(runStart),
 	)
 
+	agentTurns, interactionCount := runCounts(result)
+
 	// A needs_input/failed body is a failed run, not completed work — return
 	// that status and let the deliverer write the ## Failure marker. Never
 	// write a success-looking output section for a failed run: that section
@@ -178,8 +195,10 @@ func (s *agentStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.R
 			msg = fmt.Sprintf("%s claude run returned status %s", s.cfg.Name, parsed.Status)
 		}
 		return &agentlib.Result{
-			Status:  parsed.Status,
-			Message: msg,
+			Status:           parsed.Status,
+			Message:          msg,
+			AgentTurns:       agentTurns,
+			InteractionCount: interactionCount,
 		}, nil
 	}
 
@@ -189,7 +208,9 @@ func (s *agentStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.R
 	})
 
 	return &agentlib.Result{
-		Status:    agentlib.AgentStatusDone,
-		NextPhase: s.cfg.NextPhase,
+		Status:           agentlib.AgentStatusDone,
+		NextPhase:        s.cfg.NextPhase,
+		AgentTurns:       agentTurns,
+		InteractionCount: interactionCount,
 	}, nil
 }
