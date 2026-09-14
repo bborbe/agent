@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.89.0
 
 - feat: agent results now publish `metrics_agent_turns` (the Claude session's turn total from the CLI's end-of-run summary) and `metrics_interaction_count` (the run's human-authored transcript entries — `0` when the transcript was read and held none, absent when the evidence is unavailable) into the task frontmatter; a count already recorded on the task is never lowered, and a provider without a Claude session publishes neither (spec 053)
 
