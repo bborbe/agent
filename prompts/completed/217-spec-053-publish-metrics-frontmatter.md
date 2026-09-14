@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [053-agent-result-interaction-count]
+summary: Added applyResultMetrics + recordedInteractionCount to delivery/result-deliverer.go, publishing metrics_agent_turns and metrics_interaction_count into the Kafka task-update frontmatter ahead of the status switch with absence preserved and recorded counts never lowered, plus 13 Ginkgo rows covering AC1/AC3/AC4/AC5/AC6a/AC6b/AC7/AC8.
+execution_id: agent-exec-217-spec-053-publish-metrics-frontmatter
+dark-factory-version: v0.193.0
 created: "2026-09-14T16:09:52Z"
 queued: "2026-09-14T17:54:09Z"
+started: "2026-09-14T18:52:04Z"
+completed: "2026-09-14T18:56:40Z"
 branch: dark-factory/agent-result-interaction-count
 ---
 

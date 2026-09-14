@@ -7,8 +7,10 @@ package delivery_test
 import (
 	"context"
 	"os"
+	"sort"
 	"time"
 
+	"github.com/bborbe/collection"
 	"github.com/bborbe/cqrs/base"
 	cqrsmocks "github.com/bborbe/cqrs/mocks"
 	libkafka "github.com/bborbe/kafka"
@@ -787,6 +789,208 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			// The real passthrough generator drops target_vault (it ignores
 			// originalContent); the deliverer's stamp must restore it.
 			Expect(fm["target_vault"]).To(Equal("personal"))
+		})
+	})
+
+	Context("metrics frontmatter (spec 053)", func() {
+		publishedFrontmatter := func() map[string]interface{} {
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			return fm
+		}
+
+		fullResultContent := "---\nstatus: completed\nphase: done\n---\n\nBody.\n\n## Result\n\nok\n"
+
+		Context("AC1: every payload path carries the turn count", func() {
+			paths := []struct {
+				name      string
+				status    agentlib.AgentStatus
+				nextPhase string
+			}{
+				{"done with a next phase", agentlib.AgentStatusDone, "done"},
+				{"done without a next phase (in-place save)", agentlib.AgentStatusDone, ""},
+				{"in_progress", agentlib.AgentStatusInProgress, ""},
+				{"needs_input", agentlib.AgentStatusNeedsInput, ""},
+				{"failed", agentlib.AgentStatusFailed, ""},
+			}
+
+			for _, path := range paths {
+				It("publishes metrics_agent_turns on "+path.name, func() {
+					generator.GenerateReturns(fullResultContent, nil)
+					err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+						Status:           path.status,
+						NextPhase:        path.nextPhase,
+						AgentTurns:       collection.Ptr(int64(7)),
+						InteractionCount: collection.Ptr(int64(0)),
+					})
+					Expect(err).NotTo(HaveOccurred())
+					Expect(publishedFrontmatter()["metrics_agent_turns"]).
+						To(BeNumerically("==", 7))
+				})
+			}
+		})
+
+		It("AC3: omits the turn entry when no count was reported", func() {
+			generator.GenerateReturns(fullResultContent, nil)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:     agentlib.AgentStatusDone,
+				NextPhase:  "done",
+				AgentTurns: nil,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, ok := publishedFrontmatter()["metrics_agent_turns"]
+			Expect(ok).To(BeFalse())
+		})
+
+		Context("AC4: the interaction count is evidenced, not assumed", func() {
+			It("publishes an observed zero", func() {
+				generator.GenerateReturns(fullResultContent, nil)
+				err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+					Status:           agentlib.AgentStatusDone,
+					NextPhase:        "done",
+					InteractionCount: collection.Ptr(int64(0)),
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(publishedFrontmatter()["metrics_interaction_count"]).
+					To(BeNumerically("==", 0))
+			})
+
+			It("publishes an observed two", func() {
+				generator.GenerateReturns(fullResultContent, nil)
+				err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+					Status:           agentlib.AgentStatusDone,
+					NextPhase:        "done",
+					InteractionCount: collection.Ptr(int64(2)),
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(publishedFrontmatter()["metrics_interaction_count"]).
+					To(BeNumerically("==", 2))
+			})
+		})
+
+		It("AC5: omits the interaction entry when the evidence was unavailable", func() {
+			generator.GenerateReturns(fullResultContent, nil)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:           agentlib.AgentStatusDone,
+				NextPhase:        "done",
+				AgentTurns:       collection.Ptr(int64(7)),
+				InteractionCount: nil,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			fm := publishedFrontmatter()
+			_, ok := fm["metrics_interaction_count"]
+			Expect(ok).To(BeFalse())
+			Expect(fm["metrics_agent_turns"]).To(BeNumerically("==", 7))
+		})
+
+		Context("AC6: a recorded count is never lowered", func() {
+			BeforeEach(func() {
+				originalContent = "---\ntitle: My Task\nstatus: in_progress\nmetrics_interaction_count: 101\n---\n\nBody.\n"
+			})
+
+			It("AC6a: keeps the recorded 101 when the run observed 0", func() {
+				generator.GenerateReturns(
+					"---\nstatus: completed\nphase: done\nmetrics_interaction_count: 101\n---\n\nBody.\n\n## Result\n\nok\n",
+					nil,
+				)
+				err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+					Status:           agentlib.AgentStatusDone,
+					NextPhase:        "done",
+					InteractionCount: collection.Ptr(int64(0)),
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(publishedFrontmatter()["metrics_interaction_count"]).
+					To(BeNumerically("==", 101))
+				Expect(publishedFrontmatter()["metrics_interaction_count"]).
+					NotTo(BeNumerically("==", 0))
+			})
+
+			It("AC6b: publishes a larger observation of 103", func() {
+				generator.GenerateReturns(
+					"---\nstatus: completed\nphase: done\nmetrics_interaction_count: 101\n---\n\nBody.\n\n## Result\n\nok\n",
+					nil,
+				)
+				err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+					Status:           agentlib.AgentStatusDone,
+					NextPhase:        "done",
+					InteractionCount: collection.Ptr(int64(103)),
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(publishedFrontmatter()["metrics_interaction_count"]).
+					To(BeNumerically("==", 103))
+			})
+		})
+
+		It("AC7: carries both values as numbers, never as strings", func() {
+			generator.GenerateReturns(fullResultContent, nil)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:           agentlib.AgentStatusDone,
+				NextPhase:        "done",
+				AgentTurns:       collection.Ptr(int64(7)),
+				InteractionCount: collection.Ptr(int64(2)),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			fm := publishedFrontmatter()
+			Expect(fm["metrics_agent_turns"]).To(BeNumerically("==", 7))
+			Expect(fm["metrics_agent_turns"]).NotTo(BeAssignableToTypeOf(""))
+			Expect(fm["metrics_interaction_count"]).To(BeNumerically("==", 2))
+			Expect(fm["metrics_interaction_count"]).NotTo(BeAssignableToTypeOf(""))
+		})
+
+		It("AC8: both entries are additive to the published key set", func() {
+			generator.GenerateReturns(fullResultContent, nil)
+
+			baselineSender := &cqrsmocks.CDBCommandObjectSender{}
+			baselineSender.SendCommandObjectReturns(nil)
+			baselineDeliverer := delivery.NewKafkaResultDelivererWithSender(
+				baselineSender, taskID, originalContent, generator, clock,
+			)
+			err := baselineDeliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "done",
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			err = deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:           agentlib.AgentStatusDone,
+				NextPhase:        "done",
+				AgentTurns:       collection.Ptr(int64(7)),
+				InteractionCount: collection.Ptr(int64(2)),
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			_, baselineCmdObj := baselineSender.SendCommandObjectArgsForCall(0)
+			baselineFM, ok := baselineCmdObj.Command.Data["frontmatter"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			baselineKeys := map[string]struct{}{}
+			for k := range baselineFM {
+				baselineKeys[k] = struct{}{}
+			}
+			withMetricsKeys := map[string]struct{}{}
+			for k := range publishedFrontmatter() {
+				withMetricsKeys[k] = struct{}{}
+			}
+
+			diff := map[string]struct{}{}
+			for k := range baselineKeys {
+				if _, ok := withMetricsKeys[k]; !ok {
+					diff[k] = struct{}{}
+				}
+			}
+			for k := range withMetricsKeys {
+				if _, ok := baselineKeys[k]; !ok {
+					diff[k] = struct{}{}
+				}
+			}
+			diffKeys := make([]string, 0, len(diff))
+			for k := range diff {
+				diffKeys = append(diffKeys, k)
+			}
+			sort.Strings(diffKeys)
+			Expect(diffKeys).To(
+				Equal([]string{"metrics_agent_turns", "metrics_interaction_count"}),
+			)
 		})
 	})
 })

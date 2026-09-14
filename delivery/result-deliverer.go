@@ -22,6 +22,14 @@ import (
 	agentlib "github.com/bborbe/agent"
 )
 
+// metricsAgentTurnsKey and metricsInteractionCountKey are the frozen frontmatter keys
+// this deliverer publishes for a Claude-backed run (spec 053). Lowercase, snake_case,
+// no nesting, no version suffix, no alias.
+const (
+	metricsAgentTurnsKey       = "metrics_agent_turns"
+	metricsInteractionCountKey = "metrics_interaction_count"
+)
+
 // NewNoopResultDeliverer creates a agentlib.ResultDeliverer that does nothing.
 func NewNoopResultDeliverer() agentlib.ResultDeliverer {
 	return &noopResultDeliverer{}
@@ -129,6 +137,8 @@ func (d *kafkaResultDeliverer) DeliverResult(
 	for k, v := range fmMap {
 		frontmatter[k] = v
 	}
+
+	d.applyResultMetrics(frontmatter, result)
 
 	d.applyResultFrontmatter(frontmatter, result)
 
@@ -252,6 +262,59 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 		frontmatter["assignee"] = ""
 		// phase is preserved from incoming frontmatter (already copied from fmMap above)
 	}
+}
+
+// applyResultMetrics writes the run's observed counts into the published frontmatter.
+// It runs BEFORE applyResultFrontmatter so the entries ride every status path the
+// deliverer publishes.
+//
+// Both values are optional: a nil field means the run produced no measurement (the
+// turn summary reported nothing positive, or the transcript evidence was
+// unavailable) and its key is omitted entirely — absence is never substituted with a
+// zero. Values are written as plain integers; nothing else about the payload changes.
+//
+// A count already recorded on the task the run received is never lowered: when the
+// recorded value is higher than the run's own evidence, the run's value is discarded
+// and the recorded one stands. This is a guard on this deliverer's own output, not a
+// merge — no read-modify-write of any task file, no second writer.
+func (d *kafkaResultDeliverer) applyResultMetrics(
+	frontmatter agentlib.TaskFrontmatter,
+	result agentlib.AgentResultInfo,
+) {
+	if result.AgentTurns != nil {
+		frontmatter[metricsAgentTurnsKey] = *result.AgentTurns
+	}
+	if result.InteractionCount == nil {
+		return
+	}
+	if recorded, ok := recordedInteractionCount(d.originalContent); ok &&
+		*result.InteractionCount < recorded {
+		glog.V(2).Infof(
+			"task %s: keeping recorded %s=%d, run observed %d",
+			d.taskID,
+			metricsInteractionCountKey,
+			recorded,
+			*result.InteractionCount,
+		)
+		return
+	}
+	frontmatter[metricsInteractionCountKey] = *result.InteractionCount
+}
+
+// recordedInteractionCount reads the interaction count already recorded on the task
+// content the run received. ok is false when the key is absent, unparseable, or does
+// not hold a non-negative integer.
+func recordedInteractionCount(originalContent string) (int64, bool) {
+	fm, _ := ParseMarkdownFrontmatter(originalContent)
+	frontmatter := agentlib.TaskFrontmatter{}
+	for k, v := range fm {
+		frontmatter[k] = v
+	}
+	recorded, ok := frontmatter.Int(metricsInteractionCountKey)
+	if !ok || recorded < 0 {
+		return 0, false
+	}
+	return int64(recorded), true
 }
 
 // stampTargetVault adds target_vault to the task frontmatter from the original
