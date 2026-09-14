@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [053-agent-result-interaction-count]
+summary: 'Added docs/interaction-count.md documenting metrics_agent_turns, metrics_interaction_count, and agent_job_turns_total as three not-comparable quantities, plus the spec 053 CHANGELOG bullet under ## Unreleased'
+execution_id: agent-exec-218-spec-053-interaction-count-docs
+dark-factory-version: v0.193.0
 created: "2026-09-14T16:09:52Z"
 queued: "2026-09-14T17:54:09Z"
+started: "2026-09-14T18:56:41Z"
+completed: "2026-09-14T19:00:01Z"
 branch: dark-factory/agent-result-interaction-count
 ---
 
