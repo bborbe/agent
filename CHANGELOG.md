@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.89.3
 
 - fix: `claude.AgentStep` strips a leading markdown section heading (`# `/`## `, the boundary rule `IsMarkdownSectionHeading` now exports) plus any following blank line from the extracted payload before writing it as the output section body — marshalling emits `Heading` then `Body`, so a payload supplying its own heading was written twice, the next phase bounded the section at the second heading, and parsing failed with `json block missing in plan section`; `### ` and deeper sub-headings are kept, and the non-envelope raw-text fallback is unchanged
 
