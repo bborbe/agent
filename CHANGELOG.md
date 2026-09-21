@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.89.2
 
 - chore: pin `k8s.io/kube-openapi` in the `require` block instead of a `replace`, and drop the `structured-merge-diff/v7` exclude — both directives are main-module-only, so consumers were resolving two `structured-merge-diff` majors at once and failing to build
 
