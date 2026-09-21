@@ -6,6 +6,7 @@ package claude_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/bborbe/collection"
@@ -267,6 +268,68 @@ var _ = Describe("AgentStep", func() {
 				section, exists := md.FindSection("## Analysis")
 				Expect(exists).To(BeTrue())
 				Expect(section.Body).To(Equal(`{"status":"done","message":"analysis complete"}`))
+			})
+		})
+
+		Context("when the runner returns an envelope carrying an output payload", func() {
+			// The wire shape a planning phase actually emits: the payload is
+			// the envelope's `output` value, newlines escaped as on the wire.
+			const planPayload = "## Plan\n\n```json\n{\"steps\":[{\"id\":\"s1\"}]}\n```\n"
+
+			BeforeEach(func() {
+				envelope, err := json.Marshal(map[string]string{
+					"status":     "done",
+					"next_phase": "in_progress",
+					"message":    "plan extracted",
+					"output":     planPayload,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				mockRunner.RunReturns(&claude.ClaudeResult{Result: string(envelope)}, nil)
+			})
+
+			It("writes the extracted payload, not the raw envelope", func() {
+				md := &lib.Markdown{
+					Sections: []lib.Section{
+						{Heading: "## Plan", Body: "old plan"},
+					},
+				}
+				result, err := agentStep.Run(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Status).To(Equal(lib.AgentStatusDone))
+
+				section, exists := md.FindSection("## Analysis")
+				Expect(exists).To(BeTrue())
+				Expect(section.Body).To(Equal(planPayload))
+				Expect(section.Body).NotTo(ContainSubstring(`"status"`))
+			})
+
+			It("round-trips through ShouldRun as a genuine success", func() {
+				md := &lib.Markdown{}
+				_, err := agentStep.Run(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+
+				shouldRun, err := agentStep.ShouldRun(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(shouldRun).To(BeFalse())
+			})
+		})
+
+		Context("when the runner result is not an envelope", func() {
+			BeforeEach(func() {
+				mockRunner.RunReturns(&claude.ClaudeResult{
+					Result: "plain prose, no JSON envelope here",
+				}, nil)
+			})
+
+			It("writes the runner's raw text into the section", func() {
+				md := &lib.Markdown{}
+				result, err := agentStep.Run(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Status).To(Equal(lib.AgentStatusDone))
+
+				section, exists := md.FindSection("## Analysis")
+				Expect(exists).To(BeTrue())
+				Expect(section.Body).To(Equal("plain prose, no JSON envelope here"))
 			})
 		})
 

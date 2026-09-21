@@ -261,9 +261,9 @@ kubectl logs <executor-pod> | grep 'event=respawn_grace_window'
 
 ## AgentStep output-section idempotency (spec 051)
 
-`claude/agentStep.ShouldRun` skips a step only when its output section (e.g. `## Analysis`) exists AND represents a genuine success. Re-dispatch re-runs the step when the task carries a failure marker — a `## Failure` section, or an output-section body that parses to a `needs_input`/`failed` AgentResult — so a failed run can never permanently poison re-dispatch. Absence of a success section forces a run. Unparseable prose bodies with no `## Failure` marker still skip (prose agents unchanged).
+`claude/agentStep.ShouldRun` skips a step only when its output section (e.g. `## Analysis`) exists AND represents a genuine success. Re-dispatch re-runs the step when the task carries a failure marker — a `## Failure` section, or an output-section body that best-effort-parses to a `needs_input`/`failed` AgentResult — so a failed run can never permanently poison re-dispatch. Absence of a success section forces a run. Unparseable prose bodies with no `## Failure` marker still skip (prose agents unchanged). The `## Failure` section written by the deliverer is the primary marker; the body parse is a secondary, best-effort check over whatever body happens to be present.
 
-`claude/agentStep.Run` never writes a success-looking output section for a `needs_input`/`failed` runner body: it returns that status and the deliverer writes the `## Failure` marker as today (`delivery/content-generator.go`). Failure-marker detection is in-memory markdown inspection only (the `Step.ShouldRun` "guards must be cheap" contract).
+On success, the output section holds the agent's extracted payload — the `output` value of its result envelope, i.e. a heading plus fenced JSON — not the envelope itself, so the next phase can parse the section directly. `claude/agentStep.Run` therefore never writes a success-looking output section for a `needs_input`/`failed` runner body: it returns that status and the deliverer writes the `## Failure` marker as today (`delivery/content-generator.go`). Failure-marker detection is in-memory markdown inspection only (the `Step.ShouldRun` "guards must be cheap" contract).
 
 ## References
 
