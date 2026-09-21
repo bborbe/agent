@@ -194,7 +194,7 @@ func splitMarkdownSections(body string) (string, []Section) {
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		if isMarkdownSectionHeading(line) {
+		if IsMarkdownSectionHeading(line) {
 			flush()
 			inSection = true
 			currentHead = line
@@ -212,9 +212,14 @@ func splitMarkdownSections(body string) (string, []Section) {
 	return preamble, sections
 }
 
-// isMarkdownSectionHeading returns true for "# " or "## " level headings.
+// IsMarkdownSectionHeading returns true for "# " or "## " level headings.
 // "### " and deeper stay inside their parent section.
-func isMarkdownSectionHeading(line string) bool {
+//
+// This is the section boundary rule ParseMarkdown applies when splitting a
+// document, exported so producers of section bodies (e.g. a step writing an
+// agent payload under a heading) can detect whether their body would start a
+// new section and bound the intended one to an empty region.
+func IsMarkdownSectionHeading(line string) bool {
 	if !strings.HasPrefix(line, "# ") && !strings.HasPrefix(line, "## ") {
 		return false
 	}
