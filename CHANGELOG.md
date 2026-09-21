@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix: `claude.AgentStep` strips a leading markdown section heading (`# `/`## `, the boundary rule `IsMarkdownSectionHeading` now exports) plus any following blank line from the extracted payload before writing it as the output section body — marshalling emits `Heading` then `Body`, so a payload supplying its own heading was written twice, the next phase bounded the section at the second heading, and parsing failed with `json block missing in plan section`; `### ` and deeper sub-headings are kept, and the non-envelope raw-text fallback is unchanged
+
 ## v0.89.2
 
 - chore: pin `k8s.io/kube-openapi` in the `require` block instead of a `replace`, and drop the `structured-merge-diff/v7` exclude — both directives are main-module-only, so consumers were resolving two `structured-merge-diff` majors at once and failing to build

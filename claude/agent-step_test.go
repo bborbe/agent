@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/bborbe/collection"
 	. "github.com/onsi/ginkgo/v2"
@@ -269,6 +270,39 @@ var _ = Describe("AgentStep", func() {
 				Expect(exists).To(BeTrue())
 				Expect(section.Body).To(Equal(`{"status":"done","message":"analysis complete"}`))
 			})
+
+			It("strips a payload heading equal to the output section heading", func() {
+				// The real prompt emits a payload beginning with the very
+				// heading the step writes it under. Written unstripped,
+				// marshalling emits that heading twice, the next phase bounds
+				// the section at the second one, and finds no fenced block.
+				// The payload's heading must equal OutputSection here, otherwise
+				// the heading-appears-once assertion below also passes against
+				// the unfixed code and proves nothing.
+				const matchingPayload = "## Analysis\n\n```json\n{\"findings\":[]}\n```\n"
+				envelope, err := json.Marshal(map[string]string{
+					"status":  "done",
+					"message": "analysis extracted",
+					"output":  matchingPayload,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				mockRunner.RunReturns(&claude.ClaudeResult{Result: string(envelope)}, nil)
+
+				md := &lib.Markdown{}
+				result, err := agentStep.Run(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Status).To(Equal(lib.AgentStatusDone))
+
+				marshalled, err := md.Marshal(ctx)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(strings.Count(marshalled, step.OutputSection)).To(Equal(1))
+
+				roundTripped, err := lib.ParseMarkdown(ctx, marshalled)
+				Expect(err).NotTo(HaveOccurred())
+				section, exists := roundTripped.FindSection(step.OutputSection)
+				Expect(exists).To(BeTrue())
+				Expect(section.Body).To(ContainSubstring("```json"))
+			})
 		})
 
 		Context("when the runner returns an envelope carrying an output payload", func() {
@@ -299,8 +333,29 @@ var _ = Describe("AgentStep", func() {
 
 				section, exists := md.FindSection("## Analysis")
 				Expect(exists).To(BeTrue())
-				Expect(section.Body).To(Equal(planPayload))
+				// The payload's own "## Plan" heading is stripped: it is written
+				// as a section body, so keeping it would start a new section.
+				Expect(section.Body).To(Equal("```json\n{\"steps\":[{\"id\":\"s1\"}]}\n```\n"))
 				Expect(section.Body).NotTo(ContainSubstring(`"status"`))
+			})
+
+			It("marshals to a document whose section still holds the fenced JSON", func() {
+				md := &lib.Markdown{
+					Sections: []lib.Section{
+						{Heading: "## Plan", Body: "old plan"},
+					},
+				}
+				_, err := agentStep.Run(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+
+				marshalled, err := md.Marshal(ctx)
+				Expect(err).NotTo(HaveOccurred())
+
+				roundTripped, err := lib.ParseMarkdown(ctx, marshalled)
+				Expect(err).NotTo(HaveOccurred())
+				section, exists := roundTripped.FindSection(step.OutputSection)
+				Expect(exists).To(BeTrue())
+				Expect(section.Body).To(ContainSubstring("```json"))
 			})
 
 			It("round-trips through ShouldRun as a genuine success", func() {

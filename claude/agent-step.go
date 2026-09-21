@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bborbe/collection"
@@ -132,6 +133,38 @@ func parseAgentResultBody(body string) (AgentResult, bool) {
 	return result, true
 }
 
+// stripLeadingSectionHeading drops a leading markdown section heading from an
+// extracted payload so the payload can be written as a section body.
+//
+// Marshal emits a section as Heading followed by Body, so a payload that
+// supplies its own heading would be written twice: the section would carry the
+// heading twice, the next phase's reader would bound the section at the second
+// one and find an empty body, and parsing would fail with "json block missing"
+// (observed on dev 2026-09-21, Job
+// trading-hypothesis-agent-b9111443-202609212037). The payload legitimately
+// carries its own heading — AgentResult.Output is documented as "typically a
+// heading plus a fenced JSON block" — so the heading is stripped here rather
+// than at the producer.
+//
+// A leading "# " or "## " heading is dropped, together with any blank line
+// immediately following it, so the body begins with the payload's remaining
+// content (typically a fenced JSON block). A "### " or deeper sub-heading does
+// not start a section and is kept. Payloads that do not begin with a heading
+// are returned unchanged.
+func stripLeadingSectionHeading(payload string) string {
+	firstLine, rest, found := strings.Cut(payload, "\n")
+	if !strings.HasPrefix(firstLine, "#") {
+		return payload
+	}
+	if !agentlib.IsMarkdownSectionHeading(strings.TrimSpace(firstLine)) {
+		return payload
+	}
+	if !found {
+		return ""
+	}
+	return strings.TrimPrefix(rest, "\n")
+}
+
 // runCounts extracts the run's observed counts from the CLI result with the absence
 // rules: a turn total that is not positive is no measurement (nil), and a nil
 // InteractionCount (evidence unavailable) stays nil — absence is never turned into a
@@ -217,6 +250,13 @@ func (s *agentStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.R
 	// A result that is not an envelope, or an envelope without `output`, keeps
 	// its raw runner text so prompts that do not use the envelope are unaffected.
 	//
+	// The extracted payload carries its own heading (see AgentResult.Output);
+	// stripLeadingSectionHeading removes it before it is written as a body, so
+	// marshalling cannot emit the heading twice and bound the section to an
+	// empty region. The raw-text fallback path is left as-is: it is not the
+	// documented envelope payload shape and stripping it would change behaviour
+	// for prompts that never opted into the envelope.
+	//
 	// ShouldRun's failure detection parses this body with parseAgentResultBody
 	// and forces a re-run on a needs_input/failed status (spec 051). The
 	// extracted payload is the agent's declared domain output — the fenced JSON
@@ -226,7 +266,7 @@ func (s *agentStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.R
 	// back as genuine success and does not force a re-run on every dispatch.
 	body := result.Result
 	if parsedOK && parsed.Output != "" {
-		body = parsed.Output
+		body = stripLeadingSectionHeading(parsed.Output)
 	}
 
 	md.ReplaceSection(agentlib.Section{
