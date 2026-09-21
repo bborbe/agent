@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.89.1
 
 - fix: `claude.AgentStep` now writes the agent's declared payload — the result envelope's `output` field, a heading plus fenced JSON — into the configured output section instead of the whole envelope, so the next phase can parse the section directly and the pipeline advances; a result that is not an envelope, or an envelope without `output`, still writes its raw runner text, and `AgentResult` gains the matching `output` field
 
