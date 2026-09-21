@@ -147,7 +147,9 @@ func runCounts(result *ClaudeResult) (agentTurns *int64, interactionCount *int64
 }
 
 // Run marshals the task, calls Claude with the step's prompt + tools, and
-// writes the LLM's output under the configured section heading. On a
+// writes the agent's declared payload — the `output` field of its result
+// envelope — under the configured section heading. A runner result that is not
+// an envelope, or an envelope without `output`, is written raw. On a
 // needs_input/failed runner body the step returns that status WITHOUT writing
 // the output section — the deliverer writes the ## Failure marker instead, so
 // the section is never left looking like completed work (spec 051).
@@ -183,11 +185,16 @@ func (s *agentStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.R
 
 	agentTurns, interactionCount := runCounts(result)
 
+	// Parse the runner's result once: the same envelope decides the
+	// needs_input/failed path below and carries the payload written on the
+	// success path further down.
+	parsed, parsedOK := parseAgentResultBody(result.Result)
+
 	// A needs_input/failed body is a failed run, not completed work — return
 	// that status and let the deliverer write the ## Failure marker. Never
 	// write a success-looking output section for a failed run: that section
 	// would make ShouldRun skip every subsequent re-dispatch (spec 051).
-	if parsed, ok := parseAgentResultBody(result.Result); ok &&
+	if parsedOK &&
 		(parsed.Status == agentlib.AgentStatusNeedsInput ||
 			parsed.Status == agentlib.AgentStatusFailed) {
 		msg := parsed.Message
@@ -202,9 +209,29 @@ func (s *agentStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.R
 		}, nil
 	}
 
+	// Write the payload the agent declared — the envelope's `output` field
+	// (a heading plus a fenced JSON block), not the envelope itself. The next
+	// phase parses this section directly and cannot unwrap an envelope first,
+	// so writing the envelope strands the pipeline (observed on dev
+	// 2026-09-21: "plan section invalid: json block missing in plan section").
+	// A result that is not an envelope, or an envelope without `output`, keeps
+	// its raw runner text so prompts that do not use the envelope are unaffected.
+	//
+	// ShouldRun's failure detection parses this body with parseAgentResultBody
+	// and forces a re-run on a needs_input/failed status (spec 051). The
+	// extracted payload is the agent's declared domain output — the fenced JSON
+	// carries the phase's own schema (e.g. a plan), which has no `status` field
+	// of the AgentStatus enum. Unmarshaling it into AgentResult therefore yields
+	// an empty status, neither needs_input nor failed, so the section is read
+	// back as genuine success and does not force a re-run on every dispatch.
+	body := result.Result
+	if parsedOK && parsed.Output != "" {
+		body = parsed.Output
+	}
+
 	md.ReplaceSection(agentlib.Section{
 		Heading: s.cfg.OutputSection,
-		Body:    result.Result,
+		Body:    body,
 	})
 
 	return &agentlib.Result{

@@ -26,6 +26,17 @@ type AgentResult struct {
 	Message   string      `json:"message,omitempty"`
 	Files     []string    `json:"files,omitempty"`
 	NextPhase string      `json:"next_phase,omitempty"`
+	// Output is the payload the agent declares for the configured output
+	// section — typically a heading plus a fenced JSON block, with newlines
+	// escaped as they are on the wire. It is the value AgentStep.Run writes
+	// into the output section, so the next phase can parse that section
+	// directly instead of unwrapping the result envelope first.
+	//
+	// Distinct from AgentResultInfo.Output, which carries a fully rendered
+	// section body including its heading, produced by BuildResultSection on
+	// the single-shot task-runner path. The two must not be conflated: this
+	// field is an input from the agent, that one is rendered output.
+	Output string `json:"output,omitempty"`
 }
 
 func (r AgentResult) GetStatus() AgentStatus { return r.Status }
