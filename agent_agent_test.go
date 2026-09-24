@@ -300,7 +300,16 @@ var _ = Describe("Agent.Run", func() {
 
 			Expect(err).To(BeNil())
 			Expect(result).NotTo(BeNil())
-			Expect(result.Status).To(Equal(lib.AgentStatusFailed))
+			// needs_input, NOT failed. A phase this agent does not register is a
+			// semantic problem with the task, and the two statuses carry opposite
+			// retry semantics (spec 010/021): `failed` means transient infra, so the
+			// assignee is preserved and the controller keeps re-driving; `needs_input`
+			// means task-wrong, so the deliverer clears the assignee and the task
+			// surfaces in the operator inbox. Reporting a task-wrong condition as
+			// `failed` is what made a rejected phase re-drive forever (2026-09-24: the
+			// build-fix lane rejected `planning` every ~60s, 64 jobs, because the task
+			// carried neither `ref` nor `max_triggers` and nothing bounded the retry).
+			Expect(result.Status).To(Equal(lib.AgentStatusNeedsInput))
 			Expect(deliverer.DeliverResultCallCount()).To(Equal(1))
 			Expect(stepA.RunCallCount()).To(Equal(0))
 			Expect(stepB.RunCallCount()).To(Equal(0))

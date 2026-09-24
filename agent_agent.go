@@ -27,8 +27,9 @@ func NewAgent(phases ...Phase) *Agent {
 // Run dispatches by phase and walks the matching step list.
 //
 // phaseName is the requested phase from the K8s Job env (PHASE) or the
-// CLI flag. Unknown or empty phaseName produces a Failed result via the
-// deliverer (fail-loud sentinel — never a silent escalation).
+// CLI flag. Unknown or empty phaseName produces a needs_input result via the
+// deliverer (fail-loud sentinel — never a silent escalation, and never a
+// retryable `failed`, which would re-drive the task forever).
 //
 // taskContent is parsed once into *Markdown; the parsed Markdown is
 // mutated by successive steps and re-serialized for each save.
@@ -132,7 +133,20 @@ func (a *Agent) findPhase(name domain.TaskPhase) (Phase, bool) {
 	return Phase{}, false
 }
 
-// unsupportedPhase publishes a Failed result with a clear message.
+// unsupportedPhase publishes a needs_input result with a clear message.
+//
+// needs_input, not failed: a phase this Agent does not register is a semantic
+// problem with the task, not a transient infra failure. The two carry opposite
+// retry semantics (spec 010/021) — `failed` preserves the assignee so the
+// controller keeps re-driving, while `needs_input` clears it so the task
+// surfaces in the operator inbox. Reporting task-wrong as `failed` makes a
+// rejected phase re-drive forever whenever nothing else bounds the retry: a task
+// carrying neither `ref` nor `max_triggers` is never capped by the executor's
+// trigger budget (2026-09-24: the build-fix lane rejected `planning` every ~60s
+// for hours, 64 jobs, until the Config stopped dispatching that phase).
+//
+// The message is unchanged, so existing log greps and dashboards keyed on
+// "unsupported entry phase" keep working.
 func (a *Agent) unsupportedPhase(
 	ctx context.Context,
 	phaseName domain.TaskPhase,
@@ -143,7 +157,7 @@ func (a *Agent) unsupportedPhase(
 		display = "(empty)"
 	}
 	result := &Result{
-		Status:  AgentStatusFailed,
+		Status:  AgentStatusNeedsInput,
 		Message: fmt.Sprintf("unsupported entry phase: %s", display),
 	}
 	if err := deliverer.DeliverResult(ctx, AgentResultInfo{
