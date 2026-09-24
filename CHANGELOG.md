@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.89.4
 
 - fix: `Agent.unsupportedPhase` reports `needs_input` instead of `failed` when a task's phase is not one the agent registers — the two statuses carry opposite retry semantics (spec 010/021), and `failed` means transient infra, so the deliverer preserved the assignee and the controller kept re-driving a task the agent could never run. `needs_input` means task-wrong, so the deliverer clears the assignee and the task surfaces in the operator inbox. Nothing else bounded the retry for a task carrying neither `ref` nor `max_triggers` — the executor's trigger budget never engages for those — so a rejected phase re-drove forever: the build-fix lane rejected `planning` every ~60s for hours on 2026-09-24 (64 jobs) until its Config stopped dispatching that phase. The message string is unchanged, so log greps and dashboards keyed on `unsupported entry phase` keep working.
 
