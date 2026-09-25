@@ -324,6 +324,10 @@ agents: []
   #   image: bborbe/agent-claude  # repo only; registry from image.registry
   #   tag: v0.1.1                 # empty => Chart.appVersion
   #   heartbeat: 5m               # liveness heartbeat interval
+  #   type: service               # OPTIONAL: `job` (default) or `service`. A `service`
+  #                               # agent is reconciled as a long-running workload and is
+  #                               # exempt from the taskType requirement below — leave
+  #                               # taskTypes and trigger* unset for one.
   #   taskTypes: [llm, healthcheck]
   #   triggerPhases: [planning, execution, ai_review]
   #   triggerStatuses: [in_progress]

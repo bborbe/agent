@@ -24,12 +24,19 @@ spec:
               type: object
               required: [assignee, image, heartbeat]
               x-kubernetes-validations:
-                - rule: "(has(self.taskType) && size(self.taskType) > 0) || (has(self.taskTypes) && size(self.taskTypes) > 0)"
-                  message: "at least one of spec.taskType or spec.taskTypes must be non-empty"
+                # Only spec.type == service is exempt. A Config that omits `type`
+                # resolves to job, so it must still carry a taskType — an
+                # `!has(self.type) ||` leading clause would wrongly let it through.
+                - rule: "(has(self.type) && self.type == 'service') || (has(self.taskType) && size(self.taskType) > 0) || (has(self.taskTypes) && size(self.taskTypes) > 0)"
+                  message: "at least one of spec.taskType or spec.taskTypes must be non-empty (unless spec.type is service)"
               properties:
                 assignee: {type: string, minLength: 1}
                 image: {type: string, minLength: 1}
                 heartbeat: {type: string, pattern: "^[0-9]+(s|m|h)$"}
+                # Absent means "job", so existing Configs are unaffected. Keep in sync
+                # with configSpecProperties() in agent-task-executor/pkg/k8s_connector.go
+                # — that binary overwrites this schema on every executor start.
+                type: {type: string, enum: [job, service]}
                 taskType: {type: string, pattern: "^[a-z0-9-]+$", maxLength: 63}
                 taskTypes:
                   type: array

@@ -59,3 +59,41 @@ printf '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"
 		Expect(result.Result).To(ContainSubstring("CWD=" + parentCwd))
 	})
 })
+
+var _ = Describe("piRunner session flag", func() {
+	var (
+		ctx          context.Context
+		shimDir      string
+		originalPath string
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		shimDir = GinkgoT().TempDir()
+		shimPath := filepath.Join(shimDir, "pi")
+		// Shim echoes its own arguments so the spec can assert which flags were passed.
+		script := `#!/bin/sh
+printf '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"ARGS=%s"}]}]}\n' "$*"
+`
+		Expect(os.WriteFile(shimPath, []byte(script), 0755)).To(Succeed()) //nolint:gosec
+		originalPath = os.Getenv("PATH")
+		Expect(os.Setenv("PATH", shimDir+":"+originalPath)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(os.Setenv("PATH", originalPath)).To(Succeed())
+		})
+	})
+
+	It("passes --no-session by default, so a task-routed run leaves no session behind", func() {
+		runner := pi.NewRunner(pi.PiRunnerConfig{})
+		result, err := runner.Run(ctx, "test")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Result).To(ContainSubstring("--no-session"))
+	})
+
+	It("omits --no-session when PersistSession is set", func() {
+		runner := pi.NewRunner(pi.PiRunnerConfig{PersistSession: true})
+		result, err := runner.Run(ctx, "test")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Result).NotTo(ContainSubstring("--no-session"))
+	})
+})

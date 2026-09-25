@@ -92,7 +92,13 @@ func (r *piRunner) buildCommand(ctx context.Context, prompt string) *exec.Cmd {
 	args := []string{
 		"--print",
 		"--mode", "json",
-		"--no-session",
+	}
+
+	// --no-session is the default so a task-routed run leaves no session behind on
+	// the shared volume. A long-running identity agent opts out to keep continuity
+	// across prompts; see PiRunnerConfig.PersistSession.
+	if !r.config.PersistSession {
+		args = append(args, "--no-session")
 	}
 
 	if r.config.AllowedTools != "" {
