@@ -23,7 +23,9 @@ spec:
   maxConcurrentJobs: {{ $agent.maxConcurrentJobs }}
   {{- end }}
   {{- if $agent.volumeMountPath }}
+  {{- if ne ($agent.type | default "job") "service" }}
   volumeClaim: {{ $agent.volumeClaim | default $agent.name }}
+  {{- end }}
   volumeMountPath: {{ $agent.volumeMountPath | quote }}
   {{- end }}
   {{- with $agent.env }}
@@ -54,10 +56,13 @@ data:
   {{ $k }}: {{ $v | b64enc }}
   {{- end }}
 {{- end }}
-{{- if $agent.volumeMountPath }}
+{{- if and $agent.volumeMountPath (ne ($agent.type | default "job") "service") }}
 ---
 # PVC only when the agent mounts a volume (some agents — e.g. a stateless
-# backtest runner — declare no volumeMountPath and get no claim).
+# backtest runner — declare no volumeMountPath and get no claim). A service
+# agent is excluded: the executor's StatefulSet provisions its own volume from
+# volumeClaimTemplates, so a claim rendered here would be a second, unmounted
+# one — and spec.volumeClaim is ignored on that path, so it would be invisible.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
