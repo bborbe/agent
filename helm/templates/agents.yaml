@@ -15,6 +15,9 @@ spec:
   priorityClassName: {{ $agent.name }}
   image: {{ printf "%s/%s:%s" $.Values.image.registry $agent.image ($agent.tag | default $.Chart.AppVersion) | quote }}
   heartbeat: {{ $agent.heartbeat | quote }}
+  {{- with $agent.type }}
+  type: {{ . | quote }}
+  {{- end }}
   secretName: {{ $agent.secretName | default $agent.name }}
   {{- if $agent.maxConcurrentJobs }}
   maxConcurrentJobs: {{ $agent.maxConcurrentJobs }}
