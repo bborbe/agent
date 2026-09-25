@@ -47,6 +47,16 @@ rules:
   - apiGroups: [batch]
     resources: [jobs]
     verbs: [create, get, list, watch, delete]
+  # Service StatefulSets (executor >= v0.18.0). The reconcile loop creates one per
+  # Config whose spec.type is service, and removes it when a Config stops being one.
+  # `delete` is granted from v0.18.1 onwards only, because that is the release in
+  # which ServiceReconciler checks the object's Config controller ownerRef before
+  # removing it — without that guard a job Config could delete any StatefulSet in
+  # the namespace that happened to share its name. Grant the rule, but do not pin
+  # an executor older than v0.18.1 alongside it.
+  - apiGroups: [apps]
+    resources: [statefulsets]
+    verbs: [create, get, update, delete]
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
