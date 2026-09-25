@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.90.0
 
 - feat: render `spec.type` on the Config CR the chart emits and declare it in `helm/crds/config-crd.yaml` as a two-value enum (`job` | `service`) — the chart's `agents:` list had no way to express the discriminator, so an overlay entry could not produce a `type: service` Config at all. The chart's CRD copy is install-only (Helm's `crds/` is never touched by `helm upgrade`) and the authoritative copy is `configSpecProperties()` in `agent-task-executor`, which rewrites the cluster CRD on every executor start — the two must agree or the field is silently pruned within seconds of the next restart. The CEL rule requiring `taskType`/`taskTypes` is relaxed to match, because a service agent is addressed directly and never task-routed and therefore carries neither field; only an explicit `type: service` is exempt, so the clause is `has(self.type) && self.type == 'service'` rather than a `!has(self.type) ||` leading guard — that guard would exempt an untyped Config, which resolves to job and must still carry a taskType. `helm/values.yaml` documents the new key in the `agents:` example.
 
