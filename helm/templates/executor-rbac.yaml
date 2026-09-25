@@ -47,6 +47,24 @@ rules:
   - apiGroups: [batch]
     resources: [jobs]
     verbs: [create, get, list, watch, delete]
+  # Service StatefulSets (executor >= v0.18.0). The reconcile loop creates one per
+  # Config whose spec.type is service.
+  #
+  # `delete` is deliberately NOT granted here. The loop also removes the StatefulSet
+  # when a Config stops being one, but that path deletes by name, and a StatefulSet's
+  # name here is just the Config's name — so it is only safe on an executor that
+  # checks the object's Config controller ownerRef first (v0.18.1+). The chart cannot
+  # see which executor version it is paired with, so granting `delete` here would make
+  # safety depend on a comment. Withholding it removes the coupling entirely: `get` is
+  # enough for the guarded undeploy path to find nothing and return quietly, and no
+  # executor version can delete by name through this Role.
+  #
+  # Grant `delete` only once the pairing is enforced rather than documented — the
+  # platform's own gate is `check-executor-compat` in nuke/agent, which runs before
+  # mirror+upgrade and can refuse an EXECUTOR_VERSION below the guarded release.
+  - apiGroups: [apps]
+    resources: [statefulsets]
+    verbs: [create, get, update]
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]

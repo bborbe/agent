@@ -35,6 +35,14 @@ One chart installs on any cluster; everything that differs between clusters is a
   (quant resolves this from TeamVault).
 - **GitHub App / provider credentials for agents** — each leaf agent needs its provider
   token (e.g. Anthropic/MiniMax) delivered as Secret keys via the agent's `secretEnv`.
+- **Executor ≥ v0.18.0 for `type: service` agents** — the `service` Config type and the
+  StatefulSet reconcile loop live in the executor, not the chart. The chart's Role grants
+  `create`/`get`/`update` on `apps/statefulsets` for that loop, and **deliberately withholds
+  `delete`**: the loop's removal path deletes by name, so it is only safe on an executor that
+  checks the object's Config controller ownerRef first (**v0.18.1+**), and the chart cannot see
+  which executor version it is paired with. Grant `delete` only once that pairing is enforced
+  rather than documented — on the quant path the gate is `check-executor-compat` in
+  `nuke/agent`, which runs before `mirror`+`upgrade` and can refuse the combination.
 - **Helm** ≥ 3.8 (OCI registry support).
 
 The `configs.agent.benjamin-borbe.de` CRD ships in the chart's `crds/` directory and is
