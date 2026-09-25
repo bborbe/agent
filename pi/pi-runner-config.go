@@ -19,4 +19,13 @@ type PiRunnerConfig struct {
 	// Env holds extra KEY=VALUE entries appended to the subprocess environment.
 	// Use for API keys, custom provider settings, etc.
 	Env map[string]string
+	// PersistSession keeps pi's session storage instead of discarding it, by
+	// omitting the default --no-session flag.
+	//
+	// Default false, and it must stay false for a task-routed (job) agent: each
+	// run of such an agent is an unrelated task, and a persisted session would
+	// let a later run resume the previous task's conversation from the shared
+	// ~/.pi/agent/ volume. Set it only for a long-running identity agent, where
+	// continuity across prompts is the point.
+	PersistSession bool
 }
