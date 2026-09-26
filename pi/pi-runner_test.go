@@ -96,6 +96,24 @@ printf '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.Result).NotTo(ContainSubstring("--no-session"))
 	})
+
+	It("passes --session-id when one is configured", func() {
+		// Persisting alone does not give continuity: --no-session governs whether pi
+		// *writes* the transcript, and --session-id is what reads it back.
+		runner := pi.NewRunner(pi.PiRunnerConfig{PersistSession: true, SessionID: "identity"})
+		result, err := runner.Run(ctx, "test")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Result).To(ContainSubstring("--session-id identity"))
+	})
+
+	It("passes no --session-id when none is configured", func() {
+		// A task-routed run must not be pinned to one identity: each run is an
+		// unrelated task, and a shared session id would join them.
+		runner := pi.NewRunner(pi.PiRunnerConfig{})
+		result, err := runner.Run(ctx, "test")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Result).NotTo(ContainSubstring("--session-id"))
+	})
 })
 
 var _ = Describe("piRunner event vocabulary", func() {

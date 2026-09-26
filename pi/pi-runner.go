@@ -101,6 +101,14 @@ func (r *piRunner) buildCommand(ctx context.Context, prompt string) *exec.Cmd {
 		args = append(args, "--no-session")
 	}
 
+	// Continuity needs this *as well as* PersistSession. `--no-session` only
+	// controls whether pi writes the transcript; reading it back is a separate
+	// flag, and without one every prompt starts a fresh session — an agent that
+	// remembers nothing while saving everything.
+	if r.config.SessionID != "" {
+		args = append(args, "--session-id", r.config.SessionID)
+	}
+
 	if r.config.AllowedTools != "" {
 		args = append(args, "--tools", r.config.AllowedTools)
 	}
