@@ -27,5 +27,23 @@ type PiRunnerConfig struct {
 	// let a later run resume the previous task's conversation from the shared
 	// ~/.pi/agent/ volume. Set it only for a long-running identity agent, where
 	// continuity across prompts is the point.
+	//
+	// Persisting is necessary but **not sufficient** for continuity. `--no-session`
+	// governs whether pi *writes* the transcript; reading it back is a different
+	// flag. Setting this alone yields an agent that saves every conversation and
+	// remembers none of them — which is exactly what happened: a two-prompt proof
+	// returned the first answer and then "no token was previously requested".
 	PersistSession bool
+
+	// SessionID, when set, passes pi's --session-id: one stable identity whose
+	// transcript is created on first use and continued on every later run.
+	//
+	// This is the flag that makes continuity real — see PersistSession, which only
+	// stops pi discarding the transcript. It is `--session-id` rather than
+	// `--continue` because it **creates the session when it is missing**, so the
+	// first prompt of a brand-new agent behaves exactly like the thousandth;
+	// `--continue` would be resuming nothing on that first run.
+	//
+	// Leave empty for a task-routed agent, where each run is an unrelated task.
+	SessionID string
 }
