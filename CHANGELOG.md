@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.90.3
 
 - fix: read the answer out of the `message_end` event the current pi CLI emits, not only the `agent_end`/`message_update` pair older builds used. pi is installed **unpinned** in the `agent-pi` image and its event vocabulary has already changed once: a `v0.4.0` agent-pi pod produced `{"type":"message_end","message":{...,"role":"assistant",...}}` followed by `{"type":"agent_settled"}`, and `extractEventText`'s two-case switch matched neither — so a run that had answered correctly came back as `no result found in pi CLI output`. **The symptom points at the model and the defect is in the parser**, and since only a real prompt through the runner exercises the path at all, it survived: the fleet's working agents run older images, and the recently-built ones had never been prompted. The `message_end` case carries a **role guard**, because that event fires for every role — without it a user or system message would be returned as the answer, and a run that failed would look like a successful echo of its own prompt. Specs cover both vocabularies and the role guard, using the file's existing `pi`-shim pattern.
 
