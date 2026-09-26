@@ -221,13 +221,31 @@ func scanOutput(
 }
 
 // extractEventText returns text from a piEvent, or empty string if none.
-// Handles both agent_end (last assistant message's last text content) and
-// message_update (any text content delta) event types.
+//
+// It has to know every vocabulary the pi CLI has shipped under this runner,
+// because pi is installed **unpinned** and its event names have already changed
+// once. `agent_end` + `message_update` are the older builds; pi 0.87.x ends a turn
+// with `{"type":"message_end","message":{...,"role":"assistant"}}` and closes the
+// stream with `agent_settled`.
+//
+// A vocabulary the runner does not recognise yields "no result found in pi CLI
+// output" on a run that in fact succeeded — so the symptom points at the model
+// while the defect is in the parser, and only a real prompt through the runner
+// exercises the path at all. That is how it survived: the fleet's working agents
+// run older images and the ones built recently had never been prompted.
 func extractEventText(event piEvent) string {
 	switch event.Type {
 	case "agent_end":
 		return lastAssistantText(event.Messages)
 	case "message_update":
+		return lastTextContent(event.Message.Content)
+	case "message_end":
+		// The role guard is load-bearing. message_end is emitted for *every* role,
+		// so without it a user or system message would be returned as the answer —
+		// the run would look like a success and echo the prompt back.
+		if event.Message.Role != "assistant" {
+			return ""
+		}
 		return lastTextContent(event.Message.Content)
 	}
 	return ""

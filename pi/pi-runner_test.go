@@ -97,3 +97,73 @@ printf '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"
 		Expect(result.Result).NotTo(ContainSubstring("--no-session"))
 	})
 })
+
+var _ = Describe("piRunner event vocabulary", func() {
+	var (
+		ctx          context.Context
+		shimDir      string
+		originalPath string
+	)
+
+	// Each spec installs a shim emitting one vocabulary's worth of output. The
+	// runner has to read the answer out of all of them: pi is installed unpinned,
+	// so its event names have already changed once and can change again.
+	setShim := func(script string) {
+		shimPath := filepath.Join(shimDir, "pi")
+		Expect(os.WriteFile(shimPath, []byte(script), 0755)).To(Succeed()) //nolint:gosec
+	}
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		shimDir = GinkgoT().TempDir()
+		originalPath = os.Getenv("PATH")
+		Expect(os.Setenv("PATH", shimDir+":"+originalPath)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(os.Setenv("PATH", originalPath)).To(Succeed())
+		})
+	})
+
+	It("reads the answer from the older agent_end vocabulary", func() {
+		setShim(`#!/bin/sh
+printf '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"OLD"}]}]}\n'
+`)
+
+		result, err := pi.NewRunner(pi.PiRunnerConfig{}).Run(ctx, "test")
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Result).To(Equal("OLD"))
+	})
+
+	It("reads the answer from the message_end vocabulary pi 0.87.x emits", func() {
+		// Observed live on 2026-09-26: a v0.4.0 agent-pi pod produced exactly this
+		// stream and the runner answered "no result found in pi CLI output" — on a
+		// run that had in fact answered correctly. The symptom points at the model;
+		// the defect is here.
+		setShim(`#!/bin/sh
+printf '{"type":"session","version":3}\n'
+printf '{"type":"message_end","message":{"role":"system","content":[{"type":"text","text":"SYSTEM"}]}}\n'
+printf '{"type":"message_end","message":{"role":"assistant","content":[{"type":"thinking","thinking":"hmm"},{"type":"text","text":"NEW"}]}}\n'
+printf '{"type":"agent_settled"}\n'
+`)
+
+		result, err := pi.NewRunner(pi.PiRunnerConfig{}).Run(ctx, "test")
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Result).To(Equal("NEW"))
+	})
+
+	It("does not return a non-assistant message as the answer", func() {
+		// The role guard is the whole point: message_end fires for every role, so
+		// without it a run producing no assistant text would echo the system prompt
+		// back as a successful result — the worst kind of failure, since it looks
+		// like an answer.
+		setShim(`#!/bin/sh
+printf '{"type":"message_end","message":{"role":"system","content":[{"type":"text","text":"SYSTEM PROMPT"}]}}\n'
+`)
+
+		_, err := pi.NewRunner(pi.PiRunnerConfig{}).Run(ctx, "test")
+
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("no result found"))
+	})
+})
