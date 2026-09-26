@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.90.4
 
 - fix: give the Pi runner a real session identity, so a long-running agent actually remembers its conversation. `PersistSession` only omitted `--no-session`, which governs whether pi **writes** the transcript — reading it back is a different flag. So an agent configured for continuity saved every conversation and remembered none of them: a two-prompt proof returned the first answer and then *"No token was previously requested to be remembered"*, which is precisely what a fresh session says. `PiRunnerConfig.SessionID` now passes pi's `--session-id`, creating the session on first use and continuing it thereafter. `--session-id` rather than `--continue` deliberately: it **creates the session when it is missing**, so a brand-new agent's first prompt behaves exactly like its thousandth, where `--continue` would be resuming nothing. Left empty for a task-routed agent, whose runs are unrelated tasks that must not be joined into one identity. Worth recording how this got through: the plan that scoped the work said *"runs `pi --print --mode json --no-session`, so session storage is never written. The delta is dropping `--no-session`."* The first clause is true and the second does not follow — **writing a session and continuing one are different flags** — and nothing exercised the difference until a second prompt was sent to the same pod.
 
