@@ -6,6 +6,7 @@ require (
 	github.com/bborbe/collection v1.20.26
 	github.com/bborbe/cqrs v0.6.10
 	github.com/bborbe/errors v1.6.1
+	github.com/bborbe/http v1.26.26
 	github.com/bborbe/kafka v1.25.16
 	github.com/bborbe/log v1.6.25
 	github.com/bborbe/metrics v0.6.3
@@ -24,7 +25,6 @@ require (
 require (
 	github.com/IBM/sarama v1.60.2 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/bborbe/http v1.26.26 // indirect
 	github.com/bborbe/k8s v1.14.19 // indirect
 	github.com/bborbe/kv v1.21.14 // indirect
 	github.com/bborbe/math v1.4.8 // indirect

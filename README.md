@@ -33,13 +33,14 @@ Single Go module at `github.com/bborbe/agent` with these subpackages:
 
 | Package | Role |
 |---|---|
-| `agent` (root) | `Agent`, `Phase`, `Step`, `Status`, `Task`, `TaskFrontmatter`, parser/markdown helpers — the runtime contract every agent honors |
+| `agent` (root) | `Agent`, `Phase`, `Step`, `Status`, `Task`, `TaskFrontmatter`, parser/markdown helpers — the runtime contract every agent honors; also the backend-independent `Session` / `SessionFactory` seam for interactive conversations |
 | `claude/` | Claude Code runner helpers (used by agent-claude template) |
 | `pi/` | MiniMax `pi` runner helpers (used by agent-pi template) |
 | `command/` | CQRS command shapes (`task.CreateCommand`, `task.UpdateFrontmatterCommand`, `task.IncrementFrontmatterCommand`) + `ErrTaskAlreadyExists` sentinel |
 | `delivery/` | `ResultDeliverer` interface (Kafka + file deliverers) |
 | `envparse/` | Env-var parsing helpers for agent main.go bootstraps |
 | `healthcheck/` | Generic agent liveness handler |
+| `interactive/` | Shared interactive HTTP surface — readiness, metrics and prompt intake over a per-session cache of long-lived conversations |
 | `metrics/` | Prometheus metrics for agent + executor runtime |
 | `mocks/` | counterfeiter-generated test doubles |
 
