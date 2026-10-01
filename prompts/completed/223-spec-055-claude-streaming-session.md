@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [055-claude-streaming-session]
+summary: Added claude.NewSession/NewSessionFactory holding one long-lived claude process per session over the CLI stream-json protocol with permission routing, plus single-sourced contract-table coverage of the Claude backend in the shared interactive service.
+execution_id: agent-exec-223-spec-055-claude-streaming-session
+dark-factory-version: v0.196.0
 created: "2026-10-01T06:05:14Z"
 queued: "2026-10-01T07:36:06Z"
+started: "2026-10-01T07:58:16Z"
+completed: "2026-10-01T08:28:48Z"
 ---
 
 <summary>
