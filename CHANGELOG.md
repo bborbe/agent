@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.91.0
 
 - feat: extract the interactive agent HTTP service into the library as a backend-independent `Session` / `SessionFactory` seam plus a new `interactive` package that serves `GET /readiness`, `GET /metrics` and `POST /prompt` over a per-session cache of long-lived conversations. The surface previously existed only as caller-side code in `agent-pi/main.go`, so a second interactive image would have been a hand-synced copy of the same router, cache, two-level locking, session-id validation, body cap and readiness dial. `NewService` takes the session factory, listen address, provider base URL and a Prometheus registry, so each binary keeps its own metrics identity; the `:9090` contract is reproduced byte for byte (routes, status codes, the 1 MiB truncating body cap, `X-Session-Id` with `^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$`, the absent-header default `identity`, present-but-empty `400`, and both readiness body strings) and is now written down in `docs/interactive-service.md`. Locking is two-level — the cache map lock is released before the per-entry lock is taken, so distinct ids run concurrently and one id serialises without ever rejecting a request — and every turn is bracketed by a `turn start id=<id>` / `turn end id=<id>` log pair at `V(2)`, with the prompt logged only as a byte count and truncated digest.
 
