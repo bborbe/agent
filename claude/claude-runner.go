@@ -102,7 +102,14 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 // applying the same precedence buildSubprocessEnv applies: explicit config > parent
 // process env > default "~/.claude", with a consumer-provided Env override winning.
 func (r *claudeRunner) resolveConfigDir(ctx context.Context) (string, error) {
-	cfgDir := r.config.ClaudeConfigDir
+	return resolveConfigDir(ctx, r.config)
+}
+
+// resolveConfigDir is the package-level form of claudeRunner.resolveConfigDir, so a
+// second consumer of ClaudeRunnerConfig resolves the directory the same way. The
+// runner's method delegates here; the behaviour is unchanged.
+func resolveConfigDir(ctx context.Context, config ClaudeRunnerConfig) (string, error) {
+	cfgDir := config.ClaudeConfigDir
 	if cfgDir == "" {
 		if envVal := os.Getenv("CLAUDE_CONFIG_DIR"); envVal != "" {
 			cfgDir = ClaudeConfigDir(envVal)
@@ -116,7 +123,7 @@ func (r *claudeRunner) resolveConfigDir(ctx context.Context) (string, error) {
 	// scan follows the same value. (For an override containing "~" the subprocess gets
 	// the literal string while this resolves it; the scan then finds no transcript and
 	// the count stays absent — never wrong.)
-	if override, ok := r.config.Env["CLAUDE_CONFIG_DIR"]; ok && override != "" {
+	if override, ok := config.Env["CLAUDE_CONFIG_DIR"]; ok && override != "" {
 		cfgDir = ClaudeConfigDir(override)
 	}
 	resolved, err := cfgDir.Resolve(ctx)
@@ -365,6 +372,13 @@ func scanOutput(
 // Building via map[string]string makes precedence linear by assignment order and
 // prevents duplicate-key entries in the resulting []string.
 func (r *claudeRunner) buildSubprocessEnv(ctx context.Context) ([]string, error) {
+	return buildSubprocessEnv(ctx, r.config)
+}
+
+// buildSubprocessEnv is the package-level form of claudeRunner.buildSubprocessEnv,
+// so a second consumer of ClaudeRunnerConfig builds the same environment. The
+// runner's method delegates here; the behaviour is unchanged.
+func buildSubprocessEnv(ctx context.Context, config ClaudeRunnerConfig) ([]string, error) {
 	env := map[string]string{}
 
 	// Layer 1: allowlist pass-through.
@@ -375,14 +389,14 @@ func (r *claudeRunner) buildSubprocessEnv(ctx context.Context) ([]string, error)
 	}
 
 	// Layer 2: CLAUDE_CONFIG_DIR with precedence config > env > default.
-	resolved, err := r.resolveConfigDir(ctx)
+	resolved, err := resolveConfigDir(ctx, config)
 	if err != nil {
 		return nil, err
 	}
 	env["CLAUDE_CONFIG_DIR"] = resolved
 
 	// Layer 3: consumer-provided env overrides everything above.
-	for k, v := range r.config.Env {
+	for k, v := range config.Env {
 		env[k] = v
 	}
 
