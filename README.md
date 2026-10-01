@@ -34,7 +34,7 @@ Single Go module at `github.com/bborbe/agent` with these subpackages:
 | Package | Role |
 |---|---|
 | `agent` (root) | `Agent`, `Phase`, `Step`, `Status`, `Task`, `TaskFrontmatter`, parser/markdown helpers — the runtime contract every agent honors; also the backend-independent `Session` / `SessionFactory` seam for interactive conversations |
-| `claude/` | Claude Code runner helpers (used by agent-claude template) |
+| `claude/` | Claude Code runner helpers (used by agent-claude template); also the `Session` implementation that holds one long-lived `claude` process per session over the CLI's stream-json protocol, with mid-turn tool-permission requests routed out to a `PermissionDecider` |
 | `pi/` | MiniMax `pi` runner helpers (used by agent-pi template) |
 | `command/` | CQRS command shapes (`task.CreateCommand`, `task.UpdateFrontmatterCommand`, `task.IncrementFrontmatterCommand`) + `ErrTaskAlreadyExists` sentinel |
 | `delivery/` | `ResultDeliverer` interface (Kafka + file deliverers) |
