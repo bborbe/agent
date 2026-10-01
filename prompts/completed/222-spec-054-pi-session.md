@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [054-shared-interactive-agent-service]
+summary: Added the pi backend's Session/SessionFactory implementation in pi/session.go as a thin adapter over the existing pi.Runner, with tests covering both the persisting and task paths, delegation, error wrapping and Close.
+execution_id: agent-exec-222-spec-054-pi-session
+dark-factory-version: v0.196.0
 created: "2026-10-01T06:07:11Z"
 queued: "2026-10-01T07:36:06Z"
+started: "2026-10-01T07:54:40Z"
+completed: "2026-10-01T07:58:14Z"
 ---
 
 <summary>
