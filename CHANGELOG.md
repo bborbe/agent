@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.93.1
 
 - fix: pass `--permission-mode manual` to the Claude session process whenever a `PermissionDecider` is wired. The CLI's default permission mode is its `auto` mode, which approves a tool invocation without asking, so a wired decider was never consulted and the permission endpoint stayed empty however many turns ran — `GET /permission` could not list a request that was never raised, and no `canUseTool` round-trip was reachable at all. `manual` is the mode that asks, and the existing `--permission-prompt-tool stdio` carries the ask to the decider; the flag pair is added and removed together, so a session built without a decider is unchanged. Measured against CLI 2.1.287: a settings-free config directory reports `permissionMode: "auto"` in its `init` event, and adding `manual` makes a command outside the allow set stop and wait for a verdict instead of running.
 
