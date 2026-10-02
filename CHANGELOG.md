@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.93.0
 
 - feat: add a permission endpoint to the `interactive` service, so a mid-turn tool-permission request raised by a session becomes visible outside the pod and a verdict posted from outside releases the paused turn. `GET /permission` lists the requests currently pending as a JSON array (`{id, tool_name, description, input_preview}`, exactly `[]` when none); `POST /permission` delivers a verdict (`{id, allow, message}`) to the request it names and answers `{}` on success, `404` for an id no request holds, and `400` for a malformed body or a missing id. A new `interactive.NewServiceWithPermissions` takes the registry as a fifth parameter; `interactive.NewService` keeps its four-parameter signature and delegates with none, so `agent-pi` compiles unchanged and simply does not serve the route (`404`). The registry is per-service state — no package variable, no singleton — and `interactive.NewPermissionRegistry` is passed to both the session factory and the service, so a request raised by a session appears on that service's endpoint and nowhere else; it holds its own lock only around its map operations, never across the wait, so a paused turn cannot stall another session, and an entry is removed exactly once, by the verdict or by the waiting turn's cancellation.
 
