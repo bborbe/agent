@@ -260,6 +260,35 @@ var _ = Describe("claudeSession held process", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(strings.Count(string(source), "exec.Command(")).To(Equal(1))
 	})
+
+	// The CLI's default permission mode approves a tool invocation without
+	// asking, so a wired decider would never be consulted and the permission
+	// endpoint would stay empty. manual is what makes the CLI ask.
+	It("asks the CLI for a verdict when a decider is wired", func() {
+		shimDir := writeSessionShim(sessionShimBase)
+		session := openSession(shimDir, &mocks.ClaudePermissionDecider{})
+
+		_, err := session.Prompt(ctx, "turn-one")
+		Expect(err).NotTo(HaveOccurred())
+
+		args := readLines(filepath.Join(shimDir, "args.log"))
+		modeIdx := indexOf(args, "--permission-mode")
+		Expect(modeIdx).To(BeNumerically(">=", 0))
+		Expect(args[modeIdx+1]).To(Equal("manual"))
+		Expect(args).To(ContainElement("--permission-prompt-tool"))
+	})
+
+	It("leaves the permission flags off when no decider is wired", func() {
+		shimDir := writeSessionShim(sessionShimBase)
+		session := openSession(shimDir, nil)
+
+		_, err := session.Prompt(ctx, "turn-one")
+		Expect(err).NotTo(HaveOccurred())
+
+		args := readLines(filepath.Join(shimDir, "args.log"))
+		Expect(args).NotTo(ContainElement("--permission-mode"))
+		Expect(args).NotTo(ContainElement("--permission-prompt-tool"))
+	})
 })
 
 var _ = Describe("claudeSession failure and permission", func() {
