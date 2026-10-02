@@ -222,6 +222,17 @@ func routeEntries() []any {
 				Expect(resp.StatusCode).To(Equal(http.StatusMethodNotAllowed))
 			},
 		),
+		Entry(
+			"GET /permission without a permission registry",
+			http.MethodGet,
+			"/permission",
+			nil,
+			"",
+			"",
+			func(resp *http.Response, _ string, _ contractObserver) {
+				Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
+			},
+		),
 	}
 }
 
