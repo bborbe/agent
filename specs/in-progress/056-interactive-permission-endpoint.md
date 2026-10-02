@@ -1,5 +1,9 @@
 ---
-status: draft
+status: prompted
+approved: "2026-10-02T07:45:18Z"
+generating: "2026-10-02T08:27:32Z"
+prompted: "2026-10-02T09:03:21Z"
+branch: dark-factory/interactive-permission-endpoint
 ---
 
 ## Summary

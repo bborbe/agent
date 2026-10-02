@@ -18,6 +18,7 @@ import (
 )
 
 svc := interactive.NewService(sessions, listen, providerBaseURL, registry)
+svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, registry, permissions)
 ```
 
 | Parameter | Meaning |
@@ -26,6 +27,7 @@ svc := interactive.NewService(sessions, listen, providerBaseURL, registry)
 | `listen` | The address the service binds; the deployed default is `:9090` |
 | `providerBaseURL` | The endpoint `GET /readiness` dials; empty means the check is skipped |
 | `registry` | The Prometheus registry `GET /metrics` gathers from — a parameter rather than a library singleton, so each binary keeps its own metrics identity |
+| `permissions` | The permission registry the endpoint serves and the sessions consult; pass the same instance to the session factory, or the endpoint serves nothing. `NewService` takes none and does not serve the route |
 
 `Service.Handler()` returns the router; `Service.Run(ctx)` serves it until the context
 is cancelled.
@@ -57,8 +59,11 @@ A backend that holds nothing between turns still satisfies the interface, becaus
 | `/readiness` | `GET` | Dials the provider; see below |
 | `/metrics` | `GET` | Prometheus scrape endpoint over the injected registry |
 | `/prompt` | `POST` | Runs one turn on the addressed conversation |
+| `/permission` | `GET`, `POST` | Lists the pending permission requests; delivers a verdict to the one it names |
 
-Any other method on `/prompt` is `405`. The service adds no authentication; the posture
+Any other method on `/prompt` is `405`. `/permission` is served only by a service built
+with a permission registry; the plain `NewService` does not register it and answers
+`404`. The service adds no authentication; the posture
 is namespace-scoped reachability, unchanged — see
 [agent-network-security.md](agent-network-security.md).
 
@@ -76,6 +81,13 @@ is namespace-scoped reachability, unchanged — see
 | `POST /prompt`, body > 1 MiB | `200`; body truncated to 1 MiB |
 | `POST /prompt`, empty body | `400` |
 | `POST /prompt`, valid | `200`, `Content-Type: text/plain; charset=utf-8` |
+| `GET /permission`, permission-enabled, nothing pending | `200`, `Content-Type: application/json`, body exactly `[]` |
+| `GET /permission`, plain `NewService` | `404` |
+| `POST /permission`, pending id, `{"id":"…","allow":true}` | `200`, body exactly `{}` |
+| `POST /permission`, unknown id | `404` |
+| `POST /permission`, missing `id` | `400` |
+| `POST /permission`, malformed JSON | `400` |
+| `PUT /permission`, permission-enabled | `405` |
 
 ### Session id
 
@@ -130,6 +142,47 @@ OK (provider reachable at <host>:<port>)
 
 and when the dial fails, `503` with `provider unreachable at <host>:<port>: <dial error>`.
 
+## Permission endpoint
+
+`/permission` is the answer path for a mid-turn tool-permission request. A session
+built with a decider blocks inside `DecidePermission` while the CLI waits; the request
+it is waiting on is readable from outside the process on this route, and a caller posts
+the verdict that releases it.
+
+Two directions:
+
+- **`GET /permission`** lists the requests currently pending, as a JSON array:
+
+  ```json
+  [{"id":"…","tool_name":"Bash","description":"…","input_preview":"…"}]
+  ```
+
+  Nothing pending renders exactly `[]` — an empty array, never `null`.
+
+- **`POST /permission`** delivers a verdict to the request it names:
+
+  ```json
+  {"id":"…","allow":true,"message":"…"}
+  ```
+
+  `allow` true lets the tool run; false returns the denial, carrying `message`, to the
+  process that asked. A resolved verdict answers `200` with body exactly `{}`.
+
+The `id` is generated per request and is the only handle a verdict may name. An id that
+no request holds is refused with `404`: the POST neither creates nor revives an entry.
+An entry is removed exactly once — by a verdict when one is delivered, or by the waiting
+turn when its context is cancelled — so a second verdict for the same id, or a verdict
+racing a cancellation, finds nothing and is refused.
+
+The body cap is 64 KiB, applied with `io.LimitReader`; an oversized body is truncated and
+fails to parse, which is a `400`. A missing `id` is a `400` and a malformed body is a
+`400`. A method other than `GET` or `POST` is a `405`.
+
+The endpoint adds no authentication — the posture is namespace-scoped reachability,
+unchanged, like its siblings — and no logging of its own. The tool-input preview is
+carried to the caller inside the namespace and is never logged. The endpoint is the
+route `agent-pi` does not serve: it builds through `NewService`, which takes no registry.
+
 ## Locking
 
 A session is built lazily on first use and cached by id, and the cache never evicts.
@@ -145,6 +198,12 @@ request is ever rejected because of the lock.**
 
 The lock is released by a deferred unlock, so a runner that panics mid-turn does not
 deadlock the next request on that session.
+
+The permission registry holds its own lock, and only around its map reads and writes —
+never across the wait for a verdict. A turn paused on a permission request therefore
+does not hold the map lock and does not stall another session, which keeps the "no
+request is ever rejected because of the lock" invariant above true rather than widening
+it into one lock held across the wait.
 
 ## Turn-boundary logging
 
