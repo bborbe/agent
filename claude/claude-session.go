@@ -447,6 +447,13 @@ func sessionArgs(config ClaudeRunnerConfig, decider PermissionDecider) []string 
 	}
 	if decider != nil {
 		args = append(args, "--permission-prompt-tool", "stdio")
+		// The CLI's default permission mode is its auto mode, which approves a
+		// tool invocation without asking. Left unset, a wired decider is therefore
+		// never consulted and the service's permission endpoint stays empty
+		// however many turns run. manual is the mode that asks; it reports as
+		// "default" in the CLI's init event, and --permission-prompt-tool carries
+		// the ask to the decider.
+		args = append(args, "--permission-mode", "manual")
 	}
 	if len(config.AllowedTools) > 0 {
 		args = append(args, "--allowedTools", config.AllowedTools.String())
