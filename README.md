@@ -40,7 +40,7 @@ Single Go module at `github.com/bborbe/agent` with these subpackages:
 | `delivery/` | `ResultDeliverer` interface (Kafka + file deliverers) |
 | `envparse/` | Env-var parsing helpers for agent main.go bootstraps |
 | `healthcheck/` | Generic agent liveness handler |
-| `interactive/` | Shared interactive HTTP surface — readiness, metrics, prompt intake and the permission endpoint over a per-session cache of long-lived conversations |
+| `interactive/` | Shared interactive HTTP surface — readiness, metrics, prompt intake and the permission endpoint over a per-session cache of long-lived conversations; the prompt and permission routes require an `Authorization: Bearer <token>` header while readiness and metrics stay open |
 | `metrics/` | Prometheus metrics for agent + executor runtime |
 | `mocks/` | counterfeiter-generated test doubles |
 

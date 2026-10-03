@@ -57,10 +57,16 @@ func captureStderr(fn func()) string {
 	return <-done
 }
 
-// newTestServer builds the shared service through its constructor and wraps its
-// handler in an httptest server.
+// newTestServer builds the shared service through its constructor, explicitly
+// unauthenticated, and wraps its handler in an httptest server.
 func newTestServer(factory agentlib.SessionFactory, providerBaseURL string) *httptest.Server {
-	svc := interactive.NewService(factory, ":0", providerBaseURL, prometheus.NewRegistry())
+	svc := interactive.NewService(
+		factory,
+		":0",
+		providerBaseURL,
+		prometheus.NewRegistry(),
+		interactive.AuthDisabled,
+	)
 	return httptest.NewServer(svc.Handler())
 }
 
@@ -677,6 +683,7 @@ var _ = Describe("Run", func() {
 			":0",
 			"",
 			prometheus.NewRegistry(),
+			interactive.AuthDisabled,
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
