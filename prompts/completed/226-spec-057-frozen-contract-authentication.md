@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [057-interactive-service-authentication]
+summary: 'Updated docs/interactive-service.md to describe the authenticated surface: a Policy column on all four routes, a new Authentication section, auth contract rows with a pre-gate qualifier, corrected constructing snippet/parameter table, and removal of both ''adds no authentication'' claims.'
+execution_id: agent-interactive-auth-exec-226-spec-057-frozen-contract-authentication
+dark-factory-version: v0.196.0
 created: "2026-10-02T23:40:00Z"
 queued: "2026-10-02T23:34:59Z"
+started: "2026-10-03T00:30:27Z"
+completed: "2026-10-03T00:32:46Z"
 ---
 
 <summary>
