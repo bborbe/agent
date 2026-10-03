@@ -17,8 +17,8 @@ import (
 	"github.com/bborbe/agent/interactive"
 )
 
-svc := interactive.NewService(sessions, listen, providerBaseURL, registry)
-svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, registry, permissions)
+svc := interactive.NewService(sessions, listen, providerBaseURL, registry, auth)
+svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, registry, auth, permissions)
 ```
 
 | Parameter | Meaning |
@@ -27,6 +27,7 @@ svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, 
 | `listen` | The address the service binds; the deployed default is `:9090` |
 | `providerBaseURL` | The endpoint `GET /readiness` dials; empty means the check is skipped |
 | `registry` | The Prometheus registry `GET /metrics` gathers from — a parameter rather than a library singleton, so each binary keeps its own metrics identity |
+| `auth` | The authentication decision every gated route requires. Build it with `interactive.NewAuthToken(token)` or `interactive.AuthFromEnv(ctx)`, or state the opt-out with `interactive.AuthDisabled`. The zero value is not a usable default — it refuses every gated request. |
 | `permissions` | The permission registry the endpoint serves and the sessions consult; pass the same instance to the session factory, or the endpoint serves nothing. `NewService` takes none and does not serve the route |
 
 `Service.Handler()` returns the router; `Service.Run(ctx)` serves it until the context
@@ -54,17 +55,20 @@ A backend that holds nothing between turns still satisfies the interface, becaus
 
 ## Routes
 
-| Route | Method | Behaviour |
-|---|---|---|
-| `/readiness` | `GET` | Dials the provider; see below |
-| `/metrics` | `GET` | Prometheus scrape endpoint over the injected registry |
-| `/prompt` | `POST` | Runs one turn on the addressed conversation |
-| `/permission` | `GET`, `POST` | Lists the pending permission requests; delivers a verdict to the one it names |
+| Route | Method | Behaviour | Policy |
+|---|---|---|---|
+| `/readiness` | `GET` | Dials the provider; see below | Exempt — kubelet probe |
+| `/metrics` | `GET` | Prometheus scrape endpoint over the injected registry | Exempt — Prometheus scrape |
+| `/prompt` | `POST` | Runs one turn on the addressed conversation | Bearer token required |
+| `/permission` | `GET`, `POST` | Lists the pending permission requests; delivers a verdict to the one it names | Bearer token required |
 
-Any other method on `/prompt` is `405`. `/permission` is served only by a service built
-with a permission registry; the plain `NewService` does not register it and answers
-`404`. The service adds no authentication; the posture
-is namespace-scoped reachability, unchanged — see
+Any other method on `/prompt` is `405` **for a request that has passed the gate**.
+`/permission` is served only by a service built with a permission registry; the plain
+`NewService` does not register it and answers `404` **for a request that has passed the
+gate**. Every route except `/readiness` and `/metrics` requires the bearer token
+described in [Authentication](#authentication); those two are exempt by decision, not by
+omission, and the reason is recorded there. The network posture is namespace-scoped
+reachability, unchanged — see
 [agent-network-security.md](agent-network-security.md).
 
 ## The contract, row by row
@@ -81,6 +85,10 @@ is namespace-scoped reachability, unchanged — see
 | `POST /prompt`, body > 1 MiB | `200`; body truncated to 1 MiB |
 | `POST /prompt`, empty body | `400` |
 | `POST /prompt`, valid | `200`, `Content-Type: text/plain; charset=utf-8` |
+| `POST /prompt`, no `Authorization` header | `401` |
+| `POST /prompt`, `Authorization: Bearer <wrong token>` | `401` |
+| `POST /prompt`, `Authorization: Bearer <correct token>` | `200` — the behaviour the valid-body row above describes, unchanged |
+| `GET /permission`, permission-enabled, no `Authorization` header | `401` |
 | `GET /permission`, permission-enabled, nothing pending | `200`, `Content-Type: application/json`, body exactly `[]` |
 | `GET /permission`, plain `NewService` | `404` |
 | `POST /permission`, pending id, `{"id":"…","allow":true}` | `200`, body exactly `{}` |
@@ -88,6 +96,12 @@ is namespace-scoped reachability, unchanged — see
 | `POST /permission`, missing `id` | `400` |
 | `POST /permission`, malformed JSON | `400` |
 | `PUT /permission`, permission-enabled | `405` |
+
+Every pre-existing row in this table describes a request that has **already passed the
+authentication gate**: its status assumes a valid `Authorization` header on the gated
+routes (`/prompt` and `/permission`) and no header on the exempt ones (`/readiness` and
+`/metrics`). The `401` rows are the gate's own refusal and are therefore **pre-gate** —
+they describe the request that never reaches the route at all.
 
 ### Session id
 
@@ -142,6 +156,50 @@ OK (provider reachable at <host>:<port>)
 
 and when the dial fails, `503` with `provider unreachable at <host>:<port>: <dial error>`.
 
+## Authentication
+
+Every gated route requires the request header `Authorization: Bearer <token>`. The
+scheme is matched exactly as `Bearer `, and the value that follows it is the service's
+token. A request with no header, a wrong token, or a malformed header — a different
+scheme, or a scheme with no value — is refused with `401` before the request reaches the
+route's own handler: before the body is read, before a session is built and before the
+session lock is taken. A refused request therefore cannot occupy a session and emits
+neither line of the turn-boundary pair. A `401` carries `WWW-Authenticate: Bearer`; its
+body is not part of the contract.
+
+The token is compared in constant time, so a caller cannot recover the token's length or
+prefix by measuring how long a refusal takes.
+
+The token is read at startup from the `INTERACTIVE_AUTH_TOKEN` environment variable and
+exists only as a runtime-injected value: never in source, never in an image layer, never
+in a committed manifest. An unset or empty variable is an error, so a service that
+cannot authenticate fails to start rather than serving unauthenticated — the pod does
+not reach Ready. The token is never logged, at any verbosity, and never returned in an
+error.
+
+The service cannot be built without stating its authentication choice. Both constructors
+take the decision as their fifth parameter, and the zero value fails closed: it refuses
+every gated request rather than serving everything. A consumer that is deliberately
+unexposed states the opt-out explicitly with `interactive.AuthDisabled`, which is a
+visible, greppable line rather than an inherited default.
+
+`/readiness` and `/metrics` stay open, deliberately. A kubelet readiness probe and a
+Prometheus scrape cannot present a bearer token without the token being written into the
+pod spec's probe stanza and the scrape configuration, which multiplies the secret's
+exposure beyond the runtime injection this design depends on, and a misconfigured
+readiness probe wedges the pod's Ready state. Neither route grants execution or reveals
+a credential. The consequence is stated plainly: these two routes remain readable by
+anything that can reach the port.
+
+The token is a shared secret, so any holder has the full authority of the endpoint — it
+authenticates "something that knows the token", not a named principal. Per-caller
+identity, rotation without restart and revocation are out of scope and are not claimed.
+Rotating the secret leaves the running pod serving the old token until it is restarted.
+
+The gate is worthless over plaintext to an untrusted network. The recorded posture pairs
+the token with cluster-network binding; exposing the port beyond the cluster without TLS
+is not covered by this contract.
+
 ## Permission endpoint
 
 `/permission` is the answer path for a mid-turn tool-permission request. A session
@@ -178,10 +236,11 @@ The body cap is 64 KiB, applied with `io.LimitReader`; an oversized body is trun
 fails to parse, which is a `400`. A missing `id` is a `400` and a malformed body is a
 `400`. A method other than `GET` or `POST` is a `405`.
 
-The endpoint adds no authentication — the posture is namespace-scoped reachability,
-unchanged, like its siblings — and no logging of its own. The tool-input preview is
-carried to the caller inside the namespace and is never logged. The endpoint is the
-route `agent-pi` does not serve: it builds through `NewService`, which takes no registry.
+The endpoint is gated like `/prompt`: it requires the bearer token, and
+[Authentication](#authentication) records the policy. It adds no logging of its own. The
+tool-input preview is carried to the caller inside the namespace and is never logged.
+The endpoint is the route `agent-pi` does not serve: it builds through `NewService`,
+which takes no permission registry.
 
 ## Locking
 
