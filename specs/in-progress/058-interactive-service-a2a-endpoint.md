@@ -1,6 +1,8 @@
 ---
-status: approved
+status: prompted
 approved: "2026-10-05T16:37:24Z"
+generating: "2026-10-05T18:14:30Z"
+prompted: "2026-10-05T18:35:29Z"
 branch: dark-factory/interactive-service-a2a-endpoint
 ---
 
@@ -36,7 +38,7 @@ A running `interactive` service answers a standards-compliant A2A client end to 
 ## Acceptance Criteria
 
 - [ ] **AC1 — the service serves an Agent Card without a credential.** Evidence: `curl -sS -w '\n%{http_code}' <base>/.well-known/agent-card.json` with **no** `Authorization` header returns `200`, and the body parses as JSON whose `name` names the agent. `<base>` is the base URL of an **auth-enabled** `httptest` server (`newAuthTestServer`; ephemeral port, not the deployed `:9090` default). That fixture is load-bearing: the package's default `newTestServer` builds with `AuthDisabled`, where *every* route answers `200` without a credential, so a `200` there would prove nothing about the card's exemption.
-- [ ] **AC2 — the card's `url` is configuration, and an unset address fails closed.** Evidence: with `A2A_PUBLIC_URL` set to a distinct value, the served card's `url` equals that value **verbatim** (`jq -r .url`; not `0.0.0.0`, not `localhost`); with the variable unset or empty, construction returns an error naming the variable — the fail-closed shape `AuthFromEnv` already uses.
+- [ ] **AC2 — the card's advertised address is configuration, and an unset address fails closed.** Evidence: with `A2A_PUBLIC_URL` set to a distinct value, the served card's `supportedInterfaces[0].url` equals that value **verbatim** (`jq -r '.supportedInterfaces[0].url'`; not `0.0.0.0`, not `localhost`); with the variable unset or empty, the accessor returns an error naming the variable — the fail-closed shape `AuthFromEnv` already uses. ⚠️ The field path is the **v2 SDK's A2A 1.0 shape**: `a2a.AgentCard` carries no top-level `url`, so a `jq -r .url` probe returns `null` against a correct implementation.
 - [ ] **AC3 — an authenticated `message/send` returns the agent's own computed result.** Evidence: an A2A client posts `message/send` with a valid bearer token for the deterministic input of § Assumptions; the response is a `completed` task whose artifact equals the value `POST /prompt` returns for the same input on the same conversation. The test stub must **echo or transform** its input (e.g. `return "echo:" + p`), never return a constant: against a constant stub a handler that drops the request text entirely still passes, so the equality would prove nothing about input-dependence. The comparison is against the **native route**, not the A2A endpoint — otherwise it is circular — and the compared value is a computed artifact, never free-form model text.
 - [ ] **AC4 — an unauthenticated `message/send` is refused with `401`.** Evidence: the same request with **no** `Authorization` header and a second with a **wrong** token each return `401`, quoted verbatim; AC3's valid-token request returns `200`. The pair is what makes this falsifiable — a service with no gate that returns `400`/`404` for another reason must not pass.
 - [ ] **AC5 — the enumerated existing-route rows are unchanged.** Evidence: each row below still holds against the **in-process `httptest` server** — this repo carries no `package main`, the serving binary lives in `agent-claude` and is out of scope — with its status quoted. `/readiness` and `/metrics` are unauthenticated; the `/prompt` rows assume the gate is passed, **except** the explicit no-header `401` row below.
@@ -68,7 +70,7 @@ A running `interactive` service answers a standards-compliant A2A client end to 
 ## Desired Behavior
 
 1. `GET /.well-known/agent-card.json` is served **without a credential** and returns the Agent Card as JSON. The path is one more literal `case` in the service's existing `authExempt` switch, alongside `/readiness` and `/metrics`.
-2. The card's `url` field is the value of the public-address setting, **verbatim** — the externally reachable URL of the A2A endpoint, including its path. The service never derives it from the listen address or the request `Host` header, so the container-local `0.0.0.0` address can never be advertised.
+2. The card's advertised endpoint — `supportedInterfaces[0].url` in the v2 SDK's A2A 1.0 shape — is the value of the public-address setting, **verbatim**: the externally reachable URL of the A2A endpoint, including its path. The service never derives it from the listen address or the request `Host` header, so the container-local `0.0.0.0` address can never be advertised.
 3. `POST /a2a` serves the A2A JSON-RPC binding. `message/send` is implemented; an unimplemented method returns a JSON-RPC error, not a panic and not a silent `200`.
 4. An authenticated `message/send` runs **one turn** on the conversation named by the request's `contextId`, through the same session cache and per-session lock `POST /prompt` uses. An absent `contextId` resolves to the default conversation `identity`, exactly as an absent `X-Session-Id` does today. The response is a `completed` task whose artifact carries the agent's reply; a backend error yields a `failed` task, with the error logged and never returned in the body.
 5. `contextId` is validated against the service's existing anchored session-id regex **before** any session is built or any body is read.
@@ -83,7 +85,7 @@ A running `interactive` service answers a standards-compliant A2A client end to 
 - **The public address reaches the service as a constructor parameter**, built by an accessor mirroring `AuthFromEnv` (which reads its own environment variable and returns an error when it is unset). The variable is **`A2A_PUBLIC_URL`**. It is not read from the environment inside the handler, so no hidden env dependency is introduced. This changes the frozen constructor's signature, which the doc update above covers.
 - **No new credential.** `INTERACTIVE_AUTH_TOKEN` remains the only one.
 - **New dependency:** `github.com/a2aproject/a2a-go/v2` — note the **`/v2`** suffix; the un-suffixed module is the superseded v1 line. Requires Go ≥ 1.25.
-- **Body cap and session id semantics are inherited unchanged** — 1 MiB truncating cap, and the anchored `^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$` regex.
+- **Body cap.** `/a2a` is capped at 1 MiB **before** the SDK's handler reads the body (`http.MaxBytesReader`), because the SDK's JSON-RPC handler applies no limit of its own — without this the endpoint accepts an unbounded body. Unlike `/prompt`, an oversized body is **refused**, not truncated: a truncated JSON body cannot parse, so the native route's truncate-and-process semantics are not reproducible here. **Session id semantics** are inherited unchanged — the anchored `^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$` regex.
 - **Network posture is unchanged** — see [agent-network-security.md](../docs/agent-network-security.md). This spec adds no exposure, no egress and no policy.
 
 ## Failure Modes
@@ -96,7 +98,7 @@ A running `interactive` service answers a standards-compliant A2A client end to 
 | Unimplemented A2A method | JSON-RPC "method not found" error | — |
 | `contextId` fails the regex | refused before the body is read; no session built | caller fixes the id |
 | `Session.Prompt` returns an error | `failed` task; error logged, never returned | `kubectlnukedev -n dev logs <pod>` in the consuming deployment, then inspect the turn |
-| Body larger than 1 MiB | truncated to 1 MiB and processed, as `/prompt` does | caller sends less |
+| Body larger than 1 MiB on `/a2a` | refused by the 1 MiB cap before the SDK handler reads it — **not** truncated as `/prompt` does, because a truncated JSON body cannot parse | caller sends less |
 | A2A endpoint registered outside the wrapped router | AC6's grep and the auth pair both fail — the change is rejected | register on the wrapped router |
 | Two concurrent calls on one `contextId` | serialise on that conversation's lock; neither is rejected | — (this is AC7's expected behavior, not a fault) |
 
