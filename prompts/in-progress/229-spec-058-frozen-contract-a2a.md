@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [058-interactive-service-a2a-endpoint]
 created: "2026-10-05T20:20:00Z"
+queued: "2026-10-05T19:00:06Z"
 branch: dark-factory/interactive-service-a2a-endpoint
 ---
 

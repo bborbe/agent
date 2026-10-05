@@ -1,7 +1,13 @@
 ---
-status: draft
+status: completed
 spec: [058-interactive-service-a2a-endpoint]
+summary: Served a public A2A Agent Card at /.well-known/agent-card.json from the interactive service, advertising the configured A2A_PUBLIC_URL verbatim via a fail-closed accessor and a constructor parameter, with the route exempted by one literal case in the existing auth switch.
+execution_id: agent-a2a-exec-227-spec-058-a2a-card-and-config
+dark-factory-version: v0.196.0
 created: "2026-10-05T20:20:00Z"
+queued: "2026-10-05T19:00:06Z"
+started: "2026-10-05T19:00:08Z"
+completed: "2026-10-05T19:06:24Z"
 branch: dark-factory/interactive-service-a2a-endpoint
 ---
 
