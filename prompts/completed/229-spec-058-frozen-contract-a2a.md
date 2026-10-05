@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [058-interactive-service-a2a-endpoint]
+summary: 'Updated the frozen contract docs/interactive-service.md for the A2A surface (both routes, open/closed policy, advertised-address rule, new publicURL constructor parameter), named the A2A surface in the README, and consolidated the CHANGELOG entry into one feat: bullet.'
+execution_id: agent-a2a-exec-229-spec-058-frozen-contract-a2a
+dark-factory-version: v0.196.0
 created: "2026-10-05T20:20:00Z"
 queued: "2026-10-05T19:00:06Z"
+started: "2026-10-05T19:15:19Z"
+completed: "2026-10-05T19:17:42Z"
 branch: dark-factory/interactive-service-a2a-endpoint
 ---
 
