@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [058-interactive-service-a2a-endpoint]
+summary: Added the A2A JSON-RPC binding at POST /a2a, bridging SendMessage to the existing session cache/lock seam with contextId validation, bearer-gated routing and a capped body, plus 9 passing specs.
+execution_id: agent-a2a-exec-228-spec-058-a2a-jsonrpc-handler
+dark-factory-version: v0.196.0
 created: "2026-10-05T20:20:00Z"
 queued: "2026-10-05T19:00:06Z"
+started: "2026-10-05T19:06:26Z"
+completed: "2026-10-05T19:15:17Z"
 branch: dark-factory/interactive-service-a2a-endpoint
 ---
 

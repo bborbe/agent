@@ -25,12 +25,13 @@ import (
 // Service serves the interactive agent HTTP surface.
 type Service interface {
 	// Handler returns the HTTP handler serving GET /readiness, GET /metrics and
-	// POST /prompt, plus GET and POST /permission when the service was built with a
-	// permission registry, plus the A2A Agent Card at the well-known path. Every route
-	// except /readiness, /metrics and the Agent Card requires the configured bearer
-	// token; those three are exempt because a kubelet probe and a Prometheus scrape
-	// cannot carry one without the token being written into the pod spec and the scrape
-	// configuration, and discovery of the card is public by design.
+	// POST /prompt, plus POST /a2a (the A2A JSON-RPC binding), plus GET and POST
+	// /permission when the service was built with a permission registry, plus the A2A
+	// Agent Card at the well-known path. Every route except /readiness, /metrics and
+	// the Agent Card requires the configured bearer token; those three are exempt
+	// because a kubelet probe and a Prometheus scrape cannot carry one without the
+	// token being written into the pod spec and the scrape configuration, and
+	// discovery of the card is public by design.
 	Handler() http.Handler
 
 	// Run serves the handler on the configured listen address until ctx is cancelled.
@@ -114,11 +115,12 @@ type service struct {
 	card *a2a.AgentCard
 }
 
-// Handler returns the router serving readiness, metrics, prompt intake and the A2A Agent
-// Card, plus the permission endpoint when the service was built with a registry. Every
-// route except /readiness, /metrics and the Agent Card requires the configured bearer
-// token; those three are exempt because a kubelet probe and a Prometheus scrape cannot
-// carry one without the token being written into the pod spec and the scrape
+// Handler returns the router serving readiness, metrics, prompt intake, the A2A JSON-RPC
+// binding and the A2A Agent Card, plus the permission endpoint when the service was built
+// with a registry. Every route except /readiness, /metrics and the Agent Card requires the
+// configured bearer token — including /a2a, which the gate refuses with 401 before the
+// handler runs; those three are exempt because a kubelet probe and a Prometheus scrape
+// cannot carry one without the token being written into the pod spec and the scrape
 // configuration, and discovery of the card is public by design.
 func (s *service) Handler() http.Handler {
 	router := http.NewServeMux()
@@ -126,6 +128,7 @@ func (s *service) Handler() http.Handler {
 	router.Handle("/metrics", promhttp.HandlerFor(s.registry, promhttp.HandlerOpts{}))
 	router.Handle("/prompt", s.promptHandler())
 	router.Handle(a2asrv.WellKnownAgentCardPath, s.agentCardHandler())
+	router.Handle(a2aPath, s.a2aHandler())
 	if s.permissions != nil {
 		router.Handle("/permission", s.permissionHandler())
 	}
