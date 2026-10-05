@@ -103,11 +103,22 @@ func (e *a2aExecutor) Cancel(
 }
 
 // promptFromMessage concatenates the text of every part of an A2A message, in order. A
-// non-text part contributes nothing. An empty result means the message carries no text and
-// the request is refused before any session is built.
+// non-text part contributes nothing, and a nil element contributes nothing. An empty
+// result means the message carries no text and the request is refused before any session
+// is built.
 func promptFromMessage(message *a2a.Message) string {
 	var builder strings.Builder
 	for _, part := range message.Parts {
+		// The wire format permits a literal `null` inside the `parts` array, and the
+		// SDK decodes into []*Part, so such an element arrives as a nil pointer rather
+		// than as a decode error — the SDK's own validation only rejects an empty
+		// array. (*Part).Text() dereferences its receiver, so without this guard a
+		// body carrying `"parts":[null]` panics the handler: the panic is recovered
+		// upstream and surfaced to the caller as an internal error, which is both the
+		// wrong answer for a malformed request and a stack trace in the log.
+		if part == nil {
+			continue
+		}
 		builder.WriteString(part.Text())
 	}
 	return strings.TrimSpace(builder.String())

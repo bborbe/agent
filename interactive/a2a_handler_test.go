@@ -98,6 +98,23 @@ func a2aMethodBody(id int, method string) string {
 	return string(body)
 }
 
+// a2aRawPartsBody builds a JSON-RPC SendMessage request whose `parts` array is emitted
+// verbatim, so a parts list the typed helpers cannot express — notably one carrying a
+// literal JSON `null` element — can be exercised. contextID must be a plain id; it is
+// interpolated into the message rather than marshalled.
+func a2aRawPartsBody(id int, contextID, partsJSON string) string {
+	message := `{"messageId":"m1","role":"ROLE_USER","contextId":"` + contextID +
+		`","parts":` + partsJSON + `}`
+	body, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"method":  "SendMessage",
+		"params":  map[string]any{"message": json.RawMessage(message)},
+	})
+	Expect(err).To(BeNil())
+	return string(body)
+}
+
 // a2aErrorCode decodes a JSON-RPC response envelope and reports the error code and
 // whether an error object is present.
 func a2aErrorCode(body string) (int, bool) {
@@ -394,5 +411,68 @@ var _ = Describe("A2A endpoint", func() {
 		Expect(task.Status.State).To(Equal(a2a.TaskStateFailed))
 		Expect(out).To(ContainSubstring("backend exploded"))
 		Expect(body).NotTo(ContainSubstring("backend exploded"))
+	})
+
+	It("refuses a parts array carrying a null element without building a session", func() {
+		// The wire format allows a literal `null` inside `parts`, and the SDK decodes
+		// `[]*Part` so such an element arrives as a nil pointer. (*Part).Text()
+		// dereferences its receiver, so this body is the regression case for the
+		// handler panicking on malformed-but-valid JSON.
+		factory := &mocks.SessionFactory{}
+		factory.CreateReturns(&mocks.Session{})
+		server := newA2ATestServer(
+			testPublicURL,
+			interactive.NewAuthToken(authTestToken),
+			factory,
+		)
+		defer server.Close()
+
+		var status int
+		var body string
+		var err error
+		out := captureStderr(func() {
+			status, body, err = postA2A(
+				server.URL,
+				"Bearer "+authTestToken,
+				a2aRawPartsBody(1, "abc", "[null]"),
+			)
+		})
+		Expect(err).To(BeNil())
+		Expect(status).To(Equal(http.StatusOK))
+
+		code, present := a2aErrorCode(body)
+		Expect(present).To(BeTrue())
+		Expect(code).To(Equal(-32602))
+		Expect(body).NotTo(ContainSubstring(`"result"`))
+		Expect(out).NotTo(ContainSubstring("turn start"))
+		Expect(factory.CreateCallCount()).To(Equal(0))
+	})
+
+	It("refuses a body larger than the cap without building a session", func() {
+		// The 1 MiB cap is the route's only body control. Unlike /prompt — which
+		// truncates via io.LimitReader — an oversized body here is refused, because a
+		// truncated JSON body cannot parse.
+		factory := &mocks.SessionFactory{}
+		factory.CreateReturns(&mocks.Session{})
+		server := newA2ATestServer(
+			testPublicURL,
+			interactive.NewAuthToken(authTestToken),
+			factory,
+		)
+		defer server.Close()
+
+		oversized := a2aSendBody(1, "abc", strings.Repeat("x", 2<<20))
+
+		var status int
+		var body string
+		var err error
+		out := captureStderr(func() {
+			status, body, err = postA2A(server.URL, "Bearer "+authTestToken, oversized)
+		})
+		Expect(err).To(BeNil())
+		Expect(status).To(Equal(http.StatusOK))
+		Expect(body).NotTo(ContainSubstring(`"result"`))
+		Expect(out).NotTo(ContainSubstring("turn start"))
+		Expect(factory.CreateCallCount()).To(Equal(0))
 	})
 })
