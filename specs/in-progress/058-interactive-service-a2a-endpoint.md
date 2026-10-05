@@ -1,5 +1,7 @@
 ---
-status: draft
+status: approved
+approved: "2026-10-05T16:37:24Z"
+branch: dark-factory/interactive-service-a2a-endpoint
 ---
 
 ## Summary
