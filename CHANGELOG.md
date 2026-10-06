@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.96.1
 
 - fix: keep the phase an `Agent` advanced to in-process when a later step of the same Job saves in place. The Kafka (and file) result deliverer rebuilt every save from the Job-start frontmatter, so after a step published `Done` + `NextPhase: execution` and `Agent.Run` walked into `execution` in the same Job, the next phase-preserving save (`Done` without `NextPhase`, `in_progress`, `needs_input`, `failed`) wrote the Job-start phase back; the re-triggered Job then skipped every step of the old phase and the task parked forever. The deliverer now remembers the last non-terminal phase it advanced to and publishes it on every later phase-preserving save in the same Job; `done` is never remembered, and status, assignee and retry semantics are unchanged.
 
