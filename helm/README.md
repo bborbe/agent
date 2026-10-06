@@ -200,6 +200,9 @@ agents:
     image: bborbe/agent-claude       # under image.registry
     tag: v0.1.1                       # defaults to appVersion when empty
     heartbeat: 5m
+    zombieJobTimeoutSeconds: 5400     # OPTIONAL: Job deadline (seconds) — must exceed the
+                                      # agent's own internal wait, or its Job dies first.
+                                      # Omit for the executor default (1800s).
     taskTypes: [llm, healthcheck]
     triggerPhases: [planning, execution, ai_review]
     triggerStatuses: [in_progress]
@@ -222,6 +225,10 @@ agents:
 The four reference agents (`agent-claude`, `agent-code`, `agent-gemini`, `agent-pi`)
 follow this exact shape; `agent-pi` uses `PROVIDER_API_KEY` instead of
 `ANTHROPIC_AUTH_TOKEN` in `secretEnv` and `MODEL` instead of the `ANTHROPIC_*` env.
+
+An agent that waits on sibling tasks must set this deadline above its own wait timeout,
+because the executor stamps it onto the Job's `activeDeadlineSeconds` and the Job is
+killed when it elapses.
 
 ### recurringTaskCreator (optional)
 
