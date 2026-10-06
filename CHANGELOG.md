@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.97.1
 
 - fix: raise the `interactive` service's HTTP write deadline to 10 minutes so a `POST /prompt`, `POST /a2a` or `/permission` request whose agent turn outlives the 30-second `github.com/bborbe/http` default can still write its answer, instead of losing it to a deadline that expired while the handler was still running.
 
