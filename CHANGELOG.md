@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.97.0
 
 - feat!: make the A2A Agent Card's `name` configurable by the caller of `interactive.NewService` / `interactive.NewServiceWithPermissions`, so a deployed agent (for example `claude-interactive`) advertises its own name at `GET /.well-known/agent-card.json` instead of the fixed `interactive`. Both constructors' `publicURL string` parameter becomes a single `interactive.CardConfig{Name, PublicURL}` value — the card's name and its public address now travel together, so the two strings can no longer be swapped in a long positional argument list, and the advertised address is unchanged in meaning (still the externally reachable address, never derived from `listen` or a request header). An empty `Name` keeps the library default `interactive`, so an omitted name never yields a nameless card. This is a breaking change to both constructor signatures; consumer repositories adopt it when they bump the library.
 
