@@ -17,6 +17,7 @@ import (
 	kafkamocks "github.com/bborbe/kafka/mocks"
 	libtime "github.com/bborbe/time"
 	timemocks "github.com/bborbe/time/mocks"
+	"github.com/bborbe/vault-cli/pkg/domain"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -96,6 +97,32 @@ var _ = Describe("FileResultDeliverer", func() {
 			agentlib.AgentResultInfo{Status: agentlib.AgentStatusDone},
 		)
 		Expect(err).To(HaveOccurred())
+	})
+
+	Context("phase advanced in-process within one Job (passthrough generator)", func() {
+		It("keeps the advanced phase on a later in-place save", func() {
+			jobStartContent := "---\nstatus: in_progress\nphase: planning\nassignee: hypothesis-agent\n---\n\nBody.\n"
+			passthrough := delivery.NewFileResultDeliverer(
+				delivery.NewPassthroughContentGenerator(),
+				tmpFile.Name(),
+			)
+
+			Expect(passthrough.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				Output:    jobStartContent,
+				NextPhase: "execution",
+			})).To(Succeed())
+			Expect(passthrough.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				Output:    jobStartContent,
+				NextPhase: "",
+			})).To(Succeed())
+
+			written, err := os.ReadFile(tmpFile.Name())
+			Expect(err).NotTo(HaveOccurred())
+			fm, _ := delivery.ParseMarkdownFrontmatter(string(written))
+			Expect(fm["phase"]).To(Equal("execution"))
+		})
 	})
 })
 
@@ -991,6 +1018,172 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(diffKeys).To(
 				Equal([]string{"metrics_agent_turns", "metrics_interaction_count"}),
 			)
+		})
+	})
+
+	Context("phase advanced in-process within one Job", func() {
+		// A multi-phase Agent walks planning -> execution inside one Job with a
+		// single deliverer. Every save after the first is generated from the
+		// Job-start content, so it carries phase: planning unless the deliverer
+		// remembers the advance.
+		const advancedContent = "---\nstatus: in_progress\nphase: execution\nassignee: hypothesis-agent\n---\n\nBody.\n"
+		const jobStartContent = "---\nstatus: in_progress\nphase: planning\nassignee: hypothesis-agent\n---\n\nBody.\n"
+
+		publishedFrontmatterAt := func(i int) map[string]interface{} {
+			_, cmdObj := sender.SendCommandObjectArgsForCall(i)
+			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			return fm
+		}
+
+		It("5a: publishes the advanced phase on a later Done without NextPhase", func() {
+			generator.GenerateReturnsOnCall(0, advancedContent, nil)
+			generator.GenerateReturnsOnCall(1, jobStartContent, nil)
+
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "execution",
+			})).To(Succeed())
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "",
+			})).To(Succeed())
+
+			Expect(sender.SendCommandObjectCallCount()).To(Equal(2))
+			Expect(publishedFrontmatterAt(0)["phase"]).To(Equal("execution"))
+			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("execution"))
+			Expect(publishedFrontmatterAt(1)["status"]).To(Equal("in_progress"))
+		})
+
+		It("5b: publishes the advanced phase on a later in_progress save", func() {
+			generator.GenerateReturnsOnCall(0, advancedContent, nil)
+			generator.GenerateReturnsOnCall(1, jobStartContent, nil)
+
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "execution",
+			})).To(Succeed())
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status: agentlib.AgentStatusInProgress,
+			})).To(Succeed())
+
+			Expect(sender.SendCommandObjectCallCount()).To(Equal(2))
+			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("execution"))
+			Expect(publishedFrontmatterAt(1)["status"]).To(Equal("in_progress"))
+			Expect(publishedFrontmatterAt(1)["assignee"]).To(Equal("hypothesis-agent"))
+		})
+
+		It("5c: publishes the advanced phase on a later needs_input escalation", func() {
+			generator.GenerateReturnsOnCall(0, advancedContent, nil)
+			generator.GenerateReturnsOnCall(1, jobStartContent, nil)
+
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "execution",
+			})).To(Succeed())
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusNeedsInput,
+				Message: "need input",
+			})).To(Succeed())
+
+			Expect(sender.SendCommandObjectCallCount()).To(Equal(2))
+			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("execution"))
+			Expect(publishedFrontmatterAt(1)["status"]).To(Equal("in_progress"))
+			Expect(publishedFrontmatterAt(1)["assignee"]).To(Equal(""))
+			Expect(publishedFrontmatterAt(1)["previous_assignee"]).To(Equal("hypothesis-agent"))
+		})
+
+		It("5d: keeps the retry routable on the advanced phase after a failure", func() {
+			failedContent := "---\nstatus: in_progress\nphase: planning\nassignee: hypothesis-agent\ntrigger_count: 1\n---\n\nBody.\n"
+			generator.GenerateReturnsOnCall(0, advancedContent, nil)
+			generator.GenerateReturnsOnCall(1, failedContent, nil)
+
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "execution",
+			})).To(Succeed())
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusFailed,
+				Message: "timeout",
+			})).To(Succeed())
+
+			Expect(sender.SendCommandObjectCallCount()).To(Equal(2))
+			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("execution"))
+			Expect(publishedFrontmatterAt(1)["assignee"]).To(Equal("hypothesis-agent"))
+		})
+
+		It("5e: keeps the incoming phase when nothing advanced", func() {
+			generator.GenerateReturns(jobStartContent, nil)
+
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "",
+			})).To(Succeed())
+
+			Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
+			Expect(publishedFrontmatterAt(0)["phase"]).To(Equal("planning"))
+		})
+
+		It("5f: never remembers the terminal done phase", func() {
+			generator.GenerateReturnsOnCall(
+				0,
+				"---\nstatus: completed\nphase: done\n---\n\nBody.\n",
+				nil,
+			)
+			generator.GenerateReturnsOnCall(1, jobStartContent, nil)
+
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "done",
+			})).To(Succeed())
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "",
+			})).To(Succeed())
+
+			Expect(sender.SendCommandObjectCallCount()).To(Equal(2))
+			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("planning"))
+		})
+
+		It("5g: runs a real two-phase Agent through the real deliverer end-to-end", func() {
+			jobContent := "---\ntitle: Hypothesis\nstatus: in_progress\nphase: planning\nassignee: hypothesis-agent\n---\n\nBody.\n"
+			planStep := &libmocks.AgentStep{}
+			planStep.NameReturns("plan")
+			planStep.ShouldRunReturns(true, nil)
+			planStep.RunReturns(
+				&agentlib.Result{
+					Status:    agentlib.AgentStatusDone,
+					NextPhase: "execution",
+				},
+				nil,
+			)
+			execStep := &libmocks.AgentStep{}
+			execStep.NameReturns("exec")
+			execStep.ShouldRunReturns(true, nil)
+			execStep.RunReturns(
+				&agentlib.Result{Status: agentlib.AgentStatusInProgress},
+				nil,
+			)
+			agent := agentlib.NewAgent(
+				agentlib.NewPhase(domain.TaskPhasePlanning, planStep),
+				agentlib.NewPhase(domain.TaskPhaseExecution, execStep),
+			)
+			realDeliverer := delivery.NewKafkaResultDelivererWithSender(
+				sender,
+				taskID,
+				jobContent,
+				delivery.NewPassthroughContentGenerator(),
+				clock,
+			)
+
+			_, err := agent.Run(ctx, domain.TaskPhasePlanning, jobContent, realDeliverer)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(planStep.RunCallCount()).To(Equal(1))
+			Expect(execStep.RunCallCount()).To(Equal(1))
+			Expect(sender.SendCommandObjectCallCount()).To(Equal(2))
+			Expect(publishedFrontmatterAt(0)["phase"]).To(Equal("execution"))
+			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("execution"))
 		})
 	})
 })
