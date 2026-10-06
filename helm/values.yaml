@@ -324,6 +324,9 @@ agents: []
   #   image: bborbe/agent-claude  # repo only; registry from image.registry
   #   tag: v0.1.1                 # empty => Chart.appVersion
   #   heartbeat: 5m               # liveness heartbeat interval
+  #   zombieJobTimeoutSeconds: 5400   # OPTIONAL: Job deadline (seconds); omit for the
+  #                                 # executor default (1800). Must exceed the agent's
+  #                                 # own internal wait, or its Job dies first.
   #   type: service               # OPTIONAL: `job` (default) or `service`. A `service`
   #                               # agent is reconciled as a long-running workload and is
   #                               # exempt from the taskType requirement below — leave
