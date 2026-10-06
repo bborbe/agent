@@ -3,6 +3,7 @@ module github.com/bborbe/agent
 go 1.27.1
 
 require (
+	github.com/a2aproject/a2a-go/v2 v2.6.0
 	github.com/bborbe/collection v1.20.26
 	github.com/bborbe/cqrs v0.6.10
 	github.com/bborbe/errors v1.6.1

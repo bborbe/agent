@@ -93,12 +93,14 @@ func (a Auth) allows(header string) bool {
 // /readiness and /metrics are exempt deliberately: a kubelet readiness probe and a
 // Prometheus scrape cannot present a bearer token without the token being written into
 // the pod spec's probe stanza and the scrape configuration, which multiplies the
-// secret's exposure and can wedge the pod's Ready state. Neither route grants execution
-// or reveals a credential. Every other path — including one registered after this
-// change — is gated.
+// secret's exposure and can wedge the pod's Ready state. The A2A Agent Card is exempt
+// because discovery is public by design, the same posture as a public robots.txt: the
+// card advertises the endpoint and skills and carries no credential. None of these
+// routes grants execution or reveals a credential. Every other path — including one
+// registered after this change — is gated.
 func authExempt(path string) bool {
 	switch path {
-	case "/readiness", "/metrics":
+	case "/readiness", "/metrics", "/.well-known/agent-card.json":
 		return true
 	default:
 		return false

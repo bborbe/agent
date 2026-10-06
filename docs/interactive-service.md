@@ -17,8 +17,8 @@ import (
 	"github.com/bborbe/agent/interactive"
 )
 
-svc := interactive.NewService(sessions, listen, providerBaseURL, registry, auth)
-svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, registry, auth, permissions)
+svc := interactive.NewService(sessions, listen, providerBaseURL, registry, auth, publicURL)
+svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, registry, auth, publicURL, permissions)
 ```
 
 | Parameter | Meaning |
@@ -28,7 +28,14 @@ svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, 
 | `providerBaseURL` | The endpoint `GET /readiness` dials; empty means the check is skipped |
 | `registry` | The Prometheus registry `GET /metrics` gathers from — a parameter rather than a library singleton, so each binary keeps its own metrics identity |
 | `auth` | The authentication decision every gated route requires. Build it with `interactive.NewAuthToken(token)` or `interactive.AuthFromEnv(ctx)`, or state the opt-out with `interactive.AuthDisabled`. The zero value is not a usable default — it refuses every gated request. |
+| `publicURL` | The externally reachable address the Agent Card advertises, verbatim. Build it with `interactive.A2APublicURLFromEnv(ctx)`, which reads `A2A_PUBLIC_URL` and returns an error when it is unset or empty. It is never derived from `listen` or from a request header, so the container-local address can never be advertised. |
 | `permissions` | The permission registry the endpoint serves and the sessions consult; pass the same instance to the session factory, or the endpoint serves nothing. `NewService` takes none and does not serve the route |
+
+The `publicURL` parameter is a breaking addition for the consumer repositories that call
+`interactive.NewService` / `interactive.NewServiceWithPermissions`. It is the address
+accessor's counterpart to the token accessor: `interactive.A2APublicURLFromEnv(ctx)
+(string, error)` fails closed when the address is unset, so a service that cannot
+advertise a real endpoint does not start rather than advertising a container-local one.
 
 `Service.Handler()` returns the router; `Service.Run(ctx)` serves it until the context
 is cancelled.
@@ -61,14 +68,21 @@ A backend that holds nothing between turns still satisfies the interface, becaus
 | `/metrics` | `GET` | Prometheus scrape endpoint over the injected registry | Exempt — Prometheus scrape |
 | `/prompt` | `POST` | Runs one turn on the addressed conversation | Bearer token required |
 | `/permission` | `GET`, `POST` | Lists the pending permission requests; delivers a verdict to the one it names | Bearer token required |
+| `/.well-known/agent-card.json` | `GET` | The A2A Agent Card as JSON | Exempt — public discovery |
+| `/a2a` | `POST` | The A2A JSON-RPC binding; runs one turn on the conversation named by the request's `contextId` | Bearer token required |
+
+The card route is exempt by decision: discovery is public by design, the same posture as
+a public `robots.txt`. It carries no credential and never the bearer token — the card
+advertises the endpoint and skills and nothing secret. `/a2a` is gated exactly like
+`/prompt`.
 
 Any other method on `/prompt` is `405` **for a request that has passed the gate**.
 `/permission` is served only by a service built with a permission registry; the plain
 `NewService` does not register it and answers `404` **for a request that has passed the
-gate**. Every route except `/readiness` and `/metrics` requires the bearer token
-described in [Authentication](#authentication); those two are exempt by decision, not by
-omission, and the reason is recorded there. The network posture is namespace-scoped
-reachability, unchanged — see
+gate**. Every route except `/readiness`, `/metrics` and `/.well-known/agent-card.json`
+requires the bearer token described in [Authentication](#authentication); those three are
+exempt by decision, not by omission, and the reason is recorded there. The network posture
+is namespace-scoped reachability, unchanged — see
 [agent-network-security.md](agent-network-security.md).
 
 ## The contract, row by row
@@ -96,12 +110,23 @@ reachability, unchanged — see
 | `POST /permission`, missing `id` | `400` |
 | `POST /permission`, malformed JSON | `400` |
 | `PUT /permission`, permission-enabled | `405` |
+| `GET /.well-known/agent-card.json`, no `Authorization` header | `200`, body is the Agent Card JSON whose `name` names the agent |
+| `GET /.well-known/agent-card.json`, `A2A_PUBLIC_URL` set | the card's `supportedInterfaces[0].url` equals that value verbatim — never `0.0.0.0`, never `localhost` |
+| `POST /a2a`, no `Authorization` header | `401` |
+| `POST /a2a`, `Authorization: Bearer <wrong token>` | `401` |
+| `POST /a2a`, `Authorization: Bearer <correct token>`, `SendMessage` | `200`, a `completed` task whose artifact carries the agent's reply for that conversation |
+| `POST /a2a`, `contextId` failing the session-id regex | JSON-RPC error response; no session built |
+| `POST /a2a`, unimplemented method | JSON-RPC "method not found" error object |
+| `POST /a2a`, backend turn fails | `failed` task; the error is logged and never returned in the body |
+| `POST /a2a`, malformed JSON-RPC body | JSON-RPC error response; no session built |
+| `POST /a2a`, body larger than 1 MiB | refused by the 1 MiB cap before the SDK handler reads it — **not** truncated as `/prompt` does, because a truncated JSON body cannot parse |
 
 Every pre-existing row in this table describes a request that has **already passed the
 authentication gate**: its status assumes a valid `Authorization` header on the gated
-routes (`/prompt` and `/permission`) and no header on the exempt ones (`/readiness` and
-`/metrics`). The `401` rows are the gate's own refusal and are therefore **pre-gate** —
-they describe the request that never reaches the route at all.
+routes (`/prompt`, `/permission` and `/a2a`) and no header on the exempt ones
+(`/readiness`, `/metrics` and `/.well-known/agent-card.json`). The `401` rows are the
+gate's own refusal and are therefore **pre-gate** — they describe the request that never
+reaches the route at all.
 
 ### Session id
 
@@ -190,6 +215,13 @@ exposure beyond the runtime injection this design depends on, and a misconfigure
 readiness probe wedges the pod's Ready state. Neither route grants execution or reveals
 a credential. The consequence is stated plainly: these two routes remain readable by
 anything that can reach the port.
+
+The A2A surface follows the same policy. The Agent Card route
+`/.well-known/agent-card.json` is exempt by decision, alongside `/readiness` and
+`/metrics`, for the same reason: discovery is public and the card carries no credential,
+so it must never embed the bearer token or any other secret. The `/a2a` route is gated by
+the same bearer token as every other non-exempt route. The A2A surface adds no second
+credential — no API key, no per-route token, no additional scheme.
 
 The token is a shared secret, so any holder has the full authority of the endpoint — it
 authenticates "something that knows the token", not a named principal. Per-caller
@@ -283,3 +315,42 @@ SHA-256 digest. The session id appears in a log line only in the turn-boundary p
 the regex has already constrained it to `[A-Za-z0-9_-]`. A runner error is logged and
 never returned in the response body — the caller receives the fixed string
 `prompt failed`.
+
+## A2A surface
+
+`POST /a2a` serves the A2A JSON-RPC binding, and
+`GET /.well-known/agent-card.json` serves the Agent Card that advertises it. The wire
+method this service implements is `SendMessage` — the A2A protocol 1.0 JSON-RPC method
+name; an unimplemented method returns a JSON-RPC error object, not a panic and not a
+silent `200`.
+
+One `SendMessage` runs one turn on the conversation named by the request's `contextId`,
+through the same session cache and per-session lock `POST /prompt` uses, so an A2A turn
+reuses the session the native route built rather than constructing a fresh uncached one.
+An absent `contextId` resolves to the default conversation `identity`, exactly as an
+absent `X-Session-Id` does.
+
+`contextId` is validated against the anchored session-id regex
+(`^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$`) before any session is built — the same security
+boundary the `X-Session-Id` header has, and for the same reason: the id reaches a backend
+CLI as an argument, so a leading `-` would be read as a flag and `.` or `/` would escape a
+session directory. An id that fails the pattern is refused having built no session and
+emitted no `turn start` line.
+
+A successful turn returns a `completed` task whose artifact carries the agent's reply for
+that conversation. A backend error returns a `failed` task, with the error logged and
+never returned in the body.
+
+The Agent Card advertises exactly one A2A interface — the JSON-RPC binding — whose URL is
+the configured public address, used verbatim. That address is configuration, supplied as
+the constructor's `publicURL` parameter and read from `A2A_PUBLIC_URL` by
+`interactive.A2APublicURLFromEnv`; it is never derived from the listen address or from a
+request header, so the container-local address can never be advertised.
+
+This repository authors only the one-shot `SendMessage` bridge. The SDK's JSON-RPC handler
+also routes `SendStreamingMessage` (SSE) through the same executor; that inherited method
+is not part of this contract, and push notifications and task polling are not built here.
+The SDK's handler additionally dispatches the rest of the A2A 1.0 method set — task
+lookup, cancellation, push-configuration management and the extended card — against its
+own default in-memory stores; none of those is part of this contract either. Only
+`SendMessage` is authored and documented here.

@@ -48,7 +48,7 @@ func newAuthMockFactory() *mocks.SessionFactory {
 // newAuthTestServer builds a plain service with the given decision and wraps its
 // handler in an httptest server.
 func newAuthTestServer(auth interactive.Auth, factory agentlib.SessionFactory) *httptest.Server {
-	svc := interactive.NewService(factory, ":0", "", prometheus.NewRegistry(), auth)
+	svc := interactive.NewService(factory, ":0", "", prometheus.NewRegistry(), auth, testPublicURL)
 	return httptest.NewServer(svc.Handler())
 }
 
@@ -67,6 +67,7 @@ func newAuthPermissionTestServer(
 		"",
 		prometheus.NewRegistry(),
 		auth,
+		testPublicURL,
 		permissions,
 	)
 	return httptest.NewServer(svc.Handler())
