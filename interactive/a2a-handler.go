@@ -102,10 +102,13 @@ func (e *a2aExecutor) Cancel(
 	}
 }
 
-// promptFromMessage concatenates the text of every part of an A2A message, in order. A
-// non-text part contributes nothing, and a nil element contributes nothing. An empty
-// result means the message carries no text and the request is refused before any session
-// is built.
+// promptFromMessage concatenates the text of every part of an A2A message, in order, with
+// no separator inserted between them: `["Hello", "world"]` yields `Helloworld`, exactly as
+// the single part `"Helloworld"` would. That is deliberate — the parts are the caller's own
+// content and the service does not invent punctuation between them, so a client that wants
+// a boundary sends one inside a part. A non-text part contributes nothing, and a nil
+// element contributes nothing. An empty result means the message carries no text and the
+// request is refused before any session is built.
 func promptFromMessage(message *a2a.Message) string {
 	var builder strings.Builder
 	for _, part := range message.Parts {

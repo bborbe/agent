@@ -15,9 +15,13 @@ import (
 	"github.com/golang/glog"
 )
 
-// maxPromptBytes bounds the body a single /prompt request may carry. The endpoint is
-// unauthenticated and reachable by anything in the namespace, so an unbounded read
-// would let one caller exhaust the pod's memory.
+// maxPromptBytes bounds the body a single request may carry, on both POST /prompt and
+// POST /a2a. An unbounded read would let one caller exhaust the pod's memory. Both routes
+// are bearer-gated, so the bound is defence in depth rather than the only control.
+//
+// The two routes differ in what they do at the bound, which is why they do not share a
+// reader: /prompt reads through io.LimitReader and therefore truncates, while /a2a wraps
+// the body in http.MaxBytesReader and refuses, because a truncated JSON body cannot parse.
 const maxPromptBytes = 1 << 20
 
 // promptHandler serves POST /prompt: it resolves the session, reads the prompt and

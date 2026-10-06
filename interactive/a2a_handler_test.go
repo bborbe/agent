@@ -475,4 +475,30 @@ var _ = Describe("A2A endpoint", func() {
 		Expect(out).NotTo(ContainSubstring("turn start"))
 		Expect(factory.CreateCallCount()).To(Equal(0))
 	})
+
+	It("concatenates multiple text parts verbatim, with no separator", func() {
+		// Pins the joining rule promptFromMessage documents. The echoing factory makes the
+		// assertion prove the *joined* prompt reached the session, not merely that a reply
+		// came back: a handler that dropped all but the first part would yield echo:Hello.
+		server := newA2ATestServer(
+			testPublicURL,
+			interactive.NewAuthToken(authTestToken),
+			echoingFactory(),
+		)
+		defer server.Close()
+
+		status, body, err := postA2A(
+			server.URL,
+			"Bearer "+authTestToken,
+			a2aRawPartsBody(1, "abc", `[{"text":"Hello"},{"text":"world"}]`),
+		)
+		Expect(err).To(BeNil())
+		Expect(status).To(Equal(http.StatusOK))
+
+		task, err := taskFromResult(body)
+		Expect(err).To(BeNil())
+		Expect(task.Status.State).To(Equal(a2a.TaskStateCompleted))
+		Expect(task.Artifacts).To(HaveLen(1))
+		Expect(task.Artifacts[0].Parts[0].Text()).To(Equal("echo:Helloworld"))
+	})
 })
