@@ -136,7 +136,7 @@ func newPermissionTestServer(
 		"",
 		prometheus.NewRegistry(),
 		interactive.AuthDisabled,
-		testPublicURL,
+		interactive.CardConfig{PublicURL: testPublicURL},
 		permissions,
 	)
 	return httptest.NewServer(svc.Handler())
