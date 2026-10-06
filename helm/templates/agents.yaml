@@ -22,6 +22,9 @@ spec:
   {{- if $agent.maxConcurrentJobs }}
   maxConcurrentJobs: {{ $agent.maxConcurrentJobs }}
   {{- end }}
+  {{- if $agent.zombieJobTimeoutSeconds }}
+  zombieJobTimeoutSeconds: {{ $agent.zombieJobTimeoutSeconds }}
+  {{- end }}
   {{- if $agent.volumeMountPath }}
   {{- if ne ($agent.type | default "job") "service" }}
   volumeClaim: {{ $agent.volumeClaim | default $agent.name }}
