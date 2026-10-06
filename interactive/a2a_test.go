@@ -37,7 +37,14 @@ func newA2ATestServer(
 	auth interactive.Auth,
 	factory agentlib.SessionFactory,
 ) *httptest.Server {
-	svc := interactive.NewService(factory, ":0", "", prometheus.NewRegistry(), auth, publicURL)
+	svc := interactive.NewService(
+		factory,
+		":0",
+		"",
+		prometheus.NewRegistry(),
+		auth,
+		interactive.CardConfig{PublicURL: publicURL},
+	)
 	return httptest.NewServer(svc.Handler())
 }
 
@@ -72,6 +79,30 @@ var _ = Describe("Agent card", func() {
 		var card map[string]any
 		Expect(json.Unmarshal([]byte(body), &card)).To(Succeed())
 		Expect(card["name"]).To(Equal("interactive"))
+	})
+
+	It("names the deployed agent and advertises its address", func() {
+		const publicURL = "https://claude.example.test/a2a"
+		svc := interactive.NewService(
+			newAuthMockFactory(),
+			":0",
+			"",
+			prometheus.NewRegistry(),
+			interactive.NewAuthToken(authTestToken),
+			interactive.CardConfig{Name: "claude-interactive", PublicURL: publicURL},
+		)
+		server := httptest.NewServer(svc.Handler())
+		defer server.Close()
+
+		status, body, err := getAgentCard(server.URL)
+		Expect(err).To(BeNil())
+		Expect(status).To(Equal(http.StatusOK))
+
+		var card a2a.AgentCard
+		Expect(json.Unmarshal([]byte(body), &card)).To(Succeed())
+		Expect(card.Name).To(Equal("claude-interactive"))
+		Expect(card.SupportedInterfaces).To(HaveLen(1))
+		Expect(card.SupportedInterfaces[0].URL).To(Equal(publicURL))
 	})
 
 	It("advertises the configured public address verbatim", func() {

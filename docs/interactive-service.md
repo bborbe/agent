@@ -17,8 +17,8 @@ import (
 	"github.com/bborbe/agent/interactive"
 )
 
-svc := interactive.NewService(sessions, listen, providerBaseURL, registry, auth, publicURL)
-svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, registry, auth, publicURL, permissions)
+svc := interactive.NewService(sessions, listen, providerBaseURL, registry, auth, card)
+svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, registry, auth, card, permissions)
 ```
 
 | Parameter | Meaning |
@@ -28,11 +28,14 @@ svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, 
 | `providerBaseURL` | The endpoint `GET /readiness` dials; empty means the check is skipped |
 | `registry` | The Prometheus registry `GET /metrics` gathers from — a parameter rather than a library singleton, so each binary keeps its own metrics identity |
 | `auth` | The authentication decision every gated route requires. Build it with `interactive.NewAuthToken(token)` or `interactive.AuthFromEnv(ctx)`, or state the opt-out with `interactive.AuthDisabled`. The zero value is not a usable default — it refuses every gated request. |
-| `publicURL` | The externally reachable address the Agent Card advertises, verbatim. Build it with `interactive.A2APublicURLFromEnv(ctx)`, which reads `A2A_PUBLIC_URL` and returns an error when it is unset or empty. It is never derived from `listen` or from a request header, so the container-local address can never be advertised. |
+| `card` | An `interactive.CardConfig` describing what the Agent Card advertises. Its `Name` names the deployed agent in the card; empty keeps the library default, `interactive`. Its `PublicURL` is the externally reachable address the card advertises, verbatim. Build `PublicURL` with `interactive.A2APublicURLFromEnv(ctx)`, which reads `A2A_PUBLIC_URL` and returns an error when it is unset or empty. It is never derived from `listen` or from a request header, so the container-local address can never be advertised. |
 | `permissions` | The permission registry the endpoint serves and the sessions consult; pass the same instance to the session factory, or the endpoint serves nothing. `NewService` takes none and does not serve the route |
 
-The `publicURL` parameter is a breaking addition for the consumer repositories that call
-`interactive.NewService` / `interactive.NewServiceWithPermissions`. It is the address
+The `card` parameter replaces the former address-only `string` parameter of both
+constructors. It is a breaking change for the consumer repositories that call
+`interactive.NewService` / `interactive.NewServiceWithPermissions`: the advertised address
+now travels with the agent's name as one `interactive.CardConfig` value, so the two strings
+can no longer be swapped in a long positional argument list. The address is the address
 accessor's counterpart to the token accessor: `interactive.A2APublicURLFromEnv(ctx)
 (string, error)` fails closed when the address is unset, so a service that cannot
 advertise a real endpoint does not start rather than advertising a container-local one.
@@ -110,7 +113,7 @@ is namespace-scoped reachability, unchanged — see
 | `POST /permission`, missing `id` | `400` |
 | `POST /permission`, malformed JSON | `400` |
 | `PUT /permission`, permission-enabled | `405` |
-| `GET /.well-known/agent-card.json`, no `Authorization` header | `200`, body is the Agent Card JSON whose `name` names the agent |
+| `GET /.well-known/agent-card.json`, no `Authorization` header | `200`, body is the Agent Card JSON whose `name` names the agent — the caller's `CardConfig.Name`, or `interactive` when it is empty |
 | `GET /.well-known/agent-card.json`, `A2A_PUBLIC_URL` set | the card's `supportedInterfaces[0].url` equals that value verbatim — never `0.0.0.0`, never `localhost` |
 | `POST /a2a`, no `Authorization` header | `401` |
 | `POST /a2a`, `Authorization: Bearer <wrong token>` | `401` |
@@ -343,7 +346,7 @@ never returned in the body.
 
 The Agent Card advertises exactly one A2A interface — the JSON-RPC binding — whose URL is
 the configured public address, used verbatim. That address is configuration, supplied as
-the constructor's `publicURL` parameter and read from `A2A_PUBLIC_URL` by
+the constructor's `card` parameter's `PublicURL` field and read from `A2A_PUBLIC_URL` by
 `interactive.A2APublicURLFromEnv`; it is never derived from the listen address or from a
 request header, so the container-local address can never be advertised.
 

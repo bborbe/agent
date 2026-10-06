@@ -45,17 +45,17 @@ type Service interface {
 // means the check is skipped and reported as such); registry is the Prometheus
 // registry the metrics route gathers from — a parameter rather than a library
 // singleton, so each binary keeps its own metrics identity; auth is the authentication
-// every gated route requires, and the zero Auth refuses every gated request; publicURL is
-// the externally reachable address the Agent Card advertises, and it is never derived from
-// listen. The permission endpoint is not served by this constructor; use
-// NewServiceWithPermissions to serve it.
+// every gated route requires, and the zero Auth refuses every gated request; card names
+// the agent in the Agent Card and carries the externally reachable address the card
+// advertises, which is never derived from listen. The permission endpoint is not served
+// by this constructor; use NewServiceWithPermissions to serve it.
 func NewService(
 	sessions agentlib.SessionFactory,
 	listen string,
 	providerBaseURL string,
 	registry *prometheus.Registry,
 	auth Auth,
-	publicURL string,
+	card CardConfig,
 ) Service {
 	return NewServiceWithPermissions(
 		sessions,
@@ -63,7 +63,7 @@ func NewService(
 		providerBaseURL,
 		registry,
 		auth,
-		publicURL,
+		card,
 		nil,
 	)
 }
@@ -76,15 +76,15 @@ func NewService(
 // instance to both, which is what makes the endpoint and the sessions resolve through
 // the same registry. A nil permissions is invalid here — use NewService for that. auth
 // is the authentication every gated route requires, and the zero Auth refuses every
-// gated request. publicURL is the externally reachable address the Agent Card
-// advertises, and it is never derived from listen.
+// gated request. card names the agent in the Agent Card and carries the externally
+// reachable address the card advertises, which is never derived from listen.
 func NewServiceWithPermissions(
 	sessions agentlib.SessionFactory,
 	listen string,
 	providerBaseURL string,
 	registry *prometheus.Registry,
 	auth Auth,
-	publicURL string,
+	card CardConfig,
 	permissions PermissionRegistry,
 ) Service {
 	return &service{
@@ -94,7 +94,7 @@ func NewServiceWithPermissions(
 		registry:        registry,
 		permissions:     permissions,
 		auth:            auth,
-		card:            newAgentCard(publicURL),
+		card:            newAgentCard(card),
 	}
 }
 

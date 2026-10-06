@@ -19,8 +19,9 @@ import (
 // is supplied as configuration and never derived from the listener or the request Host header.
 const a2aPublicURLEnv = "A2A_PUBLIC_URL"
 
-// agentCardName names this service in the Agent Card a client discovers.
-const agentCardName = "interactive"
+// defaultAgentCardName names this service in the Agent Card a client discovers when the
+// caller supplies no name of its own.
+const defaultAgentCardName = "interactive"
 
 // agentCardVersion is the Agent Card's own version string. The format is the provider's to
 // choose; this service has no separate release version to borrow.
@@ -40,17 +41,32 @@ func A2APublicURLFromEnv(ctx context.Context) (string, error) {
 	return publicURL, nil
 }
 
+// CardConfig is what the A2A Agent Card advertises about this service.
+type CardConfig struct {
+	// Name names the deployed agent in the Agent Card. Empty means the card keeps
+	// the library default, "interactive".
+	Name string
+	// PublicURL is the externally reachable A2A endpoint the card advertises
+	// verbatim. It is never derived from the listen address or a request header.
+	PublicURL string
+}
+
 // newAgentCard builds the A2A Agent Card this service advertises. The single supported
-// interface is the JSON-RPC binding at publicURL, which is the externally reachable address
-// supplied as configuration — never the listen address and never a value derived from a
-// request. The card carries no credential.
-func newAgentCard(publicURL string) *a2a.AgentCard {
+// interface is the JSON-RPC binding at config.PublicURL, which is the externally reachable
+// address supplied as configuration — never the listen address and never a value derived
+// from a request. config.Name names the deployed agent, falling back to
+// defaultAgentCardName when it is empty. The card carries no credential.
+func newAgentCard(config CardConfig) *a2a.AgentCard {
+	name := config.Name
+	if name == "" {
+		name = defaultAgentCardName
+	}
 	return &a2a.AgentCard{
-		Name:        agentCardName,
+		Name:        name,
 		Version:     agentCardVersion,
 		Description: "Interactive agent HTTP surface, exposed over A2A.",
 		SupportedInterfaces: []*a2a.AgentInterface{
-			a2a.NewAgentInterface(publicURL, a2a.TransportProtocolJSONRPC),
+			a2a.NewAgentInterface(config.PublicURL, a2a.TransportProtocolJSONRPC),
 		},
 		Capabilities:       a2a.AgentCapabilities{},
 		DefaultInputModes:  []string{"text/plain"},
