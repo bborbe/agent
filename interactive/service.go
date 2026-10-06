@@ -9,6 +9,7 @@ package interactive
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
@@ -135,9 +136,39 @@ func (s *service) Handler() http.Handler {
 	return s.requireAuth(router)
 }
 
+// serverOptionFns returns the option closures the interactive HTTP server is built
+// with. The write deadline lives here rather than inline in Run so the external test
+// package can assert it through github.com/bborbe/http without a request that has to
+// outlive the library's 30-second default.
+func serverOptionFns() []func(*libhttp.ServerOptions) {
+	return []func(*libhttp.ServerOptions){
+		func(o *libhttp.ServerOptions) {
+			o.WriteTimeout = 10 * time.Minute
+		},
+	}
+}
+
 // Run serves the handler on the configured listen address until ctx is cancelled.
 func (s *service) Run(ctx context.Context) error {
 	glog.V(2).Infof("starting http server listen on %s", s.listen)
-	runServer := libhttp.NewServer(s.listen, s.Handler())
+	// One server-wide write deadline governs all six routes this service registers —
+	// /readiness, /metrics, /prompt, /.well-known/agent-card.json, /a2a and /permission —
+	// because libhttp.NewServer builds a single http.Server from a single
+	// libhttp.ServerOptions value: there is no per-route deadline, so raising it for one
+	// route raises it for every route, and no route can keep the 30-second default while
+	// another is raised.
+	//
+	// The ten minutes buy the three turn-holding routes — POST /prompt, POST /a2a and
+	// GET/POST /permission — each of which runs one agent turn whose provider answers in
+	// tens of seconds. Go sets the write deadline when the request headers are read, so a
+	// handler that outlives the deadline reaches a deadline that has already passed and
+	// cannot write its response; the turn completes server-side and the answer is
+	// silently lost. Measured against the deployed claude-interactive service: 27.9s
+	// returned 200, while 32.5s and above returned 502.
+	//
+	// /readiness and /metrics are acceptable at the longer cap because both handlers
+	// return immediately, so the longer deadline can only bite a client that stops
+	// reading a response the handler has already produced.
+	runServer := libhttp.NewServer(s.listen, s.Handler(), serverOptionFns()...)
 	return runServer(ctx)
 }
