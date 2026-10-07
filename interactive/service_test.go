@@ -68,6 +68,7 @@ func newTestServer(factory agentlib.SessionFactory, providerBaseURL string) *htt
 		interactive.AuthDisabled,
 		interactive.CardConfig{PublicURL: testPublicURL},
 		interactive.DefaultSessionIdleTimeout,
+		interactive.DefaultMaxSessions,
 	)
 	return httptest.NewServer(svc.Handler())
 }
@@ -688,6 +689,7 @@ var _ = Describe("Run", func() {
 			interactive.AuthDisabled,
 			interactive.CardConfig{PublicURL: testPublicURL},
 			interactive.DefaultSessionIdleTimeout,
+			interactive.DefaultMaxSessions,
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())

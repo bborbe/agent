@@ -1,6 +1,13 @@
 ---
-spec: ["054-shared-interactive-agent-service"]
-status: draft
+status: completed
+spec: [054-shared-interactive-agent-service]
+summary: Added a maxSessions size bound to the interactive session cache, evicting the least recently used session on both the allocation path and the sweep, with the new DefaultMaxSessions constant, a maxSessions constructor parameter, metrics and docs updated
+execution_id: agent-session-cache-cap-exec-233-session-cache-cap
+dark-factory-version: v0.196.0
+created: "2026-10-07T12:54:19Z"
+queued: "2026-10-07T12:54:19Z"
+started: "2026-10-07T12:54:35Z"
+completed: "2026-10-07T13:06:14Z"
 ---
 
 # Cap the interactive session cache and evict the least recently used
