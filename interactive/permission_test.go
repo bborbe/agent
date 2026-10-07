@@ -138,6 +138,7 @@ func newPermissionTestServer(
 		interactive.AuthDisabled,
 		interactive.CardConfig{PublicURL: testPublicURL},
 		permissions,
+		interactive.DefaultSessionIdleTimeout,
 	)
 	return httptest.NewServer(svc.Handler())
 }

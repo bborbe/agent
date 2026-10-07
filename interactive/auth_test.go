@@ -55,6 +55,7 @@ func newAuthTestServer(auth interactive.Auth, factory agentlib.SessionFactory) *
 		prometheus.NewRegistry(),
 		auth,
 		interactive.CardConfig{PublicURL: testPublicURL},
+		interactive.DefaultSessionIdleTimeout,
 	)
 	return httptest.NewServer(svc.Handler())
 }
@@ -76,6 +77,7 @@ func newAuthPermissionTestServer(
 		auth,
 		interactive.CardConfig{PublicURL: testPublicURL},
 		permissions,
+		interactive.DefaultSessionIdleTimeout,
 	)
 	return httptest.NewServer(svc.Handler())
 }

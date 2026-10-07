@@ -40,7 +40,7 @@ Single Go module at `github.com/bborbe/agent` with these subpackages:
 | `delivery/` | `ResultDeliverer` interface (Kafka + file deliverers) |
 | `envparse/` | Env-var parsing helpers for agent main.go bootstraps |
 | `healthcheck/` | Generic agent liveness handler |
-| `interactive/` | Shared interactive HTTP surface — readiness, metrics, prompt intake, the permission endpoint and an A2A surface (an Agent Card at `/.well-known/agent-card.json` and the `/a2a` JSON-RPC endpoint) over a per-session cache of long-lived conversations; the prompt, permission and `/a2a` routes require an `Authorization: Bearer <token>` header while readiness, metrics and the Agent Card stay open |
+| `interactive/` | Shared interactive HTTP surface — readiness, metrics, prompt intake, the permission endpoint and an A2A surface (an Agent Card at `/.well-known/agent-card.json` and the `/a2a` JSON-RPC endpoint) over a per-session cache of long-lived conversations that drops a session once it has gone the `sessionIdleTimeout` passed to the constructor without serving a turn, and rebuilds it on that session's next turn; the prompt, permission and `/a2a` routes require an `Authorization: Bearer <token>` header while readiness, metrics and the Agent Card stay open |
 | `metrics/` | Prometheus metrics for agent + executor runtime |
 | `mocks/` | counterfeiter-generated test doubles |
 

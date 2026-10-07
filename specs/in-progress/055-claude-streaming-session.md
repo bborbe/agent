@@ -1,7 +1,8 @@
 ---
-status: generating
+status: prompted
 approved: "2026-10-01T05:03:51Z"
 generating: "2026-10-01T07:38:27Z"
+prompted: "2026-10-07T11:08:08Z"
 branch: dark-factory/claude-streaming-session
 ---
 

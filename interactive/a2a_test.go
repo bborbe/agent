@@ -44,6 +44,7 @@ func newA2ATestServer(
 		prometheus.NewRegistry(),
 		auth,
 		interactive.CardConfig{PublicURL: publicURL},
+		interactive.DefaultSessionIdleTimeout,
 	)
 	return httptest.NewServer(svc.Handler())
 }
@@ -90,6 +91,7 @@ var _ = Describe("Agent card", func() {
 			prometheus.NewRegistry(),
 			interactive.NewAuthToken(authTestToken),
 			interactive.CardConfig{Name: "claude-interactive", PublicURL: publicURL},
+			interactive.DefaultSessionIdleTimeout,
 		)
 		server := httptest.NewServer(svc.Handler())
 		defer server.Close()

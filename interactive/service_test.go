@@ -67,6 +67,7 @@ func newTestServer(factory agentlib.SessionFactory, providerBaseURL string) *htt
 		prometheus.NewRegistry(),
 		interactive.AuthDisabled,
 		interactive.CardConfig{PublicURL: testPublicURL},
+		interactive.DefaultSessionIdleTimeout,
 	)
 	return httptest.NewServer(svc.Handler())
 }
@@ -686,6 +687,7 @@ var _ = Describe("Run", func() {
 			prometheus.NewRegistry(),
 			interactive.AuthDisabled,
 			interactive.CardConfig{PublicURL: testPublicURL},
+			interactive.DefaultSessionIdleTimeout,
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
