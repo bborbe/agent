@@ -58,8 +58,14 @@ type Service interface {
 // advertises, which is never derived from listen; sessionIdleTimeout is how long a
 // session may go without serving a turn before its conversation is closed and dropped
 // from the cache, and a non-positive value is replaced with DefaultSessionIdleTimeout
-// rather than disabling eviction. The permission endpoint is not served by this
-// constructor; use NewServiceWithPermissions to serve it.
+// rather than disabling eviction; maxSessions is how many sessions the cache holds at
+// once, and a non-positive value is replaced with DefaultMaxSessions rather than
+// disabling the limit. Both bounds are parameters rather than package constants on
+// purpose: the right value is a function of the container's memory limit, which lives
+// in the deployment rather than in this library, so a caller with a smaller pod must
+// be able to state a smaller limit without waiting for a library release. The
+// permission endpoint is not served by this constructor; use NewServiceWithPermissions
+// to serve it.
 func NewService(
 	sessions agentlib.SessionFactory,
 	listen string,
@@ -68,6 +74,7 @@ func NewService(
 	auth Auth,
 	card CardConfig,
 	sessionIdleTimeout time.Duration,
+	maxSessions int,
 ) Service {
 	return NewServiceWithPermissions(
 		sessions,
@@ -78,6 +85,7 @@ func NewService(
 		card,
 		nil,
 		sessionIdleTimeout,
+		maxSessions,
 	)
 }
 
@@ -94,7 +102,11 @@ func NewService(
 // sessionIdleTimeout is how long a session may go without serving a turn before its
 // conversation is closed and dropped from the cache; a non-positive value is replaced
 // with DefaultSessionIdleTimeout rather than disabling eviction, so the bound cannot be
-// switched off by a misconfigured period.
+// switched off by a misconfigured period. maxSessions is how many sessions the cache
+// holds at once; a non-positive value is replaced with DefaultMaxSessions rather than
+// disabling the limit, for the same reason. Like sessionIdleTimeout it is a parameter
+// rather than a package constant because the right value depends on the container's
+// memory limit, which lives in the deployment rather than in this library.
 func NewServiceWithPermissions(
 	sessions agentlib.SessionFactory,
 	listen string,
@@ -104,11 +116,13 @@ func NewServiceWithPermissions(
 	card CardConfig,
 	permissions PermissionRegistry,
 	sessionIdleTimeout time.Duration,
+	maxSessions int,
 ) Service {
 	return &service{
 		cache: newSessionCache(
 			sessions,
 			sessionIdleTimeout,
+			maxSessions,
 			libtime.NewCurrentDateTime(),
 			registry,
 		),

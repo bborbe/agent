@@ -56,6 +56,7 @@ func newAuthTestServer(auth interactive.Auth, factory agentlib.SessionFactory) *
 		auth,
 		interactive.CardConfig{PublicURL: testPublicURL},
 		interactive.DefaultSessionIdleTimeout,
+		interactive.DefaultMaxSessions,
 	)
 	return httptest.NewServer(svc.Handler())
 }
@@ -78,6 +79,7 @@ func newAuthPermissionTestServer(
 		interactive.CardConfig{PublicURL: testPublicURL},
 		permissions,
 		interactive.DefaultSessionIdleTimeout,
+		interactive.DefaultMaxSessions,
 	)
 	return httptest.NewServer(svc.Handler())
 }

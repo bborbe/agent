@@ -79,7 +79,13 @@ var _ = Describe("SessionCache", func() {
 		session.PromptReturns("session-result", nil)
 		factory = &mocks.SessionFactory{}
 		factory.CreateReturns(session)
-		cache = interactive.NewSessionCache(factory, time.Hour, clock, registry)
+		cache = interactive.NewSessionCache(
+			factory,
+			time.Hour,
+			interactive.DefaultMaxSessions,
+			clock,
+			registry,
+		)
 	})
 
 	Describe("closeIdle", func() {
@@ -184,6 +190,7 @@ var _ = Describe("SessionCache", func() {
 				normalised := interactive.NewSessionCache(
 					factory,
 					configured,
+					interactive.DefaultMaxSessions,
 					clock,
 					prometheus.NewRegistry(),
 				)
@@ -198,6 +205,7 @@ var _ = Describe("SessionCache", func() {
 			normalised := interactive.NewSessionCache(
 				factory,
 				0,
+				interactive.DefaultMaxSessions,
 				clock,
 				prometheus.NewRegistry(),
 			)
@@ -220,6 +228,177 @@ var _ = Describe("SessionCache", func() {
 		})
 	})
 
+	Describe("maximum size", func() {
+		It("enforces the limit on the sweep without over-evicting", func() {
+			registry = prometheus.NewRegistry()
+			limited := interactive.NewSessionCache(factory, time.Hour, 2, clock, registry)
+			_, _ = limited.Get("a").Prompt(ctx, "hello")
+			_, _ = limited.Get("b").Prompt(ctx, "hello")
+
+			// At the limit, the sweep has nothing to reclaim.
+			Expect(interactive.EnforceLimit(ctx, limited)).To(Equal(0))
+			Expect(session.CloseCallCount()).To(Equal(0))
+			Expect(interactive.MaxSessions(limited)).To(Equal(2))
+
+			// A third entry takes the cache over its limit, and the sweep brings it
+			// back by dropping exactly the one that took it over.
+			_, _ = limited.Get("c").Prompt(ctx, "hello")
+			Expect(gaugeValue(registry, "interactive_sessions_held")).To(Equal(3.0))
+			Expect(interactive.EnforceLimit(ctx, limited)).To(Equal(1))
+			Expect(session.CloseCallCount()).To(Equal(1))
+		})
+
+		It("drops the least recently used and keeps the most recently used", func() {
+			registry = prometheus.NewRegistry()
+			limited := interactive.NewSessionCache(factory, time.Hour, 2, clock, registry)
+			_, _ = limited.Get("old").Prompt(ctx, "hello")
+
+			clock.NowReturns(libtime.DateTime(baseTime.Add(time.Minute)))
+			newer := limited.Get("new")
+			_, _ = newer.Prompt(ctx, "hello")
+
+			clock.NowReturns(libtime.DateTime(baseTime.Add(2 * time.Minute)))
+			_, _ = limited.Get("third").Prompt(ctx, "hello")
+
+			Expect(interactive.EnforceLimit(ctx, limited)).To(Equal(1))
+
+			// "old" is the least recently used, so it is the one dropped; "new" is the
+			// most recently used and survives with the same conversation.
+			Expect(session.CloseCallCount()).To(Equal(1))
+			Expect(limited.Get("new")).To(BeIdenticalTo(newer))
+			Expect(factory.CreateCallCount()).To(Equal(3))
+		})
+
+		It("skips a mid-turn entry even when it is the least recently used", func() {
+			release := make(chan struct{})
+			started := make(chan struct{})
+			// Every entry shares this one backend mock, so only the first turn — the
+			// one on "busy" — may block; the turns on "later" and "third" must return
+			// so the spec can reach the limit.
+			var callsMu sync.Mutex
+			calls := 0
+			session.PromptStub = func(_ context.Context, _ string) (string, error) {
+				callsMu.Lock()
+				calls++
+				first := calls == 1
+				callsMu.Unlock()
+				if first {
+					close(started)
+					<-release
+				}
+				return "ok", nil
+			}
+
+			registry = prometheus.NewRegistry()
+			limited := interactive.NewSessionCache(factory, time.Hour, 2, clock, registry)
+			busy := limited.Get("busy")
+			turnDone := make(chan struct{})
+			go func() {
+				defer close(turnDone)
+				_, _ = busy.Prompt(ctx, "hello")
+			}()
+			Eventually(started).Should(BeClosed())
+
+			clock.NowReturns(libtime.DateTime(baseTime.Add(time.Minute)))
+			_, _ = limited.Get("later").Prompt(ctx, "hello")
+
+			clock.NowReturns(libtime.DateTime(baseTime.Add(2 * time.Minute)))
+			_, _ = limited.Get("third").Prompt(ctx, "hello")
+
+			Expect(interactive.EnforceLimit(ctx, limited)).To(Equal(1))
+
+			// "busy" is the oldest by stamp but is mid-turn, so the walk skips it and
+			// drops "later" instead.
+			Expect(session.CloseCallCount()).To(Equal(1))
+			Expect(limited.Get("busy")).To(BeIdenticalTo(busy))
+			Expect(factory.CreateCallCount()).To(Equal(3))
+
+			close(release)
+			Eventually(turnDone).Should(BeClosed())
+		})
+
+		It("cannot enforce the limit when every candidate is mid-turn", func() {
+			release := make(chan struct{})
+			started := make(chan struct{})
+			var once sync.Once
+			session.PromptStub = func(_ context.Context, _ string) (string, error) {
+				once.Do(func() { close(started) })
+				<-release
+				return "ok", nil
+			}
+
+			registry = prometheus.NewRegistry()
+			limited := interactive.NewSessionCache(factory, time.Hour, 1, clock, registry)
+			entry := limited.Get("a")
+			turnDone := make(chan struct{})
+			go func() {
+				defer close(turnDone)
+				_, _ = entry.Prompt(ctx, "hello")
+			}()
+			Eventually(started).Should(BeClosed())
+
+			// The only candidate is mid-turn, so the limit cannot be enforced: nothing
+			// is closed, the count stays above the limit, and the call returns without
+			// blocking or spinning.
+			Expect(interactive.EnforceLimit(ctx, limited)).To(Equal(0))
+			Expect(session.CloseCallCount()).To(Equal(0))
+			Expect(gaugeValue(registry, "interactive_sessions_held")).To(Equal(1.0))
+
+			close(release)
+			Eventually(turnDone).Should(BeClosed())
+		})
+
+		It("reclaims idle entries before enforcing the limit in one sweep", func() {
+			registry = prometheus.NewRegistry()
+			limited := interactive.NewSessionCache(factory, time.Hour, 2, clock, registry)
+			_, _ = limited.Get("idle").Prompt(ctx, "hello")
+
+			clock.NowReturns(libtime.DateTime(baseTime.Add(2 * time.Hour)))
+			_, _ = limited.Get("fresh").Prompt(ctx, "hello")
+			Expect(gaugeValue(registry, "interactive_sessions_held")).To(Equal(2.0))
+
+			reapCtx, cancel := context.WithCancel(ctx)
+			done := make(chan error, 1)
+			go func() { done <- interactive.Reap(reapCtx, limited, 5*time.Millisecond) }()
+
+			// The idle pass reclaims "idle"; the limit pass then finds nothing to do,
+			// and the sweep publishes the held gauge and advances the counter by the
+			// total it evicted.
+			Eventually(func() float64 {
+				return gaugeValue(registry, "interactive_sessions_held")
+			}, 2*time.Second).Should(Equal(1.0))
+			Eventually(func() float64 {
+				return counterValue(registry, "interactive_sessions_evicted_total")
+			}, 2*time.Second).Should(Equal(1.0))
+			Expect(session.CloseCallCount()).To(Equal(1))
+
+			cancel()
+			Eventually(done, 2*time.Second).Should(Receive(BeNil()))
+		})
+	})
+
+	Describe("maximum size normalisation", func() {
+		It("keeps a positive maximum", func() {
+			Expect(interactive.MaxSessions(cache)).To(Equal(interactive.DefaultMaxSessions))
+		})
+
+		DescribeTable("replaces a non-positive maximum with the documented default",
+			func(configured int) {
+				normalised := interactive.NewSessionCache(
+					factory,
+					time.Hour,
+					configured,
+					clock,
+					prometheus.NewRegistry(),
+				)
+				Expect(interactive.MaxSessions(normalised)).
+					To(Equal(interactive.DefaultMaxSessions))
+			},
+			Entry("zero", 0),
+			Entry("negative", -1),
+		)
+	})
+
 	Describe("metrics", func() {
 		It("reports the live entry count and the eviction count", func() {
 			Expect(gaugeValue(registry, "interactive_sessions_held")).To(Equal(0.0))
@@ -231,12 +410,24 @@ var _ = Describe("SessionCache", func() {
 			_, _ = cache.Get("b").Prompt(ctx, "hello")
 			Expect(gaugeValue(registry, "interactive_sessions_held")).To(Equal(2.0))
 
+			// The held gauge is set by the sweep, not by closeIdle, so the count is
+			// observed by driving the reaper rather than the idle pass directly.
 			clock.NowReturns(libtime.DateTime(baseTime.Add(2 * time.Hour)))
-			Expect(interactive.CloseIdle(ctx, cache)).To(Equal(2))
-			Expect(gaugeValue(registry, "interactive_sessions_held")).To(Equal(0.0))
-			Expect(
-				counterValue(registry, "interactive_sessions_evicted_total"),
-			).To(Equal(2.0))
+			reapCtx, cancel := context.WithCancel(ctx)
+			done := make(chan error, 1)
+			go func() { done <- interactive.Reap(reapCtx, cache, 5*time.Millisecond) }()
+
+			// Assert the gauge first, then the counter. The sweep writes the counter
+			// inside closeIdle and only sets the gauge after enforceLimit returns, so
+			// observing the gauge proves the counter has already advanced — the reverse
+			// order can sample the gap between the two writes and flake.
+			Eventually(func() float64 {
+				return gaugeValue(registry, "interactive_sessions_held")
+			}, 2*time.Second).Should(Equal(0.0))
+			Expect(counterValue(registry, "interactive_sessions_evicted_total")).To(Equal(2.0))
+
+			cancel()
+			Eventually(done, 2*time.Second).Should(Receive(BeNil()))
 		})
 	})
 
@@ -304,6 +495,7 @@ var _ = Describe("Run reaper wiring", func() {
 			interactive.AuthDisabled,
 			interactive.CardConfig{PublicURL: testPublicURL},
 			time.Millisecond,
+			interactive.DefaultMaxSessions,
 		)
 		interactive.SetReapInterval(svc, 5*time.Millisecond)
 
