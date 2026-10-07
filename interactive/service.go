@@ -14,6 +14,7 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
 	libhttp "github.com/bborbe/http"
+	libtime "github.com/bborbe/time"
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -22,6 +23,12 @@ import (
 )
 
 //counterfeiter:generate -o ../mocks/interactive-service.go --fake-name InteractiveService . Service
+
+// reapInterval is how often the idle-session reaper sweeps the cache. It is a period of
+// its own, not a fraction of the configured idle timeout: the sweep is cheap, and tying
+// it to the timeout would make a long timeout delay the release of a process that is
+// already idle by any measure.
+const reapInterval = 30 * time.Second
 
 // Service serves the interactive agent HTTP surface.
 type Service interface {
@@ -48,8 +55,11 @@ type Service interface {
 // singleton, so each binary keeps its own metrics identity; auth is the authentication
 // every gated route requires, and the zero Auth refuses every gated request; card names
 // the agent in the Agent Card and carries the externally reachable address the card
-// advertises, which is never derived from listen. The permission endpoint is not served
-// by this constructor; use NewServiceWithPermissions to serve it.
+// advertises, which is never derived from listen; sessionIdleTimeout is how long a
+// session may go without serving a turn before its conversation is closed and dropped
+// from the cache, and a non-positive value is replaced with DefaultSessionIdleTimeout
+// rather than disabling eviction. The permission endpoint is not served by this
+// constructor; use NewServiceWithPermissions to serve it.
 func NewService(
 	sessions agentlib.SessionFactory,
 	listen string,
@@ -57,6 +67,7 @@ func NewService(
 	registry *prometheus.Registry,
 	auth Auth,
 	card CardConfig,
+	sessionIdleTimeout time.Duration,
 ) Service {
 	return NewServiceWithPermissions(
 		sessions,
@@ -66,6 +77,7 @@ func NewService(
 		auth,
 		card,
 		nil,
+		sessionIdleTimeout,
 	)
 }
 
@@ -79,6 +91,10 @@ func NewService(
 // is the authentication every gated route requires, and the zero Auth refuses every
 // gated request. card names the agent in the Agent Card and carries the externally
 // reachable address the card advertises, which is never derived from listen.
+// sessionIdleTimeout is how long a session may go without serving a turn before its
+// conversation is closed and dropped from the cache; a non-positive value is replaced
+// with DefaultSessionIdleTimeout rather than disabling eviction, so the bound cannot be
+// switched off by a misconfigured period.
 func NewServiceWithPermissions(
 	sessions agentlib.SessionFactory,
 	listen string,
@@ -87,15 +103,22 @@ func NewServiceWithPermissions(
 	auth Auth,
 	card CardConfig,
 	permissions PermissionRegistry,
+	sessionIdleTimeout time.Duration,
 ) Service {
 	return &service{
-		cache:           newSessionCache(sessions),
+		cache: newSessionCache(
+			sessions,
+			sessionIdleTimeout,
+			libtime.NewCurrentDateTime(),
+			registry,
+		),
 		listen:          listen,
 		providerBaseURL: providerBaseURL,
 		registry:        registry,
 		permissions:     permissions,
 		auth:            auth,
 		card:            newAgentCard(card),
+		reapInterval:    reapInterval,
 	}
 }
 
@@ -114,6 +137,11 @@ type service struct {
 	// configured public address, so the card can never advertise the container-local
 	// listen address.
 	card *a2a.AgentCard
+	// reapInterval is how often Run's reaper sweeps the cache for idle sessions. It
+	// is initialised from the reapInterval constant and is a field rather than the
+	// constant read inline so a test can shorten it and observe that Run actually
+	// starts the reaper.
+	reapInterval time.Duration
 }
 
 // Handler returns the router serving readiness, metrics, prompt intake, the A2A JSON-RPC
@@ -149,8 +177,18 @@ func serverOptionFns() []func(*libhttp.ServerOptions) {
 }
 
 // Run serves the handler on the configured listen address until ctx is cancelled.
+//
+// It also starts the idle-session reaper, which closes and drops a conversation that has
+// gone the configured period without serving a turn. The reaper observes the same ctx
+// and stops with the server, so a cancelled Run leaks neither the goroutine nor the
+// sessions it holds.
 func (s *service) Run(ctx context.Context) error {
 	glog.V(2).Infof("starting http server listen on %s", s.listen)
+	go func() {
+		if err := s.cache.reap(ctx, s.reapInterval); err != nil {
+			glog.Warningf("session reaper stopped: %v", err)
+		}
+	}()
 	// One server-wide write deadline governs all six routes this service registers —
 	// /readiness, /metrics, /prompt, /.well-known/agent-card.json, /a2a and /permission —
 	// because libhttp.NewServer builds a single http.Server from a single

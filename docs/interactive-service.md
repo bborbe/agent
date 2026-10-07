@@ -17,8 +17,8 @@ import (
 	"github.com/bborbe/agent/interactive"
 )
 
-svc := interactive.NewService(sessions, listen, providerBaseURL, registry, auth, card)
-svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, registry, auth, card, permissions)
+svc := interactive.NewService(sessions, listen, providerBaseURL, registry, auth, card, sessionIdleTimeout)
+svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, registry, auth, card, permissions, sessionIdleTimeout)
 ```
 
 | Parameter | Meaning |
@@ -30,6 +30,7 @@ svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, 
 | `auth` | The authentication decision every gated route requires. Build it with `interactive.NewAuthToken(token)` or `interactive.AuthFromEnv(ctx)`, or state the opt-out with `interactive.AuthDisabled`. The zero value is not a usable default — it refuses every gated request. |
 | `card` | An `interactive.CardConfig` describing what the Agent Card advertises. Its `Name` names the deployed agent in the card; empty keeps the library default, `interactive`. Its `PublicURL` is the externally reachable address the card advertises, verbatim. Build `PublicURL` with `interactive.A2APublicURLFromEnv(ctx)`, which reads `A2A_PUBLIC_URL` and returns an error when it is unset or empty. It is never derived from `listen` or from a request header, so the container-local address can never be advertised. |
 | `permissions` | The permission registry the endpoint serves and the sessions consult; pass the same instance to the session factory, or the endpoint serves nothing. `NewService` takes none and does not serve the route |
+| `sessionIdleTimeout` | A `time.Duration` — how long a session may go without serving a turn before its conversation is closed and dropped from the cache. A non-positive value is replaced with `interactive.DefaultSessionIdleTimeout` (15 minutes) and logged, never treated as "evict nothing": a zero value would silently restore the unbounded growth eviction exists to remove |
 
 The `card` parameter replaces the former address-only `string` parameter of both
 constructors. It is a breaking change for the consumer repositories that call
@@ -39,6 +40,12 @@ can no longer be swapped in a long positional argument list. The address is the 
 accessor's counterpart to the token accessor: `interactive.A2APublicURLFromEnv(ctx)
 (string, error)` fails closed when the address is unset, so a service that cannot
 advertise a real endpoint does not start rather than advertising a container-local one.
+
+`sessionIdleTimeout` is likewise a breaking change for those callers: it is the final
+parameter of both constructors, and it is mandatory rather than defaulted, because a
+caller that never states a period would keep the unbounded cache this parameter exists to
+bound. A caller that wants the documented default passes
+`interactive.DefaultSessionIdleTimeout`.
 
 `Service.Handler()` returns the router; `Service.Run(ctx)` serves it until the context
 is cancelled.
@@ -279,8 +286,9 @@ which takes no permission registry.
 
 ## Locking
 
-A session is built lazily on first use and cached by id, and the cache never evicts.
-Locking is two-level:
+A session is built lazily on first use and cached by id. The cache **evicts**: an entry
+that has gone `sessionIdleTimeout` without serving a turn is closed and dropped, and the
+next turn on that id builds a fresh conversation. Locking is two-level:
 
 - The cache's **map lock** guards the map and nothing else. It is released before the
   caller takes the entry's own lock, so two different sessions never contend there.
@@ -289,6 +297,44 @@ Locking is two-level:
 The observable property: two different session ids run at the same time; two requests
 on one id serialise — the second's turn starts only after the first returns. **No
 request is ever rejected because of the lock.**
+
+### Eviction
+
+The cache is bounded by releasing processes, not by raising a memory limit: each held
+entry is a live child process on a Claude-backed service, and the container's memory
+grows linearly with the number of distinct session ids it has ever served. Measured on
+the deployed service on 2026-10-07 at roughly 88 MiB per session, with the container's
+1 GiB limit reached at about eleven sessions.
+
+`Run` starts a reaper that sweeps the cache every 30 seconds. A sweep closes and drops
+every entry whose last turn finished more than `sessionIdleTimeout` ago, and returns the
+number it evicted. Two properties are load-bearing:
+
+- **An entry whose turn is in flight is never evicted.** The sweep takes each entry's
+  lock with a non-blocking try; a session serving a turn holds that lock, so it is
+  skipped and left in the cache. The close is never deferred to the end of the turn —
+  that would evict a session the instant it finished work.
+- **A non-positive configured period cannot switch the bound off.** It is replaced with
+  `interactive.DefaultSessionIdleTimeout` (15 minutes) at construction and the supplied
+  value is logged as a warning. Eviction is never disabled.
+
+The last-used stamp is written however a turn returns, including when the runner returns
+an error: a session that keeps being called and keeps failing is active, not idle.
+
+A handler that obtains an entry immediately before a sweep evicts it will see its turn
+fail on a closed session. That window is inherent to evicting at all and is bounded by
+the idle period — it can only open for an entry that has already gone the whole period
+without a turn.
+
+### Metrics
+
+The cache registers two collectors on the injected registry, so the bound is observable
+from outside the process rather than inferred from memory:
+
+| Metric | Type | Meaning |
+|---|---|---|
+| `interactive_sessions_held` | Gauge | The number of entries currently in the cache. Set on every lookup and at the end of every sweep |
+| `interactive_sessions_evicted_total` | Counter | The number of entries the sweeps have closed and dropped. Advanced by the sweep itself, by the number it evicted |
 
 The lock is released by a deferred unlock, so a runner that panics mid-turn does not
 deadlock the next request on that session.
