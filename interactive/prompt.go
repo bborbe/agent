@@ -58,7 +58,7 @@ func (s *service) promptHandler() http.Handler {
 			hex.EncodeToString(digest[:8]),
 		)
 
-		entry := s.cache.Get(sessionID)
+		entry := s.cache.Get(r.Context(), sessionID)
 		result, err := entry.Prompt(r.Context(), prompt)
 		if err != nil {
 			glog.Warningf("prompt intake failed: %v", err)

@@ -76,7 +76,7 @@ func (e *a2aExecutor) Execute(
 			return
 		}
 
-		result, err := e.cache.Get(sessionID).Prompt(ctx, prompt)
+		result, err := e.cache.Get(ctx, sessionID).Prompt(ctx, prompt)
 		if err != nil {
 			glog.Warningf("a2a message failed: %v", err)
 			yield(a2a.NewStatusUpdateEvent(execCtx, a2a.TaskStateFailed, nil), nil)

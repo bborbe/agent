@@ -324,9 +324,10 @@ holds at most `maxSessions` entries and drops the least recently used one to mak
 
 A sweep reclaims idle entries first, then enforces the size limit on what is left, so the
 limit only removes sessions that are actually competing for room, and it publishes
-`interactive_sessions_held` once at the end. The limit is enforced on the sweep, so a
-burst of new session ids arriving faster than the 30-second sweep is brought back at the
-next tick rather than at the moment it arrives. Properties that are load-bearing:
+`interactive_sessions_held` once at the end. The limit also binds on the **allocation
+path**: a first-use that misses the cache enforces it before inserting, so a burst of new
+session ids arriving faster than the 30-second sweep cannot overshoot it. Properties that
+are load-bearing:
 
 - **An entry whose turn is in flight is never evicted.** Both the idle pass and the size
   limit take each entry's lock with a non-blocking try; a session serving a turn holds
