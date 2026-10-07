@@ -55,11 +55,11 @@ func IdleTimeout(cache *sessionCache) time.Duration { return cache.idleTimeout }
 func MaxSessions(cache *sessionCache) int { return cache.maxSessions }
 
 // EnforceLimit exposes (*sessionCache).enforceLimit to the external test package, so a
-// spec can drive the size limit directly and observe its eviction semantics. Like
+// spec can drive the size limit directly and observe its reserve semantics. Like
 // CloseIdle it is a function rather than a method, because a type alias does not carry
 // the unexported method across the package boundary.
-func EnforceLimit(ctx context.Context, cache *sessionCache) int {
-	return cache.enforceLimit(ctx)
+func EnforceLimit(ctx context.Context, cache *sessionCache, reserve int) int {
+	return cache.enforceLimit(ctx, reserve)
 }
 
 // SetReapInterval shortens the idle-session reaper's period on a service built by the

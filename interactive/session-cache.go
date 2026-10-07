@@ -166,18 +166,53 @@ func newSessionCache(
 // (see enforceLimit); the id space is operator-controlled and the surface is
 // namespace-scoped, but a held entry is a live child process, so the count of held
 // sessions is bounded by eviction and by the size limit rather than by the id space.
-func (c *sessionCache) Get(id string) *sessionEntry {
+//
+// On a miss only, Get reserves the slot it is about to occupy by calling enforceLimit
+// before inserting, so a burst arriving faster than the sweep cannot overshoot the
+// limit. A lookup hit reserves nothing: calling enforceLimit unconditionally would evict
+// a sibling on every Get at the limit. enforceLimit closes sessions, so it runs with the
+// map lock released; the id is therefore re-resolved under the map lock afterwards and
+// inserted only if it is still absent, because a concurrent first-use of the same id may
+// have inserted it while the lock was down. Without that re-check both callers would
+// insert, the map would keep the second, and the first session would be orphaned and
+// never closed.
+//
+// The residual this does not fix: two concurrent first-uses of the same id may each
+// evict a different entry, dropping two live sessions to make room for one. That is
+// accepted rather than solved — the error is on the safe side (the cache ends smaller,
+// never over the limit) and a per-id in-flight marker is out of scope.
+func (c *sessionCache) Get(ctx context.Context, id string) *sessionEntry {
+	c.mu.Lock()
+	if entry, ok := c.byID[id]; ok {
+		c.sessionsHeld.Set(float64(len(c.byID)))
+		c.mu.Unlock()
+		return entry
+	}
+	c.mu.Unlock()
+
+	// Miss: reserve the slot this call is about to consume, with the map lock released
+	// because enforceLimit closes sessions.
+	c.enforceLimit(ctx, 1)
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	entry, ok := c.byID[id]
-	if !ok {
-		entry = &sessionEntry{
-			id:              id,
-			session:         c.factory.Create(id),
-			currentDateTime: c.currentDateTime,
-		}
-		c.byID[id] = entry
+	// The map lock was released across enforceLimit, so the id may have been inserted
+	// by a concurrent first-use in the meantime.
+	if entry, ok := c.byID[id]; ok {
+		c.sessionsHeld.Set(float64(len(c.byID)))
+		return entry
 	}
+	entry := &sessionEntry{
+		id:              id,
+		session:         c.factory.Create(id),
+		currentDateTime: c.currentDateTime,
+		// Stamp at creation as well as at turn end. The turn-end stamp is deferred, so a
+		// just-created entry would otherwise carry a zero lastUsed and rank as the least
+		// recently used — the first thing an eviction pass drops, in the window between
+		// Get handing the entry back and its first turn completing.
+		lastUsed: c.currentDateTime.Now().Time(),
+	}
+	c.byID[id] = entry
 	c.sessionsHeld.Set(float64(len(c.byID)))
 	return entry
 }
@@ -247,8 +282,14 @@ func (c *sessionCache) closeIdle(ctx context.Context) int {
 	return evicted
 }
 
-// enforceLimit closes and drops least-recently-used entries until len(byID) is at or
-// below the cache's maximum size, and returns how many it evicted.
+// enforceLimit closes and drops least-recently-used entries until len(byID)+reserve is
+// at or below the cache's maximum size, and returns how many it evicted.
+//
+// reserve is the number of slots the caller is about to consume: the sweep passes 0,
+// and Get passes 1 because it inserts the entry it is about to create immediately after
+// this call. Without reserve the contract is unsatisfiable in both directions —
+// evicting to len(byID) <= maxSessions lets Get overshoot by one, while evicting to
+// len(byID) < maxSessions makes Get do the sweep's work.
 //
 // The walk is two-pass because reading lastUsed requires the entry's own lock, so the
 // recency order cannot be known before the locks are taken. Pass one snapshots the ids
@@ -267,7 +308,7 @@ func (c *sessionCache) closeIdle(ctx context.Context) int {
 // defeats the bound. Under sustained load where every session is perpetually mid-turn
 // the cache is genuinely unbounded — that is the logged limit of this design, not a
 // temporary yield, and this method does not block, spin, or wait for a turn to end.
-func (c *sessionCache) enforceLimit(ctx context.Context) int {
+func (c *sessionCache) enforceLimit(ctx context.Context, reserve int) int {
 	type candidate struct {
 		id       string
 		lastUsed time.Time
@@ -312,7 +353,7 @@ func (c *sessionCache) enforceLimit(ctx context.Context) int {
 		c.mu.Lock()
 		held := len(c.byID)
 		c.mu.Unlock()
-		if held <= c.maxSessions {
+		if held+reserve <= c.maxSessions {
 			break
 		}
 		if !cand.entry.mu.TryLock() {
@@ -353,7 +394,7 @@ func (c *sessionCache) enforceLimit(ctx context.Context) int {
 	c.mu.Lock()
 	held := len(c.byID)
 	c.mu.Unlock()
-	if held > c.maxSessions {
+	if held+reserve > c.maxSessions {
 		glog.Warningf(
 			"session cache over maximum size: held=%d max=%d; every evictable candidate is mid-turn",
 			held,
@@ -380,7 +421,8 @@ func (c *sessionCache) enforceLimit(ctx context.Context) int {
 // it on their normal paths, so no sweep can leave it stale.
 func (c *sessionCache) sweep(ctx context.Context) {
 	c.closeIdle(ctx)
-	c.enforceLimit(ctx)
+	// The sweep reserves no slot: it is not about to insert anything.
+	c.enforceLimit(ctx, 0)
 	c.mu.Lock()
 	c.sessionsHeld.Set(float64(len(c.byID)))
 	c.mu.Unlock()
