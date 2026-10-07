@@ -367,7 +367,7 @@ from outside the process rather than inferred from memory:
 
 | Metric | Type | Meaning |
 |---|---|---|
-| `interactive_sessions_held` | Gauge | The number of entries currently in the cache. Set on every lookup and at the end of every sweep |
+| `interactive_sessions_held` | Gauge | The number of entries currently in the cache. Set on every lookup, at the end of every sweep, and by the size limit's over-limit branch — that last set makes a cache which could not be brought back to its limit visible in metrics, not only in the warning log |
 | `interactive_sessions_evicted_total` | Counter | The number of entries closed and dropped, whether because they were idle or to stay within `maxSessions`. Advanced by the pass that evicted them. It carries no reason label — the reason is named in the `glog.V(2)` line (`reason=idle` or `reason=capacity`) instead |
 
 The lock is released by a deferred unlock, so a runner that panics mid-turn does not

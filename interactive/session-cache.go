@@ -356,12 +356,28 @@ func (c *sessionCache) enforceLimit(ctx context.Context, reserve int) int {
 			continue
 		}
 		c.mu.Lock()
-		if c.byID[cand.id] == cand.entry {
+		mine := c.byID[cand.id] == cand.entry
+		if mine {
 			delete(c.byID, cand.id)
 		}
 		c.mu.Unlock()
+		if !mine {
+			// The id was re-resolved to a different entry between the passes, so this
+			// candidate is no longer the one the cache holds — the path that replaced
+			// it already closed this one. Closing it again would log a second
+			// eviction and over-count the counter, so the pointer check has to guard
+			// the close and the count, not only the delete.
+			cand.entry.mu.Unlock()
+			continue
+		}
 		glog.V(2).Infof("evicting session reason=capacity id=%s", cand.id)
-		if err := cand.entry.session.Close(ctx); err != nil {
+		// context.WithoutCancel: an eviction is a process-scoped cache operation, not
+		// work done on behalf of the request that happened to trigger it, so a client
+		// disconnecting mid-sweep must not cancel the close of an unrelated session.
+		// The close is still synchronous and bounded by the backend's own grace period
+		// (sessionCloseGrace), which is the price of binding the limit on the
+		// allocation path rather than only on the reaper's tick.
+		if err := cand.entry.session.Close(context.WithoutCancel(ctx)); err != nil {
 			glog.Warningf("close session id=%s failed: %v", cand.id, err)
 		}
 		cand.entry.mu.Unlock()
