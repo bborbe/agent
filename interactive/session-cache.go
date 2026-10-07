@@ -382,7 +382,13 @@ func (c *sessionCache) enforceLimit(ctx context.Context, reserve int) int {
 		// Set the held gauge here so the over-limit state is visible even if the
 		// sweep is interrupted; the sweep's own set writes the same value.
 		c.sessionsHeld.Set(float64(held))
-		return 0
+		// Return the real count, not 0: this branch is reached after pass two may
+		// already have evicted entries, and the counter above was advanced by that
+		// same number. Returning 0 here would contradict this function's contract and
+		// make "nothing needed evicting" indistinguishable from "could not evict
+		// enough" — the warning above and the held gauge are what carry that
+		// distinction.
+		return evicted
 	}
 	return evicted
 }
