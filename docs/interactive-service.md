@@ -17,8 +17,8 @@ import (
 	"github.com/bborbe/agent/interactive"
 )
 
-svc := interactive.NewService(sessions, listen, providerBaseURL, registry, auth, card, sessionIdleTimeout)
-svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, registry, auth, card, permissions, sessionIdleTimeout)
+svc := interactive.NewService(sessions, listen, providerBaseURL, registry, auth, card, sessionIdleTimeout, maxSessions)
+svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, registry, auth, card, permissions, sessionIdleTimeout, maxSessions)
 ```
 
 | Parameter | Meaning |
@@ -31,6 +31,7 @@ svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, 
 | `card` | An `interactive.CardConfig` describing what the Agent Card advertises. Its `Name` names the deployed agent in the card; empty keeps the library default, `interactive`. Its `PublicURL` is the externally reachable address the card advertises, verbatim. Build `PublicURL` with `interactive.A2APublicURLFromEnv(ctx)`, which reads `A2A_PUBLIC_URL` and returns an error when it is unset or empty. It is never derived from `listen` or from a request header, so the container-local address can never be advertised. |
 | `permissions` | The permission registry the endpoint serves and the sessions consult; pass the same instance to the session factory, or the endpoint serves nothing. `NewService` takes none and does not serve the route |
 | `sessionIdleTimeout` | A `time.Duration` — how long a session may go without serving a turn before its conversation is closed and dropped from the cache. A non-positive value is replaced with `interactive.DefaultSessionIdleTimeout` (15 minutes) and logged, never treated as "evict nothing": a zero value would silently restore the unbounded growth eviction exists to remove |
+| `maxSessions` | An `int` — how many sessions the cache holds at once. When it is at the limit, the least recently used session is closed and dropped to make room; a session serving a turn is never dropped to make room. A non-positive value is replaced with `interactive.DefaultMaxSessions` (8) and logged, never treated as "no limit": a zero value would silently restore the unbounded growth the limit exists to remove. It is a parameter rather than a package constant because the right value is a function of the container's memory limit, which lives in the deployment rather than in this library |
 
 The `card` parameter replaces the former address-only `string` parameter of both
 constructors. It is a breaking change for the consumer repositories that call
@@ -46,6 +47,12 @@ parameter of both constructors, and it is mandatory rather than defaulted, becau
 caller that never states a period would keep the unbounded cache this parameter exists to
 bound. A caller that wants the documented default passes
 `interactive.DefaultSessionIdleTimeout`.
+
+`maxSessions` follows the same shape and is a breaking change in turn: it is the new final
+parameter of both constructors, mandatory rather than defaulted, because a caller that
+never states a maximum would keep the cache bounded only by idle time — and a session that
+keeps serving turns is never idle. A caller that wants the documented default passes
+`interactive.DefaultMaxSessions`.
 
 `Service.Handler()` returns the router; `Service.Run(ctx)` serves it until the context
 is cancelled.
@@ -286,9 +293,11 @@ which takes no permission registry.
 
 ## Locking
 
-A session is built lazily on first use and cached by id. The cache **evicts**: an entry
-that has gone `sessionIdleTimeout` without serving a turn is closed and dropped, and the
-next turn on that id builds a fresh conversation. Locking is two-level:
+A session is built lazily on first use and cached by id. The cache **evicts** on two
+bounds: an entry that has gone `sessionIdleTimeout` without serving a turn is closed and
+dropped, and when the cache holds `maxSessions` entries the least recently used one is
+closed and dropped to make room for a new one. Either way the next turn on that id builds
+a fresh conversation. Locking is two-level:
 
 - The cache's **map lock** guards the map and nothing else. It is released before the
   caller takes the entry's own lock, so two different sessions never contend there.
@@ -306,25 +315,49 @@ grows linearly with the number of distinct session ids it has ever served. Measu
 the deployed service on 2026-10-07 at roughly 88 MiB per session, with the container's
 1 GiB limit reached at about eleven sessions.
 
-`Run` starts a reaper that sweeps the cache every 30 seconds. A sweep closes and drops
-every entry whose last turn finished more than `sessionIdleTimeout` ago, and returns the
-number it evicted. Two properties are load-bearing:
+Two bounds are needed, because they bound different things. **Idle eviction bounds
+accumulation**: `Run` starts a reaper that sweeps the cache every 30 seconds, and a sweep
+closes and drops every entry whose last turn finished more than `sessionIdleTimeout` ago.
+**The size limit bounds concurrency**: a session that keeps serving turns is never idle,
+so idle eviction alone leaves a burst of simultaneous callers unbounded — the cache now
+holds at most `maxSessions` entries and drops the least recently used one to make room.
 
-- **An entry whose turn is in flight is never evicted.** The sweep takes each entry's
-  lock with a non-blocking try; a session serving a turn holds that lock, so it is
-  skipped and left in the cache. The close is never deferred to the end of the turn —
-  that would evict a session the instant it finished work.
-- **A non-positive configured period cannot switch the bound off.** It is replaced with
-  `interactive.DefaultSessionIdleTimeout` (15 minutes) at construction and the supplied
-  value is logged as a warning. Eviction is never disabled.
+A sweep reclaims idle entries first, then enforces the size limit on what is left, so the
+limit only removes sessions that are actually competing for room, and it publishes
+`interactive_sessions_held` once at the end. The limit is enforced on the sweep, so a
+burst of new session ids arriving faster than the 30-second sweep is brought back at the
+next tick rather than at the moment it arrives. Properties that are load-bearing:
+
+- **An entry whose turn is in flight is never evicted.** Both the idle pass and the size
+  limit take each entry's lock with a non-blocking try; a session serving a turn holds
+  that lock, so it is skipped and left in the cache, and the size limit drops a later
+  entry instead. The close is never deferred to the end of the turn — that would evict a
+  session the instant it finished work.
+- **The limit yields rather than killing a turn in flight.** If every candidate is
+  mid-turn the limit cannot be enforced: the count is left above it and a warning naming
+  the held count and the limit is logged at the default verbosity. Under sustained load
+  where every session is perpetually mid-turn the cache is genuinely unbounded — that is
+  the logged limit of the design, not a temporary yield.
+- **A non-positive configured bound cannot switch it off.** A non-positive period is
+  replaced with `interactive.DefaultSessionIdleTimeout` (15 minutes) and a non-positive
+  maximum with `interactive.DefaultMaxSessions` (8), both at construction and both logged
+  as a warning. Neither bound is ever disabled.
+
+`interactive.DefaultMaxSessions` is 8, and the value comes from three measured inputs
+rather than from dividing the memory limit by the per-session cost: one held session
+costs roughly 88 MiB, the container's limit is 1 GiB, and the limit must leave honest
+headroom for the Go runtime and service baseline plus the overshoot the soft limit
+permits while every candidate is mid-turn. Eight sessions hold about 704 MiB and leave
+roughly 31% of the limit free for those allowances.
 
 The last-used stamp is written however a turn returns, including when the runner returns
 an error: a session that keeps being called and keeps failing is active, not idle.
 
 A handler that obtains an entry immediately before a sweep evicts it will see its turn
-fail on a closed session. That window is inherent to evicting at all and is bounded by
-the idle period — it can only open for an entry that has already gone the whole period
-without a turn.
+fail on a closed session. That window is inherent to evicting at all. For an idle
+eviction it can only open for an entry that has already gone the whole period without a
+turn, but the size limit can also drop an entry that was used moments ago — it is the
+least recently used, not an idle one — so the window is not bounded by the idle period.
 
 ### Metrics
 
@@ -333,8 +366,8 @@ from outside the process rather than inferred from memory:
 
 | Metric | Type | Meaning |
 |---|---|---|
-| `interactive_sessions_held` | Gauge | The number of entries currently in the cache. Set on every lookup and at the end of every sweep |
-| `interactive_sessions_evicted_total` | Counter | The number of entries the sweeps have closed and dropped. Advanced by the sweep itself, by the number it evicted |
+| `interactive_sessions_held` | Gauge | The number of entries currently in the cache. Set on every lookup, at the end of every sweep, and by the size limit's over-limit branch — that last set makes a cache which could not be brought back to its limit visible in metrics, not only in the warning log |
+| `interactive_sessions_evicted_total` | Counter | The number of entries closed and dropped, whether because they were idle or to stay within `maxSessions`. Advanced by the pass that evicted them. It carries no reason label — the reason is named in the `glog.V(2)` line (`reason=idle` or `reason=capacity`) instead |
 
 The lock is released by a deferred unlock, so a runner that panics mid-turn does not
 deadlock the next request on that session.

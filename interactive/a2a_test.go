@@ -45,6 +45,7 @@ func newA2ATestServer(
 		auth,
 		interactive.CardConfig{PublicURL: publicURL},
 		interactive.DefaultSessionIdleTimeout,
+		interactive.DefaultMaxSessions,
 	)
 	return httptest.NewServer(svc.Handler())
 }
@@ -92,6 +93,7 @@ var _ = Describe("Agent card", func() {
 			interactive.NewAuthToken(authTestToken),
 			interactive.CardConfig{Name: "claude-interactive", PublicURL: publicURL},
 			interactive.DefaultSessionIdleTimeout,
+			interactive.DefaultMaxSessions,
 		)
 		server := httptest.NewServer(svc.Handler())
 		defer server.Close()

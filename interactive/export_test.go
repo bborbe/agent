@@ -49,6 +49,19 @@ func Reap(ctx context.Context, cache *sessionCache, interval time.Duration) erro
 // rather than the argument itself.
 func IdleTimeout(cache *sessionCache) time.Duration { return cache.idleTimeout }
 
+// MaxSessions exposes the effective maximum number of entries of a cache: the value it
+// normalised the constructor argument to, which is what a non-positive-argument spec
+// must assert rather than the argument itself.
+func MaxSessions(cache *sessionCache) int { return cache.maxSessions }
+
+// EnforceLimit exposes (*sessionCache).enforceLimit to the external test package, so a
+// spec can drive the size limit directly and observe its reserve semantics. Like
+// CloseIdle it is a function rather than a method, because a type alias does not carry
+// the unexported method across the package boundary.
+func EnforceLimit(ctx context.Context, cache *sessionCache) int {
+	return cache.enforceLimit(ctx)
+}
+
 // SetReapInterval shortens the idle-session reaper's period on a service built by the
 // constructors, so an external spec can observe that Run actually starts the reaper
 // without waiting out the production 30-second period.
