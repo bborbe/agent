@@ -206,6 +206,11 @@ func (c *sessionCache) Get(ctx context.Context, id string) *sessionEntry {
 		id:              id,
 		session:         c.factory.Create(id),
 		currentDateTime: c.currentDateTime,
+		// Stamp at creation as well as at turn end. The turn-end stamp is deferred, so a
+		// just-created entry would otherwise carry a zero lastUsed and rank as the least
+		// recently used — the first thing an eviction pass drops, in the window between
+		// Get handing the entry back and its first turn completing.
+		lastUsed: c.currentDateTime.Now().Time(),
 	}
 	c.byID[id] = entry
 	c.sessionsHeld.Set(float64(len(c.byID)))
