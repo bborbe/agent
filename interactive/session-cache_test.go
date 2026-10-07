@@ -417,10 +417,14 @@ var _ = Describe("SessionCache", func() {
 			done := make(chan error, 1)
 			go func() { done <- interactive.Reap(reapCtx, cache, 5*time.Millisecond) }()
 
+			// Assert the gauge first, then the counter. The sweep writes the counter
+			// inside closeIdle and only sets the gauge after enforceLimit returns, so
+			// observing the gauge proves the counter has already advanced — the reverse
+			// order can sample the gap between the two writes and flake.
 			Eventually(func() float64 {
-				return counterValue(registry, "interactive_sessions_evicted_total")
-			}, 2*time.Second).Should(Equal(2.0))
-			Expect(gaugeValue(registry, "interactive_sessions_held")).To(Equal(0.0))
+				return gaugeValue(registry, "interactive_sessions_held")
+			}, 2*time.Second).Should(Equal(0.0))
+			Expect(counterValue(registry, "interactive_sessions_evicted_total")).To(Equal(2.0))
 
 			cancel()
 			Eventually(done, 2*time.Second).Should(Receive(BeNil()))

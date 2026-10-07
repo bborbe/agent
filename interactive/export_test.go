@@ -55,7 +55,7 @@ func IdleTimeout(cache *sessionCache) time.Duration { return cache.idleTimeout }
 func MaxSessions(cache *sessionCache) int { return cache.maxSessions }
 
 // EnforceLimit exposes (*sessionCache).enforceLimit to the external test package, so a
-// spec can drive the size limit directly and observe its reserve semantics. Like
+// spec can drive the size limit directly and observe its eviction semantics. Like
 // CloseIdle it is a function rather than a method, because a type alias does not carry
 // the unexported method across the package boundary.
 func EnforceLimit(ctx context.Context, cache *sessionCache) int {
