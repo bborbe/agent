@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.99.1
 
 - fix: enforce the `interactive` session cache's size limit on the allocation path as well as on the periodic sweep, so a burst of callers arriving faster than the 30-second `reapInterval` cannot overshoot it. ⚠️ **`v0.99.0` added the size limit but evaluated it only in the sweep**, which left the burst case — the one the limit exists for — unbounded: twelve distinct session ids arriving inside one window still reach the container's 1 GiB memory limit and are OOMKilled before the first sweep runs. `sessionCache.Get` now takes the request `context.Context` and calls `enforceLimit(ctx, 1)` on its **miss** path before inserting, reserving the slot the call is about to consume; the sweep passes `0`, because it inserts nothing. The cache is therefore bounded by the entries held plus the one being allocated, and both call sites (`interactive/prompt.go`, `interactive/a2a-handler.go`) already held a request context. ⚠️ **`Get` re-resolves the id under the map lock before inserting**, so two concurrent first-uses of one id build one session rather than orphaning one — a class `-race` cannot catch, because the loser is leaked rather than raced. ⚠️ This changes the signature of the unexported `sessionCache.Get`, which is reachable only through those two handlers.
 
