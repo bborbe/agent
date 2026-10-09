@@ -8,9 +8,11 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## v0.99.2
+## Unreleased
 
 - feat(helm): render `configMapName`, `configMapMountPath` and `configMapItems` on the agent Config when `agents[].configMapName` is set; chart 0.6.7→0.6.8. Emitted only when present, so no existing agent's rendered Config changes. The chart renders the **reference** only — it does not create the ConfigMap, so the object must already exist in the namespace. This is what lets an agent be parameterised by mounted markdown (`prompt.md` plus its guardrails) instead of a bespoke image, and it is what brings the `easy-agent-goreleaser` check under chart management: that Config CR had to be hand-applied because the chart could not render the field, which is how it kept a `priorityClassName` pointing at an agent the 2026-09-30 mode-name migration had already retired — leaving every spawned Job rejected with `no PriorityClass with name claude-agent was found`.
+
+## v0.99.2
 
 - fix: bump `osv-scanner` to v2.6.0 so the vulnerability gate stops panicking on Linux CI. v2.3.1 pins `golang.org/x/tools` v0.38.0, whose SSA builder aborts with `unexpected expr: *ast.KeyValueExpr` on the promoted-field composite-literal key Go 1.27 permits in the Linux stdlib's `internal/poll/splice_linux.go`; darwin never parses that file, so the gate passed locally and failed only in CI. The bump retires 8 of the 9 `[[IgnoredVulns]]` entries, because osv-scanner exits non-zero on an ignore that no longer matches a scanned advisory — only the `x/crypto/openpgp` entry stays, as that advisory has no fix and deprecates the package. `golang.org/x/net` is bumped to v0.60.0 for `GO-2026-6603`/`6611`/`6612`/`6617`, which the newer scanner surfaces.
 
