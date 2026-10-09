@@ -11,7 +11,7 @@ metadata:
   namespace: <NAMESPACE>           # dev | prod (typically rolled out to dev first)
 spec:
   assignee: <NAME>                 # task frontmatter `assignee: <NAME>` routes here
-  image: docker.quant.benjamin-borbe.de:443/<NAME>:<BRANCH>
+  image: docker.prod.nuke.benjamin-borbe.de:443/<NAME>:<BRANCH>
   heartbeat: 15m                   # re-spawn interval for in_progress tasks; raise for long-running phases
 
   # task_type values this agent handles (from interview Part 4)
