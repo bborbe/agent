@@ -10,6 +10,8 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## v0.99.3
 
+- feat(helm): render `configMapName`, `configMapMountPath` and `configMapItems` on the agent Config when `agents[].configMapName` is set; chart 0.6.7→0.6.8. Emitted only when present, so no existing agent's rendered Config changes. The chart renders the **reference** only — it does not create the ConfigMap, so the object must already exist in the namespace. This is what lets an agent be parameterised by mounted markdown (`prompt.md` plus its guardrails) instead of a bespoke image, and it is what brings the `easy-agent-goreleaser` check under chart management: that Config CR had to be hand-applied because the chart could not render the field, which is how it kept a `priorityClassName` pointing at an agent the 2026-09-30 mode-name migration had already retired — leaving every spawned Job rejected with `no PriorityClass with name claude-agent was found`.
+
 - fix: repoint the launch-agent scaffold's CRD template at the live registry. `skills/launch-agent/references/config-crd-template.yaml` wrote `docker.quant.benjamin-borbe.de:443` into every newly created agent's `spec.image`; that registry is decommissioned (404), so each agent launched from the scaffold was generated pointing at a dead registry. The template now writes `docker.prod.nuke.benjamin-borbe.de:443`, the value the `agent-sentry-issue-analyzer` repo's own copy has carried since its repoint.
 
 ## v0.99.2

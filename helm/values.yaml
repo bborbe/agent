@@ -343,6 +343,15 @@ agents: []
   #   volumeClaim: agent-claude   # OPTIONAL: PVC name. Defaults to `name`.
   #   storageSize: 1Gi            # PVC size (default 1Gi)
   #   storageClassName: ""        # OPTIONAL PVC class; empty => cluster default (omitted)
+  #   configMapName: easy-agent-goreleaser   # OPTIONAL: ConfigMap mounted into the Job
+  #                               # and named by Config.spec.configMapName. The chart
+  #                               # renders the REFERENCE only — it does not create the
+  #                               # ConfigMap, so the object must already exist in the
+  #                               # namespace (apply it from its own manifest).
+  #   configMapMountPath: /agent  # OPTIONAL: where that ConfigMap is mounted.
+  #   configMapItems:             # OPTIONAL: key → path projection within the mount.
+  #     - key: prompt.md
+  #       path: prompt.md
   #   env:                        # plain env injected into the Config
   #     ALLOWED_TOOLS: WebSearch,WebFetch,Read,Grep
   #   secretEnv:                  # OPTIONAL: rendered into a per-agent Secret (base64).
