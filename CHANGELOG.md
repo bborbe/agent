@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.99.3
 
 - fix: repoint the launch-agent scaffold's CRD template at the live registry. `skills/launch-agent/references/config-crd-template.yaml` wrote `docker.quant.benjamin-borbe.de:443` into every newly created agent's `spec.image`; that registry is decommissioned (404), so each agent launched from the scaffold was generated pointing at a dead registry. The template now writes `docker.prod.nuke.benjamin-borbe.de:443`, the value the `agent-sentry-issue-analyzer` repo's own copy has carried since its repoint.
 
