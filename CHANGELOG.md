@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
-- fix(ci): bump `osv-scanner` to v2.6.0 so the vulnerability gate stops panicking on Linux CI. v2.3.1 pins `golang.org/x/tools` v0.38.0, whose SSA builder aborts with `unexpected expr: *ast.KeyValueExpr` on the promoted-field composite-literal key Go 1.27 permits in the Linux stdlib's `internal/poll/splice_linux.go`; darwin never parses that file, so the gate passed locally and failed only in CI. The bump retires 8 of the 9 `[[IgnoredVulns]]` entries, because osv-scanner exits non-zero on an ignore that no longer matches a scanned advisory — only the `x/crypto/openpgp` entry stays, as that advisory has no fix and deprecates the package. `golang.org/x/net` is bumped to v0.60.0 for `GO-2026-6603`/`6611`/`6612`/`6617`, which the newer scanner surfaces.
+- fix: bump `osv-scanner` to v2.6.0 so the vulnerability gate stops panicking on Linux CI. v2.3.1 pins `golang.org/x/tools` v0.38.0, whose SSA builder aborts with `unexpected expr: *ast.KeyValueExpr` on the promoted-field composite-literal key Go 1.27 permits in the Linux stdlib's `internal/poll/splice_linux.go`; darwin never parses that file, so the gate passed locally and failed only in CI. The bump retires 8 of the 9 `[[IgnoredVulns]]` entries, because osv-scanner exits non-zero on an ignore that no longer matches a scanned advisory — only the `x/crypto/openpgp` entry stays, as that advisory has no fix and deprecates the package. `golang.org/x/net` is bumped to v0.60.0 for `GO-2026-6603`/`6611`/`6612`/`6617`, which the newer scanner surfaces.
 
 ## v0.99.1
 
