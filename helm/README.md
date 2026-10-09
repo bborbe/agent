@@ -208,6 +208,11 @@ agents:
     triggerStatuses: [in_progress]
     volumeMountPath: /home/claude/.claude
     storageSize: 1Gi
+    configMapName: easy-agent-goreleaser   # OPTIONAL: ConfigMap mounted into the Job
+    configMapMountPath: /agent             # OPTIONAL: where it is mounted
+    configMapItems:                        # OPTIONAL: key → path projection
+      - key: prompt.md
+        path: prompt.md
     env:
       ALLOWED_TOOLS: WebSearch,WebFetch,Read,Grep
       ANTHROPIC_BASE_URL: https://api.minimax.io/anthropic
@@ -229,6 +234,11 @@ follow this exact shape; `agent-pi` uses `PROVIDER_API_KEY` instead of
 An agent that waits on sibling tasks must set this deadline above its own wait timeout,
 because the executor stamps it onto the Job's `activeDeadlineSeconds` and the Job is
 killed when it elapses.
+
+`configMapName` / `configMapMountPath` / `configMapItems` render a **reference** onto the
+Config CR; the chart does not create the ConfigMap itself, so the object must already exist
+in the namespace. This is what lets an agent be parameterised by mounted markdown — a
+`prompt.md` plus its guardrails — instead of a bespoke image.
 
 ### recurringTaskCreator (optional)
 

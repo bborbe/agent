@@ -31,6 +31,16 @@ spec:
   {{- end }}
   volumeMountPath: {{ $agent.volumeMountPath | quote }}
   {{- end }}
+  {{- with $agent.configMapName }}
+  configMapName: {{ . | quote }}
+  {{- end }}
+  {{- with $agent.configMapMountPath }}
+  configMapMountPath: {{ . | quote }}
+  {{- end }}
+  {{- with $agent.configMapItems }}
+  configMapItems:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   {{- with $agent.env }}
   env:
     {{- toYaml . | nindent 4 }}
