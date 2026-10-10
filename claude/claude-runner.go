@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/bborbe/collection"
 	"github.com/bborbe/errors"
@@ -23,7 +22,9 @@ import (
 const (
 	tailMaxLines = 5
 	tailMaxBytes = 512
-	tailJoiner   = " | "
+	// tailJoiner joins the bounded tail in FailureReason's raw fallback, where
+	// no line was a stream-json event and the diagnostic must survive verbatim.
+	tailJoiner = " | "
 )
 
 // partialMaxBytes caps the partial captured from the claude CLI stream: at most this
@@ -68,11 +69,12 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 	resultText, usage, partial, tail, sessionID := scanOutput(ctx, stdoutPipe)
 
 	if err := cmd.Wait(); err != nil {
-		var tailMsg string
+		// The tail is raw stream-json; parse it down to the one line that
+		// names the cause, so the task's `## Failure` entry is a reason rather
+		// than a dump of `{"type":"assistant",...}` events.
+		tailMsg := "no stdout captured"
 		if len(tail) > 0 {
-			tailMsg = strings.Join(tail, tailJoiner)
-		} else {
-			tailMsg = "no stdout captured"
+			tailMsg = FailureReason(tail)
 		}
 		return &ClaudeResult{
 			Partial: partial,

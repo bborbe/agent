@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix: parse the claude CLI's stream-json failure tail into a one-line reason. `claudeRunner.Run` previously joined the bounded raw tail (`{"type":"assistant",…}` events, ` | `-separated) straight into `claude CLI failed: %s`, so a task's `## Failure` entry was a JSON dump whose actual cause — a rejected `tool_result`, an `api_retry` storm, a `result` marked `is_error` — was unreadable. The new exported `claude.FailureReason` recognizes those four shapes in precedence order and, when no line is a stream-json event at all, falls back to the raw tail so an unrecognized diagnostic still reaches the operator; the placeholder is returned only when every line IS an event and none names a cause (the `thinking_tokens` progress flood, which is the case that produced the raw-JSON complaint)
+
 ## v0.99.3
 
 - feat(helm): render `configMapName`, `configMapMountPath` and `configMapItems` on the agent Config when `agents[].configMapName` is set; chart 0.6.7→0.6.8. Emitted only when present, so no existing agent's rendered Config changes. The chart renders the **reference** only — it does not create the ConfigMap, so the object must already exist in the namespace. This is what lets an agent be parameterised by mounted markdown (`prompt.md` plus its guardrails) instead of a bespoke image, and it is what brings the `easy-agent-goreleaser` check under chart management: that Config CR had to be hand-applied because the chart could not render the field, which is how it kept a `priorityClassName` pointing at an agent the 2026-09-30 mode-name migration had already retired — leaving every spawned Job rejected with `no PriorityClass with name claude-agent was found`.
