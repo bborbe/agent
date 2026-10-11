@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.100.0
 
 - feat: the `interactive` service's frozen contract now claims the A2A streaming method (`SendStreamingMessage`, SSE) over the same JSON-RPC binding and the same executor as the one-shot `SendMessage`, and the Agent Card now advertises `capabilities.streaming` as `true` while `capabilities.pushNotifications` stays `false`. Nothing else moved: the one-shot bridge, the bearer gate, the card's credential-free posture and the other disclaimed A2A methods (push notifications, task polling, task lookup, cancellation, push-configuration management, the extended card) are unchanged, and the streaming route is inherited from the SDK rather than newly built.
 
