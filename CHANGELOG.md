@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat: the `interactive` service's frozen contract now claims the A2A streaming method (`SendStreamingMessage`, SSE) over the same JSON-RPC binding and the same executor as the one-shot `SendMessage`, and the Agent Card now advertises `capabilities.streaming` as `true` while `capabilities.pushNotifications` stays `false`. Nothing else moved: the one-shot bridge, the bearer gate, the card's credential-free posture and the other disclaimed A2A methods (push notifications, task polling, task lookup, cancellation, push-configuration management, the extended card) are unchanged, and the streaming route is inherited from the SDK rather than newly built.
+
 ## v0.99.3
 
 - feat(helm): render `configMapName`, `configMapMountPath` and `configMapItems` on the agent Config when `agents[].configMapName` is set; chart 0.6.7→0.6.8. Emitted only when present, so no existing agent's rendered Config changes. The chart renders the **reference** only — it does not create the ConfigMap, so the object must already exist in the namespace. This is what lets an agent be parameterised by mounted markdown (`prompt.md` plus its guardrails) instead of a bespoke image, and it is what brings the `easy-agent-goreleaser` check under chart management: that Config CR had to be hand-applied because the chart could not render the field, which is how it kept a `priorityClassName` pointing at an agent the 2026-09-30 mode-name migration had already retired — leaving every spawned Job rejected with `no PriorityClass with name claude-agent was found`.

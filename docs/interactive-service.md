@@ -430,10 +430,11 @@ the constructor's `card` parameter's `PublicURL` field and read from `A2A_PUBLIC
 `interactive.A2APublicURLFromEnv`; it is never derived from the listen address or from a
 request header, so the container-local address can never be advertised.
 
-This repository authors only the one-shot `SendMessage` bridge. The SDK's JSON-RPC handler
-also routes `SendStreamingMessage` (SSE) through the same executor; that inherited method
-is not part of this contract, and push notifications and task polling are not built here.
-The SDK's handler additionally dispatches the rest of the A2A 1.0 method set — task
-lookup, cancellation, push-configuration management and the extended card — against its
-own default in-memory stores; none of those is part of this contract either. Only
-`SendMessage` is authored and documented here.
+This repository serves the one-shot `SendMessage` bridge, and the same JSON-RPC binding
+serves `SendStreamingMessage` (SSE); the SDK's handler routes both through the same
+executor, so a streaming request runs the same turn as a one-shot request and delivers
+the same event sequence as an ordered SSE response, and
+push notifications and task polling are not built here. The SDK's handler additionally
+dispatches the rest of the A2A 1.0 method set — task lookup, cancellation,
+push-configuration management and the extended card — against its own default in-memory
+stores; none of those is part of this contract either.
