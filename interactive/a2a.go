@@ -68,7 +68,7 @@ func newAgentCard(config CardConfig) *a2a.AgentCard {
 		SupportedInterfaces: []*a2a.AgentInterface{
 			a2a.NewAgentInterface(config.PublicURL, a2a.TransportProtocolJSONRPC),
 		},
-		Capabilities:       a2a.AgentCapabilities{},
+		Capabilities:       a2a.AgentCapabilities{Streaming: true},
 		DefaultInputModes:  []string{"text/plain"},
 		DefaultOutputModes: []string{"text/plain"},
 		Skills: []a2a.AgentSkill{
