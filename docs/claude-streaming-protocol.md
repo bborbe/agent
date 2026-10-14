@@ -113,9 +113,12 @@ When the CLI needs a tool decision it writes a request event on stdout:
 `control_request` is the one the CLI sends.
 
 The implementation builds a `PermissionRequest` from the tool name, the CLI's
-description and a bounded preview of the tool input, and asks its
-`PermissionDecider` for a verdict. It then writes the verdict back to the same
-process's stdin:
+description, a bounded preview of the tool input and the **route that raised
+the turn** — the request's `Source`, `/prompt` or `/a2a`, which the interactive
+service stamps onto the turn's context and the session reads back as it builds
+the request, never from the request's own data. It asks its `PermissionDecider`
+for a verdict, so a decider can answer the two routes differently, and writes
+the verdict back to the same process's stdin:
 
 ```json
 {"type":"control_response","request_id":"req-1","response":{"subtype":"success","request_id":"req-1","response":{"behavior":"allow"}}}

@@ -291,6 +291,23 @@ tool-input preview is carried to the caller inside the namespace and is never lo
 The endpoint is the route `agent-pi` does not serve: it builds through `NewService`,
 which takes no permission registry.
 
+A request the CLI raises mid-turn carries a `Source` value naming which of the service's
+turn-serving routes raised it. It is a field of the in-process `claude.PermissionRequest`
+the decider is handed, so a decider can answer an A2A-raised request differently from an
+interactive one. It is not part of any route's wire shape: it does not appear in the
+`GET /permission` JSON above.
+
+- The closed set is `claude.PromptPermissionSource` (`/prompt`) and
+  `claude.A2APermissionSource` (`/a2a`). A future third route that serves a turn must add
+  its value to the type and to this document.
+- The value is set by the route that serves the turn and is **never** read from the
+  request. `X-Session-Id` is caller-controlled, so a caller that could choose its own
+  source could make a pane-answered `/prompt` gate look like an A2A gate.
+- It is carried per turn, not per session. The session cache is shared by both routes, so
+  two routes interleaved on one cached session id each see their own value.
+- A decider that ignores it behaves exactly as before; the field is additive and no
+  existing consumer changes.
+
 ## Locking
 
 A session is built lazily on first use and cached by id. The cache **evicts** on two

@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
+
+	"github.com/bborbe/agent/claude"
 )
 
 // maxPromptBytes bounds the body a single request may carry, on both POST /prompt and
@@ -58,8 +60,9 @@ func (s *service) promptHandler() http.Handler {
 			hex.EncodeToString(digest[:8]),
 		)
 
-		entry := s.cache.Get(r.Context(), sessionID)
-		result, err := entry.Prompt(r.Context(), prompt)
+		ctx := claude.WithPermissionSource(r.Context(), claude.PromptPermissionSource)
+		entry := s.cache.Get(ctx, sessionID)
+		result, err := entry.Prompt(ctx, prompt)
 		if err != nil {
 			glog.Warningf("prompt intake failed: %v", err)
 			http.Error(w, "prompt failed", http.StatusInternalServerError)

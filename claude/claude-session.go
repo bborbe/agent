@@ -49,6 +49,11 @@ type PermissionRequest struct {
 	Description string
 	// InputPreview is a preview of the tool input. It is not logged.
 	InputPreview string
+	// Source identifies the interactive service route that raised the request — /prompt
+	// or /a2a. It is the empty PermissionSource when the caller that built the session
+	// named no route. It is read from the turn's context, never from the request's own
+	// data.
+	Source PermissionSource
 }
 
 // PermissionDecision is the verdict returned for a PermissionRequest.
@@ -280,6 +285,7 @@ func (s *session) answerPermission(
 		ToolName:     event.Request.ToolName,
 		Description:  event.Request.Description,
 		InputPreview: previewOf(event.Request.Input),
+		Source:       PermissionSourceFromContext(ctx),
 	})
 	if err != nil {
 		return errors.Wrap(ctx, err, "decide permission")

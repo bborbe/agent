@@ -410,6 +410,40 @@ wait
 		Expect(response.Response.Response.Behavior).To(Equal("allow"))
 	})
 
+	It("stamps the context's source onto the permission request it hands the decider", func() {
+		shimDir := writeSessionShim(sessionShimPermissionShort)
+		decider := &mocks.ClaudePermissionDecider{}
+		decider.DecidePermissionReturns(claude.PermissionDecision{Allow: true}, nil)
+		session := claude.NewSession(sessionConfig(shimDir), decider)
+		DeferCleanup(func() { _ = session.Close(context.Background()) })
+
+		_, err := session.Prompt(
+			claude.WithPermissionSource(ctx, claude.PromptPermissionSource),
+			"turn-one",
+		)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(decider.DecidePermissionCallCount()).To(Equal(1))
+		_, request := decider.DecidePermissionArgsForCall(0)
+		Expect(request.Source).To(Equal(claude.PromptPermissionSource))
+
+		// The unpopulated path: a caller that names no route yields the empty source
+		// rather than a stale one, so a decider written before this field existed
+		// sees exactly what it saw before.
+		bareShimDir := writeSessionShim(sessionShimPermissionShort)
+		bareDecider := &mocks.ClaudePermissionDecider{}
+		bareDecider.DecidePermissionReturns(claude.PermissionDecision{Allow: true}, nil)
+		bareSession := claude.NewSession(sessionConfig(bareShimDir), bareDecider)
+		DeferCleanup(func() { _ = bareSession.Close(context.Background()) })
+
+		_, err = bareSession.Prompt(ctx, "turn-one")
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(bareDecider.DecidePermissionCallCount()).To(Equal(1))
+		_, bareRequest := bareDecider.DecidePermissionArgsForCall(0)
+		Expect(bareRequest.Source).To(Equal(claude.PermissionSource("")))
+	})
+
 	It("fails the turn when the permission decider errors", func() {
 		shimDir := writeSessionShim(sessionShimPermission)
 		decider := &mocks.ClaudePermissionDecider{}

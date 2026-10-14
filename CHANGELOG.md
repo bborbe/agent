@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat: add `claude.PermissionSource` to the permission seam so a `PermissionDecider` can tell from the value it is handed whether the request it is deciding was raised by the A2A route or by the `/prompt` route, and can answer the two differently. The closed set is `claude.PromptPermissionSource` (`/prompt`) and `claude.A2APermissionSource` (`/a2a`); the value is set by the route that serves the turn — never read from the caller-controlled `X-Session-Id` — carried on the turn's context via `claude.WithPermissionSource` / `claude.PermissionSourceFromContext`, and stamped onto `claude.PermissionRequest.Source`, which is additive so a decider written before it compiles and behaves exactly as today. `Session.Prompt` and `DecidePermission` keep their signatures, the `/permission` JSON is unchanged, and the interactive service's frozen contract (`docs/interactive-service.md`) documents the new field and its closed set.
+
 ## v0.100.0
 
 - feat: the `interactive` service's frozen contract now claims the A2A streaming method (`SendStreamingMessage`, SSE) over the same JSON-RPC binding and the same executor as the one-shot `SendMessage`, and the Agent Card now advertises `capabilities.streaming` as `true` while `capabilities.pushNotifications` stays `false`. Nothing else moved: the one-shot bridge, the bearer gate, the card's credential-free posture and the other disclaimed A2A methods (push notifications, task polling, task lookup, cancellation, push-configuration management, the extended card) are unchanged, and the streaming route is inherited from the SDK rather than newly built.

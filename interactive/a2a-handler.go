@@ -13,6 +13,8 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
 	"github.com/golang/glog"
+
+	"github.com/bborbe/agent/claude"
 )
 
 // a2aPath is the route the A2A JSON-RPC binding is served at. It is registered on the
@@ -53,6 +55,7 @@ func (e *a2aExecutor) Execute(
 	execCtx *a2asrv.ExecutorContext,
 ) iter.Seq2[a2a.Event, error] {
 	return func(yield func(a2a.Event, error) bool) {
+		ctx = claude.WithPermissionSource(ctx, claude.A2APermissionSource)
 		sessionID := execCtx.Message.ContextID
 		if sessionID == "" {
 			sessionID = defaultSessionID
