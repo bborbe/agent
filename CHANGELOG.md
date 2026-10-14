@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.101.0
 
 - feat: add `claude.PermissionSource` to the permission seam so a `PermissionDecider` can tell from the value it is handed whether the request it is deciding was raised by the A2A route or by the `/prompt` route, and can answer the two differently. The closed set is `claude.PromptPermissionSource` (`/prompt`) and `claude.A2APermissionSource` (`/a2a`); the value is set by the route that serves the turn — never read from the caller-controlled `X-Session-Id` — carried on the turn's context via `claude.WithPermissionSource` / `claude.PermissionSourceFromContext`, and stamped onto `claude.PermissionRequest.Source`, which is additive so a decider written before it compiles and behaves exactly as today. `Session.Prompt` and `DecidePermission` keep their signatures, the `/permission` JSON is unchanged, and the interactive service's frozen contract (`docs/interactive-service.md`) documents the new field and its closed set.
 
