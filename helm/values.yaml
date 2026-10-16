@@ -32,6 +32,17 @@ affinity: {}
 # Extra pod annotation used by quant to force a rollout (value of RANDOM). Empty = omit.
 rolloutNonce: ""
 
+# Fleet-wide Sentry proxy URL, rendered as `SENTRY_PROXY` into every agent Job's
+# Config.spec.env (see templates/agents.yaml). A per-agent `agents[].sentry.proxy`
+# overrides it; an agent that sets `SENTRY_PROXY` in its own `env:` map wins over
+# both. The default is deliberately empty, so the key renders only when the
+# install sets it — which makes THIS the load-bearing key: setting only a
+# per-agent value, or only this one, are different outcomes, and an install that
+# sets neither renders no SENTRY_PROXY at all. Set it once per cluster to cover
+# every agent, including ones added later.
+sentry:
+  proxy: ""
+
 executor:
   enabled: true
   image:
@@ -359,6 +370,12 @@ agents: []
   #                               # Secret via secretName instead of creating one.
   #     SENTRY_DSN: dummy
   #     ANTHROPIC_AUTH_TOKEN: dummy
+  #   sentry:                     # OPTIONAL: per-agent Sentry proxy override, rendered
+  #     proxy: http://sentry-proxy.ns.svc.cluster.local:9090
+  #                               # as SENTRY_PROXY. Defaults to the root `sentry.proxy`;
+  #                               # set it only when this agent needs a DIFFERENT proxy
+  #                               # host than the fleet's. An agent whose `env:` map
+  #                               # already carries SENTRY_PROXY keeps its own value.
   #   resources:                  # OPTIONAL — omit for an agent with no resource block
   #     requests: {cpu: 500m, memory: 1Gi, ephemeral-storage: 2Gi}
   #     limits: {cpu: 500m, memory: 1Gi, ephemeral-storage: 2Gi}
