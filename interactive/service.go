@@ -65,7 +65,8 @@ type Service interface {
 // in the deployment rather than in this library, so a caller with a smaller pod must
 // be able to state a smaller limit without waiting for a library release. The
 // permission endpoint is not served by this constructor; use NewServiceWithPermissions
-// to serve it.
+// to serve it. The trailing opts supply optional capabilities; WithPushNotifications is
+// the one option today.
 func NewService(
 	sessions agentlib.SessionFactory,
 	listen string,
@@ -75,6 +76,7 @@ func NewService(
 	card CardConfig,
 	sessionIdleTimeout time.Duration,
 	maxSessions int,
+	opts ...ServiceOption,
 ) Service {
 	return NewServiceWithPermissions(
 		sessions,
@@ -86,6 +88,7 @@ func NewService(
 		nil,
 		sessionIdleTimeout,
 		maxSessions,
+		opts...,
 	)
 }
 
@@ -106,7 +109,8 @@ func NewService(
 // holds at once; a non-positive value is replaced with DefaultMaxSessions rather than
 // disabling the limit, for the same reason. Like sessionIdleTimeout it is a parameter
 // rather than a package constant because the right value depends on the container's
-// memory limit, which lives in the deployment rather than in this library.
+// memory limit, which lives in the deployment rather than in this library. The trailing
+// opts supply optional capabilities; WithPushNotifications is the one option today.
 func NewServiceWithPermissions(
 	sessions agentlib.SessionFactory,
 	listen string,
@@ -117,7 +121,9 @@ func NewServiceWithPermissions(
 	permissions PermissionRegistry,
 	sessionIdleTimeout time.Duration,
 	maxSessions int,
+	opts ...ServiceOption,
 ) Service {
+	options := newServiceOptions(opts...)
 	return &service{
 		cache: newSessionCache(
 			sessions,
@@ -131,7 +137,8 @@ func NewServiceWithPermissions(
 		registry:        registry,
 		permissions:     permissions,
 		auth:            auth,
-		card:            newAgentCard(card),
+		card:            newAgentCard(card, options.pushNotificationsEnabled()),
+		push:            options.push,
 		reapInterval:    reapInterval,
 	}
 }
@@ -151,6 +158,10 @@ type service struct {
 	// configured public address, so the card can never advertise the container-local
 	// listen address.
 	card *a2a.AgentCard
+	// push is the caller's push-notification wiring, or nil when the caller supplied none. It
+	// is the same decision the card's push capability was derived from, so the card and the
+	// handler can never disagree.
+	push *pushConfig
 	// reapInterval is how often Run's reaper sweeps the cache for idle sessions. It
 	// is initialised from the reapInterval constant and is a field rather than the
 	// constant read inline so a test can shorten it and observe that Run actually
