@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
-- The A2A completion status update carries a message, so a registered push receiver has a messageId to record
+- fix: the A2A completion status update carries a message, so a registered push receiver has a messageId to record
 
 ## v0.103.0
 
