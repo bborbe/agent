@@ -37,6 +37,11 @@ const midTurnStatusDelay = 10 * time.Second
 // caller's prompt.
 const midTurnStatusText = "working"
 
+// completionStatusText is the text of the terminal completion status. The completion event
+// carries it so the event has a message, and therefore a messageId: a registered push
+// callback's receiver records that id, and a nil message leaves it nothing to record.
+const completionStatusText = "completed"
+
 // a2aHandler serves POST /a2a: the A2A JSON-RPC binding over the session seam.
 //
 // The body is capped before the SDK handler sees it. The SDK decodes with
@@ -208,7 +213,11 @@ func (e *a2aExecutor) Execute(
 		if !yield(a2a.NewArtifactEvent(execCtx, a2a.NewTextPart(result.result)), nil) {
 			return
 		}
-		yield(a2a.NewStatusUpdateEvent(execCtx, a2a.TaskStateCompleted, nil), nil)
+		yield(a2a.NewStatusUpdateEvent(
+			execCtx,
+			a2a.TaskStateCompleted,
+			a2a.NewMessage(a2a.MessageRoleAgent, a2a.NewTextPart(completionStatusText)),
+		), nil)
 	}
 }
 
