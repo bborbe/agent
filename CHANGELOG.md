@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- The A2A completion status update carries a message, so a registered push receiver has a messageId to record
+
 ## v0.103.0
 
 - feat: add an optional A2A push-notification extension point to the `interactive` service. Both constructors — `interactive.NewService` and `interactive.NewServiceWithPermissions` — take a trailing `opts ...interactive.ServiceOption`, and `interactive.WithPushNotifications(store, sender)` wires the caller's own `push.ConfigStore` and `push.Sender` through the SDK's `a2asrv.WithPushNotifications`; supplying the option *is* the opt-in, and a half-supplied option (a nil store or a nil sender) panics at construction naming the missing component rather than silently degrading to a service whose card advertises no push. The Agent Card's `capabilities.pushNotifications` is derived from that one decision and never hardcoded, so the card and the handler's acceptance of a registration can never disagree, and an unconfigured service marshals `"pushNotifications": false`. The library constructs no store and no sender and overrides no sender field, so the caller's SSRF posture, client timeout, `FailOnError` and redirect cap pass through untouched, and the push-configuration methods are dispatched by the existing `/a2a` binding behind the existing bearer gate with no new route. `a2aExecutor.Execute` additionally yields one mid-turn `working`-state status update carrying non-empty text, after a fixed ten-second delay measured from the turn's start, at most once per turn and only while the turn is still running; the delay is a fixed constant, not a knob, and the event rides alongside the turn's work so it never lengthens the turn. `docs/interactive-service.md` records the option, the derived capability, the fail-loud rule and the mid-turn event.

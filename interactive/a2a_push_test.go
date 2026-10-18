@@ -445,6 +445,26 @@ var _ = Describe("A2A push notifications", func() {
 			}
 		}
 		Expect(sawSubmittedTask).To(BeTrue(), "the submitted-task event must be delivered")
+
+		// The completion event must carry a message, so a receiver has a messageId to
+		// record. The mid-turn working event carries one too, which is why this indexes
+		// the completed entry specifically rather than any event that happens to have an
+		// id: the assertion has to fail on the nil message it was written against.
+		var completionMessageID string
+		Eventually(func() string {
+			completionMessageID = ""
+			for _, post := range postsForTask(receiver.Posts(), string(task.ID)) {
+				if post.body.StatusUpdate == nil ||
+					post.body.StatusUpdate.Status.State != a2a.TaskStateCompleted {
+					continue
+				}
+				if msg := post.body.StatusUpdate.Status.Message; msg != nil {
+					completionMessageID = msg.ID
+				}
+			}
+			return completionMessageID
+		}, 5*time.Second).ShouldNot(BeEmpty(),
+			"the completion event's message must carry a non-empty messageId")
 	})
 
 	It("delivers nothing when the caller wired nothing", func() {
