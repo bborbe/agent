@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.105.0
 
 - feat: `/launch-agent` gains a `--config-only` mode for agents that need no Go code of their own. It runs a five-question interview instead of the 45-Q one and emits three artifacts — a Config values entry for the stock `agent-claude` image (`taskTypes: [llm]`, `configMapName`/`configMapMountPath`/`configMapItems` projecting `CLAUDE.md` to `.claude/CLAUDE.md`, `AGENT_DIR`), the ConfigMap object itself wired into `bborbe/nuke`'s `make apply` via `SERVICE_MANIFESTS_dev`, and a KB agent page — with no repo, image or CI. `agent-shape-picker` gains a `recommended_mode` field so the lightweight case is recommended as a mode on the `claude` shape, never as a fifth shape (its own contract forbids inventing one).
 
