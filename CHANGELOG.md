@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix: parse the claude CLI's stream-json failure tail into a one-line reason. `claudeRunner.Run` previously joined the bounded raw tail (`{"type":"assistant",…}` events, ` | `-separated) straight into `claude CLI failed: %s`, so a task's `## Failure` entry was a JSON dump whose actual cause — a rejected `tool_result`, an `api_retry` storm, a `result` marked `is_error` — was unreadable. The new exported `claude.FailureReason` recognizes those four shapes in precedence order and, when no line is a stream-json event at all, falls back to the raw tail so an unrecognized diagnostic still reaches the operator; the placeholder is returned only when every line IS an event and none names a cause (the `thinking_tokens` progress flood, which is the case that produced the raw-JSON complaint)
+
 ## v0.104.0
 
 - Add `a2aWorkerController` to the chart: Deployment, Service, Secret, RBAC and an optional Ingress for `github.com/bborbe/a2a-worker-controller`. Disabled by default, so existing installs render unchanged.
