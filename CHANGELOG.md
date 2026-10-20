@@ -12,6 +12,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 - feat(helm): render optional cluster-routing env — `cluster` → `CLUSTER` on the singular executor, every `executors[]` entry and every controller; `publishUntagged` → `PUBLISH_UNTAGGED` on every controller (rendered whenever the key is set, so `false` renders); `executor.consumerGroup` / `executors[].consumerGroup` → `CONSUMER_GROUP` on that executor; chart 0.7.0→0.8.0. All three are absent by default, so an install that sets none of them renders the same manifests as before (only the `helm.sh/chart` label changes). Consumed by agent-task-controller >= v0.14.0 and agent-task-executor >= v0.19.0; older binaries ignore the env.
 
+## v0.107.0
 - the `a2aWorkerController` Deployment now emits `INGRESS_DOMAIN` (from `ingressHost`) and `TLS_SECRET_NAME` (from `tlsSecretName`, empty allowed); the binary refuses to start on the k8s backend without both, so an enabled controller crashlooped with `backend "k8s" requires NAMESPACE, INGRESS_DOMAIN and TLS_SECRET_NAME`
 
 ## v0.106.0
