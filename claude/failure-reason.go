@@ -173,27 +173,37 @@ type failureContent struct {
 // either a JSON string or an array of blocks. Text is the fallback for a shape
 // that carries the reason directly.
 func (c failureContent) toolResultText() string {
-	if len(c.Content) > 0 {
-		// A plain JSON string is the shape a CLI rejection uses; take it
-		// verbatim rather than dropping the reason.
-		var content string
-		if err := json.Unmarshal(c.Content, &content); err == nil && content != "" {
-			return content
-		}
-
-		var blocks []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		}
-		if err := json.Unmarshal(c.Content, &blocks); err == nil {
-			for _, b := range blocks {
-				if b.Text != "" {
-					return b.Text
-				}
-			}
-		}
+	if len(c.Content) == 0 {
+		return c.Text
+	}
+	// A plain JSON string is the shape a CLI rejection uses; take it verbatim
+	// rather than dropping the reason.
+	var content string
+	if err := json.Unmarshal(c.Content, &content); err == nil && content != "" {
+		return content
+	}
+	if text := firstTextBlock(c.Content); text != "" {
+		return text
 	}
 	return c.Text
+}
+
+// firstTextBlock returns the first non-empty text of a content block array, or
+// "" when the body is not that shape.
+func firstTextBlock(raw json.RawMessage) string {
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(raw, &blocks); err != nil {
+		return ""
+	}
+	for _, b := range blocks {
+		if b.Text != "" {
+			return b.Text
+		}
+	}
+	return ""
 }
 
 // collapseReason flattens a parsed reason to one line and caps its length, so a
