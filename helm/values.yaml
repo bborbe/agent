@@ -43,6 +43,22 @@ rolloutNonce: ""
 sentry:
   proxy: ""
 
+# Cluster this release is installed on (e.g. nukedev, nukeprod, sun). When
+# non-empty it is rendered as the `CLUSTER` env on every executor and every
+# controller; controllers publish only tasks whose `cluster:` frontmatter
+# matches this value. Requires agent-task-controller >= v0.14.0 and
+# agent-task-executor >= v0.19.0. Empty (default) renders nothing.
+cluster: ""
+
+# publishUntagged: rendered as the `PUBLISH_UNTAGGED` env (quoted "true"/"false")
+# on every controller only when this key is SET — unset renders nothing and the
+# controller's own default applies. Set it to false on clusters that must run
+# only explicitly tagged tasks (e.g. sun), so tasks without a `cluster:`
+# frontmatter are not published there. Deliberately commented out: a default
+# here would make "unset" and false indistinguishable. Requires
+# agent-task-controller >= v0.14.0.
+# publishUntagged: false
+
 executor:
   enabled: true
   image:
@@ -88,6 +104,11 @@ executor:
   # reconcile loop evaluates. Consumer-supplied — the chart asserts no vault
   # folder layout. Empty = no glob configured.
   taskGlob: ""
+  # consumerGroup: rendered as the `CONSUMER_GROUP` env on the executor when
+  # non-empty. Gives each Kafka consumer its own consumer group (e.g.
+  # agent-task-executor-sun) so executors on different clusters do not share
+  # offsets. Empty = nothing rendered.
+  consumerGroup: ""
   # Pod-level securityContext. Empty by default — runAsNonRoot/runAsUser/fsGroup
   # depend on what the image supports, so clusters opt in (e.g. runAsNonRoot: true,
   # runAsUser: 65534, fsGroup: 65534).
@@ -161,6 +182,7 @@ executors: []
   #     repository: bborbe/agent-task-executor
   #     tag: ""                     # empty => Chart.appVersion (default executor.image)
   #   logLevel: "2"                 # default executor.logLevel
+  #   consumerGroup: ""             # default executor.consumerGroup
   #   sentry:
   #     # Sentry proxy cluster URL. Default executor.sentry.proxy. NOTE: sentry.dsn
   #     # is NOT a per-entry field — the chart never creates per-vault Secrets;
@@ -192,6 +214,7 @@ executors: []
   #     repository: bborbe/agent-task-executor
   #     tag: ""
   #   logLevel: "2"
+  #   consumerGroup: ""             # default executor.consumerGroup
   #   sentry:
   #     proxy: ""
   #   existingSecret: ""

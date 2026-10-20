@@ -99,6 +99,14 @@ spec:
               value: "false"
             - name: AUTO_INJECT_TASK_IDENTIFIER
               value: {{ $c.autoInjectTaskIdentifier | quote }}
+            {{- with $.Values.cluster }}
+            - name: CLUSTER
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if and (hasKey $.Values "publishUntagged") (kindIs "bool" $.Values.publishUntagged) }}
+            - name: PUBLISH_UNTAGGED
+              value: {{ $.Values.publishUntagged | quote }}
+            {{- end }}
             - name: NAMESPACE
               valueFrom:
                 fieldRef:

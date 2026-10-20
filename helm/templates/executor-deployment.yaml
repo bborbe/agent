@@ -104,6 +104,14 @@ spec:
               value: {{ .Values.executor.gitRestGatewaySecret | quote }}
             - name: TASK_GLOB
               value: {{ .Values.executor.taskGlob | quote }}
+            {{- with .Values.cluster }}
+            - name: CLUSTER
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.executor.consumerGroup }}
+            - name: CONSUMER_GROUP
+              value: {{ . | quote }}
+            {{- end }}
           ports:
             - containerPort: 9090
               name: http
@@ -249,6 +257,14 @@ spec:
               value: {{ $e.gitRestGatewaySecret | default $.Values.executor.gitRestGatewaySecret | quote }}
             - name: TASK_GLOB
               value: {{ $e.taskGlob | default $.Values.executor.taskGlob | quote }}
+            {{- with $.Values.cluster }}
+            - name: CLUSTER
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with ($e.consumerGroup | default $.Values.executor.consumerGroup) }}
+            - name: CONSUMER_GROUP
+              value: {{ . | quote }}
+            {{- end }}
           ports:
             - containerPort: 9090
               name: http

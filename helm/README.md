@@ -96,6 +96,8 @@ agents: []
 | `keel.pollSchedule` | `@every 1m` | keel poll interval when enabled. |
 | `affinity` | `{}` | Node affinity object applied to controller/executor/recurring pods. Empty = none. |
 | `rolloutNonce` | `""` | Value of a `random` pod annotation to force a rollout. Empty = omit. |
+| `cluster` | `""` | Cluster name rendered as `CLUSTER` on every executor and every controller. Controllers publish only tasks whose `cluster:` frontmatter matches. Requires agent-task-controller ≥ v0.14.0 and agent-task-executor ≥ v0.19.0. Empty = nothing rendered. |
+| `publishUntagged` | unset | Rendered as `PUBLISH_UNTAGGED` (quoted `"true"`/`"false"`) on every controller **only when the key is set** — `false` is honoured, absent renders nothing. Set `false` on clusters that must run only explicitly tagged tasks (e.g. sun). Requires agent-task-controller ≥ v0.14.0. |
 
 ### executor
 
@@ -108,6 +110,7 @@ agents: []
 | `executor.topicPrefix` | `""` | Kafka topic prefix. Empty = unprefixed (per-stage-cluster / Octopus). Quant: `develop`/`master`. |
 | `executor.branch` | `""` | Stage label forwarded as `BRANCH`. |
 | `executor.taskGlob` | `""` | git-rest single-level glob selecting the vault task files the reconcile loop evaluates. Consumer-supplied — the chart asserts no vault folder layout; empty = no glob configured. |
+| `executor.consumerGroup` | `""` | Rendered as `CONSUMER_GROUP` on the executor. Gives each Kafka consumer its own consumer group (e.g. `agent-task-executor-sun`) so executors on different clusters do not share offsets. Empty = nothing rendered. |
 | `executor.sentry.proxy` | `""` | Sentry proxy URL (optional). |
 | `executor.sentry.dsn` | `""` | Sentry DSN; when set the chart creates the Secret. |
 | `executor.existingSecret` | `""` | Name of a pre-existing Secret with key `sentry-dsn`; when set the chart creates no Secret. |
@@ -138,6 +141,7 @@ default) the single legacy `agent-task-executor` Deployment renders unchanged.
 | `executors[].kafkaBrokers` | `executor.kafkaBrokers` | Kafka bootstrap brokers. Required when not inherited. |
 | `executors[].image.repository` / `image.tag` | `executor.image` | Image repo/tag; empty tag → chart `appVersion`. |
 | `executors[].logLevel` | `executor.logLevel` | Log verbosity. |
+| `executors[].consumerGroup` | `executor.consumerGroup` | Rendered as `CONSUMER_GROUP` on that executor; per-entry value wins, empty = nothing rendered. |
 | `executors[].sentry.proxy` | `executor.sentry.proxy` | Sentry proxy URL. |
 | `executors[].existingSecret` | `executor.existingSecret`, then shared `agent-task-executor` | Pre-existing Secret with key `sentry-dsn`. |
 | `executors[].podSecurityContext` / `securityContext` / `resources` | `executor.*` | Pod/container security contexts + resources. |
