@@ -79,6 +79,34 @@ CR **and** its Secret, so `make apply` owns both.
 ⚠️ Do **not** add `volumeClaim` / `volumeMountPath` unless the agent genuinely needs a PVC —
 the chart renders a claim whenever `volumeMountPath` is set.
 
+### The second edit — `SECRET_ENV` rows
+
+**The values entry alone leaves the agent without credentials.** The `secretEnv` block above
+is only a placeholder: the chart renders the Secret from it, and the values are filled by
+`agent/Makefile`'s `SECRET_ENV` table. That table names agents explicitly, so a new agent with
+no rows renders a Secret of **0-byte** values — and the failure is silent until a Job runs:
+
+```
+claude CLI failed: {"type":"subtype":"init","cwd":"/agent",…} exit status 1
+```
+
+The CLI starts, `cwd` is correct, and it has no token to send. (`kubectl describe secret <name>`
+shows `ANTHROPIC_AUTH_TOKEN: 0 bytes` against a working agent's non-zero length.)
+
+So add two rows beside the other agents in `agent/Makefile`:
+
+```make
+	vault-grooming-agent:SENTRY_DSN:url:$(SENTRY_DSN_KEY) \
+	vault-grooming-agent:ANTHROPIC_AUTH_TOKEN:password:$(ANTHROPIC_AUTH_TOKEN_KEY) \
+```
+
+And when the agent is dev-only, add its name to `STAGE_ABSENT_prod` in the same file — without
+it, a prod render fails on an index that does not exist there. No new credential is needed for
+a Claude agent: `SENTRY_DSN_KEY` and `ANTHROPIC_AUTH_TOKEN_KEY` already exist.
+
+⚠️ Adding an agent is **two** edits in `bborbe/nuke`: the values entry **and** its `SECRET_ENV`
+rows. Emit both, or the agent deploys and cannot run.
+
 ## Artifact 2 — the ConfigMap manifest (`bborbe/nuke`, applied by `make apply`)
 
 The chart renders the **reference**, never the object: a values entry alone leaves the
@@ -138,13 +166,17 @@ is that repo's `nuke-dev` deploy worktree; `<vault>` is the vault the KB page wa
 
 ```
 1. Review the values entry:   <nuke>/agent/values-dev.yaml
-2. Review the ConfigMap:      <nuke>/agent/<NAME>-configmap.yaml
-3. Review the KB page:        <vault>/50 Knowledge Base/<Name> Agent.md
-4. Merge the nuke PR, then:   cd <nuke-dev> && git fetch && git merge --ff-only origin/master
-5. Apply:                     cd <nuke-dev>/agent && BRANCH=dev make apply
-6. Verify:                    kubectlnukedev -n dev get configs.agent.benjamin-borbe.de <NAME>
+2. Review the SECRET_ENV rows: <nuke>/agent/Makefile — BOTH edits, not just the values entry;
+                              without these rows the Secret renders with 0-byte values
+3. Review the ConfigMap:      <nuke>/agent/<NAME>-configmap.yaml
+4. Review the KB page:        <vault>/50 Knowledge Base/<Name> Agent.md
+5. Merge the nuke PR, then:   cd <nuke-dev> && git fetch && git merge --ff-only origin/master
+6. Apply:                     cd <nuke-dev>/agent && BRANCH=dev make apply
+7. Verify the Secret:         kubectlnukedev -n dev describe secret <NAME>
+                              — ANTHROPIC_AUTH_TOKEN must be non-zero bytes
+8. Verify the objects:        kubectlnukedev -n dev get configs.agent.benjamin-borbe.de <NAME>
                               kubectlnukedev -n dev get configmap <NAME>
-7. File one task assigned to <NAME> and confirm its `## Result` carries the prompt's canary line.
+9. File one task assigned to <NAME> and confirm its `## Result` carries the prompt's canary line.
 ```
 
 Steps 4–7 are ops commands the auto-mode classifier soft-denies — the operator switches to
