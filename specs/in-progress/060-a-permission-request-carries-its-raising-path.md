@@ -1,9 +1,8 @@
 ---
-status: verifying
+status: prompted
 approved: "2026-10-14T14:37:14Z"
 generating: "2026-10-14T15:14:59Z"
 prompted: "2026-10-14T15:47:54Z"
-verifying: "2026-10-20T21:00:29Z"
 branch: dark-factory/a-permission-request-carries-its-raising-path
 ---
 

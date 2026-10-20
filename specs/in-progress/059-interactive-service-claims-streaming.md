@@ -1,9 +1,8 @@
 ---
-status: verifying
+status: prompted
 approved: "2026-10-11T18:31:08Z"
 generating: "2026-10-11T18:44:30Z"
 prompted: "2026-10-11T18:44:30Z"
-verifying: "2026-10-20T21:00:29Z"
 branch: dark-factory/interactive-service-claims-streaming
 ---
 
