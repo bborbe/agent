@@ -1,0 +1,64 @@
+{{- if .Values.a2aWorkerController.enabled }}
+{{- $a := .Values.a2aWorkerController }}
+{{- $name := printf "a2a-worker-controller-%s" $a.name | trunc 63 | trimSuffix "-" }}
+{{- $ns := include "agent.namespace" . }}
+# The account the controller runs as. Dedicated rather than `default`: the Role below lets
+# it write Configs, Secrets, Services, Ingresses and NetworkPolicies, and every other pod in
+# the namespace runs as `default`, so binding these verbs there would hand them to the whole
+# namespace.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+---
+# What the k8s backend needs to create, list and stop per-task workers, and nothing more.
+#
+# ⚠️ No delete on the children. `stop` deletes only the worker's Config; the Secret, Service,
+# Ingress and NetworkPolicy carry the Config as their controlling owner, so the garbage
+# collector removes them.
+#
+# ⚠️ `create` cannot be name-scoped (the object does not exist yet), so it is granted on the
+# resource. `get` on Secrets IS name-scoped: the controller reads only the worker template's
+# Secret to copy its credentials, never any other.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [agent.benjamin-borbe.de]
+    resources: [configs]
+    verbs: [get, list, create, delete]
+  - apiGroups: ['']
+    resources: [secrets]
+    resourceNames: [{{ $a.workerTemplate }}]
+    verbs: [get]
+  - apiGroups: ['']
+    resources: [secrets, services]
+    verbs: [create]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $ns }}
+{{- end }}

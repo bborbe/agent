@@ -459,3 +459,53 @@ recurringTaskCreator:
     clientSecret: ""
     # Secret (in this namespace) holding the cluster CA as ca.crt.
     caCertSecret: my-cluster-cluster-ca-cert
+
+# A2A worker controller: the k8s-backend A2A controller (github.com/bborbe/a2a-worker-controller).
+# Each `create` writes one `type: service` agent Config, cloned from `workerTemplate`, which the
+# executor reconciles into a per-task worker pod. Off by default — an install that wants A2A
+# worker spawning on this cluster enables it. Emits a Deployment + Service + Secret + RBAC, and
+# an Ingress when ingressHost is set.
+a2aWorkerController:
+  enabled: false
+  # Instance name → workloads `a2a-worker-controller-<name>`.
+  name: default
+  image:
+    repository: bborbe/a2a-worker-controller
+    # No chart-level default: the controller is versioned independently of this chart.
+    tag: ""
+  logLevel: "2"
+  replicas: 1
+  backend: k8s
+  # The agent Config cloned for each worker pod.
+  workerTemplate: claude-interactive
+  # Image the worker pods run. Required by the binary even on this backend, which takes the
+  # image from the template Config instead; the value is never used to start a worker.
+  workerImage: ""
+  # Public URL advertised in the controller's agent card. Required.
+  publicUrl: ""
+  # Scheduling + egress knobs that are cluster-specific. Empty = omit.
+  workerPriorityClass: ""
+  egressAllow: ""
+  # Ingress. Empty ingressHost = no Ingress emitted.
+  ingressHost: ""
+  ingressClassName: traefik
+  tlsSecretName: ""
+  # Existing Secret holding a2a-auth-token / teamvault-user / teamvault-pass / sentry-dsn.
+  # Empty = the chart renders one from the values below, which the caller supplies at apply
+  # time (resolved from TeamVault), never from a committed file.
+  existingSecret: ""
+  authToken: ""
+  teamvaultUrl: ""
+  teamvaultUser: ""
+  teamvaultPass: ""
+  sentry:
+    dsn: ""
+    # Sentry proxy cluster URL. Empty = no SENTRY_PROXY emitted.
+    proxy: ""
+  resources:
+    limits:
+      cpu: 500m
+      memory: 128Mi
+    requests:
+      cpu: 20m
+      memory: 64Mi
