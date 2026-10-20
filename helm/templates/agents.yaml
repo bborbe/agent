@@ -41,9 +41,15 @@ spec:
   configMapItems:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  {{- with $agent.env }}
+  {{- $sentryProxy := ($agent.sentry | default dict).proxy | default $.Values.sentry.proxy }}
+  {{- if or $agent.env $sentryProxy }}
   env:
+    {{- with $agent.env }}
     {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if and $sentryProxy (not (hasKey ($agent.env | default dict) "SENTRY_PROXY")) }}
+    SENTRY_PROXY: {{ $sentryProxy | quote }}
+    {{- end }}
   {{- end }}
   trigger:
     phases:

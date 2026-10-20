@@ -56,7 +56,11 @@ type CardConfig struct {
 // address supplied as configuration — never the listen address and never a value derived
 // from a request. config.Name names the deployed agent, falling back to
 // defaultAgentCardName when it is empty. The card carries no credential.
-func newAgentCard(config CardConfig) *a2a.AgentCard {
+//
+// pushNotifications is derived from the caller's push wiring and is never a literal true: a
+// hardcoded true would advertise a capability the service cannot deliver, and would make a
+// consumer's negative test pass vacuously.
+func newAgentCard(config CardConfig, pushNotifications bool) *a2a.AgentCard {
 	name := config.Name
 	if name == "" {
 		name = defaultAgentCardName
@@ -68,7 +72,10 @@ func newAgentCard(config CardConfig) *a2a.AgentCard {
 		SupportedInterfaces: []*a2a.AgentInterface{
 			a2a.NewAgentInterface(config.PublicURL, a2a.TransportProtocolJSONRPC),
 		},
-		Capabilities:       a2a.AgentCapabilities{},
+		Capabilities: a2a.AgentCapabilities{
+			Streaming:         true,
+			PushNotifications: pushNotifications,
+		},
 		DefaultInputModes:  []string{"text/plain"},
 		DefaultOutputModes: []string{"text/plain"},
 		Skills: []a2a.AgentSkill{

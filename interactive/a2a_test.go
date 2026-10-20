@@ -83,6 +83,27 @@ var _ = Describe("Agent card", func() {
 		Expect(card["name"]).To(Equal("interactive"))
 	})
 
+	It("advertises streaming and not push notifications", func() {
+		server := newA2ATestServer(
+			testPublicURL,
+			interactive.NewAuthToken(authTestToken),
+			newAuthMockFactory(),
+		)
+		defer server.Close()
+
+		status, body, err := getAgentCard(server.URL)
+		Expect(err).To(BeNil())
+		Expect(status).To(Equal(http.StatusOK))
+
+		var card map[string]any
+		Expect(json.Unmarshal([]byte(body), &card)).To(Succeed())
+
+		capabilities, ok := card["capabilities"].(map[string]any)
+		Expect(ok).To(BeTrue(), "the served card must carry a capabilities object")
+		Expect(capabilities["streaming"]).To(Equal(true))
+		Expect(capabilities["pushNotifications"]).To(Equal(false))
+	})
+
 	It("names the deployed agent and advertises its address", func() {
 		const publicURL = "https://claude.example.test/a2a"
 		svc := interactive.NewService(

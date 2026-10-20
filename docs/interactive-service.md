@@ -19,6 +19,9 @@ import (
 
 svc := interactive.NewService(sessions, listen, providerBaseURL, registry, auth, card, sessionIdleTimeout, maxSessions)
 svc := interactive.NewServiceWithPermissions(sessions, listen, providerBaseURL, registry, auth, card, permissions, sessionIdleTimeout, maxSessions)
+
+svc := interactive.NewService(..., interactive.WithPushNotifications(store, sender))
+svc := interactive.NewServiceWithPermissions(..., interactive.WithPushNotifications(store, sender))
 ```
 
 | Parameter | Meaning |
@@ -53,6 +56,20 @@ parameter of both constructors, mandatory rather than defaulted, because a calle
 never states a maximum would keep the cache bounded only by idle time — and a session that
 keeps serving turns is never idle. A caller that wants the documented default passes
 `interactive.DefaultMaxSessions`.
+
+The trailing `opts ...ServiceOption` on both constructors is the seam for an optional
+capability, so a capability a service may or may not have never changes an existing
+caller's call. Passing no option is the documented default and produces exactly the
+service described here today. `interactive.WithPushNotifications(store push.ConfigStore,
+sender push.Sender)` is the one option today, and supplying it **is** the opt-in: there
+is no second flag that enables push while the option is present, and no flag that disables
+it while the option is present. The option carries both halves or it fails — a nil store
+or a nil sender panics at construction with a message naming the missing component,
+because a half-supplied option treated as "not configured" would hand a caller a service
+whose card advertises no push while the caller believes the channel is wired. The library
+constructs neither a store nor a sender and overrides no field on the sender, so the SSRF
+guard's posture, the client timeout, `FailOnError` and the redirect cap are the caller's
+settings, passed through untouched.
 
 `Service.Handler()` returns the router; `Service.Run(ctx)` serves it until the context
 is cancelled.
@@ -127,11 +144,12 @@ is namespace-scoped reachability, unchanged — see
 | `POST /permission`, missing `id` | `400` |
 | `POST /permission`, malformed JSON | `400` |
 | `PUT /permission`, permission-enabled | `405` |
-| `GET /.well-known/agent-card.json`, no `Authorization` header | `200`, body is the Agent Card JSON whose `name` names the agent — the caller's `CardConfig.Name`, or `interactive` when it is empty |
+| `GET /.well-known/agent-card.json`, no `Authorization` header | `200`, body is the Agent Card JSON whose `name` names the agent — the caller's `CardConfig.Name`, or `interactive` when it is empty — and whose `capabilities.pushNotifications` is `true` only when the caller wired the push option and `false` otherwise |
 | `GET /.well-known/agent-card.json`, `A2A_PUBLIC_URL` set | the card's `supportedInterfaces[0].url` equals that value verbatim — never `0.0.0.0`, never `localhost` |
 | `POST /a2a`, no `Authorization` header | `401` |
 | `POST /a2a`, `Authorization: Bearer <wrong token>` | `401` |
 | `POST /a2a`, `Authorization: Bearer <correct token>`, `SendMessage` | `200`, a `completed` task whose artifact carries the agent's reply for that conversation |
+| `POST /a2a`, `CreateTaskPushNotificationConfig`, option supplied | `200` with the registered `url` and `token`; with the option absent, a JSON-RPC error saying push is not supported |
 | `POST /a2a`, `contextId` failing the session-id regex | JSON-RPC error response; no session built |
 | `POST /a2a`, unimplemented method | JSON-RPC "method not found" error object |
 | `POST /a2a`, backend turn fails | `failed` task; the error is logged and never returned in the body |
@@ -291,6 +309,23 @@ tool-input preview is carried to the caller inside the namespace and is never lo
 The endpoint is the route `agent-pi` does not serve: it builds through `NewService`,
 which takes no permission registry.
 
+A request the CLI raises mid-turn carries a `Source` value naming which of the service's
+turn-serving routes raised it. It is a field of the in-process `claude.PermissionRequest`
+the decider is handed, so a decider can answer an A2A-raised request differently from an
+interactive one. It is not part of any route's wire shape: it does not appear in the
+`GET /permission` JSON above.
+
+- The closed set is `claude.PromptPermissionSource` (`/prompt`) and
+  `claude.A2APermissionSource` (`/a2a`). A future third route that serves a turn must add
+  its value to the type and to this document.
+- The value is set by the route that serves the turn and is **never** read from the
+  request. `X-Session-Id` is caller-controlled, so a caller that could choose its own
+  source could make a pane-answered `/prompt` gate look like an A2A gate.
+- It is carried per turn, not per session. The session cache is shared by both routes, so
+  two routes interleaved on one cached session id each see their own value.
+- A decider that ignores it behaves exactly as before; the field is additive and no
+  existing consumer changes.
+
 ## Locking
 
 A session is built lazily on first use and cached by id. The cache **evicts** on two
@@ -430,10 +465,47 @@ the constructor's `card` parameter's `PublicURL` field and read from `A2A_PUBLIC
 `interactive.A2APublicURLFromEnv`; it is never derived from the listen address or from a
 request header, so the container-local address can never be advertised.
 
-This repository authors only the one-shot `SendMessage` bridge. The SDK's JSON-RPC handler
-also routes `SendStreamingMessage` (SSE) through the same executor; that inherited method
-is not part of this contract, and push notifications and task polling are not built here.
-The SDK's handler additionally dispatches the rest of the A2A 1.0 method set — task
-lookup, cancellation, push-configuration management and the extended card — against its
-own default in-memory stores; none of those is part of this contract either. Only
-`SendMessage` is authored and documented here.
+With the push option supplied, the service's A2A handler is built through the SDK's
+`a2asrv.WithPushNotifications` with the caller's own store and sender, and the SDK's own
+push path then delivers one push per task event to every config registered for that task.
+The library adds no push code of its own beyond that wiring.
+
+The Agent Card's `capabilities.pushNotifications` is **derived** from whether the caller
+supplied the option and is never hardcoded. An unconfigured service marshals
+`"pushNotifications": false`, which is the correct wire value — the field has no
+`omitempty`, so the `false` is present on the wire rather than absent. The card's
+capability and the handler's acceptance of a registration are driven by that one decision,
+so a card that advertises support while the handler refuses a registration is not a
+reachable state.
+
+- The push-configuration methods — `CreateTaskPushNotificationConfig`,
+  `GetTaskPushNotificationConfig`, `ListTaskPushNotificationConfigs` and
+  `DeleteTaskPushNotificationConfig` — are dispatched by the existing `/a2a` binding
+  behind the existing bearer-token gate. No new route is added, and no second credential
+  is introduced. A registration naming a task the service does not hold is refused: the
+  SDK validates it and stores nothing for it.
+- The payload is the SDK's task-update shape, and the registered token travels as the
+  SDK's `A2A-Notification-Token` header. The card carries no credential, and no push
+  config, callback URL or token is logged.
+- A running turn yields one mid-turn status update in the `working` state carrying
+  non-empty text, after a fixed ten-second delay measured from the turn's start. It is
+  emitted at most once per turn and only while the turn is still running: a turn that
+  finishes first emits none, and the turn's terminal status is unaffected. The delay is a
+  fixed constant and is not configurable — no environment variable, flag, option or config
+  field exposes it.
+- The mid-turn event rides alongside the turn's work rather than blocking it, so it never
+  lengthens the turn; and the emitter honours the same stop signal the turn's other events
+  do, so no goroutine or timer outlives the turn.
+
+`Streaming` stays `true` and is unchanged: the mid-turn signal is a push event, not a
+stream.
+
+This repository serves the one-shot `SendMessage` bridge, and the same JSON-RPC binding
+serves `SendStreamingMessage` (SSE); the SDK's handler routes both through the same
+executor, so a streaming request runs the same turn as a one-shot request and delivers
+the same event sequence as an ordered SSE response, while push notifications are available
+when the caller wires them with the option and task polling is not built here. The SDK's
+handler additionally dispatches the rest of the A2A 1.0 method set — task lookup,
+cancellation and the extended card — against its own default in-memory stores; the
+push-configuration methods are served against the caller's store when the option is
+supplied, and none of the other methods is part of this contract either.
