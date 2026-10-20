@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(launch-agent): the `--config-only` reference now says how to resolve `<AGENT_CLAUDE_TAG>` instead of only "pin a released tag". It had no rule for *which* tag, so the value was copied from the one existing precedent, `easy-agent-goreleaser` — pinned at `v0.2.4`, twenty minor versions behind the newest release — and every new config-only agent inherited that stale pin. The reference now resolves the newest released `bborbe/agent-claude` tag, requires a Job-mode compatibility check against `claude-headless` / `claude-interactive` in the same values file, and warns that a sibling's tag is not part of the template.
+
 ## v0.105.1
 
 - fix(launch-agent): the `--config-only` reference now states that adding an agent to `bborbe/nuke` is **two** edits — the `values-dev.yaml` entry **and** its `SECRET_ENV` rows in `agent/Makefile` (plus a `STAGE_ABSENT_prod` entry when the agent is dev-only). The doc previously implied `make apply` filled `secretEnv` by itself; it fills it only for agents the table names, so a new agent's Secret rendered with 0-byte `ANTHROPIC_AUTH_TOKEN` / `SENTRY_DSN` and its first Job failed in 6 s with `claude CLI failed … exit status 1` while `cwd` was correctly `/agent`. The deploy checklist gains the Makefile review step and a `describe secret` verification, because the failure is silent until a Job runs.

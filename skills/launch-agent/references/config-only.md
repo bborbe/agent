@@ -79,6 +79,22 @@ CR **and** its Secret, so `make apply` owns both.
 ⚠️ Do **not** add `volumeClaim` / `volumeMountPath` unless the agent genuinely needs a PVC —
 the chart renders a claim whenever `volumeMountPath` is set.
 
+### Which `agent-claude` tag to pin
+
+`<AGENT_CLAUDE_TAG>` is not a free choice. Resolve it in this order and state the resolved tag
+in the interview summary:
+
+1. **Newest released tag** — `git ls-remote --tags https://github.com/bborbe/agent-claude |
+   grep -oE 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's|refs/tags/||' | sort -V | tail -1`.
+2. **Check it has run in Job mode.** The closest peers are in the same values file: `claude-headless`
+   runs a headless Job-mode agent, `claude-interactive` runs an interactive pod. If the newest tag
+   is newer than both, pin it and say so; if it has never run in Job mode, pin the newest tag that has.
+
+⚠️ **Never copy the tag from a sibling config-only agent without checking it.** The one existing
+precedent (`easy-agent-goreleaser`) is pinned to `v0.2.4`, twenty minor versions behind the newest
+release, because that was current when it was written. Copying its entry wholesale hands every new
+agent the same stale pin — the tag reads like part of the template and is not.
+
 ### The second edit — `SECRET_ENV` rows
 
 **The values entry alone leaves the agent without credentials.** The `secretEnv` block above
