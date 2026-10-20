@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(launch-agent): the `--config-only` reference now states that adding an agent to `bborbe/nuke` is **two** edits — the `values-dev.yaml` entry **and** its `SECRET_ENV` rows in `agent/Makefile` (plus a `STAGE_ABSENT_prod` entry when the agent is dev-only). The doc previously implied `make apply` filled `secretEnv` by itself; it fills it only for agents the table names, so a new agent's Secret rendered with 0-byte `ANTHROPIC_AUTH_TOKEN` / `SENTRY_DSN` and its first Job failed in 6 s with `claude CLI failed … exit status 1` while `cwd` was correctly `/agent`. The deploy checklist gains the Makefile review step and a `describe secret` verification, because the failure is silent until a Job runs.
+
 ## v0.105.0
 
 - feat: `/launch-agent` gains a `--config-only` mode for agents that need no Go code of their own. It runs a five-question interview instead of the 45-Q one and emits three artifacts — a Config values entry for the stock `agent-claude` image (`taskTypes: [llm]`, `configMapName`/`configMapMountPath`/`configMapItems` projecting `CLAUDE.md` to `.claude/CLAUDE.md`, `AGENT_DIR`), the ConfigMap object itself wired into `bborbe/nuke`'s `make apply` via `SERVICE_MANIFESTS_dev`, and a KB agent page — with no repo, image or CI. `agent-shape-picker` gains a `recommended_mode` field so the lightweight case is recommended as a mode on the `claude` shape, never as a fifth shape (its own contract forbids inventing one).
