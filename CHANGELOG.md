@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.104.0
 
 - Add `a2aWorkerController` to the chart: Deployment, Service, Secret, RBAC and an optional Ingress for `github.com/bborbe/a2a-worker-controller`. Disabled by default, so existing installs render unchanged.
 
