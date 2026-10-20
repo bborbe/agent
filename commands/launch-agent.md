@@ -1,7 +1,7 @@
 ---
-description: Interview-driven scaffolding for a new bborbe agent — clones a template repo, generates Config CRD + vault page + first scenario
-argument-hint: "[role or repo-name] [--shape claude|code|gemini|pi]"
-allowed-tools: [Task, Read, Write, Edit, Bash, AskUserQuestion, mcp__semantic-search__search_related]
+description: Interview-driven scaffolding for a new bborbe agent — clones a template repo, generates Config CRD + vault page + first scenario; `--config-only` skips the repo and emits a Config + ConfigMap prompt for the stock agent-claude image
+argument-hint: "[<role-or-repo-name>] [--shape claude|code|gemini|pi] [--config-only]"
+allowed-tools: [Skill, Task, Read, Write, Edit, Bash, AskUserQuestion, mcp__semantic-search__search_related]
 ---
 
 <objective>
@@ -10,35 +10,21 @@ Scaffold a new bborbe agent end-to-end via interview + template clone. Delegate 
 
 <process>
 1. **Parse arguments** from `$ARGUMENTS`:
-   - First positional token (if any): proposed role or repo-name seed. The skill suggests `<slug>-agent` (or `github-<slug>-agent` for GitHub-triggered) and lets the user overwrite with any valid repo name — no forced `agent-` prefix
+   - First positional token (if any): proposed role or repo-name seed. The skill suggests `<slug>-agent` and lets the user overwrite with any valid repo name — no forced `agent-` prefix
    - `--shape <shape>`: explicit shape pick (skip the shape-picker subagent)
-   - No args: skill runs the full interview from scratch
+   - `--config-only`: lightweight mode — no repo, no image, no CI. Its semantics live in `skills/launch-agent/references/config-only.md`; this command only parses and forwards the flag
+   - No args: the skill runs the full interview from scratch
 
-2. **Invoke the `launch-agent` skill** via the `Skill` tool:
-   - Pass parsed arguments through
-   - The skill orchestrates: interview → shape pick (subagent if not explicit) → `gh repo create --template` → rename/customize → generate Config CRD + vault page + goal + scenario → print deploy checklist
-
-3. **Skill workflow** (executed by `skills/launch-agent/SKILL.md`):
-   - Read references (shapes.md, interview.md, templates)
-   - Run [[Agent Design Guide]] 45-Q interview (conversational, AskUserQuestion for enumerable choices)
-   - Recommend shape via `agent-shape-picker` subagent if `--shape` not provided
-   - `gh repo create bborbe/<name> --public --template bborbe/agent-<shape>`
-   - Clone, rename Go module path + package names + Config kind across files
-   - Generate `Config.yaml` (CRD instance), `agent/<name>/.claude/CLAUDE.md`, `README.md` adapted
-   - Write vault artifacts: `50 Knowledge Base/<Name> Agent.md`, `23 Goals/Build <Name> Agent.md`, `24 Tasks/Bootstrap <Name> Agent.md`, scenario stub
-   - Print deploy checklist (kubectl apply, build image, run scenario, etc.)
+2. **Invoke the `launch-agent` skill** via the `Skill` tool, passing the parsed arguments through. The skill owns the whole pipeline — interview, shape pick, artifact generation, deploy checklist — so this command restates none of it. If the skill is unavailable, stop and say so; never inline its workflow here.
 </process>
 
 <success_criteria>
-- Skill invoked successfully
-- New repo created on GitHub via `--template` flag
-- Local clone exists at `~/Documents/workspaces/<name>/`
-- Vault artifacts created in the configured vault (Personal)
-- Deploy checklist printed
+- The `launch-agent` skill was invoked with the parsed arguments
+- The skill reported its own success criteria met and printed its deploy checklist
 </success_criteria>
 
 <notes>
-- This command does NOT deploy the new agent — `kubectl apply` of the Config CRD is operator decision after review
-- The agent's CI runs on its own repo; this command does not configure CI (template already has it)
-- See [[Quick-Launch New Agents]] for the parent goal that landed this plugin
+- This command does NOT deploy the new agent — applying the Config CRD is the operator's decision after review
+- The default mode's agent CI runs on its own repo and the template already configures it. `--config-only` creates no repo, so it configures no CI and releases nothing
+- `allowed-tools` pre-approves the delegated skill's work; keep it in sync with `skills/launch-agent/SKILL.md`
 </notes>

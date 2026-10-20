@@ -1,7 +1,7 @@
 ---
 name: launch-agent
-description: Interview-driven scaffolding for a new bborbe agent — clones the matching reference template, generates Config CRD + vault page + goal + scenario, prints deploy checklist. Invoked by the /launch-agent slash command.
-tools: [Task, Read, Write, Edit, Bash, AskUserQuestion, mcp__semantic-search__search_related]
+description: Interview-driven scaffolding for a new bborbe agent — clones the matching reference template, generates Config CRD + vault page + goal + scenario, prints deploy checklist. With `--config-only` it skips the clone entirely and emits a Config values entry + a ConfigMap holding the system prompt, for the stock `agent-claude` image. Invoked by the /launch-agent slash command.
+allowed-tools: [Task, Read, Write, Edit, Bash, AskUserQuestion, mcp__semantic-search__search_related]
 ---
 
 <role>
@@ -18,8 +18,16 @@ Read these references FIRST in this order:
 5. `references/goal-template.md` — per-agent goal page
 6. `references/scenario-template.md` — first acceptance scenario
 7. `references/next-directions-template.md` — `v1/v2/v3` deferral structure
+8. `references/config-only.md` — the `--config-only` mode (read only when that flag is set)
 
 Run the phases below in order. Stop and ask the user at the marked confirmation gates.
+
+**`--config-only` replaces Phases 3–8 entirely.** When the flag is set, run the
+`<config_only_mode>` block instead: no repo is created, nothing is cloned, and the output is
+three artifacts. Phase 1 still runs with the **short five-question interview** from
+`references/config-only.md` in place of the 45-Q walk, and Phase 2 still runs — the picker
+will return `claude` + `config-only`, because a config-only agent is a `claude`-shape agent.
+Phases 3–8 are then replaced by the mode block's Phase B (emit) and Phase C (checklist).
 
 </critical_workflow>
 
@@ -65,14 +73,24 @@ Otherwise: invoke the `agent-shape-picker` subagent with the captured intent. Th
 
 ```
 recommended_shape: <claude|code|gemini|pi>
+recommended_mode: <config-only|template>
 reason: <1-2 sentence justification>
+clarifying_question: <only when the use case was ambiguous>
 ```
 
-Present to user via `AskUserQuestion`:
+If `clarifying_question` is present, ask it first with one `AskUserQuestion` and re-run the picker with the answer.
 
-> "Recommended shape: <shape> — <reason>. Accept?"
-> 1. Yes, use <shape>
-> 2. Override → pick from claude/code/gemini/pi (numbered options below)
+Then present **both** fields:
+
+> "Recommended: `<shape>` shape, `<config-only|template>` mode — <reason>. Accept?"
+> 1. Accept — use `<shape>` + `<mode>`
+> 2. Choose another shape — a second question offers claude / code / gemini / pi
+> 3. Switch mode — the other of config-only / template
+
+⚠️ Never drop `recommended_mode` from the question: it is what makes the lightweight path
+discoverable, and an operator who does not already know `--config-only` exists can never
+choose it. On accept with `recommended_mode: config-only`, run `<config_only_mode>` instead of
+Phases 3–8.
 
 ## Phase 3 — Create GitHub repo from template
 
@@ -189,11 +207,15 @@ obsidian-git autocommits the vault changes — no manual action.
 
 **Placeholder-leak guard FIRST**: scan all rendered files (new repo + vault artifacts) for any remaining `<PLACEHOLDER>` tokens. The regex must catch all template-placeholder shapes used in references/: ALL_CAPS_UNDERSCORE, hyphen-containing date forms, and mixed-case identifiers.
 
-Pattern: `<[A-Z][A-Za-z0-9_+-]*>` — uppercase-leading (matches all our placeholders), permits any case afterward + hyphens + plus + underscore.
+Pattern: `<[A-Z][^<>]*>` — uppercase-leading, then anything but an angle bracket. The wider
+character class is deliberate: several placeholders carry spaces and em dashes
+(`<SYSTEM_PROMPT — …>`, `<CRON | GITHUB_EVENT | AGENT_CHAIN | MANUAL>`, `<REASON — e.g. …>`),
+and a token-only pattern silently misses them — a leak scan that cannot fire looks exactly
+like one that passed.
 
 ```bash
 # Use $HOME (not quoted ~) — tilde inside quotes is NOT shell-expanded.
-grep -rln --include='*.md' --include='*.yaml' --include='*.yml' -E '<[A-Z][A-Za-z0-9_+-]*>' \
+grep -rln --include='*.md' --include='*.yaml' --include='*.yml' -E '<[A-Z][^<>]*>' \
   $HOME/Documents/workspaces/<name>/ \
   "$HOME/Documents/Obsidian/Personal/50 Knowledge Base/<Name> Agent.md" \
   "$HOME/Documents/Obsidian/Personal/23 Goals/Build <Name> Agent.md"
@@ -220,6 +242,37 @@ Next steps (operator decisions):
 
 </phases>
 
+<config_only_mode>
+
+## When `--config-only` is set
+
+Read `references/config-only.md` first. This mode emits an agent that runs the stock
+`agent-claude` image with its prompt mounted from a ConfigMap — no repo, no image, no CI.
+
+**Phase A — short interview.** This replaces Phase 1's 45-Q walk; Phase 2 (the shape pick)
+still runs afterwards and will return `claude` + `config-only`. Ask the five questions in
+`references/config-only.md`: purpose, tools, concurrency, phases, name. Confirm the captured
+intent before continuing. ⚠️ The purpose text goes into the emitted prompt **verbatim** — do
+not paraphrase it into a generic template, or the scaffold has produced nothing the operator
+asked for.
+
+**Phase B — emit the three artifacts**, in this order:
+1. the values entry, appended to the `agents:` list in `bborbe/nuke` `agent/values-dev.yaml`
+2. `agent/<NAME>-configmap.yaml` in the same repo, and its filename appended to
+   `SERVICE_MANIFESTS_dev` in `agent/Makefile` (never the prod list)
+3. the KB page `50 Knowledge Base/<Name> Agent.md`, from `references/vault-page-template.md`
+
+Work in a `bborbe/nuke` feature worktree created from `origin/master`. Never edit the
+`nuke-dev` deploy worktree — it is deploy-only.
+
+**Phase C — print the deploy checklist** from `references/config-only.md` and stop. Do not
+apply, do not merge, do not deploy.
+
+**Failure contract.** If the emitted prompt carries no verbatim text from the operator's
+purpose answer, the scaffold failed — say so and re-ask rather than shipping a template.
+
+</config_only_mode>
+
 <constraints>
 - NEVER kubectl apply the Config CRD — print it, let operator decide
 - NEVER deploy via `make buca` — print the command, let operator decide
@@ -227,6 +280,10 @@ Next steps (operator decisions):
 - ALWAYS use `notesmd-cli move` for any vault file renames (preserves backlinks)
 - ALWAYS run `make precommit` after the clone customization — if it fails, stop and report
 - If Phase 1 surfaces a question not in `references/interview.md`, document it inline; don't invent answers
+- In `--config-only` mode, NEVER call `gh repo create`, clone a template, build an image, or
+  release anything — the mode's entire value is that none of those happen
+- In `--config-only` mode, ALWAYS emit the ConfigMap object into the deploy repo; the chart
+  renders only the reference, so a values entry alone loses the prompt on a cluster rebuild
 </constraints>
 
 <output_format>
@@ -276,6 +333,7 @@ In all cases, report the failing precommit output verbatim in the halt message s
 - `references/shapes.md` — shape decision matrix
 - `references/interview.md` — 45-Q script
 - `references/{config-crd,vault-page,goal,scenario,next-directions}-template.{yaml,md}` — output templates
+- `references/config-only.md` — the `--config-only` mode: short interview, the three artifacts, the deploy checklist
 - [[Agent Design Guide]] — full 45-Q checklist (source of truth); esp. its § 7.2 auth conventions, sections **"GitHub App auth — one App per component, per stage"** (naming `Ben's <Role>` / `Ben's <Role> Dev`, per-stage least-privilege) + **"LLM auth — fleet norm is stateless token, NOT OAuth PVC"** (stateless `ANTHROPIC_AUTH_TOKEN` Secret) — the two conventions the scaffold defaults must honor (referenced by section title, not number, so a guide reorg is detectable)
 - [[Quick-Launch New Agents]] — parent goal
 - [[Claude Managed Agents - Ideas for bborbe Framework]] — architectural rationale + interview-first pattern
