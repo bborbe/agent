@@ -57,6 +57,13 @@ func (f TaskFrontmatter) Stage() string {
 	return v
 }
 
+// Cluster returns the target cluster from the "cluster" key (e.g. "nukedev", "nukeprod", "sun").
+// Returns "" when the key is absent or not a string, meaning any cluster may run the task.
+func (f TaskFrontmatter) Cluster() string {
+	v, _ := f["cluster"].(string)
+	return v
+}
+
 // RetryCount returns the number of failed attempts recorded in frontmatter.
 // Returns 0 when the field is absent.
 func (f TaskFrontmatter) RetryCount() int {
