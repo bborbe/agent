@@ -8,6 +8,9 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+- the `a2aWorkerController` Deployment now emits `INGRESS_DOMAIN` (from `ingressHost`) and `TLS_SECRET_NAME` (from `tlsSecretName`, empty allowed); the binary refuses to start on the k8s backend without both, so an enabled controller crashlooped with `backend "k8s" requires NAMESPACE, INGRESS_DOMAIN and TLS_SECRET_NAME`
+
 ## v0.106.0
 
 - feat: TaskFrontmatter.Cluster() accessor for optional cluster routing
