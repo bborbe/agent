@@ -118,7 +118,7 @@ in this mode:
 
 - **`## Code`** — replace the `Repo:` / `Template:` / `Deploy: … make buca` lines with the
   three artifact paths (values entry, `agent/<NAME>-configmap.yaml`, this page) and
-  `Deploy: cd ~/Documents/workspaces/nuke-dev/agent && BRANCH=dev make apply`.
+  `Deploy: cd <nuke-dev>/agent && BRANCH=dev make apply`.
 - **`## Tracked goal`** — delete the section. No goal page is created, so the link would
   dangle.
 
@@ -133,12 +133,15 @@ existing deploy repo, not a new project.
 
 ## Deploy checklist (print, never execute)
 
+`<nuke>` is the `bborbe/nuke` feature worktree the artifacts were written into; `<nuke-dev>`
+is that repo's `nuke-dev` deploy worktree; `<vault>` is the vault the KB page was written to.
+
 ```
 1. Review the values entry:   <nuke>/agent/values-dev.yaml
 2. Review the ConfigMap:      <nuke>/agent/<NAME>-configmap.yaml
 3. Review the KB page:        <vault>/50 Knowledge Base/<Name> Agent.md
-4. Merge the nuke PR, then:   cd ~/Documents/workspaces/nuke-dev && git fetch && git merge --ff-only origin/master
-5. Apply:                     cd ~/Documents/workspaces/nuke-dev/agent && BRANCH=dev make apply
+4. Merge the nuke PR, then:   cd <nuke-dev> && git fetch && git merge --ff-only origin/master
+5. Apply:                     cd <nuke-dev>/agent && BRANCH=dev make apply
 6. Verify:                    kubectlnukedev -n dev get configs.agent.benjamin-borbe.de <NAME>
                               kubectlnukedev -n dev get configmap <NAME>
 7. File one task assigned to <NAME> and confirm its `## Result` carries the prompt's canary line.

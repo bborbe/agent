@@ -23,6 +23,10 @@ Expert at classifying agent use cases into one of the four bborbe reference temp
 
 <the_four_shapes>
 
+Condensed on purpose, so a classification costs no file read: `references/shapes.md` is the
+canonical matrix (cost shape, "Don't pick when", template repo); this copy carries only what a
+pick needs. If the two disagree, `shapes.md` wins and this block is the bug.
+
 ### claude — AI-heavy reference
 Same Claude Code step reused across all 3 phases (planning, execution, ai_review). The LLM does the work each time; phase = label + tool scope + prompt. Pick when:
 - Task requires natural-language reasoning, judgment, or code generation
@@ -71,7 +75,7 @@ Quick test:
 </decision_heuristic>
 
 <process>
-1. Read the captured use case from the prompt. If it names no concrete work ("build a thing"), still classify, and add a `clarifying_question`.
+1. Read the captured use case from the prompt. If it names no concrete work ("build a thing"), still classify, and add a `clarifying_question`. If a fact the pick depends on is missing — does it ship code, is the input free-form — name that fact in `clarifying_question` rather than guessing silently or inventing an answer.
 2. Apply heuristic step 0 first — does the agent need Go code of its own? If not, the answer is `claude` + `config-only`; stop here.
 3. Otherwise apply steps 1–3 and pick exactly one of `claude` / `code` / `gemini` / `pi`, with `recommended_mode: template`.
 4. Verify the pick against that shape's "Pick when" bullets in `<the_four_shapes>`. If the bullets contradict the pick, re-pick rather than emitting a mismatched reason.
