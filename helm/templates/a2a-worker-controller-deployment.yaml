@@ -53,6 +53,17 @@ spec:
               value: {{ $a.backend | quote }}
             - name: NAMESPACE
               value: {{ include "agent.namespace" . | quote }}
+            # The k8s backend creates one Ingress per worker under this domain, and the
+            # binary refuses to start without both: "backend \"k8s\" requires NAMESPACE,
+            # INGRESS_DOMAIN and TLS_SECRET_NAME". Nuke's raw manifest carries the same
+            # pair, so an enabled Deployment without them crashloops on startup.
+            - name: INGRESS_DOMAIN
+              value: {{ required "a2aWorkerController.ingressHost is required on the k8s backend" $a.ingressHost | quote }}
+            # Emitted unconditionally, empty allowed: the binary checks the variable's
+            # PRESENCE. A cluster whose ingress class terminates TLS itself
+            # (nginx-externalssl on octopus) has no secret to name.
+            - name: TLS_SECRET_NAME
+              value: {{ $a.tlsSecretName | quote }}
             - name: WORKER_TEMPLATE
               value: {{ $a.workerTemplate | quote }}
             # Required by the binary even on this backend, which takes the image from the

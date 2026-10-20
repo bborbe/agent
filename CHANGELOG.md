@@ -8,6 +8,9 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+- the `a2aWorkerController` Deployment now emits `INGRESS_DOMAIN` (from `ingressHost`) and `TLS_SECRET_NAME` (from `tlsSecretName`, empty allowed); the binary refuses to start on the k8s backend without both, so an enabled controller crashlooped with `backend "k8s" requires NAMESPACE, INGRESS_DOMAIN and TLS_SECRET_NAME`
+
 ## v0.105.2
 
 - fix(launch-agent): the `--config-only` reference now says how to resolve `<AGENT_CLAUDE_TAG>` instead of only "pin a released tag". It had no rule for *which* tag, so the value was copied from the one existing precedent, `easy-agent-goreleaser` — pinned at `v0.2.4`, twenty minor versions behind the newest release — and every new config-only agent inherited that stale pin. The reference now resolves the newest released `bborbe/agent-claude` tag, requires a Job-mode compatibility check against `claude-headless` / `claude-interactive` in the same values file, and warns that a sibling's tag is not part of the template.
