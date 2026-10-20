@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat: `/launch-agent` gains a `--config-only` mode for agents that need no Go code of their own. It runs a five-question interview instead of the 45-Q one and emits three artifacts — a Config values entry for the stock `agent-claude` image (`taskTypes: [llm]`, `configMapName`/`configMapMountPath`/`configMapItems` projecting `CLAUDE.md` to `.claude/CLAUDE.md`, `AGENT_DIR`), the ConfigMap object itself wired into `bborbe/nuke`'s `make apply` via `SERVICE_MANIFESTS_dev`, and a KB agent page — with no repo, image or CI. `agent-shape-picker` gains a `recommended_mode` field so the lightweight case is recommended as a mode on the `claude` shape, never as a fifth shape (its own contract forbids inventing one).
+
 ## v0.104.1
 
 - fix: parse the claude CLI's stream-json failure tail into a one-line reason. `claudeRunner.Run` previously joined the bounded raw tail (`{"type":"assistant",…}` events, ` | `-separated) straight into `claude CLI failed: %s`, so a task's `## Failure` entry was a JSON dump whose actual cause — a rejected `tool_result`, an `api_retry` storm, a `result` marked `is_error` — was unreadable. The new exported `claude.FailureReason` recognizes those four shapes in precedence order and, when no line is a stream-json event at all, falls back to the raw tail so an unrecognized diagnostic still reaches the operator; the placeholder is returned only when every line IS an event and none names a cause (the `thinking_tokens` progress flood, which is the case that produced the raw-JSON complaint)

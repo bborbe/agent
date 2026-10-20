@@ -2,6 +2,11 @@
 
 Four reference templates exist on GitHub as `is_template: true`. Picking the right one shapes the agent's runtime cost, latency, and where AI lives in the work.
 
+> **Not a fifth shape — a delivery mode.** An agent that needs no Go code of its own ships as
+> `claude` + `--config-only`: the stock `agent-claude` image with its system prompt mounted
+> from a ConfigMap, so there is no repo, no image and no CI. See `config-only.md`. The matrix
+> below applies once the agent genuinely ships code.
+
 ## Quick decision
 
 | Question | Yes → Pick |
