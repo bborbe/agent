@@ -1,0 +1,131 @@
+{{- if .Values.a2aWorkerController.enabled }}
+{{- $a := .Values.a2aWorkerController }}
+{{- $name := printf "a2a-worker-controller-%s" $a.name | trunc 63 | trimSuffix "-" }}
+{{- $secretName := $a.existingSecret | default $name }}
+# The A2A worker controller on its k8s backend: each `create` writes one `type: service`
+# agent Config, cloned from the worker template, which the executor reconciles into a
+# per-task worker pod. The controller keeps no state — `list` is rebuilt from the Configs
+# it labelled — so a Deployment, not a StatefulSet, and no volume.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "agent.namespace" . }}
+  labels:
+    app: {{ $name }}
+    {{- include "agent.labels" . | nindent 4 }}
+  {{- if .Values.rolloutNonce }}
+  annotations:
+    agent.benjamin-borbe.de/rollout-nonce: {{ .Values.rolloutNonce | quote }}
+  {{- end }}
+spec:
+  replicas: {{ $a.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $name }}
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9090"
+        prometheus.io/scheme: http
+        prometheus.io/scrape: "true"
+      labels:
+        app: {{ $name }}
+    spec:
+      serviceAccountName: {{ $name }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: service
+          args:
+            - -v={{ $a.logLevel }}
+          env:
+            - name: LISTEN
+              value: ':9090'
+            - name: BACKEND
+              value: {{ $a.backend | quote }}
+            - name: NAMESPACE
+              value: {{ include "agent.namespace" . | quote }}
+            - name: WORKER_TEMPLATE
+              value: {{ $a.workerTemplate | quote }}
+            # Required by the binary even on this backend, which takes the image from the
+            # template Config instead; the value is never used to start a worker.
+            - name: WORKER_IMAGE
+              value: {{ required "a2aWorkerController.workerImage is required by the binary even on the k8s backend" $a.workerImage | quote }}
+            - name: A2A_PUBLIC_URL
+              value: {{ required "a2aWorkerController.publicUrl is required" $a.publicUrl | quote }}
+            - name: A2A_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: a2a-auth-token
+                  name: {{ $secretName }}
+            - name: SENTRY_DSN
+              valueFrom:
+                secretKeyRef:
+                  key: sentry-dsn
+                  name: {{ $secretName }}
+            {{- with $a.sentry.proxy }}
+            - name: SENTRY_PROXY
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with $a.workerPriorityClass }}
+            - name: WORKER_PRIORITY_CLASS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with $a.egressAllow }}
+            - name: EGRESS_ALLOW
+              value: {{ . | quote }}
+            {{- end }}
+            # The controller resolves a declared secret by shelling out to teamvault-cli, so
+            # it needs TeamVault credentials at RUNTIME. A pod has no credential store, so
+            # they come from the Secret, which the apply renders from TeamVault itself.
+            {{- with $a.teamvaultUrl }}
+            - name: TEAMVAULT_URL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: TEAMVAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  key: teamvault-user
+                  name: {{ $secretName }}
+            - name: TEAMVAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  key: teamvault-pass
+                  name: {{ $secretName }}
+          image: "{{ .Values.image.registry }}/{{ $a.image.repository }}:{{ $a.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: 9090
+              scheme: HTTP
+            initialDelaySeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readiness
+              port: 9090
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          ports:
+            - containerPort: 9090
+              name: http
+          {{- with $a.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

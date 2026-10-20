@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- Add `a2aWorkerController` to the chart: Deployment, Service, Secret, RBAC and an optional Ingress for `github.com/bborbe/a2a-worker-controller`. Disabled by default, so existing installs render unchanged.
+
 ## v0.103.1
 
 - fix: the A2A completion status update carries a message, so a registered push receiver has a messageId to record

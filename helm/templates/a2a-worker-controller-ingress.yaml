@@ -1,0 +1,34 @@
+{{- if and .Values.a2aWorkerController.enabled .Values.a2aWorkerController.ingressHost }}
+{{- $a := .Values.a2aWorkerController }}
+{{- $name := printf "a2a-worker-controller-%s" $a.name | trunc 63 | trimSuffix "-" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "agent.namespace" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: {{ $a.ingressClassName }}
+  rules:
+    - host: {{ $a.ingressHost | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $name }}
+                port:
+                  name: http
+  {{- with $a.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ $a.ingressHost | quote }}
+      secretName: {{ . | quote }}
+  {{- end }}
+{{- end }}

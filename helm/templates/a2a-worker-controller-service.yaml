@@ -1,0 +1,19 @@
+{{- if .Values.a2aWorkerController.enabled }}
+{{- $a := .Values.a2aWorkerController }}
+{{- $name := printf "a2a-worker-controller-%s" $a.name | trunc 63 | trimSuffix "-" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "agent.namespace" . }}
+  labels:
+    app: {{ $name }}
+    {{- include "agent.labels" . | nindent 4 }}
+spec:
+  ports:
+    - name: http
+      port: 9090
+  selector:
+    app: {{ $name }}
+{{- end }}
