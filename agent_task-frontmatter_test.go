@@ -76,6 +76,23 @@ var _ = Describe("TaskFrontmatter", func() {
 		})
 	})
 
+	Describe("Cluster", func() {
+		It("returns empty string when key absent", func() {
+			fm := lib.TaskFrontmatter{}
+			Expect(fm.Cluster()).To(Equal(""))
+		})
+
+		It("returns cluster value when set", func() {
+			fm := lib.TaskFrontmatter{"cluster": "nukedev"}
+			Expect(fm.Cluster()).To(Equal("nukedev"))
+		})
+
+		It("returns empty string for non-string value", func() {
+			fm := lib.TaskFrontmatter{"cluster": 42}
+			Expect(fm.Cluster()).To(Equal(""))
+		})
+	})
+
 	Describe("RetryCount", func() {
 		It("returns int value", func() {
 			fm := lib.TaskFrontmatter{"retry_count": 5}
