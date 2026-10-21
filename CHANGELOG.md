@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.111.0
 
 - feat(helm): render optional `RECONCILE_PASS_TIMEOUT` / `RECONCILE_INTERVAL` env on the singular executor and on each `executors[]` entry — `executor.reconcilePassTimeout` / `executor.reconcileInterval` and the per-entry keys (per-entry wins, else inherits `executor.*`); nothing renders when unset, so the executor keeps its 45s/60s defaults; chart 0.10.0→0.11.0. For clusters where a full reconcile pass outlasts 45s (sun over the openclaw git-rest ingress). Requires the agent-task-executor release carrying the two envs; older binaries ignore them.
 
