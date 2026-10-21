@@ -25,6 +25,9 @@ spec:
   {{- if $agent.zombieJobTimeoutSeconds }}
   zombieJobTimeoutSeconds: {{ $agent.zombieJobTimeoutSeconds }}
   {{- end }}
+  {{- if hasKey $agent "rerunOnLostClaim" }}
+  rerunOnLostClaim: {{ $agent.rerunOnLostClaim }}
+  {{- end }}
   {{- if $agent.volumeMountPath }}
   {{- if ne ($agent.type | default "job") "service" }}
   volumeClaim: {{ $agent.volumeClaim | default $agent.name }}
