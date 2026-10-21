@@ -212,6 +212,9 @@ agents:
     zombieJobTimeoutSeconds: 5400     # OPTIONAL: Job deadline (seconds) — must exceed the
                                       # agent's own internal wait, or its Job dies first.
                                       # Omit for the executor default (1800s).
+    rerunOnLostClaim: false           # OPTIONAL: `false` = never re-run a task after this
+                                      # agent's claim is lost. Rendered whenever set
+                                      # (including false); omit for the executor default.
     taskTypes: [llm, healthcheck]
     triggerPhases: [planning, execution, ai_review]
     triggerStatuses: [in_progress]
@@ -243,6 +246,10 @@ follow this exact shape; `agent-pi` uses `PROVIDER_API_KEY` instead of
 An agent that waits on sibling tasks must set this deadline above its own wait timeout,
 because the executor stamps it onto the Job's `activeDeadlineSeconds` and the Job is
 killed when it elapses.
+
+Interactive or session-holding runners (claude, pi, goreleaser) should set
+`rerunOnLostClaim: false`, so that a lost claim cannot start a second session; the field
+needs a Config CRD that declares `spec.rerunOnLostClaim`, because older CRDs prune it.
 
 `configMapName` / `configMapMountPath` / `configMapItems` render a **reference** onto the
 Config CR; the chart does not create the ConfigMap itself, so the object must already exist
