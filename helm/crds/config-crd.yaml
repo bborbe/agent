@@ -76,6 +76,8 @@ spec:
                 zombieSweeperIntervalSeconds: {type: integer, minimum: 10}
                 zombieJobTimeoutSeconds: {type: integer, minimum: 30}
                 maxConcurrentJobs: {type: integer, minimum: 0}
+                # Optional; unset means true. false parks a taken-over task at human_review.
+                rerunOnLostClaim: {type: boolean}
                 trigger:
                   type: object
                   properties:
