@@ -6,6 +6,7 @@ package lib_test
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/bborbe/vault-cli/pkg/domain"
@@ -52,6 +53,47 @@ var _ = Describe("Task", func() {
 				TaskIdentifier: lib.TaskIdentifier("task-uuid-123"),
 				Content:        lib.TaskContent("some content"),
 			}
+			Expect(task.Validate(ctx)).To(BeNil())
+		})
+	})
+
+	Describe("Vault", func() {
+		It("round-trips Vault through JSON", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("task-uuid-123"),
+				Content:        lib.TaskContent("some content"),
+				Vault:          "openclaw",
+			}
+			data, err := json.Marshal(task)
+			Expect(err).To(BeNil())
+
+			var decoded lib.Task
+			err = json.Unmarshal(data, &decoded)
+			Expect(err).To(BeNil())
+			Expect(decoded.Vault).To(Equal("openclaw"))
+			Expect(decoded.Validate(ctx)).To(BeNil())
+		})
+
+		It("omits vault key from JSON when Vault is empty", func() {
+			task := lib.Task{
+				TaskIdentifier: lib.TaskIdentifier("task-uuid-123"),
+				Content:        lib.TaskContent("some content"),
+			}
+			data, err := json.Marshal(task)
+			Expect(err).To(BeNil())
+
+			var raw map[string]interface{}
+			err = json.Unmarshal(data, &raw)
+			Expect(err).To(BeNil())
+			Expect(raw).NotTo(HaveKey("vault"))
+		})
+
+		It("unmarshals JSON without vault key to empty Vault and validates", func() {
+			payload := []byte(`{"taskIdentifier":"task-uuid-123","content":"some content"}`)
+			var task lib.Task
+			err := json.Unmarshal(payload, &task)
+			Expect(err).To(BeNil())
+			Expect(task.Vault).To(Equal(""))
 			Expect(task.Validate(ctx)).To(BeNil())
 		})
 	})
