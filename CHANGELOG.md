@@ -16,6 +16,8 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 - feat(helm): optional `executor.taskVault` / `executors[].taskVault` renders a `TASK_VAULT` env on the executor (the vault whose task events it owns, matched against the controller-stamped `Task.Vault`, executor >= v0.24.0); omitted when unset, so existing installs render unchanged; chart 0.13.0→0.14.0
 
+- chore: update Go to 1.27.3 and github.com/a2aproject/a2a-go/v2 to v2.7.0, github.com/bborbe/collection to v1.21.3, github.com/bborbe/cqrs to v0.6.13, github.com/bborbe/errors to v1.6.3, github.com/bborbe/http to v1.26.30, github.com/bborbe/kafka to v1.28.5, github.com/bborbe/log to v1.7.5, github.com/bborbe/metrics to v0.6.8, github.com/bborbe/time to v1.27.18, github.com/bborbe/validation to v1.5.5, github.com/bborbe/vault-cli to v0.177.0, github.com/onsi/ginkgo/v2 to v2.33.1, github.com/onsi/gomega to v1.44.0, github.com/prometheus/client_golang to v1.25.0
+
 ## v0.114.0
 
 - feat(helm): `clusterAssigner` can render its own sun Secret `cluster-assigner-sun` (keys `sun-token` / `sun-ca-data`) from new values `clusterAssigner.sun.token` / `sun.caData`, supplied at apply time via `--set-json` from TeamVault; rendered only when `sunRouting` is on and `sun.secretName` is empty, and `SUN_TOKEN` / `SUN_CA_DATA` then reference it; installs setting `sun.secretName` render unchanged; sun routing with neither fails the render naming the missing value; chart 0.12.0→0.13.0.
