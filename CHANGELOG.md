@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.115.0
 
 - feat(helm): optional `executor.taskVault` / `executors[].taskVault` renders a `TASK_VAULT` env on the executor (the vault whose task events it owns, matched against the controller-stamped `Task.Vault`, executor >= v0.24.0); omitted when unset, so existing installs render unchanged; chart 0.13.0→0.14.0
 
