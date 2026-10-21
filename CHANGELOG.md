@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(helm): add optional `clusterAssigner` CronJob (`bborbe/agent-cluster-assigner` v0.1.0, every 5 min, `concurrencyPolicy: Forbid`) that routes every unstarted agent task in the OpenClaw vault by setting `cluster:` frontmatter via the controller's UpdateFrontmatterCommand on Kafka; reuses the controller's `gateway-secret` Secret, renders `SUN_TOKEN`/`SUN_CA_DATA` only when `sunRouting` is on (`sun.secretName` then required), optional Strimzi `KafkaUser` + mTLS mounts via `clusterAssigner.kafkaUser.enabled`; off by default (nothing renders), only nuke prod enables it; chart 0.10.0→0.11.0.
+
 ## v0.110.0
 
 - feat(helm): render optional `RUN_UNTAGGED` env on the singular executor and on each `executors[]` entry — `executor.runUntagged` / `executors[].runUntagged` (per-entry wins, else inherits `executor.runUntagged`); rendered whenever the key is set so `false` renders, nothing when unset; `false` makes the executor skip every task without a `cluster:` field, for clusters whose controller publishes no untagged tasks (sun; nuke dev/prod leave it unset); chart 0.9.0→0.10.0. Requires agent-task-executor >= v0.22.0; older binaries ignore the env.

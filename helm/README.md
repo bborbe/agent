@@ -4,7 +4,8 @@ Event-driven, Kafka-based, Kubernetes-native task platform: a **controller** tha
 Obsidian/git task files into Kafka events, an **executor** that materialises agent
 `Config` custom resources into Kubernetes Jobs, and any number of **leaf agents**
 (claude / code / gemini / pi …) declared purely as values. Optionally a
-**recurring-task-creator** that emits scheduled tasks.
+**recurring-task-creator** that emits scheduled tasks, and an optional
+**cluster-assigner** CronJob that routes unstarted tasks to a cluster.
 
 This chart is layer 2 of a three-layer design:
 
@@ -260,6 +261,28 @@ in the namespace. This is what lets an agent be parameterised by mounted markdow
 | `recurringTaskCreator.kafkaUser.enabled` | `false` | Emit a Strimzi `KafkaUser` + mount mTLS client certs (mTLS clusters only). |
 | `recurringTaskCreator.kafkaUser.cluster` / `strimziNamespace` | `my-cluster` / `strimzi` | Strimzi cluster + namespace. |
 | `recurringTaskCreator.kafkaUser.userName` / `clientSecret` / `caCertSecret` | `""` / `""` / `my-cluster-cluster-ca-cert` | As `executor.kafkaUser`. Derived user name = `<namespace>-recurring-task-creator`. |
+
+### clusterAssigner (optional)
+
+A CronJob (`bborbe/agent-cluster-assigner`) that routes every not-yet-started agent task in
+the OpenClaw vault by setting `cluster:` frontmatter — it publishes the task controller's
+`UpdateFrontmatterCommand` to Kafka. Off by default; only nuke prod enables it.
+
+| Key | Default | Description |
+|---|---|---|
+| `clusterAssigner.enabled` | `false` | Deploy the cluster-assigner CronJob (nothing renders when false). |
+| `clusterAssigner.image.repository` / `image.tag` | `bborbe/agent-cluster-assigner` / `v0.1.0` | Image; versioned independently of the chart (no `appVersion` fallback). |
+| `clusterAssigner.schedule` / `successfulJobsHistoryLimit` / `failedJobsHistoryLimit` | `*/5 * * * *` / `1` / `3` | CronJob schedule and history. Overlapping runs are forbidden. |
+| `clusterAssigner.kafkaBrokers` | `""` | Kafka bootstrap brokers. Required when enabled. |
+| `clusterAssigner.topicPrefix` | `""` | Prefix for `<topicPrefix>-agent-task-v1-request` (nuke prod: `master`). |
+| `clusterAssigner.gitRestURL` | `""` | git-rest base URL of the vault. Required when enabled. |
+| `clusterAssigner.existingSecret` | `""` | Secret with key `gateway-secret` (+ optional `sentry-dsn`). Empty = `agent-task-controller-<vault>`. |
+| `clusterAssigner.vault` / `taskGlob` | `openclaw` / `tasks/*.md` | Vault name + task file glob. |
+| `clusterAssigner.defaultClusterProd` / `defaultClusterDev` | `nukeprod` / `nukedev` | Cluster assigned to unstarted tasks per environment. |
+| `clusterAssigner.sunRouting` / `dryRun` | `false` / `false` | Route via the sun API / log instead of publishing. |
+| `clusterAssigner.sun.apiURL` / `sun.namespace` / `sun.secretName` | `""` / `a2a` / `""` | Sun API base URL, namespace, and Secret with keys `sun-token` / `sun-ca-data` (required when `sunRouting`). |
+| `clusterAssigner.kafkaUser.*` | as `recurringTaskCreator.kafkaUser` | Strimzi `KafkaUser` + mTLS cert mounts; derived user name = `<namespace>-cluster-assigner`. |
+| `clusterAssigner.resources` / `securityContext` | see `values.yaml` | Resource requests/limits and container hardening. |
 
 ---
 
