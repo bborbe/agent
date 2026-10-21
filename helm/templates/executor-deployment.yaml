@@ -71,6 +71,13 @@ spec:
               value: {{ .Values.executor.branch | quote }}
             - name: VAULT_NAME
               value: {{ .Values.executor.vaultName | quote }}
+            {{- with .Values.executor.taskVault }}
+            # Vault whose task events this executor owns (matched against
+            # Task.Vault, executor >= v0.24.0). Unset defaults to VAULT_NAME
+            # in the binary; set it where VAULT_NAME is not a vault (shared).
+            - name: TASK_VAULT
+              value: {{ . | quote }}
+            {{- end }}
             - name: TOPIC_PREFIX
               value: {{ .Values.executor.topicPrefix | quote }}
             - name: KAFKA_BROKERS
@@ -241,6 +248,10 @@ spec:
               value: {{ $e.branch | default $.Values.executor.branch | quote }}
             - name: VAULT_NAME
               value: {{ required "executors[].vaultName is required" $e.vaultName | quote }}
+            {{- with ($e.taskVault | default $.Values.executor.taskVault) }}
+            - name: TASK_VAULT
+              value: {{ . | quote }}
+            {{- end }}
             - name: TOPIC_PREFIX
               value: {{ $e.topicPrefix | default $.Values.executor.topicPrefix | quote }}
             - name: KAFKA_BROKERS

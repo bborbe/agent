@@ -78,6 +78,12 @@ executor:
   # legacy v0.6.x line ignores it. Empty default keeps v0.6.x installs rendering
   # unchanged; v0.7+ installs must set it (nuke enforces via check-executor-compat).
   vaultName: ""
+  # Vault whose task events this executor owns, matched against the
+  # controller-stamped Task.Vault (executor >= v0.24.0). Emitted as TASK_VAULT
+  # only when set; unset lets the binary default it to VAULT_NAME. Set it where
+  # VAULT_NAME is not a vault slug (the personal executor runs VAULT_NAME=shared).
+  # Per-entry executors[].taskVault overrides this.
+  taskVault: ""
   sentry:
     # Sentry proxy cluster URL. Optional.
     proxy: ""
