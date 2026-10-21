@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.113.0
 
 - feat: `Task.Vault` carries the vault slug on task events, so a consumer sharing one topic across vaults can filter its own tasks without reading git
 
