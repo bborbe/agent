@@ -111,6 +111,7 @@ agents: []
 | `executor.branch` | `""` | Stage label forwarded as `BRANCH`. |
 | `executor.taskGlob` | `""` | git-rest single-level glob selecting the vault task files the reconcile loop evaluates. Consumer-supplied — the chart asserts no vault folder layout; empty = no glob configured. |
 | `executor.consumerGroup` | `""` | Rendered as `CONSUMER_GROUP` on the executor. Gives each Kafka consumer its own consumer group (e.g. `agent-task-executor-sun`) so executors on different clusters do not share offsets. Empty = nothing rendered. |
+| `executor.stageFilter` | unset | Rendered as `STAGE_FILTER` (quoted `"true"`/`"false"`) on the executor **only when the key is set** — `false` is honoured, absent renders nothing (the executor's own default `true` applies). `false` makes the executor ignore the task `stage:` field; set it only on a cluster whose controller already scopes tasks by cluster (e.g. sun); nuke dev/prod leave it unset. Requires agent-task-executor ≥ v0.21.0. |
 | `executor.sentry.proxy` | `""` | Sentry proxy URL (optional). |
 | `executor.sentry.dsn` | `""` | Sentry DSN; when set the chart creates the Secret. |
 | `executor.existingSecret` | `""` | Name of a pre-existing Secret with key `sentry-dsn`; when set the chart creates no Secret. |
@@ -142,6 +143,7 @@ default) the single legacy `agent-task-executor` Deployment renders unchanged.
 | `executors[].image.repository` / `image.tag` | `executor.image` | Image repo/tag; empty tag → chart `appVersion`. |
 | `executors[].logLevel` | `executor.logLevel` | Log verbosity. |
 | `executors[].consumerGroup` | `executor.consumerGroup` | Rendered as `CONSUMER_GROUP` on that executor; per-entry value wins, empty = nothing rendered. |
+| `executors[].stageFilter` | `executor.stageFilter` | Rendered as `STAGE_FILTER` on that executor; a per-entry value (including `false`) wins, otherwise `executor.stageFilter` is inherited, neither set = nothing rendered. |
 | `executors[].sentry.proxy` | `executor.sentry.proxy` | Sentry proxy URL. |
 | `executors[].existingSecret` | `executor.existingSecret`, then shared `agent-task-executor` | Pre-existing Secret with key `sentry-dsn`. |
 | `executors[].podSecurityContext` / `securityContext` / `resources` | `executor.*` | Pod/container security contexts + resources. |

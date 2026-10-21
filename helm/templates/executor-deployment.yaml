@@ -112,6 +112,10 @@ spec:
             - name: CONSUMER_GROUP
               value: {{ . | quote }}
             {{- end }}
+            {{- if and (hasKey .Values.executor "stageFilter") (kindIs "bool" .Values.executor.stageFilter) }}
+            - name: STAGE_FILTER
+              value: {{ .Values.executor.stageFilter | quote }}
+            {{- end }}
           ports:
             - containerPort: 9090
               name: http
@@ -264,6 +268,14 @@ spec:
             {{- with ($e.consumerGroup | default $.Values.executor.consumerGroup) }}
             - name: CONSUMER_GROUP
               value: {{ . | quote }}
+            {{- end }}
+            {{- $stageFilter := $.Values.executor.stageFilter }}
+            {{- if hasKey $e "stageFilter" }}
+            {{- $stageFilter = $e.stageFilter }}
+            {{- end }}
+            {{- if kindIs "bool" $stageFilter }}
+            - name: STAGE_FILTER
+              value: {{ $stageFilter | quote }}
             {{- end }}
           ports:
             - containerPort: 9090

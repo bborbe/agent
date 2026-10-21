@@ -109,6 +109,13 @@ executor:
   # agent-task-executor-sun) so executors on different clusters do not share
   # offsets. Empty = nothing rendered.
   consumerGroup: ""
+  # stageFilter: rendered as the `STAGE_FILTER` env (quoted "true"/"false") on the
+  # executor only when the key is set — `false` is honoured, unset renders
+  # nothing (the executor's own default `true` applies). `false` makes the
+  # executor ignore the task `stage:` field; set it only on a cluster whose
+  # controller already scopes tasks by cluster (e.g. sun). nuke dev/prod leave
+  # it unset. Requires agent-task-executor >= v0.21.0.
+  # stageFilter: false
   # Pod-level securityContext. Empty by default — runAsNonRoot/runAsUser/fsGroup
   # depend on what the image supports, so clusters opt in (e.g. runAsNonRoot: true,
   # runAsUser: 65534, fsGroup: 65534).
@@ -183,6 +190,7 @@ executors: []
   #     tag: ""                     # empty => Chart.appVersion (default executor.image)
   #   logLevel: "2"                 # default executor.logLevel
   #   consumerGroup: ""             # default executor.consumerGroup
+  #   stageFilter: false            # default executor.stageFilter; renders only when set
   #   sentry:
   #     # Sentry proxy cluster URL. Default executor.sentry.proxy. NOTE: sentry.dsn
   #     # is NOT a per-entry field — the chart never creates per-vault Secrets;
@@ -215,6 +223,7 @@ executors: []
   #     tag: ""
   #   logLevel: "2"
   #   consumerGroup: ""             # default executor.consumerGroup
+  #   stageFilter: false            # default executor.stageFilter; renders only when set
   #   sentry:
   #     proxy: ""
   #   existingSecret: ""

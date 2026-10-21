@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(helm): render optional `STAGE_FILTER` env on the singular executor and on each `executors[]` entry — `executor.stageFilter` / `executors[].stageFilter` (per-entry wins, else inherits `executor.stageFilter`); rendered whenever the key is set so `false` renders, nothing when unset; `false` makes the executor ignore the task `stage:` field, for clusters whose controller already scopes tasks by cluster (sun; nuke dev/prod leave it unset); chart 0.8.0→0.9.0. Requires agent-task-executor >= v0.21.0; older binaries ignore the env.
+
 ## v0.108.0
 
 - feat(helm): render optional cluster-routing env — `cluster` → `CLUSTER` on the singular executor, every `executors[]` entry and every controller; `publishUntagged` → `PUBLISH_UNTAGGED` on every controller (rendered whenever the key is set, so `false` renders); `executor.consumerGroup` / `executors[].consumerGroup` → `CONSUMER_GROUP` on that executor; chart 0.7.0→0.8.0. All three are absent by default, so an install that sets none of them renders the same manifests as before (only the `helm.sh/chart` label changes). Consumed by agent-task-controller >= v0.14.0 and agent-task-executor >= v0.19.0; older binaries ignore the env.
