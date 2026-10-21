@@ -84,7 +84,7 @@ spec:
                 - name: SUN_NAMESPACE
                   value: {{ $ca.sun.namespace | quote }}
                 {{- if $ca.sunRouting }}
-                {{- $sunSecret := required "clusterAssigner.sun.secretName is required when clusterAssigner.sunRouting is true" $ca.sun.secretName }}
+                {{- $sunSecret := $ca.sun.secretName | default "cluster-assigner-sun" }}
                 - name: SUN_TOKEN
                   valueFrom:
                     secretKeyRef:

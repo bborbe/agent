@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(helm): `clusterAssigner` can render its own sun Secret `cluster-assigner-sun` (keys `sun-token` / `sun-ca-data`) from new values `clusterAssigner.sun.token` / `sun.caData`, supplied at apply time via `--set-json` from TeamVault; rendered only when `sunRouting` is on and `sun.secretName` is empty, and `SUN_TOKEN` / `SUN_CA_DATA` then reference it; installs setting `sun.secretName` render unchanged; sun routing with neither fails the render naming the missing value; chart 0.12.0→0.13.0.
+
 ## v0.113.0
 
 - feat: `Task.Vault` carries the vault slug on task events, so a consumer sharing one topic across vaults can filter its own tasks without reading git
