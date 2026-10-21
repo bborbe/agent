@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- chore: update Go to 1.27.2 and github.com/a2aproject/a2a-go/v2 to v2.7.0, github.com/bborbe/collection to v1.21.2, github.com/bborbe/cqrs to v0.6.12, github.com/bborbe/errors to v1.6.3, github.com/bborbe/http to v1.26.30, github.com/bborbe/kafka to v1.28.4, github.com/bborbe/log to v1.7.4, github.com/bborbe/metrics to v0.6.7, github.com/bborbe/time to v1.27.17, github.com/bborbe/validation to v1.5.5, github.com/bborbe/vault-cli to v0.177.0, github.com/onsi/ginkgo/v2 to v2.33.1, github.com/onsi/gomega to v1.44.0, github.com/prometheus/client_golang to v1.25.0
+
 ## v0.112.0
 
 - feat(helm): add optional `clusterAssigner` CronJob (`bborbe/agent-cluster-assigner` v0.1.0, every 5 min, `concurrencyPolicy: Forbid`) that routes every unstarted agent task in the OpenClaw vault by setting `cluster:` frontmatter via the controller's UpdateFrontmatterCommand on Kafka; reuses the controller's `gateway-secret` Secret, renders `SUN_TOKEN`/`SUN_CA_DATA` only when `sunRouting` is on (`sun.secretName` then required), optional Strimzi `KafkaUser` + mTLS mounts via `clusterAssigner.kafkaUser.enabled`; off by default (nothing renders), only nuke prod enables it; chart 0.11.0→0.12.0.

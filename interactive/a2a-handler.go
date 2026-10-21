@@ -55,8 +55,28 @@ func (s *service) a2aHandler() http.Handler {
 	)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, maxPromptBytes)
+		declareServedA2AVersion(r)
 		inner.ServeHTTP(w, r)
 	})
+}
+
+// declareServedA2AVersion states the protocol version this service serves on a request that
+// carries none.
+//
+// The SDK refuses a request whose declared protocol version differs from the version it
+// serves, and it reads an absent declaration as the legacy 0.3 — a version this service does
+// not implement, since it serves the A2A 1.0 method set. Declaring the served version on the
+// caller's behalf keeps a client that omits the header working, exactly as it did before the
+// SDK began checking versions. A request that declares a version explicitly is left alone, so
+// a client declaring an unsupported version is still refused by the SDK.
+func declareServedA2AVersion(r *http.Request) {
+	if r.Header.Get(a2a.SvcParamVersion) != "" {
+		return
+	}
+	if r.URL.Query().Get(a2a.SvcParamVersion) != "" {
+		return
+	}
+	r.Header.Set(a2a.SvcParamVersion, string(a2a.Version))
 }
 
 // handlerOptions returns the SDK request-handler options this service builds its A2A handler
