@@ -49,6 +49,10 @@ func postA2A(serverURL, authorization, body string) (int, string, error) {
 		return 0, "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// The SDK serves protocol version 1.0 and rejects a request that names no version
+	// (an absent A2A-Version is read as the legacy 0.3), so the wire client states the
+	// version it speaks, exactly as a real A2A client does.
+	req.Header.Set(a2a.SvcParamVersion, string(a2a.Version))
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
 	}
