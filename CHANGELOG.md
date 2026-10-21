@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.116.0
 
 - feat(helm): render `rerunOnLostClaim` on the agent Config whenever `agents[].rerunOnLostClaim` is set, `false` included (presence test via `hasKey`, not truthiness), as a bare bool; nothing renders when unset, so no existing agent's Config changes; new `hack/test-helm-render.sh`, run by `make test`, asserts the false/true/unset renders; chart 0.14.0→0.14.1. Takes effect only with a Config CRD that declares `spec.rerunOnLostClaim` (older CRDs prune the field) and an agent-task-executor that reads it; older executors ignore the field.
 
