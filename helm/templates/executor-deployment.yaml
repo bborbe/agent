@@ -116,6 +116,10 @@ spec:
             - name: STAGE_FILTER
               value: {{ .Values.executor.stageFilter | quote }}
             {{- end }}
+            {{- if and (hasKey .Values.executor "runUntagged") (kindIs "bool" .Values.executor.runUntagged) }}
+            - name: RUN_UNTAGGED
+              value: {{ .Values.executor.runUntagged | quote }}
+            {{- end }}
           ports:
             - containerPort: 9090
               name: http
@@ -276,6 +280,14 @@ spec:
             {{- if kindIs "bool" $stageFilter }}
             - name: STAGE_FILTER
               value: {{ $stageFilter | quote }}
+            {{- end }}
+            {{- $runUntagged := $.Values.executor.runUntagged }}
+            {{- if hasKey $e "runUntagged" }}
+            {{- $runUntagged = $e.runUntagged }}
+            {{- end }}
+            {{- if kindIs "bool" $runUntagged }}
+            - name: RUN_UNTAGGED
+              value: {{ $runUntagged | quote }}
             {{- end }}
           ports:
             - containerPort: 9090

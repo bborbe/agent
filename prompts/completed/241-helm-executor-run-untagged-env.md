@@ -1,7 +1,12 @@
 ---
-status: approved
+status: completed
+summary: Added optional RUN_UNTAGGED rendering (executor.runUntagged / executors[].runUntagged) to the Helm executor templates, values, README, chart version 0.10.0 and CHANGELOG; all helm render checks and make precommit passed.
+execution_id: agent-helm-rununtagged-exec-241-helm-executor-run-untagged-env
+dark-factory-version: v0.198.7
 created: "2026-10-21T09:45:00Z"
 queued: "2026-10-21T07:26:03Z"
+started: "2026-10-21T07:37:44Z"
+completed: "2026-10-21T07:46:47Z"
 ---
 # feat(helm): render RUN_UNTAGGED env on the executor
 

@@ -116,6 +116,13 @@ executor:
   # controller already scopes tasks by cluster (e.g. sun). nuke dev/prod leave
   # it unset. Requires agent-task-executor >= v0.21.0.
   # stageFilter: false
+  # runUntagged: rendered as the `RUN_UNTAGGED` env (quoted "true"/"false") on the
+  # executor only when the key is set — `false` is honoured, unset renders
+  # nothing (the executor's own default `true` applies). `false` makes the
+  # executor skip every task without a `cluster:` field; set it only on a
+  # cluster whose controller publishes no untagged tasks (e.g. sun). nuke
+  # dev/prod leave it unset. Requires agent-task-executor >= v0.22.0.
+  # runUntagged: false
   # Pod-level securityContext. Empty by default — runAsNonRoot/runAsUser/fsGroup
   # depend on what the image supports, so clusters opt in (e.g. runAsNonRoot: true,
   # runAsUser: 65534, fsGroup: 65534).
@@ -191,6 +198,7 @@ executors: []
   #   logLevel: "2"                 # default executor.logLevel
   #   consumerGroup: ""             # default executor.consumerGroup
   #   stageFilter: false            # default executor.stageFilter; renders only when set
+  #   runUntagged: false            # default executor.runUntagged; renders only when set
   #   sentry:
   #     # Sentry proxy cluster URL. Default executor.sentry.proxy. NOTE: sentry.dsn
   #     # is NOT a per-entry field — the chart never creates per-vault Secrets;
@@ -224,6 +232,7 @@ executors: []
   #   logLevel: "2"
   #   consumerGroup: ""             # default executor.consumerGroup
   #   stageFilter: false            # default executor.stageFilter; renders only when set
+  #   runUntagged: false            # default executor.runUntagged; renders only when set
   #   sentry:
   #     proxy: ""
   #   existingSecret: ""

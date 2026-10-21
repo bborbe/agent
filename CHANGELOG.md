@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(helm): render optional `RUN_UNTAGGED` env on the singular executor and on each `executors[]` entry — `executor.runUntagged` / `executors[].runUntagged` (per-entry wins, else inherits `executor.runUntagged`); rendered whenever the key is set so `false` renders, nothing when unset; `false` makes the executor skip every task without a `cluster:` field, for clusters whose controller publishes no untagged tasks (sun; nuke dev/prod leave it unset); chart 0.9.0→0.10.0. Requires agent-task-executor >= v0.22.0; older binaries ignore the env.
+
 ## v0.109.0
 
 - feat(helm): render optional `STAGE_FILTER` env on the singular executor and on each `executors[]` entry — `executor.stageFilter` / `executors[].stageFilter` (per-entry wins, else inherits `executor.stageFilter`); rendered whenever the key is set so `false` renders, nothing when unset; `false` makes the executor ignore the task `stage:` field, for clusters whose controller already scopes tasks by cluster (sun; nuke dev/prod leave it unset); chart 0.8.0→0.9.0. Requires agent-task-executor >= v0.21.0; older binaries ignore the env.
