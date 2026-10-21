@@ -123,6 +123,14 @@ executor:
   # cluster whose controller publishes no untagged tasks (e.g. sun). nuke
   # dev/prod leave it unset. Requires agent-task-executor >= v0.22.0.
   # runUntagged: false
+  # reconcilePassTimeout / reconcileInterval: rendered as the
+  # `RECONCILE_PASS_TIMEOUT` / `RECONCILE_INTERVAL` env (Go durations, e.g.
+  # "150s") only when set; unset leaves the executor defaults (45s / 60s). Raise
+  # them where a full reconcile pass over the vault outlasts 45s (sun reads the
+  # openclaw vault over the git-rest ingress). Requires agent-task-executor
+  # >= the release carrying bborbe/agent-task-executor#90.
+  # reconcilePassTimeout: "150s"
+  # reconcileInterval: "180s"
   # Pod-level securityContext. Empty by default — runAsNonRoot/runAsUser/fsGroup
   # depend on what the image supports, so clusters opt in (e.g. runAsNonRoot: true,
   # runAsUser: 65534, fsGroup: 65534).
@@ -199,6 +207,8 @@ executors: []
   #   consumerGroup: ""             # default executor.consumerGroup
   #   stageFilter: false            # default executor.stageFilter; renders only when set
   #   runUntagged: false            # default executor.runUntagged; renders only when set
+  #   reconcilePassTimeout: ""      # default executor.reconcilePassTimeout; renders only when set
+  #   reconcileInterval: ""         # default executor.reconcileInterval; renders only when set
   #   sentry:
   #     # Sentry proxy cluster URL. Default executor.sentry.proxy. NOTE: sentry.dsn
   #     # is NOT a per-entry field — the chart never creates per-vault Secrets;
@@ -233,6 +243,8 @@ executors: []
   #   consumerGroup: ""             # default executor.consumerGroup
   #   stageFilter: false            # default executor.stageFilter; renders only when set
   #   runUntagged: false            # default executor.runUntagged; renders only when set
+  #   reconcilePassTimeout: ""      # default executor.reconcilePassTimeout; renders only when set
+  #   reconcileInterval: ""         # default executor.reconcileInterval; renders only when set
   #   sentry:
   #     proxy: ""
   #   existingSecret: ""
