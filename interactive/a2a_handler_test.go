@@ -43,12 +43,17 @@ type a2aEnvelope struct {
 // postA2A sends one JSON-RPC body to /a2a and returns the status and the response body.
 // An empty authorization sends no Authorization header at all, which is the "absent
 // header" case the gate refuses.
+//
+// The A2A-Version header names the protocol version the caller speaks. The SDK serves
+// 1.0 and rejects a request that omits the header (it reads an absent value as the older
+// 0.3), so a caller that means the served version must say so explicitly.
 func postA2A(serverURL, authorization, body string) (int, string, error) {
 	req, err := http.NewRequest(http.MethodPost, serverURL+"/a2a", strings.NewReader(body))
 	if err != nil {
 		return 0, "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(a2a.SvcParamVersion, string(a2a.Version))
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
 	}
