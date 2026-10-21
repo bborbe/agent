@@ -10,7 +10,8 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
-- feat(helm): the Config CRD in `helm/crds/config-crd.yaml` now declares `spec.rerunOnLostClaim` as `{type: boolean}` with no schema default, matching the executor binary's `configSpecProperties()` — unset means true, so existing Configs are unaffected; keeps a fresh install's CRD identical to the one the executor installs; chart 0.14.0→0.15.0.
+- feat(helm): render `rerunOnLostClaim` on the agent Config whenever `agents[].rerunOnLostClaim` is set, `false` included (presence test via `hasKey`, not truthiness), as a bare bool; nothing renders when unset, so no existing agent's Config changes; new `hack/test-helm-render.sh`, run by `make test`, asserts the false/true/unset renders; chart 0.14.0→0.14.1. Takes effect only with a Config CRD that declares `spec.rerunOnLostClaim` (older CRDs prune the field) and an agent-task-executor that reads it; older executors ignore the field.
+- feat(helm): the Config CRD in `helm/crds/config-crd.yaml` now declares `spec.rerunOnLostClaim` as `{type: boolean}` with no schema default, matching the executor binary's `configSpecProperties()` — unset means true, so existing Configs are unaffected; keeps a fresh install's CRD identical to the one the executor installs; chart 0.14.1→0.15.0.
 
 ## v0.115.0
 

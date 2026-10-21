@@ -25,8 +25,12 @@ generate:
 	go generate -mod=mod ./...
 
 .PHONY: test
-test:
+test: test-helm
 	go test -mod=mod -p=$${GO_TEST_PARALLEL:-1} -cover -race $(shell go list -mod=mod ./... | grep -v /vendor/)
+
+.PHONY: test-helm
+test-helm:
+	bash hack/test-helm-render.sh
 
 # errcheck removed — embedded in golangci-lint (see .golangci.yml).
 # gosec removed — embedded in golangci-lint (see .golangci.yml).
