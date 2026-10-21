@@ -49,6 +49,10 @@ func postA2A(serverURL, authorization, body string) (int, string, error) {
 		return 0, "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// The SDK negotiates the protocol version from the A2A-Version header and treats an
+	// absent header as the legacy 0.3, refusing a 1.0 server. Send the version the
+	// service serves so every spec speaks the same contract the Agent Card advertises.
+	req.Header.Set("A2A-Version", string(a2a.Version))
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
 	}
