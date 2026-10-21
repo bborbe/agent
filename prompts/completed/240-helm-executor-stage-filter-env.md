@@ -1,12 +1,11 @@
 ---
-status: failed
+status: completed
 execution_id: agent-helm-stagefilter-exec-240-helm-executor-stage-filter-env
 dark-factory-version: v0.198.7
 created: "2026-10-21T08:30:00Z"
 queued: "2026-10-21T06:14:05Z"
 started: "2026-10-21T06:14:10Z"
-completed: "2026-10-21T06:18:02Z"
-lastFailReason: 'validate completion report: completion report status: partial'
+completed: "2026-10-21T07:37:42Z"
 ---
 
 # feat(helm): render STAGE_FILTER env on the executor
