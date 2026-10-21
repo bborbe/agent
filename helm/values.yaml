@@ -519,7 +519,8 @@ recurringTaskCreator:
 # UpdateFrontmatterCommand to Kafka. Off by default; only nuke prod enables it.
 # With `enabled: false` nothing renders. Reuses the vault controller's Secret
 # for the gateway secret (and optional Sentry DSN); the chart creates no Secret
-# for this component.
+# for those. The only Secret it may create for this component is the optional
+# sun Secret.
 clusterAssigner:
   enabled: false
   image:
@@ -542,7 +543,9 @@ clusterAssigner:
   # Secret providing key gateway-secret (→ GATEWAY_SECRET) and optionally
   # sentry-dsn (→ SENTRY_DSN). Empty = the vault's controller Secret
   # agent-task-controller-<vault>, which assumes the controller instance is
-  # named after the vault. The chart never creates a Secret for this component.
+  # named after the vault. The chart never creates a Secret for the gateway
+  # secret or Sentry DSN; its only optional Secret for this component is the
+  # sun Secret.
   existingSecret: ""
   # Vault name + task file glob to scan.
   vault: openclaw
@@ -550,7 +553,8 @@ clusterAssigner:
   # Cluster assigned to unstarted tasks per environment.
   defaultClusterProd: nukeprod
   defaultClusterDev: nukedev
-  # Route tasks that need the sun cluster via the sun API. Requires sun.secretName.
+  # Route tasks that need the sun cluster via the sun API. Requires
+  # sun.secretName, or sun.token + sun.caData.
   sunRouting: false
   # Log the commands instead of publishing them.
   dryRun: false
@@ -559,9 +563,21 @@ clusterAssigner:
     apiURL: ""
     # Namespace used by the sun API (SUN_NAMESPACE).
     namespace: a2a
-    # Secret holding keys sun-token (→ SUN_TOKEN) and sun-ca-data (→ SUN_CA_DATA).
-    # Read only when sunRouting: true, and required then.
+    # Existing Secret holding keys sun-token (→ SUN_TOKEN) and sun-ca-data
+    # (→ SUN_CA_DATA). Read only when sunRouting: true. Empty = the chart
+    # renders Secret cluster-assigner-sun from token / caData (then both are
+    # required).
     secretName: ""
+    # Caller-supplied sun API token (→ SUN_TOKEN). Used only when
+    # sunRouting: true and secretName is empty, in which case the chart renders
+    # Secret cluster-assigner-sun from it. Supplied at apply time via
+    # --set-json from TeamVault, never committed to a values file.
+    token: ""
+    # Caller-supplied sun CA data (→ SUN_CA_DATA), passed through verbatim.
+    # Used only when sunRouting: true and secretName is empty, in which case
+    # the chart renders Secret cluster-assigner-sun from it. Supplied at apply
+    # time via --set-json from TeamVault, never committed to a values file.
+    caData: ""
   # Container-level securityContext, mirroring the executor's image-independent
   # hardening defaults.
   securityContext:
