@@ -120,6 +120,14 @@ spec:
             - name: RUN_UNTAGGED
               value: {{ .Values.executor.runUntagged | quote }}
             {{- end }}
+            {{- with .Values.executor.reconcilePassTimeout }}
+            - name: RECONCILE_PASS_TIMEOUT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.executor.reconcileInterval }}
+            - name: RECONCILE_INTERVAL
+              value: {{ . | quote }}
+            {{- end }}
           ports:
             - containerPort: 9090
               name: http
@@ -288,6 +296,14 @@ spec:
             {{- if kindIs "bool" $runUntagged }}
             - name: RUN_UNTAGGED
               value: {{ $runUntagged | quote }}
+            {{- end }}
+            {{- with ($e.reconcilePassTimeout | default $.Values.executor.reconcilePassTimeout) }}
+            - name: RECONCILE_PASS_TIMEOUT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with ($e.reconcileInterval | default $.Values.executor.reconcileInterval) }}
+            - name: RECONCILE_INTERVAL
+              value: {{ . | quote }}
             {{- end }}
           ports:
             - containerPort: 9090

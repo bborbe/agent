@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(helm): render optional `RECONCILE_PASS_TIMEOUT` / `RECONCILE_INTERVAL` env on the singular executor and on each `executors[]` entry — `executor.reconcilePassTimeout` / `executor.reconcileInterval` and the per-entry keys (per-entry wins, else inherits `executor.*`); nothing renders when unset, so the executor keeps its 45s/60s defaults; chart 0.10.0→0.11.0. For clusters where a full reconcile pass outlasts 45s (sun over the openclaw git-rest ingress). Requires the agent-task-executor release carrying the two envs; older binaries ignore them.
+
 ## v0.110.0
 
 - feat(helm): render optional `RUN_UNTAGGED` env on the singular executor and on each `executors[]` entry — `executor.runUntagged` / `executors[].runUntagged` (per-entry wins, else inherits `executor.runUntagged`); rendered whenever the key is set so `false` renders, nothing when unset; `false` makes the executor skip every task without a `cluster:` field, for clusters whose controller publishes no untagged tasks (sun; nuke dev/prod leave it unset); chart 0.9.0→0.10.0. Requires agent-task-executor >= v0.22.0; older binaries ignore the env.
