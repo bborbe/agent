@@ -18,9 +18,13 @@ import (
 // The agent owns the content transformation (status, phase, Result section, etc.).
 type Task struct {
 	base.Object[base.Identifier]
-	TaskIdentifier TaskIdentifier  `json:"taskIdentifier"`
-	Frontmatter    TaskFrontmatter `json:"frontmatter"`
-	Content        TaskContent     `json:"content"`
+	TaskIdentifier TaskIdentifier `json:"taskIdentifier"`
+	// Vault is the slug of the vault the task file lives in. task/controller stamps it
+	// on every agent-task-v1-event so a consumer sharing one topic across vaults can
+	// tell its own tasks apart without reading git. Empty on events from older controllers.
+	Vault       string          `json:"vault,omitempty"`
+	Frontmatter TaskFrontmatter `json:"frontmatter"`
+	Content     TaskContent     `json:"content"`
 }
 
 func (t Task) Validate(ctx context.Context) error {
