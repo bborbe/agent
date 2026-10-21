@@ -8,9 +8,11 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## v0.111.0
+## Unreleased
 
-- feat(helm): add optional `clusterAssigner` CronJob (`bborbe/agent-cluster-assigner` v0.1.0, every 5 min, `concurrencyPolicy: Forbid`) that routes every unstarted agent task in the OpenClaw vault by setting `cluster:` frontmatter via the controller's UpdateFrontmatterCommand on Kafka; reuses the controller's `gateway-secret` Secret, renders `SUN_TOKEN`/`SUN_CA_DATA` only when `sunRouting` is on (`sun.secretName` then required), optional Strimzi `KafkaUser` + mTLS mounts via `clusterAssigner.kafkaUser.enabled`; off by default (nothing renders), only nuke prod enables it; chart 0.10.0→0.11.0.
+- feat(helm): add optional `clusterAssigner` CronJob (`bborbe/agent-cluster-assigner` v0.1.0, every 5 min, `concurrencyPolicy: Forbid`) that routes every unstarted agent task in the OpenClaw vault by setting `cluster:` frontmatter via the controller's UpdateFrontmatterCommand on Kafka; reuses the controller's `gateway-secret` Secret, renders `SUN_TOKEN`/`SUN_CA_DATA` only when `sunRouting` is on (`sun.secretName` then required), optional Strimzi `KafkaUser` + mTLS mounts via `clusterAssigner.kafkaUser.enabled`; off by default (nothing renders), only nuke prod enables it; chart 0.11.0→0.12.0.
+
+## v0.111.0
 
 - feat(helm): render optional `RECONCILE_PASS_TIMEOUT` / `RECONCILE_INTERVAL` env on the singular executor and on each `executors[]` entry — `executor.reconcilePassTimeout` / `executor.reconcileInterval` and the per-entry keys (per-entry wins, else inherits `executor.*`); nothing renders when unset, so the executor keeps its 45s/60s defaults; chart 0.10.0→0.11.0. For clusters where a full reconcile pass outlasts 45s (sun over the openclaw git-rest ingress). Requires the agent-task-executor release carrying the two envs; older binaries ignore them.
 
