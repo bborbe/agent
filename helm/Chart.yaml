@@ -12,5 +12,6 @@ sources:
   - https://github.com/bborbe/agent-task-executor
   - https://github.com/bborbe/agent-task-controller
   - https://github.com/bborbe/recurring-task-creator
+  - https://github.com/bborbe/agent-cluster-assigner
 maintainers:
   - name: Benjamin Borbe
