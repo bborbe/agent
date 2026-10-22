@@ -113,7 +113,7 @@ run_case unset "$tmpdir/unset.yaml" unset
 
 # clusterAssigner.excludeAssignees → EXCLUDE_ASSIGNEES
 
-# write_ca_values <file> <excludeAssignees YAML list literal>
+# write_ca_values <file> <excludeAssignees YAML list literal or empty to omit the key>
 write_ca_values() {
 	local file="$1"
 	local exclude="$2"
@@ -129,7 +129,9 @@ clusterAssigner:
   kafkaBrokers: kafka:9092
   gitRestURL: http://git-rest
 EOF
-		printf '  excludeAssignees: %s\n' "$exclude"
+		if [ -n "$exclude" ]; then
+			printf '  excludeAssignees: %s\n' "$exclude"
+		fi
 	} >"$file"
 }
 
@@ -142,6 +144,15 @@ run_ca_case() {
 
 	"$helm_bin" template x "$CHART_DIR" -f "$values" \
 		--show-only templates/cluster-assigner-cronjob.yaml >"$out"
+
+	# Pin the chart default introduced alongside this feature: on defaults the
+	# assigner must run a tag that honours EXCLUDE_ASSIGNEES, otherwise the
+	# value is a silent no-op.
+	if ! grep -q 'agent-cluster-assigner:v0\.2\.0' "$out"; then
+		echo "FAIL: $name: default image tag is not v0.2.0"
+		fail=1
+		return
+	fi
 
 	if [ "$expect" = "empty" ]; then
 		if grep -q 'EXCLUDE_ASSIGNEES' "$out"; then
@@ -168,9 +179,13 @@ run_ca_case() {
 }
 
 write_ca_values "$tmpdir/ca-empty.yaml" "[]"
+write_ca_values "$tmpdir/ca-one.yaml" "[releaser]"
 write_ca_values "$tmpdir/ca-two.yaml" "[releaser, claude]"
+write_ca_values "$tmpdir/ca-absent.yaml" ""
 
 run_ca_case ca-empty "$tmpdir/ca-empty.yaml" empty
+run_ca_case ca-absent "$tmpdir/ca-absent.yaml" empty
+run_ca_case ca-one "$tmpdir/ca-one.yaml" "releaser"
 run_ca_case ca-two "$tmpdir/ca-two.yaml" "releaser,claude"
 
 if [ "$fail" -ne 0 ]; then

@@ -573,6 +573,7 @@ clusterAssigner:
   # Assignees whose tasks are never newly tagged sun; they get their stage
   # default (→ EXCLUDE_ASSIGNEES, comma-joined). Empty renders no env entry.
   # Needs image.tag v0.2.0 or later (the default); older images ignore it.
+  # Entries must not contain a comma — the value is comma-joined and re-split.
   excludeAssignees: []
   sun:
     # Sun routing API base URL (SUN_API_URL).

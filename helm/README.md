@@ -287,7 +287,7 @@ the OpenClaw vault by setting `cluster:` frontmatter — it publishes the task c
 | `clusterAssigner.vault` / `taskGlob` | `openclaw` / `tasks/*.md` | Vault name + task file glob. |
 | `clusterAssigner.defaultClusterProd` / `defaultClusterDev` | `nukeprod` / `nukedev` | Cluster assigned to unstarted tasks per environment. |
 | `clusterAssigner.sunRouting` / `dryRun` | `false` / `false` | Route via the sun API / log instead of publishing. |
-| `clusterAssigner.excludeAssignees` | `[]` | Assignees never newly tagged sun (→ `EXCLUDE_ASSIGNEES`, comma-joined; needs `image.tag` v0.2.0 or later, which is the default). Empty renders nothing. |
+| `clusterAssigner.excludeAssignees` | `[]` | Assignees never newly tagged sun (→ `EXCLUDE_ASSIGNEES`, comma-joined; needs `image.tag` v0.2.0 or later, which is the default). Empty renders nothing. Entries must not contain a comma. |
 | `clusterAssigner.sun.apiURL` / `sun.namespace` / `sun.secretName` | `""` / `a2a` / `""` | Sun API base URL, namespace, and an existing Secret with keys `sun-token` / `sun-ca-data`. Empty `secretName` = the chart renders Secret `cluster-assigner-sun` from `sun.token` / `sun.caData`. |
 | `clusterAssigner.sun.token` / `sun.caData` | `""` / `""` | Sun API token and CA data. With `sunRouting` on and no `sun.secretName`, both are required and rendered into Secret `cluster-assigner-sun`; pass them at apply time via `--set-json` from TeamVault, never commit them. |
 | `clusterAssigner.kafkaUser.*` | as `recurringTaskCreator.kafkaUser` | Strimzi `KafkaUser` + mTLS cert mounts; derived user name = `<namespace>-cluster-assigner`. |

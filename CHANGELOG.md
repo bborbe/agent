@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
-- feat(helm): `clusterAssigner.excludeAssignees` (list, default `[]`) renders `EXCLUDE_ASSIGNEES` on the cluster-assigner CronJob, comma-joined; tasks of a listed assignee are never newly tagged sun; an empty list renders nothing; `clusterAssigner.image.tag` default raised v0.1.0→v0.2.0 so the value works without an override; `hack/test-helm-render.sh` covers the empty and two-element renders; chart 0.14.1→0.15.0
+- feat(helm): `clusterAssigner.excludeAssignees` (list, default `[]`) renders `EXCLUDE_ASSIGNEES` on the cluster-assigner CronJob, comma-joined; tasks of a listed assignee are never newly tagged sun; an empty or absent list renders nothing; `clusterAssigner.image.tag` default raised v0.1.0→v0.2.0 so the value works without an override; `hack/test-helm-render.sh` covers the absent, empty, one-element and two-element renders and pins the v0.2.0 default tag; chart 0.14.1→0.15.0
 
 ## v0.116.0
 
