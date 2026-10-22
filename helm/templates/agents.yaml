@@ -85,11 +85,15 @@ data:
 # agent is excluded: the executor's StatefulSet provisions its own volume from
 # volumeClaimTemplates, so a claim rendered here would be a second, unmounted
 # one — and spec.volumeClaim is ignored on that path, so it would be invisible.
+# resource-policy keep: a stale apply whose render drops this claim must not
+# delete it — Helm reads the policy from the release record before pruning.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ $agent.volumeClaim | default $agent.name }}
   namespace: {{ include "agent.namespace" $ }}
+  annotations:
+    helm.sh/resource-policy: keep
   labels:
     {{- include "agent.labels" $ | nindent 4 }}
 spec:
