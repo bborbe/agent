@@ -111,10 +111,17 @@ spec:
               value: {{ .Values.executor.gitRestGatewaySecret | quote }}
             # CLAIM_MODE selects the lease-claim rollout stage: off (default,
             # unchanged behaviour), shadow (claim and release, but proceed on a
-            # conflict) or on (fail closed). shadow and on also require
-            # GITREST_URL and CLUSTER; the executor refuses to start without them.
+            # conflict) or on (fail closed). Quote it in values: bare `on` is a
+            # YAML 1.1 boolean and would arrive as "true".
+            {{- $cm := .Values.executor.claimMode | default "off" | toString }}
+            {{- if not (has $cm (list "off" "shadow" "on")) }}
+            {{- fail (printf "executor.claimMode must be one of off|shadow|on, got %q" $cm) }}
+            {{- end }}
+            {{- if and (ne $cm "off") (not $.Values.cluster) }}
+            {{- fail (printf "executor.claimMode=%s requires .Values.cluster to be set" $cm) }}
+            {{- end }}
             - name: CLAIM_MODE
-              value: {{ .Values.executor.claimMode | default "off" | quote }}
+              value: {{ $cm | quote }}
             - name: TASK_GLOB
               value: {{ .Values.executor.taskGlob | quote }}
             {{- with .Values.cluster }}
@@ -290,10 +297,17 @@ spec:
               value: {{ $e.gitRestGatewaySecret | default $.Values.executor.gitRestGatewaySecret | quote }}
             # CLAIM_MODE selects the lease-claim rollout stage: off (default,
             # unchanged behaviour), shadow (claim and release, but proceed on a
-            # conflict) or on (fail closed). shadow and on also require
-            # GITREST_URL and CLUSTER; the executor refuses to start without them.
+            # conflict) or on (fail closed). Quote it in values: bare `on` is a
+            # YAML 1.1 boolean and would arrive as "true".
+            {{- $ecm := $e.claimMode | default $.Values.executor.claimMode | default "off" | toString }}
+            {{- if not (has $ecm (list "off" "shadow" "on")) }}
+            {{- fail (printf "executors[].claimMode must be one of off|shadow|on, got %q" $ecm) }}
+            {{- end }}
+            {{- if and (ne $ecm "off") (not $.Values.cluster) }}
+            {{- fail (printf "executors[].claimMode=%s requires .Values.cluster to be set" $ecm) }}
+            {{- end }}
             - name: CLAIM_MODE
-              value: {{ $e.claimMode | default $.Values.executor.claimMode | default "off" | quote }}
+              value: {{ $ecm | quote }}
             - name: TASK_GLOB
               value: {{ $e.taskGlob | default $.Values.executor.taskGlob | quote }}
             {{- with $.Values.cluster }}
