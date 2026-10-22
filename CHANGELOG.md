@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.119.0
 
 - feat: render `CLAIM_MODE` into both executor env blocks (shared and per-vault), defaulting to `off`. The executor has understood `CLAIM_MODE` (`off` | `shadow` | `on`) since v0.27.0, but nothing rendered it, so every deployment ran `off` and no lease claim could ever be taken. Values are validated against the closed set and a claim-taking mode without `CLUSTER` fails at render rather than crash-looping. Chart version bumped to 0.17.0.
 
