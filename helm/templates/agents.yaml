@@ -86,7 +86,10 @@ data:
 # volumeClaimTemplates, so a claim rendered here would be a second, unmounted
 # one — and spec.volumeClaim is ignored on that path, so it would be invisible.
 # resource-policy keep: a stale apply whose render drops this claim must not
-# delete it — Helm reads the policy from the release record before pruning.
+# delete it. Helm reads the policy from the LIVE object at prune time, so it
+# protects only once an apply of this chart has written it onto the claim. It
+# also keeps the claim on `helm uninstall` and when the agent leaves values —
+# clean up by hand: kubectl delete pvc <volumeClaim|name> -n <namespace>.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

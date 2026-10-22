@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
-- fix(helm): render `helm.sh/resource-policy: keep` on agent PVCs and bump the chart to 0.16.0, so a stale apply whose render drops a claim (2026-10-21: `a2a/update-go-cache` on sun) cannot delete it and deadlock the Jobs that mount it.
+- fix(helm): render `helm.sh/resource-policy: keep` on agent PVCs and bump the chart to 0.16.0, so a stale apply whose render drops a claim (2026-10-21: `a2a/update-go-cache` on sun) cannot delete it and deadlock the Jobs that mount it. The claim is also kept on `helm uninstall` and when its agent leaves values — remove it with `kubectl delete pvc`. Helm reads the policy from the live object, so it protects only after this chart has been applied once.
 
 ## v0.118.0
 

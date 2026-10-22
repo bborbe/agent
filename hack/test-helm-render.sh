@@ -188,6 +188,42 @@ run_ca_case ca-absent "$tmpdir/ca-absent.yaml" empty
 run_ca_case ca-one "$tmpdir/ca-one.yaml" "releaser"
 run_ca_case ca-two "$tmpdir/ca-two.yaml" "releaser,claude"
 
+# Agent PVC: rendered only for a job agent with volumeMountPath, and always
+# carries helm.sh/resource-policy: keep so a render that drops it cannot prune it.
+
+# run_pvc_case <case> <values file> <0|1 expected PVC count>
+run_pvc_case() {
+	local name="$1"
+	local values="$2"
+	local expect="$3"
+	local out="$tmpdir/$name.out"
+
+	"$helm_bin" template x "$CHART_DIR" -f "$values" --show-only templates/agents.yaml >"$out"
+
+	local count
+	count="$(grep -c '^kind: PersistentVolumeClaim$' "$out" || true)"
+	if [ "$count" -ne "$expect" ]; then
+		echo "FAIL: $name: expected $expect PersistentVolumeClaim, got $count"
+		fail=1
+		return
+	fi
+	if [ "$expect" -eq 1 ] && ! grep -qx '    helm.sh/resource-policy: keep' "$out"; then
+		echo "FAIL: $name: PVC missing 'helm.sh/resource-policy: keep'"
+		fail=1
+		return
+	fi
+
+	echo "OK: $name"
+}
+
+write_values "$tmpdir/pvc-job.yaml" "volumeMountPath: /data"
+write_values "$tmpdir/pvc-service.yaml" "volumeMountPath: /data"
+printf '    type: service\n' >>"$tmpdir/pvc-service.yaml"
+
+run_pvc_case pvc-job "$tmpdir/pvc-job.yaml" 1
+run_pvc_case pvc-no-mount "$tmpdir/unset.yaml" 0
+run_pvc_case pvc-service "$tmpdir/pvc-service.yaml" 0
+
 if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
