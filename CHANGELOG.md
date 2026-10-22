@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- chore: update github.com/bborbe/collection to v1.21.4, github.com/bborbe/errors to v1.6.4, github.com/bborbe/http to v1.26.31, github.com/bborbe/kafka to v1.28.6, github.com/bborbe/validation to v1.5.6, github.com/bborbe/vault-cli to v0.178.3
+
 ## v0.118.1
 
 - fix(helm): render `helm.sh/resource-policy: keep` on agent PVCs and bump the chart to 0.16.0, so a stale apply whose render drops a claim (2026-10-21: `a2a/update-go-cache` on sun) cannot delete it and deadlock the Jobs that mount it. The claim is also kept on `helm uninstall` and when its agent leaves values — remove it with `kubectl delete pvc`. Helm reads the policy from the live object, so it protects only after this chart has been applied once.
