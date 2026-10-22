@@ -109,6 +109,19 @@ spec:
             # (executor-rbac.yaml grants `secrets: get`). Empty = auth disabled.
             - name: GITREST_GATEWAY_SECRET
               value: {{ .Values.executor.gitRestGatewaySecret | quote }}
+            # CLAIM_MODE selects the lease-claim rollout stage: off (default,
+            # unchanged behaviour), shadow (claim and release, but proceed on a
+            # conflict) or on (fail closed). Quote it in values: bare `on` is a
+            # YAML 1.1 boolean and would arrive as "true".
+            {{- $cm := .Values.executor.claimMode | default "off" | toString }}
+            {{- if not (has $cm (list "off" "shadow" "on")) }}
+            {{- fail (printf "executor.claimMode must be one of off|shadow|on, got %q" $cm) }}
+            {{- end }}
+            {{- if and (ne $cm "off") (not $.Values.cluster) }}
+            {{- fail (printf "executor.claimMode=%s requires .Values.cluster to be set" $cm) }}
+            {{- end }}
+            - name: CLAIM_MODE
+              value: {{ $cm | quote }}
             - name: TASK_GLOB
               value: {{ .Values.executor.taskGlob | quote }}
             {{- with .Values.cluster }}
@@ -282,6 +295,26 @@ spec:
             # (executor-rbac.yaml grants `secrets: get`). Empty = auth disabled.
             - name: GITREST_GATEWAY_SECRET
               value: {{ $e.gitRestGatewaySecret | default $.Values.executor.gitRestGatewaySecret | quote }}
+            # CLAIM_MODE selects the lease-claim rollout stage: off (default,
+            # unchanged behaviour), shadow (claim and release, but proceed on a
+            # conflict) or on (fail closed). Quote it in values: bare `on` and
+            # `off` are YAML 1.1 booleans and would arrive as true/false.
+            # hasKey, not default: `default` treats false as unset, so an
+            # unquoted per-vault `off` would silently inherit the global mode.
+            {{- $ecm := "off" }}
+            {{- if hasKey $e "claimMode" }}
+            {{- $ecm = $e.claimMode | toString }}
+            {{- else if hasKey $.Values.executor "claimMode" }}
+            {{- $ecm = $.Values.executor.claimMode | toString }}
+            {{- end }}
+            {{- if not (has $ecm (list "off" "shadow" "on")) }}
+            {{- fail (printf "executors[].claimMode must be one of off|shadow|on, got %q" $ecm) }}
+            {{- end }}
+            {{- if and (ne $ecm "off") (not $.Values.cluster) }}
+            {{- fail (printf "executors[].claimMode=%s requires .Values.cluster to be set" $ecm) }}
+            {{- end }}
+            - name: CLAIM_MODE
+              value: {{ $ecm | quote }}
             - name: TASK_GLOB
               value: {{ $e.taskGlob | default $.Values.executor.taskGlob | quote }}
             {{- with $.Values.cluster }}
