@@ -4,8 +4,7 @@ Event-driven, Kafka-based, Kubernetes-native task platform: a **controller** tha
 Obsidian/git task files into Kafka events, an **executor** that materialises agent
 `Config` custom resources into Kubernetes Jobs, and any number of **leaf agents**
 (claude / code / gemini / pi …) declared purely as values. Optionally a
-**recurring-task-creator** that emits scheduled tasks, and an optional
-**cluster-assigner** CronJob that routes unstarted tasks to a cluster.
+**recurring-task-creator** that emits scheduled tasks.
 
 This chart is layer 2 of a three-layer design:
 
