@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.118.0
 
 - feat(helm): the Config CRD in `helm/crds/config-crd.yaml` now declares `spec.rerunOnLostClaim` as `{type: boolean}` with no schema default, matching the executor binary's `configSpecProperties()` — unset means true, so existing Configs are unaffected; keeps a fresh install's CRD identical to the one the executor installs. Shipped in the published chart 0.15.0 with no version bump of its own, since `clusterAssigner.excludeAssignees` had already taken the chart to 0.15.0.
 
