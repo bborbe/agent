@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat: render `CLAIM_MODE` into both executor env blocks (shared and per-vault), defaulting to `off`. The executor has understood `CLAIM_MODE` (`off` | `shadow` | `on`) since v0.27.0, but nothing rendered it, so every deployment ran `off` and no lease claim could ever be taken. Values are validated against the closed set and a claim-taking mode without `CLUSTER` fails at render rather than crash-looping. Chart version bumped to 0.17.0.
+
 ## v0.118.2
 
 - chore: update github.com/bborbe/collection to v1.21.4, github.com/bborbe/errors to v1.6.4, github.com/bborbe/http to v1.26.31, github.com/bborbe/kafka to v1.28.6, github.com/bborbe/validation to v1.5.6, github.com/bborbe/vault-cli to v0.178.3
