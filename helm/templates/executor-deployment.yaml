@@ -109,6 +109,12 @@ spec:
             # (executor-rbac.yaml grants `secrets: get`). Empty = auth disabled.
             - name: GITREST_GATEWAY_SECRET
               value: {{ .Values.executor.gitRestGatewaySecret | quote }}
+            # CLAIM_MODE selects the lease-claim rollout stage: off (default,
+            # unchanged behaviour), shadow (claim and release, but proceed on a
+            # conflict) or on (fail closed). shadow and on also require
+            # GITREST_URL and CLUSTER; the executor refuses to start without them.
+            - name: CLAIM_MODE
+              value: {{ .Values.executor.claimMode | default "off" | quote }}
             - name: TASK_GLOB
               value: {{ .Values.executor.taskGlob | quote }}
             {{- with .Values.cluster }}
@@ -282,6 +288,12 @@ spec:
             # (executor-rbac.yaml grants `secrets: get`). Empty = auth disabled.
             - name: GITREST_GATEWAY_SECRET
               value: {{ $e.gitRestGatewaySecret | default $.Values.executor.gitRestGatewaySecret | quote }}
+            # CLAIM_MODE selects the lease-claim rollout stage: off (default,
+            # unchanged behaviour), shadow (claim and release, but proceed on a
+            # conflict) or on (fail closed). shadow and on also require
+            # GITREST_URL and CLUSTER; the executor refuses to start without them.
+            - name: CLAIM_MODE
+              value: {{ $e.claimMode | default $.Values.executor.claimMode | default "off" | quote }}
             - name: TASK_GLOB
               value: {{ $e.taskGlob | default $.Values.executor.taskGlob | quote }}
             {{- with $.Values.cluster }}
