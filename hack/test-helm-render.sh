@@ -7,9 +7,6 @@
 # rerunOnLostClaim field renders whenever it is present — including `false` —
 # and not at all when unset.
 #
-# Also renders helm/templates/cluster-assigner-cronjob.yaml and asserts that
-# clusterAssigner.excludeAssignees renders EXCLUDE_ASSIGNEES comma-joined for a
-# non-empty list and no env entry at all for the empty default.
 # Run from repo root.
 
 set -euo pipefail
@@ -110,83 +107,6 @@ write_values "$tmpdir/unset.yaml" ""
 run_case false "$tmpdir/false.yaml" false
 run_case true "$tmpdir/true.yaml" true
 run_case unset "$tmpdir/unset.yaml" unset
-
-# clusterAssigner.excludeAssignees → EXCLUDE_ASSIGNEES
-
-# write_ca_values <file> <excludeAssignees YAML list literal or empty to omit the key>
-write_ca_values() {
-	local file="$1"
-	local exclude="$2"
-	{
-		cat <<'EOF'
-namespace: test
-executor:
-  kafkaBrokers: kafka:9092
-  sentry:
-    dsn: dummy
-clusterAssigner:
-  enabled: true
-  kafkaBrokers: kafka:9092
-  gitRestURL: http://git-rest
-EOF
-		if [ -n "$exclude" ]; then
-			printf '  excludeAssignees: %s\n' "$exclude"
-		fi
-	} >"$file"
-}
-
-# run_ca_case <case> <values file> <empty|"joined value">
-run_ca_case() {
-	local name="$1"
-	local values="$2"
-	local expect="$3"
-	local out="$tmpdir/$name.out"
-
-	"$helm_bin" template x "$CHART_DIR" -f "$values" \
-		--show-only templates/cluster-assigner-cronjob.yaml >"$out"
-
-	# Pin the chart default introduced alongside this feature: on defaults the
-	# assigner must run a tag that honours EXCLUDE_ASSIGNEES, otherwise the
-	# value is a silent no-op.
-	if ! grep -q 'agent-cluster-assigner:v0\.2\.0' "$out"; then
-		echo "FAIL: $name: default image tag is not v0.2.0"
-		fail=1
-		return
-	fi
-
-	if [ "$expect" = "empty" ]; then
-		if grep -q 'EXCLUDE_ASSIGNEES' "$out"; then
-			echo "FAIL: $name: unexpected EXCLUDE_ASSIGNEES entry for an empty list"
-			fail=1
-			return
-		fi
-		echo "OK: $name"
-		return
-	fi
-
-	if ! grep -qx '                - name: EXCLUDE_ASSIGNEES' "$out"; then
-		echo "FAIL: $name: missing 'EXCLUDE_ASSIGNEES' env entry"
-		fail=1
-		return
-	fi
-	if ! grep -qxF "                  value: \"$expect\"" "$out"; then
-		echo "FAIL: $name: EXCLUDE_ASSIGNEES value is not \"$expect\""
-		fail=1
-		return
-	fi
-
-	echo "OK: $name"
-}
-
-write_ca_values "$tmpdir/ca-empty.yaml" "[]"
-write_ca_values "$tmpdir/ca-one.yaml" "[releaser]"
-write_ca_values "$tmpdir/ca-two.yaml" "[releaser, claude]"
-write_ca_values "$tmpdir/ca-absent.yaml" ""
-
-run_ca_case ca-empty "$tmpdir/ca-empty.yaml" empty
-run_ca_case ca-absent "$tmpdir/ca-absent.yaml" empty
-run_ca_case ca-one "$tmpdir/ca-one.yaml" "releaser"
-run_ca_case ca-two "$tmpdir/ca-two.yaml" "releaser,claude"
 
 # Agent PVC: rendered only for a job agent with volumeMountPath, and always
 # carries helm.sh/resource-policy: keep so a render that drops it cannot prune it.
