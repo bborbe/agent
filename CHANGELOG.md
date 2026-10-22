@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(helm): render `helm.sh/resource-policy: keep` on agent PVCs and bump the chart to 0.16.0, so a stale apply whose render drops a claim (2026-10-21: `a2a/update-go-cache` on sun) cannot delete it and deadlock the Jobs that mount it. The claim is also kept on `helm uninstall` and when its agent leaves values — remove it with `kubectl delete pvc`. Helm reads the policy from the live object, so it protects only after this chart has been applied once.
+
 ## v0.118.0
 
 - feat(helm): the Config CRD in `helm/crds/config-crd.yaml` now declares `spec.rerunOnLostClaim` as `{type: boolean}` with no schema default, matching the executor binary's `configSpecProperties()` — unset means true, so existing Configs are unaffected; keeps a fresh install's CRD identical to the one the executor installs. Shipped in the published chart 0.15.0 with no version bump of its own, since `clusterAssigner.excludeAssignees` had already taken the chart to 0.15.0.
