@@ -79,6 +79,10 @@ spec:
                   value: {{ $ca.sunRouting | quote }}
                 - name: DRY_RUN
                   value: {{ $ca.dryRun | quote }}
+                {{- with $ca.excludeAssignees }}
+                - name: EXCLUDE_ASSIGNEES
+                  value: {{ join "," . | quote }}
+                {{- end }}
                 - name: SUN_API_URL
                   value: {{ $ca.sun.apiURL | quote }}
                 - name: SUN_NAMESPACE

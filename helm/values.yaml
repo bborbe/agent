@@ -537,8 +537,9 @@ clusterAssigner:
   image:
     repository: bborbe/agent-cluster-assigner
     # Versioned independently of the chart (like a2aWorkerController) — no
-    # appVersion fallback.
-    tag: v0.1.0
+    # appVersion fallback. v0.2.0 is the first tag that honours
+    # EXCLUDE_ASSIGNEES; anything older silently ignores it.
+    tag: v0.2.0
   logLevel: "2"
   schedule: "*/5 * * * *"
   successfulJobsHistoryLimit: 1
@@ -569,6 +570,11 @@ clusterAssigner:
   sunRouting: false
   # Log the commands instead of publishing them.
   dryRun: false
+  # Assignees whose tasks are never newly tagged sun; they get their stage
+  # default (→ EXCLUDE_ASSIGNEES, comma-joined). Empty renders no env entry.
+  # Needs image.tag v0.2.0 or later (the default); older images ignore it.
+  # Entries must not contain a comma — the value is comma-joined and re-split.
+  excludeAssignees: []
   sun:
     # Sun routing API base URL (SUN_API_URL).
     apiURL: ""
