@@ -297,9 +297,16 @@ spec:
               value: {{ $e.gitRestGatewaySecret | default $.Values.executor.gitRestGatewaySecret | quote }}
             # CLAIM_MODE selects the lease-claim rollout stage: off (default,
             # unchanged behaviour), shadow (claim and release, but proceed on a
-            # conflict) or on (fail closed). Quote it in values: bare `on` is a
-            # YAML 1.1 boolean and would arrive as "true".
-            {{- $ecm := $e.claimMode | default $.Values.executor.claimMode | default "off" | toString }}
+            # conflict) or on (fail closed). Quote it in values: bare `on` and
+            # `off` are YAML 1.1 booleans and would arrive as true/false.
+            # hasKey, not default: `default` treats false as unset, so an
+            # unquoted per-vault `off` would silently inherit the global mode.
+            {{- $ecm := "off" }}
+            {{- if hasKey $e "claimMode" }}
+            {{- $ecm = $e.claimMode | toString }}
+            {{- else if hasKey $.Values.executor "claimMode" }}
+            {{- $ecm = $.Values.executor.claimMode | toString }}
+            {{- end }}
             {{- if not (has $ecm (list "off" "shadow" "on")) }}
             {{- fail (printf "executors[].claimMode must be one of off|shadow|on, got %q" $ecm) }}
             {{- end }}
