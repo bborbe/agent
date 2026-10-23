@@ -456,6 +456,24 @@ agents: []
   #                                 # claim is lost (no second session). Rendered whenever
   #                                 # the key is set, `false` included; omit for the
   #                                 # executor default.
+  #   jobNamespace: dev-agents-sandbox   # OPTIONAL: Config.spec.jobNamespace. Runs this
+  #                                 # agent's Jobs in that namespace instead of the
+  #                                 # executor's own. It must already exist and already
+  #                                 # hold this agent's PVC and Secret: either place them
+  #                                 # there yourself, or point this at the chart's own
+  #                                 # sandbox namespace (`sandbox.namespace`, default
+  #                                 # `<namespace>-agents-sandbox`) and set
+  #                                 # `sandbox.renderAgentStorage: true`, which renders
+  #                                 # the chart-managed copies into THAT namespace.
+  #                                 # renderAgentStorage never follows jobNamespace to a
+  #                                 # different name. Must be a valid DNS-1123 label
+  #                                 # (lowercase alphanumerics and `-`, at most 63
+  #                                 # characters) — the executor's Config CRD schema
+  #                                 # rejects anything else at apply time — and must
+  #                                 # differ from the executor's namespace, which the
+  #                                 # executor rejects by spawning no Job. Omit to keep
+  #                                 # the executor-namespace default. Requires
+  #                                 # agent-task-executor >= v0.31.0.
   #   type: service               # OPTIONAL: `job` (default) or `service`. A `service`
   #                               # agent is reconciled as a long-running workload and is
   #                               # exempt from the taskType requirement below — leave

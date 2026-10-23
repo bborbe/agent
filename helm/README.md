@@ -227,6 +227,8 @@ agents:
     rerunOnLostClaim: false           # OPTIONAL: `false` = never re-run a task after this
                                       # agent's claim is lost. Rendered whenever set
                                       # (including false); omit for the executor default.
+    jobNamespace: dev-agents-sandbox   # OPTIONAL: Config.spec.jobNamespace — where this
+                                      # agent's Jobs run. Omit for the executor namespace.
     taskTypes: [llm, healthcheck]
     triggerPhases: [planning, execution, ai_review]
     triggerStatuses: [in_progress]
@@ -262,6 +264,19 @@ killed when it elapses.
 Interactive or session-holding runners (claude, pi, goreleaser) should set
 `rerunOnLostClaim: false`, so that a lost claim cannot start a second session; the field
 needs a Config CRD that declares `spec.rerunOnLostClaim`, because older CRDs prune it.
+
+`jobNamespace` places that agent's Job pods in the named namespace. The namespace must
+already exist and already hold the agent's PVC and Secret — either place them there
+yourself, or point `jobNamespace` at the chart's own sandbox namespace
+(`sandbox.namespace`, default `<namespace>-agents-sandbox`) and set
+`sandbox.renderAgentStorage: true`, which renders the chart-managed copies into that
+namespace. `renderAgentStorage` never follows `jobNamespace` to a different name, so a
+`jobNamespace` that is not the chart's sandbox namespace needs the PVC and Secret placed by
+hand. The value must be a valid DNS-1123 label (lowercase alphanumerics and `-`, at most
+63 characters), because the executor's Config CRD schema rejects anything else at apply
+time. A value equal to the executor's own namespace is rejected by the executor and no Job
+is spawned. The field needs agent-task-executor >= v0.31.0, because an older executor
+ignores the field and an older Config CRD prunes it.
 
 `configMapName` / `configMapMountPath` / `configMapItems` render a **reference** onto the
 Config CR; the chart does not create the ConfigMap itself, so the object must already exist

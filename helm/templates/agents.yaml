@@ -28,6 +28,9 @@ spec:
   {{- if hasKey $agent "rerunOnLostClaim" }}
   rerunOnLostClaim: {{ $agent.rerunOnLostClaim }}
   {{- end }}
+  {{- with $agent.jobNamespace }}
+  jobNamespace: {{ . | quote }}
+  {{- end }}
   {{- if $agent.volumeMountPath }}
   {{- if ne ($agent.type | default "job") "service" }}
   volumeClaim: {{ $agent.volumeClaim | default $agent.name }}
