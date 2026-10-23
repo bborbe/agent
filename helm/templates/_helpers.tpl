@@ -85,7 +85,16 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
      misroute the proxy. */}}
 {{- define "agent.proxyEnv" -}}
 {{- $noProxy := list "127.0.0.1" "localhost" ".svc.cluster.local" }}
-{{- range $broker := splitList "," (toString .Values.executor.kafkaBrokers) }}
+{{- /* Both broker sources: the singular executor, plus every executors[] entry
+       (list mode renders those instead of the singular Deployment, and their
+       kafkaBrokers falls back to the global). Missing the list source would leave
+       NO_PROXY without those brokers, routing Kafka through the proxy. */}}
+{{- $brokerSets := list (toString .Values.executor.kafkaBrokers) }}
+{{- range $e := .Values.executors }}
+{{-   $brokerSets = append $brokerSets (toString ($e.kafkaBrokers | default $.Values.executor.kafkaBrokers)) }}
+{{- end }}
+{{- range $brokers := $brokerSets }}
+{{- range $broker := splitList "," $brokers }}
 {{/* Strip an optional scheme (values.yaml documents the tls:// form) before
      splitting on ':' - otherwise the host parses as the literal "tls". */}}
 {{-   $b := regexReplaceAll "^[A-Za-z][A-Za-z0-9+.-]*://" (trim $broker) "" }}
@@ -99,6 +108,7 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{-   if $host }}
 {{-     $noProxy = append $noProxy $host }}
 {{-   end }}
+{{- end }}
 {{- end }}
 {{- $noProxyValue := join "," $noProxy }}
 HTTP_PROXY: http://egress-proxy.{{ include "agent.sandboxNamespace" . }}.svc.cluster.local:8888

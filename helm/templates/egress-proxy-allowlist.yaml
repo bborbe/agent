@@ -56,33 +56,35 @@ data:
     ^www\.python\.org$
   # Two-direction self-test, split across two probes by cost.
   #
-  # The NEGATIVE check (a non-allowlisted domain must fail) is answered by the
-  # proxy itself without any upstream connection, so it is cheap enough to run on
-  # every readiness cycle and is what catches a broken-open allowlist.
+  # Both directions assert on the HTTP status, never on curl's exit code. With
+  # --fail, curl exits non-zero for a refused connection, a 502 or a DNS failure
+  # just as it does for a 403 deny, so an exit-code test would report "correctly
+  # denied" for a proxy that is not serving at all and keep a dead pod Ready.
   #
-  # The POSITIVE check reaches a real upstream, and api.github.com rate-limits
-  # unauthenticated clients to 60 requests/hour per source IP. Two replicas probing
-  # every 60s would exhaust that in ~30 minutes and then hold BOTH pods NotReady,
-  # emptying the Service and taking all agent egress down. It therefore runs from
-  # the startup probe only: it still gates readiness (a pod that fails startup is
-  # never Ready), but it cannot be re-run into a rate limit.
+  # The POSITIVE check reaches a real upstream and therefore runs from the startup
+  # probe only. It deliberately does NOT use api.github.com: that host rate-limits
+  # unauthenticated clients to 60 requests/hour per source IP, and its 403 is
+  # indistinguishable from the proxy's deny, so rolling the proxy while the egress
+  # IP's quota is exhausted would crash-loop both replicas. The operator's
+  # post-deploy probe still uses https://api.github.com/zen.
   selftest.sh: |
     #!/bin/sh
     set -u
     MODE="${1:-full}"
     PROXY="http://127.0.0.1:8888"
-    # Negative: a non-allowlisted domain MUST fail (tinyproxy 403 => curl --fail
-    # exits 22). Without --fail, a 403 is still exit 0 and this check is a no-op.
-    if curl --proxy "$PROXY" --fail --connect-timeout 5 https://example.com >/dev/null 2>&1; then
-      echo "selftest FAIL: non-allowlisted https://example.com was allowed (allowlist broken open)" >&2
+    # Negative: a non-allowlisted domain MUST be refused BY THE PROXY (403).
+    code=$(curl --proxy "$PROXY" -s -o /dev/null --connect-timeout 5 -w '%{http_code}' https://example.com 2>/dev/null || true)
+    if [ "$code" != "403" ]; then
+      echo "selftest FAIL: https://example.com returned '$code', expected the proxy's 403 deny" >&2
       exit 1
     fi
-    # Positive: an allowlisted domain MUST succeed. Startup probe only — see above.
+    # Positive: an allowlisted domain MUST get through. Startup probe only.
     if [ "$MODE" = "full" ]; then
-      if ! curl --proxy "$PROXY" --fail --connect-timeout 5 -o /dev/null https://api.github.com/zen; then
-        echo "selftest FAIL: allowlisted https://api.github.com/zen was blocked (allowlist too tight)" >&2
-        exit 1
-      fi
+      code=$(curl --proxy "$PROXY" -s -o /dev/null --connect-timeout 5 -w '%{http_code}' https://go.dev/ 2>/dev/null || true)
+      case "$code" in
+        2*|3*) : ;;
+        *) echo "selftest FAIL: allowlisted https://go.dev/ returned '$code' (allowlist too tight, or the proxy is not serving)" >&2; exit 1 ;;
+      esac
     fi
     echo "selftest OK ($MODE)"
 {{- end }}

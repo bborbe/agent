@@ -67,7 +67,9 @@ spec:
             seccompProfile:
               type: RuntimeDefault
         - name: selftest
-          image: curlimages/curl:8.21.0
+          # Pinned by digest too: this container decides whether the proxy is
+          # trusted and Ready, so it is as load-bearing as the proxy itself.
+          image: curlimages/curl@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13
           command: ["/bin/sh", "-c", "sleep infinity"]
           volumeMounts:
             - name: proxy-files
