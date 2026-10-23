@@ -144,6 +144,57 @@ run_pvc_case pvc-job "$tmpdir/pvc-job.yaml" 1
 run_pvc_case pvc-no-mount "$tmpdir/unset.yaml" 0
 run_pvc_case pvc-service "$tmpdir/pvc-service.yaml" 0
 
+# run_sandbox_case <env>
+# The spec 047 build-time ACs, in CI. The prompts' greps live in markdown and never
+# run here, so without this a regression back to a three-destination policy — the
+# exact shape this chart was amended to replace — would merge green.
+run_sandbox_case() {
+	local env="$1"
+	local out="$tmpdir/sandbox-$env.out"
+
+	"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
+		--set "namespace=$env" --set executor.existingSecret=agent-secret >"$out"
+
+	local kinds
+	kinds="$(grep -cE '^kind: (Namespace|NetworkPolicy|Role|RoleBinding)$' "$out" || true)"
+	if [ "$kinds" -lt 4 ]; then
+		echo "FAIL: sandbox-$env: expected >=4 sandbox objects, got $kinds"
+		fail=1
+		return
+	fi
+
+	local sel
+	sel="$(grep -cE '^\s+app(\.kubernetes\.io/instance)?: (sentry-proxy|claude-code-router-(dev|prod)|pushgateway|vault-obsidian-(personal|openclaw|trading)|frontend-(gateway|strategy))$' "$out" || true)"
+	if [ "$sel" -ne 8 ]; then
+		echo "FAIL: sandbox-$env: expected 8 in-cluster egress peer selectors, got $sel"
+		fail=1
+		return
+	fi
+
+	local cidr32 cidr24 port9092
+	cidr32="$(grep -cE 'cidr: 192\.168\.178\.(41|42|43)/32' "$out" || true)"
+	cidr24="$(grep -c 'cidr: 192.168.178.0/24' "$out" || true)"
+	port9092="$(grep -c 'port: 9092' "$out" || true)"
+	if [ "$cidr32" -ne 3 ] || [ "$cidr24" -ne 0 ] || [ "$port9092" -ne 0 ]; then
+		echo "FAIL: sandbox-$env: cidr/32=$cidr32 (want 3) cidr/24=$cidr24 (want 0) port9092=$port9092 (want 0)"
+		fail=1
+		return
+	fi
+
+	local peer
+	peer="$(awk '/- to:/{t=NR} /namespaceSelector:/{n=NR} /app: sentry-proxy/{print (n>t)?"SAME_PEER_OK":"SPLIT_PEER_FAIL"}' "$out")"
+	if [ "$peer" != "SAME_PEER_OK" ]; then
+		echo "FAIL: sandbox-$env: sentry peer does not keep both selectors in one to: entry ($peer)"
+		fail=1
+		return
+	fi
+
+	echo "OK: sandbox-$env"
+}
+
+run_sandbox_case dev
+run_sandbox_case prod
+
 if [ "$fail" -ne 0 ]; then
 	exit 1
 fi

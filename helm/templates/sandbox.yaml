@@ -16,8 +16,10 @@ metadata:
 # frontend-gateway and frontend-strategy (9090), and the three Kafka
 # nodeports (32159). Everything else — other internal services, other private
 # CIDRs, 169.254.0.0/16, direct internet — is denied by omission.
-# Ingress is not declared at all: no executor→Job ingress path exists (the agent
-# publishes its result directly to Kafka).
+# Ingress is deliberately NOT declared, which leaves it UNRESTRICTED — this policy
+# bounds egress only. No executor→Job ingress path exists today (the agent publishes
+# its result directly to Kafka), so nothing depends on ingress either way; if
+# pod-level isolation is wanted later, add `Ingress` with an empty `ingress: []`.
 #
 # NOTE: this object intentionally carries NO metadata.labels. The approved spec
 # greps the first five lines after the name line for the podSelector label; a
