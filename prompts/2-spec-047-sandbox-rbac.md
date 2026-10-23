@@ -11,7 +11,7 @@ branch: dark-factory/agent-sandbox-namespace
 - Grants are sandbox-scoped and enumerated — no wildcard verbs, no cluster-scope, so the executor's rights outside its environment's sandbox namespace do not widen
 - The chart version is bumped and the change is recorded in the repo CHANGELOG
 - The full build-time Acceptance Criteria set of the spec passes after this prompt — the sandbox namespace, the policy, and the RBAC all render correctly for dev and prod
-- The Post-Deploy acceptance criteria remain a deferred operator checklist: they need real clusters and the sibling executor spec, not a scenario harness
+- The Post-Deploy acceptance criteria remain a deferred operator checklist: they need real cluster creds, not a scenario harness. They do **not** wait on the sibling executor spec — the policy ACs run against a hand-created `app: agent` probe pod
 </summary>
 
 <objective>
@@ -25,15 +25,15 @@ Read these project files in full before editing:
 - `docs/agent-network-security.md` — the background document the spec cites (its "Executor changes" section names the cross-namespace RBAC).
 - `helm/templates/executor-rbac.yaml` — the file this prompt extends. Note the existing structure: top-level `{{- if .Values.executor.enabled }}`, then `{{- $ns := include "agent.namespace" . }}`, then ServiceAccount / ClusterRole / ClusterRoleBinding / Role / RoleBinding, ending with `{{- end }}`.
 - `helm/templates/_helpers.tpl` — already contains the `agent.sandboxNamespace` helper from the sibling prompt (this prompt depends on it; if it is missing, STOP and report a precondition failure rather than inventing the name).
-- `helm/Chart.yaml` — current `version: 0.5.2`.
-- `CHANGELOG.md` — current top entry is `## v0.81.3`; no `## Unreleased` section exists as of this writing.
+- `helm/Chart.yaml` — current `version: 0.18.0`. (Note: `0.18.0` is **not published** — `helm show chart oci://registry-1.docker.io/bborbe/agent --version 0.18.0` returns `not found`; the highest published tag is `0.17.0`, which is what both nuke worktrees pin.)
+- `CHANGELOG.md` — current top release entry is `## v0.120.0`, and a `## Unreleased` section already sits above it (added when spec 047 was amended). Append to that `## Unreleased`; do not create a second one.
 - `helm/README.md` — the "Generic cluster (not quant)" section is where the sandbox note belongs.
 
 Key facts (verified against the repo):
 - The executor ServiceAccount is named `agent-task-executor` and lives in the control namespace `{{ $ns }}` (see `helm/templates/executor-rbac.yaml` ServiceAccount and `helm/templates/executor-deployment.yaml` `serviceAccountName`). The sandbox RoleBinding's subject must reference `namespace: {{ $ns }}` (the control namespace), NOT the sandbox namespace — that is what makes it a cross-namespace binding.
 - The spec AC `grep -A6 'kind: RoleBinding' | grep -c 'agent-task-executor-sandbox'` needs only ≥1; GNU `grep -A` emits context for every match, so placement of the sandbox RoleBinding anywhere inside `executor-rbac.yaml` passes (verified).
 - The sandbox Role/RoleBinding are appended inside the existing `{{- if .Values.executor.enabled }}` block, after the existing `agent-task-executor` RoleBinding, before the final `{{- end }}`.
-- Chart-version convention: every helm change bumps `helm/Chart.yaml` (features → minor bump, e.g. `0.5.0 → 0.5.1` was `feat(helm)`, `0.5.1 → 0.5.2` was `fix(helm)`). This is a feature → `0.5.2 → 0.6.0`.
+- Chart-version convention: every helm change bumps `helm/Chart.yaml` — a feature takes a minor bump, a fix a patch (most recent example: `v0.120.0` was `feat(helm)` and took `0.17.0 → 0.18.0`). This is a feature → `0.18.0 → 0.19.0`.
 - CHANGELOG convention: one bullet per logical change, prefixed `feat(helm):`, newest section at the top. Recent prompts add a `## Unreleased` section above the latest `## vX.Y.Z` when none exists.
 </context>
 
@@ -88,14 +88,14 @@ Key facts (verified against the repo):
 
 2. **Do NOT grant more than DB 5.** The Role's rules are fixed: `create`/`get`/`list`/`watch`/`delete` on `jobs` (apiGroup `batch`), `get` on `secrets` (apiGroup `""`), `get` on `persistentvolumeclaims` (apiGroup `""`). No `*` verbs, no `*` resources, no cluster-scope, no additional resources or apiGroups. The spec AC asserts zero `*` characters within 15 lines of the Role name.
 
-3. **Bump `helm/Chart.yaml` `version: 0.5.2` → `version: 0.6.0`.** Nothing else in Chart.yaml changes (appVersion stays `"0.3.1"`).
+3. **Bump `helm/Chart.yaml` `version: 0.18.0` → `version: 0.19.0`.** Nothing else in Chart.yaml changes (appVersion stays `"0.3.1"`).
 
-4. **Add a CHANGELOG entry in `CHANGELOG.md`.** If a `## Unreleased` section already exists at the top (above `## v0.81.3`), append to it; otherwise create it directly under the `# Changelog` heading. Entry (one bullet, `feat(helm):` prefix, matches the repo's helm-entry style):
+4. **Add a CHANGELOG entry in `CHANGELOG.md`.** A `## Unreleased` section already exists at the top (above `## v0.120.0`) — append your bullet to it. Create one directly under the `# Changelog` heading only if it is somehow absent. Entry (one bullet, `feat(helm):` prefix, matches the repo's helm-entry style):
 
    ```
    ## Unreleased
 
-   - feat(helm): add a per-environment `<namespace>-agents-sandbox` namespace with a default-deny egress NetworkPolicy (kube-dns 53 UDP+TCP + strimzi Kafka 9092 TCP only) and a sandbox-scoped Role/RoleBinding granting the executor ServiceAccount exactly `create/get/list/watch/delete` on jobs, `get` on secrets, and `get` on persistentvolumeclaims in that namespace. Chart 0.5.2→0.6.0. Inert until the executor ships `ConfigSpec.JobNamespace` (agent-task-executor); agent Jobs then land in an environment with no reachable internal service, private range, metadata endpoint, or direct internet.
+   - feat(helm): add a per-environment `<namespace>-agents-sandbox` namespace with a default-deny egress NetworkPolicy (kube-dns 53 UDP+TCP; sentry-proxy 9090; claude-code-router 8788; pushgateway 9090; vault-obsidian-personal/openclaw/trading 9090; frontend-gateway and frontend-strategy 9090; Kafka nodeports 32159 — and nothing else) and a sandbox-scoped Role/RoleBinding granting the executor ServiceAccount exactly `create/get/list/watch/delete` on jobs, `get` on secrets, and `get` on persistentvolumeclaims in that namespace. Chart 0.18.0→0.19.0. Inert until the executor ships `ConfigSpec.JobNamespace` (agent-task-executor); agent Jobs then land in an environment with no reachable service outside that list, no other private range, no metadata endpoint, and no direct internet.
    ```
 
    Follow the existing CHANGELOG.md style (dash-prefixed bullets, past-tense, no trailing period on the prefix).
@@ -104,7 +104,8 @@ Key facts (verified against the repo):
 
    ```
    - **Network-isolated sandbox** — the chart renders `<namespace>-agents-sandbox` with a
-     default-deny egress NetworkPolicy (kube-dns + Kafka only) and cross-namespace RBAC for
+     default-deny egress NetworkPolicy (kube-dns, sentry-proxy, claude-code-router, pushgateway, the three
+     vault-obsidian services, frontend-gateway, frontend-strategy and the Kafka nodeports — nothing else) and cross-namespace RBAC for
      the executor. Agent Jobs land there; it is inert until the executor ships
      `ConfigSpec.JobNamespace` (spawns Jobs into the sandbox).
    ```
@@ -167,25 +168,27 @@ grep -A12 'name: agent-task-executor-sandbox$' /tmp/rendered-dev.yaml | grep -A6
 Bookkeeping checks:
 
 ```bash
-grep -n '^version:' helm/Chart.yaml                       # must show 0.6.0
-head -10 CHANGELOG.md | grep -E 'Unreleased|feat\(helm\)'  # must show both
+grep -n '^version:' helm/Chart.yaml                       # must show 0.19.0
+head -15 CHANGELOG.md | grep -E 'Unreleased|feat\(helm\)'  # must show both
 grep -n 'agents-sandbox' helm/README.md                    # must show the new bullet
 ```
 
 Do NOT run `make precommit` — this prompt changes no Go code; the render + greps above are the verification.
 
-**Deferred operator checklist (DO NOT RUN here — document as pending).** The Post-Deploy ACs require real cluster creds AND the sibling executor spec to have shipped; this container has neither. They are reproduced below for the completion report / spec Verification ladder only. Record them as pending in your completion report; never attempt to execute them here.
+**Deferred operator checklist (DO NOT RUN here — document as pending).** The Post-Deploy ACs require real cluster creds; this container has none. They do **not** wait on the sibling executor spec — the policy ACs run against a hand-created `app: agent` probe pod, as the checklist below states. They are reproduced below for the completion report / spec Verification ladder only. Record them as pending in your completion report; never attempt to execute them here.
 
 ```text
-# Rung-2 (dev), after deploy + sibling executor spec live:
-kubectlquant -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.metadata.name}'          # expect agent-sandbox-egress
-kubectlquant get ns dev-agents-sandbox -o jsonpath='{.status.phase}'                                               # expect Active
-kubectlquant -n dev-agents-sandbox get pods -l app=agent -o name | wc -l                                          # expect >=1 while a Job runs
-kubectlquant -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'  # expect 53 53 9092
-kubectlquant -n dev-agents-sandbox get role agent-task-executor-sandbox -o jsonpath='{.rules[*].resources}'        # expect jobs secrets persistentvolumeclaims (Failure-Modes row 4 recovery)
-# from inside a sandbox agent pod: wget -qO- --timeout=3 http://vault-obsidian-openclaw.dev.svc.cluster.local:9090  # expect non-zero, no body
-# from inside a sandbox agent pod: wget -qO- --timeout=3 http://169.254.169.254/                                    # expect non-zero
-kubectlquant -n dev logs deploy/agent-task-executor --since=15m | grep -c 'consume 1 messages'                     # expect >=1
-# Rung-3 (prod): same block/allow pair in prod-agents-sandbox
+# Rung-2 (dev), after deploy. NO executor spec needed — the policy ACs run
+# against a hand-created busybox:1.36 probe pod labelled app: agent.
+kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.metadata.name}'        # expect agent-sandbox-egress
+kubectlnukedev get ns dev-agents-sandbox -o jsonpath='{.status.phase}'                                             # expect Active
+kubectlnukedev -n dev-agents-sandbox get pods -l app=agent -o name | wc -l                                         # expect >=1 (the probe pod)
+kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'  # expect 53 53 9090 32159
+kubectlnukedev -n dev-agents-sandbox get role agent-task-executor-sandbox -o jsonpath='{.rules[*].resources}'      # expect jobs secrets persistentvolumeclaims (Failure-Modes row 4 recovery)
+# from inside the probe pod: wget -qO- --timeout=3 http://vault-obsidian-openclaw.dev.svc.cluster.local:9090        # expect non-zero, no body — proves the sentry peer is narrow
+# from inside the probe pod: wget -qO- --timeout=3 http://169.254.169.254/                                          # expect non-zero
+# from inside the probe pod: nc -w 3 192.168.178.41 32159 </dev/null                                                            # expect exit 0
+# from inside the probe pod: nc -w 3 sentry-proxy.dev.svc.cluster.local 9090 </dev/null                                         # expect exit 0
+# Rung-3 (prod): same block/allow pair in prod-agents-sandbox, with sentry-proxy.prod.svc.cluster.local and kubectlnukeprod
 ```
 </verification>
