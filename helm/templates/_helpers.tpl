@@ -75,8 +75,9 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{- printf "%s-agents-sandbox" (include "agent.namespace" .) -}}
 {{- end -}}
 
-{{/* Proxy env injected into every agent Config when the egress proxy renders
-     (spec 048). The proxy URL is derived from the sandbox namespace; NO_PROXY
+{{/* Proxy env for Job agent Configs (spec 048). Applied only when
+     `egressProxy.injectAgentEnv` is true — see agents.yaml. The proxy URL is
+     derived from the sandbox namespace; NO_PROXY
      keeps in-cluster traffic (kube-dns, sentry-proxy) and the Kafka brokers on
      the direct path — the Kafka hosts are read from the per-install
      executor.kafkaBrokers value (nuke's Kafka is an external nodeport, not an
