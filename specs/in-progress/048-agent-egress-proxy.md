@@ -1,8 +1,9 @@
 ---
-status: prompted
+status: verifying
 approved: "2026-08-08T20:38:43Z"
 generating: "2026-08-21T08:13:02Z"
 prompted: "2026-08-21T08:45:02Z"
+verifying: "2026-10-23T09:12:32Z"
 branch: dark-factory/agent-egress-proxy
 ---
 
