@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.122.0
 
 - fix(helm): make the egress proxy actually serve. The proxy container dropped **all** capabilities, but tinyproxy runs as root and drops to its own `tinyproxy` user at startup — `setgid`/`setgroups`/`setuid` then fail with EPERM and tinyproxy exits 77 *after* daemonizing, so the entrypoint saw exit 0 and the pod looked healthy while nothing listened on 8888. Adds `SETUID`/`SETGID` back. The deny self-test also read `%{http_code}`, which curl reports as `000` when a CONNECT is refused; the proxy's own code is `%{http_connect}`. And proxy env is no longer injected into `type: service` agents, which run as StatefulSets in the control namespace where `egress-proxy-ingress` does not admit them — they would have lost the direct egress they have today.
 
