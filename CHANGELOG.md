@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
-- docs(spec): amend spec 047 and both of its prompts so they describe the policy nuke actually needs — permit `sentry-proxy` (9090 TCP, `namespaceSelector` and `podSelector` in the **same** peer, namespace templated per release) and Kafka as three `/32` `ipBlock`s on TCP 32159 rather than a strimzi `namespaceSelector` on 9092, because Kafka on nuke is the shared cluster's external nodeport listener and not an in-cluster service. Convert the two agent-Job-dependent post-deploy ACs to a hand-created `app: agent` probe pod, so the chart is verifiable before the executor's `ConfigJobNamespace` ships, and re-point every `kubectlquant` command to `kubectlnukedev` / `kubectlnukeprod`. Chart target `0.18.0 → 0.19.0`. No template change in this commit — the chart itself lands in the prompt execution.
+- docs(spec): amend spec 047 and both of its prompts so they describe the policy nuke actually needs — permit `sentry-proxy` (9090 TCP, `namespaceSelector` and `podSelector` in the **same** peer, namespace templated per release) and Kafka as three `/32` `ipBlock`s on TCP 32159 rather than a strimzi `namespaceSelector` on 9092, because Kafka on nuke is the shared cluster's external nodeport listener and not an in-cluster service. Convert the two agent-Job-dependent post-deploy ACs to a hand-created `app: agent` probe pod, so the chart is verifiable before the executor's `ConfigJobNamespace` ships, and re-point every `kubectlquant` command to `kubectlnukedev` / `kubectlnukeprod`. Chart target `0.18.0 → 0.19.0`. The chart templates are unchanged here; they change when the prompts execute.
 
 ## v0.120.0
 
