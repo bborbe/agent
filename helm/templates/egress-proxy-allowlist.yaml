@@ -73,9 +73,11 @@ data:
     MODE="${1:-full}"
     PROXY="http://127.0.0.1:8888"
     # Negative: a non-allowlisted domain MUST be refused BY THE PROXY (403).
-    code=$(curl --proxy "$PROXY" -s -o /dev/null --connect-timeout 5 -w '%{http_code}' https://example.com 2>/dev/null || true)
+    # `%{http_connect}` is the proxy's CONNECT response code; `%{http_code}` is
+    # 000 here, because curl clears the HTTP code when the tunnel fails.
+    code=$(curl --proxy "$PROXY" -s -o /dev/null --connect-timeout 5 -w '%{http_connect}' https://example.com 2>/dev/null || true)
     if [ "$code" != "403" ]; then
-      echo "selftest FAIL: https://example.com returned '$code', expected the proxy's 403 deny" >&2
+      echo "selftest FAIL: https://example.com returned proxy CONNECT code '$code', expected 403" >&2
       exit 1
     fi
     # Positive: an allowlisted domain MUST get through. Startup probe only.

@@ -49,7 +49,11 @@ spec:
   {{- with $agent.env }}
   {{-   $env = mergeOverwrite $env . }}
   {{- end }}
-  {{- if $.Values.executor.enabled }}
+  {{- /* Proxy env only for Job agents: a `type: service` agent runs as a
+         StatefulSet in the control namespace, which `egress-proxy-ingress` does
+         not admit, so pointing it at the proxy would take away the direct egress
+         it has today. */}}
+  {{- if and $.Values.executor.enabled (ne (toString ($agent.type | default "job")) "service") }}
   {{-   $env = mergeOverwrite $env (include "agent.proxyEnv" $ | fromYaml) }}
   {{- end }}
   {{- if and $sentryProxy (not (hasKey $env "SENTRY_PROXY")) }}

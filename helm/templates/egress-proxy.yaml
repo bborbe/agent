@@ -64,6 +64,13 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
+              # tinyproxy runs as root and drops to its own `tinyproxy` user at
+              # startup (setgid/setgroups/setuid). With every capability dropped
+              # those syscalls return EPERM and tinyproxy exits 77 — but it has
+              # already daemonized, so the entrypoint sees exit 0 and the pod
+              # looks healthy while nothing listens on 8888. These two are the
+              # minimum that lets the privilege drop succeed.
+              add: [SETUID, SETGID]
             seccompProfile:
               type: RuntimeDefault
         - name: selftest
@@ -152,8 +159,10 @@ spec:
               app: agent
       ports:
         - { protocol: TCP, port: 8888 }
-    # Kubelet probes originate from the node, not a pod, and a CNI that enforces
-    # host traffic would otherwise fail every probe and keep the pods NotReady.
+    # Optional extra peer, only for httpGet/TCP probes or another in-cluster
+    # client. The chart's own probes are exec probes that curl 127.0.0.1 inside
+    # the pod, and pod loopback never crosses the interface NetworkPolicy filters,
+    # so this stays empty by default.
     {{- with .Values.egressProxy.nodeCidr }}
     - from:
         - ipBlock:
