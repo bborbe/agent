@@ -56,6 +56,13 @@ var _ = Describe("IsSensitiveKey", func() {
 		Expect(envparse.IsSensitiveKey("http_proxy")).To(BeTrue())
 	})
 
+	It(
+		"flags NO_PROXY as sensitive too — no secret in it, but the marker is deliberately broad",
+		func() {
+			Expect(envparse.IsSensitiveKey("NO_PROXY")).To(BeTrue())
+		},
+	)
+
 	It("does not flag HOME as sensitive", func() {
 		Expect(envparse.IsSensitiveKey("HOME")).To(BeFalse())
 	})
