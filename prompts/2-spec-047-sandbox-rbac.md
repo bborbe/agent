@@ -26,7 +26,7 @@ Read these project files in full before editing:
 - `helm/templates/executor-rbac.yaml` — the file this prompt extends. Note the existing structure: top-level `{{- if .Values.executor.enabled }}`, then `{{- $ns := include "agent.namespace" . }}`, then ServiceAccount / ClusterRole / ClusterRoleBinding / Role / RoleBinding, ending with `{{- end }}`.
 - `helm/templates/_helpers.tpl` — already contains the `agent.sandboxNamespace` helper from the sibling prompt (this prompt depends on it; if it is missing, STOP and report a precondition failure rather than inventing the name).
 - `helm/Chart.yaml` — current `version: 0.18.0`. (Note: `0.18.0` is **not published** — `helm show chart oci://registry-1.docker.io/bborbe/agent --version 0.18.0` returns `not found`; the highest published tag is `0.17.0`, which is what both nuke worktrees pin.)
-- `CHANGELOG.md` — current top entry is `## v0.81.3`; no `## Unreleased` section exists as of this writing.
+- `CHANGELOG.md` — current top release entry is `## v0.120.0`, and a `## Unreleased` section already sits above it (added when spec 047 was amended). Append to that `## Unreleased`; do not create a second one.
 - `helm/README.md` — the "Generic cluster (not quant)" section is where the sandbox note belongs.
 
 Key facts (verified against the repo):
@@ -90,7 +90,7 @@ Key facts (verified against the repo):
 
 3. **Bump `helm/Chart.yaml` `version: 0.18.0` → `version: 0.19.0`.** Nothing else in Chart.yaml changes (appVersion stays `"0.3.1"`).
 
-4. **Add a CHANGELOG entry in `CHANGELOG.md`.** If a `## Unreleased` section already exists at the top (above `## v0.81.3`), append to it; otherwise create it directly under the `# Changelog` heading. Entry (one bullet, `feat(helm):` prefix, matches the repo's helm-entry style):
+4. **Add a CHANGELOG entry in `CHANGELOG.md`.** A `## Unreleased` section already exists at the top (above `## v0.120.0`) — append your bullet to it. Create one directly under the `# Changelog` heading only if it is somehow absent. Entry (one bullet, `feat(helm):` prefix, matches the repo's helm-entry style):
 
    ```
    ## Unreleased
@@ -182,7 +182,7 @@ Do NOT run `make precommit` — this prompt changes no Go code; the render + gre
 kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.metadata.name}'        # expect agent-sandbox-egress
 kubectlnukedev get ns dev-agents-sandbox -o jsonpath='{.status.phase}'                                             # expect Active
 kubectlnukedev -n dev-agents-sandbox get pods -l app=agent -o name | wc -l                                         # expect >=1 (the probe pod)
-kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'  # expect 53 53 32159 9090
+kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'  # expect 53 53 9090 32159
 kubectlnukedev -n dev-agents-sandbox get role agent-task-executor-sandbox -o jsonpath='{.rules[*].resources}'      # expect jobs secrets persistentvolumeclaims (Failure-Modes row 4 recovery)
 # from inside the probe pod: wget -qO- --timeout=3 http://vault-obsidian-openclaw.dev.svc.cluster.local:9090        # expect non-zero, no body — proves the sentry peer is narrow
 # from inside the probe pod: wget -qO- --timeout=3 http://169.254.169.254/                                          # expect non-zero

@@ -54,18 +54,21 @@ RENDER='helm template helm/ --set namespace=dev --set executor.kafkaBrokers=kafk
 - [ ] **Post-Deploy (Rung-2):** the namespace and policy exist in dev — `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.metadata.name}'` returns `agent-sandbox-egress`
   - `deploy_check:` `kubectlnukedev get ns dev-agents-sandbox -o jsonpath='{.status.phase}'`
   - `deploy_target:` `Active`
-- [ ] **Post-Deploy (Rung-2):** the policy selects the probe pod — `kubectlnukedev -n dev-agents-sandbox get pods -l app=agent -o name | wc -l` returns ≥1. The pod is hand-created (`busybox:1.36`); no agent Job runs here until `config-job-namespace.md` ships
+- [ ] **Post-Deploy (Rung-2):** the policy selects the probe pod — `kubectlnukedev -n dev-agents-sandbox get pods -l app=agent -o name | wc -l` returns ≥1. No agent Job runs here until `config-job-namespace.md` ships, so the pod is created for this check and removed afterwards:
+  - `kubectlnukedev -n dev-agents-sandbox run agent-egress-probe --image=busybox:1.36 --labels app=agent --restart=Never -- sleep 3600`
+  - teardown: `kubectlnukedev -n dev-agents-sandbox delete pod agent-egress-probe`
+  - The `wc -l` check alone would pass on any labelled pod; in the otherwise-empty sandbox that is acceptable, and every reachability AC below names the pod explicitly
   - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.podSelector.matchLabels.app}'`
   - `deploy_target:` `agent`
 - [ ] **Post-Deploy (Rung-2):** an internal service on an allowed port is still blocked — from inside the probe pod, `wget -qO- --timeout=3 http://vault-obsidian-openclaw.dev.svc.cluster.local:9090` exits non-zero within 5s and prints no body. This is the check that proves the `sentry-proxy` peer is narrow: a bare namespace+port rule would let this through. Negative evidence: exit code ≠ 0, stdout empty
   - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'`
-  - `deploy_target:` `53 53 32159 9090`
+  - `deploy_target:` `53 53 9090 32159`
 - [ ] **Post-Deploy (Rung-2):** the metadata endpoint is blocked — from the same pod, `wget -qO- --timeout=3 http://169.254.169.254/` exits non-zero. Negative evidence: exit code ≠ 0
   - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.podSelector.matchLabels.app}'`
   - `deploy_target:` `agent`
-- [ ] **Post-Deploy (Rung-2):** Kafka and `sentry-proxy` are reachable — from the same probe pod, `nc -z 192.168.178.41 32159` and `nc -z sentry-proxy.dev.svc.cluster.local 9090` both exit 0. Positive evidence: both exit codes 0
+- [ ] **Post-Deploy (Rung-2):** Kafka and `sentry-proxy` are reachable — from the same probe pod, `nc -z 192.168.178.41 32159` and `nc -z sentry-proxy.dev.svc.cluster.local 9090` both exit 0. Positive evidence: both exit codes 0. `nc -z` is a busybox build variant, so confirm it on the first probe pod; if the applet lacks `-z`, use `wget -q -T 5 -O /dev/null http://192.168.178.41:32159` instead
   - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'`
-  - `deploy_target:` `53 53 32159 9090`
+  - `deploy_target:` `53 53 9090 32159`
 - [ ] **Post-Deploy (Rung-3):** the same block/allow pair holds in prod — from a pod in `prod-agents-sandbox`, `vault-obsidian-openclaw.prod.svc.cluster.local:9090` is blocked (exit ≠ 0), `nc -z 192.168.178.41 32159` exits 0, and `nc -z sentry-proxy.prod.svc.cluster.local 9090` exits 0
   - `deploy_check:` `kubectlnukeprod get ns prod-agents-sandbox -o jsonpath='{.status.phase}'`
   - `deploy_target:` `Active`
@@ -99,6 +102,10 @@ Post-Deploy ACs are operator-executed against dev, then prod, per `docs/agent-ne
    - Kafka, TCP 32159, as three `ipBlock`s — `192.168.178.41/32`, `192.168.178.42/32`, `192.168.178.43/32`. Kafka on nuke is the shared cluster's **external nodeport listener**, not an in-cluster service, so these are LAN IPs; an `ipBlock` of `192.168.178.0/24` would allow every host on that subnet on that port
 
    Everything else — other internal services, other private CIDRs, `169.254.0.0/16`, direct internet — is denied by omission.
+
+   **Lockstep invariant:** the three IPs duplicate `executor.kafkaBrokers` (`helm/values.yaml`), which is the chart's own required source of truth for the same addresses. Changing a broker address in `values-dev.yaml` / `values-prod.yaml` without changing the policy silently denies Kafka egress, and the only symptom is a Job whose result never reaches its topic. Deriving the `ipBlock`s from `executor.kafkaBrokers` (a `range` over `splitList ","` then `splitList ":"`) removes the drift and is the preferred follow-up; until then the two must move together, and Failure Modes records it.
+
+   **NodePort residual:** TCP 32159 is a cluster-wide NodePort, so permitting the three node IPs on that port also reaches **any other service** bound to NodePort 32159 on those nodes — not just Kafka. The exposure is bounded to three hosts and one port, and to whatever else claims that port. Recorded as residual risk in Security.
 4. Ingress is not declared at all, because no executor→Job ingress path exists: the executor "does NOT watch Jobs, read stdout, or publish results" and the agent publishes directly to Kafka.
 5. The chart renders a Role and RoleBinding named `agent-task-executor-sandbox`, in the sandbox namespace, granting the executor's ServiceAccount `create`/`get`/`list`/`watch`/`delete` on `jobs`, `get` on `secrets`, and `get` on `persistentvolumeclaims` within the environment's sandbox namespace — and nothing else.
 
@@ -119,6 +126,7 @@ Post-Deploy ACs are operator-executed against dev, then prod, per `docs/agent-ne
 |---|---|---|
 | Policy applied but `podSelector` matches no pods | AC "policy selects real pods" fails; `get pods -l app=agent` returns 0 | Ship `config-job-namespace.md` first — the label comes from the executor. The policy is inert until it matches |
 | Agent needs an internal service not in the allowlist | Job fails with a connection timeout, visible in Job logs | Add a named exception to the policy; never revert to allow-all |
+| A Kafka broker address changes in `values-*` but not in the policy | Kafka egress denied; the Job runs but its result never reaches its topic, and the task never completes | Update the three `ipBlock`s in lockstep with `executor.kafkaBrokers`; better, derive them from that value so the two cannot drift |
 | PVCs absent in the new namespace | Job fails to start; `kubectl describe pod` shows unbound PVC | Re-create PVCs and re-seed Secrets in the environment's sandbox namespace before cutover |
 | Executor lacks cross-namespace RBAC | Job spawn fails with 403 in executor logs | Re-run `helm upgrade --install`; confirm with `kubectlnukedev -n dev-agents-sandbox get role agent-task-executor-sandbox -o jsonpath='{.rules[*].resources}'` returning `jobs secrets persistentvolumeclaims` |
 | Chart deployed while executor is pre-`JobNamespace` | Nothing spawns into the sandbox; namespace sits empty | Expected no-op; deploy order is chart-then-executor or either order |
@@ -131,6 +139,7 @@ Post-Deploy ACs are operator-executed against dev, then prod, per `docs/agent-ne
 - **Agent queries the cloud metadata endpoint.** Denied by omission — link-local is not in the allowlist. Covered by its own Post-Deploy AC.
 - **Agent publishes to a trading Kafka topic.** Still possible — the policy allows Kafka at the network layer and strimzi has no per-topic authz here. Explicit residual risk; the fix is Kafka ACLs, out of scope.
 - **Agent escapes via an unlabelled Job.** A Job without `app: agent` is unselected and unrestricted. Mitigated in the sibling spec, where the spawner sets the label unconditionally.
+- **Agent reaches a non-Kafka service on NodePort 32159.** The three node IPs are permitted on that port for Kafka, and a NodePort is cluster-wide, so any *other* service bound to 32159 on those hosts is reachable too. Bounded to three hosts and one port. Recorded, not mitigated: deriving the rule from `executor.kafkaBrokers` would not narrow it, because the port stays. The real fix is to stop fronting Kafka with a shared NodePort.
 - **Executor's widened RBAC is abused.** Grants are namespace-scoped to `agents-sandbox` and enumerated; no `*` verbs, no cluster-scope.
 
 ## Suggested Decomposition

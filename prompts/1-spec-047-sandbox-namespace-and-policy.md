@@ -113,7 +113,7 @@ Key facts (verified against the repo):
        - to:
            - namespaceSelector:
                matchLabels:
-                 kubernetes.io/metadata.name: {{ .Values.namespace }}
+                 kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
              podSelector:
                matchLabels:
                  app: sentry-proxy
@@ -140,7 +140,7 @@ Key facts (verified against the repo):
 3. **Do NOT make any of these changes** (spec Non-goals / Constraints):
    - Do NOT add an egress rule for the public internet or the `egress-proxy` (port 8888, `app: egress-proxy`) — `agent-egress-proxy.md` (spec 048) owns public-internet egress. The only permitted destinations are the three in the policy above: kube-dns 53, `sentry-proxy` 9090, Kafka 32159.
    - Do NOT add `metadata.labels` to the NetworkPolicy (see context — the spec AC grep depends on `app: agent` being within 5 lines of the `name:` line).
-   - Do NOT add any new keys to `helm/values.yaml` — the sandbox name derives from the existing `namespace` value and the Kafka/DNS selectors are hardcoded per `docs/agent-network-security.md`.
+   - Do NOT add any new keys to `helm/values.yaml` — the sandbox name derives from the existing `namespace` value, and the DNS/Kafka rules are written literally in the template. Note `docs/agent-network-security.md` is the background document, but its reference policy is **stale on Kafka** (quant-era strimzi `namespaceSelector` on 9092); the ipBlock form above is authoritative for nuke.
    - Do NOT touch anything in the executor Go code, `ConfigSpec.JobNamespace`, or pod labelling — the sibling spec `bborbe/agent-task-executor:specs/config-job-namespace.md` owns those.
    - Do NOT modify `helm/templates/executor-rbac.yaml` in this prompt — the sandbox Role/RoleBinding ship in the sibling prompt (execution order: this prompt first).
    - Do NOT commit — dark-factory handles git.
