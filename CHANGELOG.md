@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.121.0
 
 - feat(claude): pass `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` (and their lowercase forms) through the Claude runner's child-env allowlist, so an agent pod's egress-proxy settings reach the Bash tool instead of being dropped (spec 048).
 - fix(envparse): redact the proxy variables in the child-env log line — a proxy URL may embed credentials, and these keys now reach that log line where they were previously dropped before it. `NO_PROXY` is redacted too: it carries no secret, but the marker list is deliberately conservative.
