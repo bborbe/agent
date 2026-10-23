@@ -8,7 +8,7 @@ branch: dark-factory/agent-sandbox-namespace
 <summary>
 - The chart renders a per-environment `<env>-agents-sandbox` Namespace, so the dev and prod installs own distinct objects (`dev-agents-sandbox` / `prod-agents-sandbox`) even when they share one cluster
 - The sandbox name is derived from the existing required `namespace` value — no new chart values are introduced
-- The chart renders a default-deny egress NetworkPolicy `agent-sandbox-egress` that selects pods labelled `app: agent` and permits only kube-dns (53 UDP+TCP), `sentry-proxy` (9090 TCP) and the three Kafka nodeports (32159 TCP)
+- The chart renders a default-deny egress NetworkPolicy `agent-sandbox-egress` that selects pods labelled `app: agent` and permits only kube-dns (53 UDP+TCP), `sentry-proxy` (9090), `claude-code-router-dev` (8788), `pushgateway` (9090), the three `vault-obsidian-*` (9090), `frontend-gateway` (9090), `frontend-strategy` (9090) and the three Kafka nodeports (32159)
 - Everything else — internal services, private CIDRs, the cloud metadata endpoint `169.254.169.254`, direct internet — is denied by omission
 - Ingress is not declared at all, matching the executor→Job architecture (the agent publishes its result directly to Kafka)
 - The policy lives only in the sandbox namespace, so existing workloads in `dev`/`prod` are untouched
@@ -36,7 +36,7 @@ Key facts (verified against the repo):
   `helm template helm/ --set namespace=dev --set executor.kafkaBrokers=kafka:9092 --set executor.existingSecret=agent-secret`
 - The `agent.namespace` helper uses `required`, so `.Values.namespace` is guaranteed non-empty once a render succeeds.
 - The NetworkPolicy MUST carry NO `metadata.labels`. The spec AC `grep -A5 'name: agent-sandbox-egress' | grep -c 'app: agent'` requires `app: agent` within 5 lines after the `name:` line; `agent.labels` expands to three lines and would push the podSelector out of that window (verified: with labels the AC returns 0). This is a deliberate divergence from the chart-wide "every object gets labels" convention.
-- Kafka egress is three `/32` `ipBlock`s on TCP 32159 — **not** a namespace/pod selector. Kafka on nuke is the shared cluster's external nodeport listener, so there is no in-cluster `kafka` Service to select. The `sentry-proxy` peer is the only namespace-scoped rule in the policy.
+- Kafka egress is three `/32` `ipBlock`s on TCP 32159 — **not** a namespace/pod selector. Kafka on nuke is the shared cluster's external nodeport listener, so there is no in-cluster `kafka` Service to select. Every other peer is namespace-scoped, and each one selects exactly ONE service by `podSelector` — never a bare namespace+port, which would open every service on that port in that namespace.
 - Do NOT add an egress-proxy rule (port 8888, `app: egress-proxy`) — public-internet egress is owned by spec 048 `agent-egress-proxy` and must stay denied here. The docs reference policy shows the future end-state; this spec (047) ships kube-dns, `sentry-proxy` and the Kafka nodeports only.
 </context>
 
@@ -119,6 +119,80 @@ Key facts (verified against the repo):
                  app: sentry-proxy
          ports:
            - { protocol: TCP, port: 9090 }
+       # claude-code-router-dev — every agent's model endpoint. 13 of the 17 job
+       # Configs set it; without this rule they cannot call a model at all.
+       - to:
+           - namespaceSelector:
+               matchLabels:
+                 kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+             podSelector:
+               matchLabels:
+                 app.kubernetes.io/instance: claude-code-router-dev
+         ports:
+           - { protocol: TCP, port: 8788 }
+       # pushgateway — job metrics. Lives in the monitoring namespace, not the
+       # release namespace, so this peer's namespaceSelector differs.
+       - to:
+           - namespaceSelector:
+               matchLabels:
+                 kubernetes.io/metadata.name: monitoring
+             podSelector:
+               matchLabels:
+                 app: pushgateway
+         ports:
+           - { protocol: TCP, port: 9090 }
+       # The three vaults and the two trading frontends. One peer EACH, not one
+       # peer on port 9090 — a namespace+port rule would open every service on
+       # 9090 in the release namespace, which is the trap this policy exists to
+       # avoid. These are the destinations the egress matrix attributes to job
+       # pods (sentry-collector, the github-* agents, trading-analysis,
+       # trading-backtest); the union is shared because per-agent policies are a
+       # Non-goal for this spec.
+       - to:
+           - namespaceSelector:
+               matchLabels:
+                 kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+             podSelector:
+               matchLabels:
+                 app: vault-obsidian-personal
+         ports:
+           - { protocol: TCP, port: 9090 }
+       - to:
+           - namespaceSelector:
+               matchLabels:
+                 kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+             podSelector:
+               matchLabels:
+                 app: vault-obsidian-openclaw
+         ports:
+           - { protocol: TCP, port: 9090 }
+       - to:
+           - namespaceSelector:
+               matchLabels:
+                 kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+             podSelector:
+               matchLabels:
+                 app: vault-obsidian-trading
+         ports:
+           - { protocol: TCP, port: 9090 }
+       - to:
+           - namespaceSelector:
+               matchLabels:
+                 kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+             podSelector:
+               matchLabels:
+                 app: frontend-gateway
+         ports:
+           - { protocol: TCP, port: 9090 }
+       - to:
+           - namespaceSelector:
+               matchLabels:
+                 kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+             podSelector:
+               matchLabels:
+                 app: frontend-strategy
+         ports:
+           - { protocol: TCP, port: 9090 }
        # Kafka — the only path a task result reaches its topic. On nuke this is
        # the shared cluster's EXTERNAL nodeport listener, not an in-cluster
        # service, so these are LAN IPs. Three /32s, never a /24: a /24 would
@@ -138,7 +212,7 @@ Key facts (verified against the repo):
    Copy this file verbatim. Do not reformat the inline flow-mapped ports (`{ protocol: UDP, port: 53 }` style) — the rendered output is asserted against the spec's ACs.
 
 3. **Do NOT make any of these changes** (spec Non-goals / Constraints):
-   - Do NOT add an egress rule for the public internet or the `egress-proxy` (port 8888, `app: egress-proxy`) — `agent-egress-proxy.md` (spec 048) owns public-internet egress. The only permitted destinations are the three in the policy above: kube-dns 53, `sentry-proxy` 9090, Kafka 32159.
+   - Do NOT add an egress rule for the public internet or the `egress-proxy` (port 8888, `app: egress-proxy`) — `agent-egress-proxy.md` (spec 048) owns public-internet egress. The only permitted destinations are the nine in the policy above — kube-dns 53, `sentry-proxy` 9090, `claude-code-router-dev` 8788, `pushgateway` 9090, the three `vault-obsidian-*` on 9090, `frontend-gateway` 9090, `frontend-strategy` 9090, and Kafka 32159. Do NOT drop any of them because "the agent does not obviously need it": each is attributed to a job pod in the parent goal's egress matrix, and omitting one breaks that agent.
    - Do NOT add `metadata.labels` to the NetworkPolicy (see context — the spec AC grep depends on `app: agent` being within 5 lines of the `name:` line).
    - Do NOT add any new keys to `helm/values.yaml` — the sandbox name derives from the existing `namespace` value, and the DNS/Kafka rules are written literally in the template. Note `docs/agent-network-security.md` is the background document, but its reference policy is **stale on Kafka** (quant-era strimzi `namespaceSelector` on 9092); the ipBlock form above is authoritative for nuke.
    - Do NOT touch anything in the executor Go code, `ConfigSpec.JobNamespace`, or pod labelling — the sibling spec `bborbe/agent-task-executor:specs/config-job-namespace.md` owns those.
@@ -186,8 +260,13 @@ grep -c 'name: agents-sandbox' /tmp/rendered-prod.yaml               # AC8 negat
 grep -cE 'cidr: 192\.168\.178\.(41|42|43)/32' /tmp/rendered-dev.yaml # ==3
 grep -c 'cidr: 192.168.178.0/24' /tmp/rendered-dev.yaml              # ==0 (never widen to the subnet)
 grep -c 'port: 32159' /tmp/rendered-dev.yaml                         # ==1
-grep -c 'port: 9090' /tmp/rendered-dev.yaml                          # ==1
+grep -c 'port: 8788' /tmp/rendered-dev.yaml                          # ==1 (claude-code-router-dev)
 grep -c 'port: 9092' /tmp/rendered-dev.yaml                          # ==0 (quant-era, must be gone)
+# every in-cluster destination present — a missing one breaks the agents that need it
+for n in sentry-proxy claude-code-router-dev pushgateway vault-obsidian-personal \
+         vault-obsidian-openclaw vault-obsidian-trading frontend-gateway frontend-strategy; do
+  printf '%s ' "$n"; grep -c "$n" /tmp/rendered-dev.yaml              # each >=1
+done
 
 # AC10: the sentry peer must keep namespaceSelector AND podSelector in ONE `- to:` entry.
 # A split peer renders the same greps above and passes them all, so assert the structure:
