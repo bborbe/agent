@@ -70,7 +70,15 @@ spec:
               # already daemonized, so the entrypoint sees exit 0 and the pod
               # looks healthy while nothing listens on 8888. These two are the
               # minimum that lets the privilege drop succeed.
-              add: [SETUID, SETGID]
+              #
+              # DAC_OVERRIDE is the third, and it is a separate failure. The
+              # entrypoint's last step is `touch /var/log/tinyproxy/tinyproxy.log`,
+              # and the image ships that directory as uid 100 / mode 0755 — so a
+              # root process without DAC_OVERRIDE is "other" there, gets EACCES and
+              # run.sh exits 1. Measured on nuke dev 2026-10-23: `touch:
+              # /var/log/tinyproxy/tinyproxy.log: Permission denied` → `Could not
+              # tail ... Exiting`. The SETUID/SETGID fix alone still crash-loops.
+              add: [SETUID, SETGID, DAC_OVERRIDE]
             seccompProfile:
               type: RuntimeDefault
         - name: selftest
