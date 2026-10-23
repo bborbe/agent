@@ -1,7 +1,13 @@
 ---
-status: draft
+status: completed
 spec: [048-agent-egress-proxy]
+summary: Rendered the two-replica tinyproxy egress proxy (Deployment + Service + allowlist/self-test ConfigMap) into the per-environment sandbox namespace, bumped the chart 0.19.0→0.20.0 and added the Unreleased changelog entry; all spec build-time AC greps and the chart render suite pass.
+execution_id: agent-egress-chart-exec-248-spec-048-egress-proxy-resources
+dark-factory-version: v0.198.7
 created: "2026-08-21T10:30:00Z"
+queued: "2026-10-23T10:49:15Z"
+started: "2026-10-23T10:49:23Z"
+completed: "2026-10-23T10:50:28Z"
 branch: dark-factory/agent-egress-proxy
 ---
 

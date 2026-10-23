@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [048-agent-egress-proxy]
 created: "2026-08-21T10:40:00Z"
+queued: "2026-10-23T10:49:18Z"
 branch: dark-factory/agent-egress-proxy
 ---
 

@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(helm): render a two-replica tinyproxy egress proxy (`egress-proxy`) with its allowlist + two-direction self-test ConfigMap in `<namespace>-agents-sandbox`. Chart 0.19.0→0.20.0.
+
 ## v0.121.0
 
 - feat(helm): render a per-environment `<namespace>-agents-sandbox` Namespace and a default-deny `agent-sandbox-egress` NetworkPolicy for agent Job pods, permitting only kube-dns (53 UDP+TCP), `sentry-proxy`, `claude-code-router-<env>`, `pushgateway`, the three `vault-obsidian-*` services, `frontend-gateway`, `frontend-strategy` and the three Kafka nodeports (TCP 32159); adds the `agent.sandboxNamespace` helper and gates both objects on `executor.enabled`

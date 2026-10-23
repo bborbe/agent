@@ -1,0 +1,160 @@
+{{- if .Values.executor.enabled }}
+# Egress proxy (spec 048): the ONLY path from a sandbox agent pod to the public
+# internet. tinyproxy filters the CONNECT host:port against the allowlist below
+# (FilterDefaultDeny=Yes => everything not listed is denied with a 403). No TLS
+# interception, no certificate injection.
+#
+# The allowlist + self-test live in this ConfigMap so changing the allowlist is
+# an edit + proxy restart, never an image rebuild. The proxy's own settings
+# (Filter/FilterDefaultDeny/FilterURLs) are container env vars, NOT ConfigMap data. NOTE: the
+# Deployment intentionally carries NO metadata.labels — the spec's acceptance
+# criteria grep 'replicas: 2' within 5 lines of the name line (same deliberate
+# divergence as the 047 NetworkPolicy).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: egress-proxy-allowlist
+  namespace: {{ include "agent.sandboxNamespace" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+data:
+  # Domain allowlist (tinyproxy Filter file). One anchored regex per line, matched
+  # against the CONNECT host:port; FilterDefaultDeny=Yes denies everything not listed.
+  #
+  # Seeded from claude-yolo's curated `files/tinyproxy-allowlist` (30 entries,
+  # anchored `^...$` so `api.github.com.evil.com` cannot match) plus the two
+  # claude-code-router upstreams `api.gpt.seibert.ai` and `api.seibert.ai`,
+  # which the router calls and which no seed list carried — 32 entries total.
+  # `api.minimax.io` is load-bearing: prod github-dark-factory-agent runs
+  # ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic.
+  tinyproxy-allowlist: |
+    ^.*\.github\.com$
+    ^.*\.githubusercontent\.com$
+    ^api\.anthropic\.com$
+    ^api\.gpt\.seibert\.ai$
+    ^api\.minimax\.io$
+    ^api\.osv\.dev$
+    ^api\.seibert\.ai$
+    ^bitbucket\.seibert\.tools$
+    ^claude\.ai$
+    ^console\.anthropic\.com$
+    ^dl-cdn\.alpinelinux\.org$
+    ^files\.pythonhosted\.org$
+    ^ghcr\.io$
+    ^github\.com$
+    ^host\.docker\.internal$
+    ^go\.dev$
+    ^marketplace\.visualstudio\.com$
+    ^pkg-containers\.githubusercontent\.com$
+    ^platform\.claude\.com$
+    ^proxy\.golang\.org$
+    ^pypi\.org$
+    ^registry\.npmjs\.org$
+    ^sentry\.io$
+    ^statsig\.anthropic\.com$
+    ^statsig\.com$
+    ^storage\.googleapis\.com$
+    ^sum\.golang\.org$
+    ^update\.code\.visualstudio\.com$
+    ^vllm\.seibert\.tools$
+    ^vscode\.blob\.core\.windows\.net$
+    ^vuln\.go\.dev$
+    ^www\.python\.org$
+  # Two-direction self-test. The readiness probe on the selftest sidecar runs
+  # this; a broken-open allowlist (negative check) or an over-tight allowlist
+  # (positive check) keeps the pod un-ready (spec failure mode).
+  selftest.sh: |
+    #!/bin/sh
+    set -u
+    PROXY="http://127.0.0.1:8888"
+    # Negative: a non-allowlisted domain MUST fail (tinyproxy 403 => curl --fail
+    # exits 22). Without --fail, a 403 is still exit 0 and this check is a no-op.
+    if curl --proxy "$PROXY" --fail --connect-timeout 5 https://example.com >/dev/null 2>&1; then
+      echo "selftest FAIL: non-allowlisted https://example.com was allowed (allowlist broken open)" >&2
+      exit 1
+    fi
+    # Positive: an allowlisted domain MUST succeed.
+    if ! curl --proxy "$PROXY" --fail --connect-timeout 5 -o /dev/null https://api.github.com/zen; then
+      echo "selftest FAIL: allowlisted https://api.github.com/zen was blocked (allowlist too tight)" >&2
+      exit 1
+    fi
+    echo "selftest OK"
+---
+# No metadata.labels on this Deployment (see the note above the ConfigMap).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: egress-proxy
+  namespace: {{ include "agent.sandboxNamespace" . }}
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: egress-proxy
+  template:
+    metadata:
+      labels:
+        app: egress-proxy
+    spec:
+      containers:
+        - name: egress-proxy
+          image: monokal/tinyproxy:latest
+          args: ["ANY"]   # ACL: allow all sources; NetworkPolicy gates who reaches it
+          env:
+            - name: Filter
+              value: /allowlist/tinyproxy-allowlist
+            - name: FilterDefaultDeny
+              value: "Yes"
+            - name: FilterURLs
+              value: "On"
+          volumeMounts:
+            - name: proxy-files
+              mountPath: /allowlist
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+        - name: selftest
+          image: curlimages/curl:8.21.0
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          volumeMounts:
+            - name: proxy-files
+              mountPath: /allowlist
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "/allowlist/selftest.sh"]
+            initialDelaySeconds: 5
+            periodSeconds: 60
+            timeoutSeconds: 25
+            failureThreshold: 3
+            successThreshold: 1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: proxy-files
+          configMap:
+            name: egress-proxy-allowlist
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: egress-proxy
+  namespace: {{ include "agent.sandboxNamespace" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: egress-proxy
+  ports:
+    - name: http
+      port: 8888
+      targetPort: 8888
+{{- end }}
