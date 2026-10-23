@@ -3,9 +3,12 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 #
-# Renders helm/templates/agents.yaml and asserts that the optional per-agent
-# rerunOnLostClaim field renders whenever it is present — including `false` —
-# and not at all when unset.
+# Renders the chart and asserts its conditional per-agent fields and the
+# sandbox/egress-proxy branches:
+#   - rerunOnLostClaim renders whenever present — including `false` — and not at all when unset
+#   - jobNamespace renders quoted when set, and not at all when unset or empty, including
+#     the per-agent scoping case (two agents, only one sets it)
+#   - the sandbox namespace, Kafka peer, PVC and egress-proxy cases each pin their branch
 #
 # Run from repo root.
 
