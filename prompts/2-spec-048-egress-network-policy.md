@@ -23,12 +23,12 @@ Read `CLAUDE.md` for project conventions.
 
 Read these project files in full before editing:
 - `docs/agent-network-security.md` — the background document; its "NetworkPolicy reference" section shows the future end-state `agent-sandbox-egress` including the `app: egress-proxy` :8888 rule and the "proxy pod carries its own policy allowing egress to 0.0.0.0/0 minus private ranges" requirement (DB 5).
-- `helm/templates/sandbox.yaml` — the file this prompt extends. It was created by spec 047 and MUST already exist with the `agent-sandbox-egress` NetworkPolicy (kube-dns 53 UDP+TCP rule, then strimzi Kafka 9092 rule). If it is missing, STOP and report a precondition failure — do not recreate it (spec 047 owns it). Likewise, if `helm/templates/_helpers.tpl` has no `agent.sandboxNamespace` define, STOP: requirement 2 cannot render without it.
+- `helm/templates/sandbox.yaml` — the file this prompt extends. It was created by spec 047 and MUST already exist with the `agent-sandbox-egress` NetworkPolicy and a non-empty `egress:` list. **Do not assume a particular peer set or ordering** — spec 047's peer list has changed shape since this prompt was drafted (it may contain kube-dns, several in-cluster services, and a Kafka `ipBlock` rule). If the file is missing, STOP and report a precondition failure — do not recreate it (spec 047 owns it). Likewise, if `helm/templates/_helpers.tpl` has no `agent.sandboxNamespace` define, STOP: requirement 2 cannot render without it.
 - `helm/templates/egress-proxy.yaml` — created by the sibling prompt of this spec (execution order: this prompt runs after it). The proxy Deployment's pod template carries `labels: {app: egress-proxy}` — the selector both new policies depend on.
 - `helm/templates/_helpers.tpl` — the `agent.sandboxNamespace` helper (spec 047) that all policies use for the namespace.
 
 Key facts (verified against the spec 047 prompt's verbatim `sandbox.yaml` content and spec 048's ACs — `sandbox.yaml` and the `agent.sandboxNamespace` helper do not exist in the repo until spec 047's prompt 1 executes):
-- `agent-sandbox-egress` lives in `helm/templates/sandbox.yaml`, namespace `{{ include "agent.sandboxNamespace" . }}`, selects `app: agent`, `policyTypes: [Egress]`, and currently has exactly two egress rules (kube-dns, strimzi Kafka). The spec 047 acceptance criteria that MUST keep passing are:
+- `agent-sandbox-egress` lives in `helm/templates/sandbox.yaml`, namespace `{{ include "agent.sandboxNamespace" . }}`, selects `app: agent`, `policyTypes: [Egress]`, and carries an `egress:` list of named peers (kube-dns among them, plus whatever in-cluster services and Kafka rule spec 047 ships — **read the file, do not assume the set or the order**). The spec 047 acceptance criteria that MUST keep passing are:
   - `grep -A5 'name: agent-sandbox-egress' | grep -c 'app: agent'` ≥ 1 (podSelector stays within 5 lines of the name line — do not add labels or reorder metadata)
   - `grep -A30 'name: agent-sandbox-egress' | grep -c 'policyTypes'` == 1 and `grep -A30 ... | grep -c 'ingress:'` == 0
   - per-environment: `dev-agents-sandbox` only in the dev render, `prod-agents-sandbox` only in the prod render
@@ -42,7 +42,7 @@ Key facts (verified against the spec 047 prompt's verbatim `sandbox.yaml` conten
 
 1. **Extend `helm/templates/sandbox.yaml`: add the agent→proxy rule to `agent-sandbox-egress`**
 
-   Inside the existing `agent-sandbox-egress` policy's `egress:` list, insert a new rule block BETWEEN the kube-dns rule and the strimzi Kafka rule, exactly:
+   Inside the existing `agent-sandbox-egress` policy's `egress:` list, **append a new rule block as the LAST entry** — after every peer spec 047 ships (do not insert between named rules; the peer list has changed shape and any positional anchor will be wrong). The block, exactly:
 
    ```yaml
        # The only path to the public internet: the domain-allowlisting egress proxy
@@ -116,7 +116,7 @@ Key facts (verified against the spec 047 prompt's verbatim `sandbox.yaml` conten
 
 <constraints>
 - No agent image or Go code changes **in this prompt** — the only code change the spec permits is the runner's child-env allowlist (sibling prompt 4).
-- Kafka result publishing must not regress — the Kafka 9092 rule is untouched.
+- Kafka result publishing must not regress — every egress peer spec 047 ships stays intact; this prompt only appends one.
 - Agent pods keep `drop: ALL`; no `NET_ADMIN` is introduced.
 - The internal-egress rules from `agent-sandbox-namespace.md` must not be loosened to accommodate the proxy.
 - Direct internet egress from agent pods stays denied — the proxy rule is the ONLY new permitted destination.
@@ -139,16 +139,21 @@ echo "render exit: $? (must be 0)"
 
 # 047 ACs preserved
 grep -A5 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'app: agent'   # >=1
-grep -A30 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'policyTypes' # ==1
-grep -A30 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'ingress:'     # ==0
+grep -A80 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'policyTypes' # ==1
+grep -A80 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'ingress:'     # ==0
 
-# 048: agent -> proxy rule present
-grep -A30 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'egress-proxy' # >=1
-grep -A30 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'port: 8888'   # >=1
-# 048: the deny half must NOT regress — no direct internet, Kafka + DNS rules intact
-grep -A40 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'ipBlock'       # negative: ==0 (no direct internet)
-grep -A40 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'port: 9092'    # >=1 (Kafka rule preserved)
-grep -A40 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'port: 53'      # ==2 (DNS UDP+TCP preserved)
+# 048: agent -> proxy rule present (appended LAST, so the window must be wide enough
+# to reach the end of a ten-peer egress list — -A80, not -A30)
+grep -A80 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'egress-proxy' # >=1
+grep -A80 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'port: 8888'   # >=1
+# 048: the deny half must NOT regress — no direct internet, and no peer lost.
+# Capture the peer count from a render taken BEFORE your edit:
+#   helm template ... > /tmp/rendered-before.yaml
+#   BEFORE=$(grep -A80 'name: agent-sandbox-egress' /tmp/rendered-before.yaml | grep -c 'to:')
+# then AFTER must be BEFORE + 1 (exactly the new proxy peer):
+grep -A80 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'to:'          # == BEFORE + 1
+grep -A80 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c '0.0.0.0/0'    # negative: ==0 (no direct internet)
+grep -A80 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'port: 53'      # ==2 (DNS UDP+TCP preserved)
 
 # 048: proxy pod's own policy
 grep -A8 'name: egress-proxy-egress' /tmp/rendered-dev.yaml | grep -c 'Egress'         # >=1

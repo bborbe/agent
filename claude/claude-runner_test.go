@@ -837,3 +837,75 @@ exit 0`,
 		})
 	})
 })
+
+var _ = Describe("claudeRunner proxy env propagation", func() {
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	It("passes the proxy variables through and keeps the allowlist closed", func() {
+		// The shim writes the child environment to a file whose path is baked into
+		// the script body — not passed through an env var, which the allowlist
+		// would drop.
+		shimDir := GinkgoT().TempDir()
+		capturePath := filepath.Join(shimDir, "captured-env.txt")
+		shimPath := filepath.Join(shimDir, "claude")
+		script := fmt.Sprintf(`#!/bin/sh
+{
+echo "HTTP_PROXY=$HTTP_PROXY"
+echo "HTTPS_PROXY=$HTTPS_PROXY"
+echo "NO_PROXY=$NO_PROXY"
+echo "http_proxy=$http_proxy"
+echo "https_proxy=$https_proxy"
+echo "no_proxy=$no_proxy"
+echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY"
+} > %q
+echo '{"type":"result","result":"ok"}'
+exit 0
+`, capturePath)
+		Expect(os.WriteFile(shimPath, []byte(script), 0755)).To(Succeed()) //nolint:gosec
+
+		originalPath := os.Getenv("PATH")
+		DeferCleanup(func() {
+			Expect(os.Setenv("PATH", originalPath)).To(Succeed())
+		})
+		Expect(os.Setenv("PATH", shimDir+":"+originalPath)).To(Succeed())
+
+		setAndRestore := func(key, value string) {
+			original, hadOriginal := os.LookupEnv(key)
+			DeferCleanup(func() {
+				if hadOriginal {
+					Expect(os.Setenv(key, original)).To(Succeed())
+				} else {
+					Expect(os.Unsetenv(key)).To(Succeed())
+				}
+			})
+			Expect(os.Setenv(key, value)).To(Succeed())
+		}
+
+		setAndRestore("HTTP_PROXY", "http://proxy.example:8080")
+		setAndRestore("HTTPS_PROXY", "http://proxy.example:8443")
+		setAndRestore("NO_PROXY", "localhost,127.0.0.1,.internal")
+		setAndRestore("http_proxy", "http://lower-proxy.example:8080")
+		setAndRestore("https_proxy", "http://lower-proxy.example:8443")
+		setAndRestore("no_proxy", "localhost,.lower-internal")
+		setAndRestore("AWS_SECRET_ACCESS_KEY", "control-value")
+
+		_, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+		Expect(err).NotTo(HaveOccurred())
+
+		captured, err := os.ReadFile(capturePath)
+		Expect(err).NotTo(HaveOccurred())
+		output := string(captured)
+
+		Expect(output).To(ContainSubstring("HTTP_PROXY=http://proxy.example:8080"))
+		Expect(output).To(ContainSubstring("HTTPS_PROXY=http://proxy.example:8443"))
+		Expect(output).To(ContainSubstring("NO_PROXY=localhost,127.0.0.1,.internal"))
+		Expect(output).To(ContainSubstring("http_proxy=http://lower-proxy.example:8080"))
+		Expect(output).To(ContainSubstring("https_proxy=http://lower-proxy.example:8443"))
+		Expect(output).To(ContainSubstring("no_proxy=localhost,.lower-internal"))
+		Expect(output).NotTo(ContainSubstring("control-value"))
+	})
+})

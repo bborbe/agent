@@ -110,6 +110,8 @@ Post-Deploy ACs are operator-executed against dev first, then prod, per `docs/ag
 ## Assumptions
 
 - The allowlist is claude-yolo's curated 30-entry list plus the two claude-code-router upstreams `api.gpt.seibert.ai` and `api.seibert.ai` (32 entries). `vllm.seibert.tools` is kept although no workload in the goal's egress matrix calls it — it is still referenced by claude-code-router configs across the fleet, and the list is not pruned to what a config-derived matrix can see, because runtime tool calls reach hosts no static matrix records.
+- The `agent-sandbox-egress` peer list is owned by spec 047 and its shape has already changed once (from a two-rule policy to a multi-peer list including a Kafka `ipBlock`). This spec only **appends** one peer; prompt 2 is written against "the end of the `egress:` list", never a positional anchor, and its verification compares peer counts before and after rather than naming rules.
+- The two Kafka controls derive from different sources and can drift: this spec reads `executor.kafkaBrokers` at render time, while spec 047's NetworkPolicy hardcodes the broker `/32`s. If a broker address changes, `NO_PROXY` follows automatically and the policy does not — the symptom would be Kafka egress denied for job pods while the proxy itself looks healthy. Deriving 047's `ipBlock`s from the same value is the preferred follow-up on that side.
 - Spec 047 (`agent-sandbox-namespace`) is merged on the branch before any prompt of this spec runs — prompts 1-3 hard-stop without `helm/templates/sandbox.yaml` and the `agent.sandboxNamespace` helper.
 - `monokal/tinyproxy` reads `Filter`/`FilterDefaultDeny`/`FilterURLs` from environment variables, defaults to port 8888, and takes its client ACL as the first positional arg; `MaxClients` is baked into the image, not ConfigMap-editable.
 - The `bborbe/agent-claude` image is rebuilt and redeployed after prompt 4 — the runner change has no effect on a stale image.
@@ -132,7 +134,7 @@ Post-Deploy ACs are operator-executed against dev first, then prod, per `docs/ag
 
 - **Credential exfiltration to an arbitrary host.** Blocked: the host is not on the allowlist, and direct egress is denied by policy.
 - **Bypass by using a raw IP literal instead of a domain.** Blocked at the network layer — the only permitted egress target is the proxy pod, regardless of what the agent asks for.
-- **Bypass by connecting on a non-standard port.** Same: policy permits only 8888 to the proxy, 53 to kube-dns, 9092 to Kafka.
+- **Bypass by connecting on a non-standard port.** Same: the policy permits only the named peers — 8888 to the proxy, 53 to kube-dns, and the Kafka nodeport listener — and nothing else.
 - **Exfiltration through an allowlisted host** (gist, PR comment on an attacker's repo via `api.github.com`). **Not mitigated by this spec** — host-level allowlisting cannot see content. Recorded as residual risk; the mitigations are least-privilege credentials and the repo allowlist, not the proxy.
 - **DNS tunnelling via kube-dns.** Not mitigated; kube-dns is reachable by necessity. Residual risk.
 

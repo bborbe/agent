@@ -1,7 +1,13 @@
 ---
-status: draft
+status: completed
 spec: [048-agent-egress-proxy]
+summary: Added the six proxy variables to the Claude runner's layer-1 child-env allowlist, documented the rationale, and added a shim-driven regression test proving pass-through plus allowlist containment.
+execution_id: agent-egress-proxy-exec-246-spec-048-runner-env-allowlist
+dark-factory-version: v0.198.7
 created: "2026-10-23T10:40:00Z"
+queued: "2026-10-23T08:47:54Z"
+started: "2026-10-23T08:48:32Z"
+completed: "2026-10-23T09:12:32Z"
 ---
 
 <summary>
