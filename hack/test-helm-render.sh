@@ -410,6 +410,35 @@ else
 	fail=1
 fi
 
+# A non-integer servicePort must fail too. `abc` is truthy, so a falsy-only
+# guard lets it through and renders `port: abc` — a named port that matches
+# nothing, the same silent no-op as `port: 0`.
+if err="$("$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
+	--set namespace=dev --set sandbox.kafka.namespace=kafka \
+	--set sandbox.kafka.servicePort=abc 2>&1)"; then
+	echo "FAIL: kafka-nonint-port: render succeeded with a non-integer servicePort"
+	fail=1
+elif grep -q 'sandbox.kafka.servicePort is required' <<<"$err"; then
+	echo "OK: kafka-nonint-port"
+else
+	echo "FAIL: kafka-nonint-port: render failed without the expected message: $err"
+	fail=1
+fi
+
+# sandbox.namespace equal to the control namespace must fail: the chart would
+# render a second Namespace object for a namespace that already exists, and
+# helm install then aborts with "already exists".
+if err="$("$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
+	--set namespace=dev --set sandbox.namespace=dev 2>&1)"; then
+	echo "FAIL: sandbox-ns-collision: render succeeded with sandbox.namespace equal to namespace"
+	fail=1
+elif grep -q 'sandbox.namespace must differ from namespace' <<<"$err"; then
+	echo "OK: sandbox-ns-collision"
+else
+	echo "FAIL: sandbox-ns-collision: render failed without the expected message: $err"
+	fail=1
+fi
+
 # The default branch stays the nuke nodeports: exactly three /32 cidrs on 32159
 # in agent-sandbox-egress (count cidrs — egress-proxy-egress adds a fourth
 # ipBlock to the same render).

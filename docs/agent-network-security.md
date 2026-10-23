@@ -89,7 +89,8 @@ namespace: agents              (control plane)
   - Kafka SASL config
 
 namespace: agents-sandbox      (data plane)
-  # named by sandbox.namespace; defaults to <namespace>-agents-sandbox
+  # shown with sandbox.namespace set explicitly to "agents-sandbox"; left empty
+  # it defaults to <namespace>-agents-sandbox, i.e. agents-agents-sandbox here
   - Job pods (agent-claude-*, backtest-agent-*, github-dark-factory-agent-*, ...)
   - egress-proxy Deployment + Service + allowlist ConfigMap
   - PVCs, Secrets (operator-managed, or copied by sandbox.renderAgentStorage)

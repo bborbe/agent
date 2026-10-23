@@ -103,10 +103,10 @@ agents: []
 
 | Key | Default | Description |
 |---|---|---|
-| `sandbox.namespace` | `""` | Explicit sandbox namespace. Empty falls back to `<namespace>-agents-sandbox`, which every current install renders. Also relocates the egress proxy, its allowlist and the sandbox RBAC. |
+| `sandbox.namespace` | `""` | Explicit sandbox namespace. Empty falls back to `<namespace>-agents-sandbox`, which every current install renders. Must differ from `namespace` — the render fails otherwise, since equal values emit a second `Namespace` object for the control namespace. Also relocates the egress proxy, its allowlist and the sandbox RBAC. |
 | `sandbox.kafka.namespace` | `""` | Select Kafka by namespace (in-cluster Service) instead of the built-in nodeport addresses. Takes precedence over them. |
 | `sandbox.kafka.podLabels` | `{}` | Pod selector narrowing the Kafka peer inside `sandbox.kafka.namespace`. Empty opens **every** pod in that namespace on `servicePort` — set it unless the namespace holds only brokers. |
-| `sandbox.kafka.servicePort` | `0` | Port of the in-cluster Kafka Service. Required when `sandbox.kafka.namespace` is set; the render fails on `0`. |
+| `sandbox.kafka.servicePort` | `0` | Port of the in-cluster Kafka Service. Required when `sandbox.kafka.namespace` is set, and must be a positive integer — the render fails on `0` or on a non-numeric value, either of which would emit a policy that matches nothing. |
 | `sandbox.routerInstance` | `""` | `app.kubernetes.io/instance` the router peer selects. Empty = `claude-code-router-<namespace>`. |
 | `sandbox.vaultApiApp` | `""` | When set, render an extra egress peer selecting this `app` label on port 9090 (e.g. `vault-api-openclaw`). |
 | `sandbox.renderAgentStorage` | `false` | Also render each chart-rendered agent Secret and PVC into the sandbox namespace (gated on `executor.enabled`). Only chart-rendered objects are copied, and a copied PVC is a new, empty volume — not a view of the control-namespace claim. |

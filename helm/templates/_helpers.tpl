@@ -76,6 +76,9 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
      `resource-policy: keep` object and its PVCs. */}}
 {{- define "agent.sandboxNamespace" -}}
 {{- if (.Values.sandbox | default dict).namespace -}}
+{{- if eq (toString .Values.sandbox.namespace) (toString .Values.namespace) -}}
+{{- fail "sandbox.namespace must differ from namespace: it names a separate namespace, and equal values would render a second Namespace object for the control namespace" -}}
+{{- end -}}
 {{- (.Values.sandbox | default dict).namespace -}}
 {{- else -}}
 {{- printf "%s-agents-sandbox" (include "agent.namespace" .) -}}

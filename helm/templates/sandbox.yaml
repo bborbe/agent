@@ -170,8 +170,8 @@ spec:
     # set. namespaceSelector and podSelector stay in the SAME peer — as separate
     # peers they OR and open every service on that port in that namespace.
     {{- if .Values.sandbox.kafka.namespace }}
-    {{- if not .Values.sandbox.kafka.servicePort }}
-    {{- fail "sandbox.kafka.servicePort is required when sandbox.kafka.namespace is set" }}
+    {{- if not (regexMatch "^[1-9][0-9]*$" (toString .Values.sandbox.kafka.servicePort)) }}
+    {{- fail "sandbox.kafka.servicePort is required as a positive integer when sandbox.kafka.namespace is set" }}
     {{- end }}
     - to:
         - namespaceSelector:
