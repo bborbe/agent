@@ -60,6 +60,16 @@ spec:
             - name: proxy-files
               mountPath: /allowlist
               readOnly: true
+            # Writable log directory. The image ships /var/log/tinyproxy as
+            # uid 100 / mode 0755, so root — which is what the entrypoint runs
+            # as — is "other" there, and its final
+            # `touch /var/log/tinyproxy/tinyproxy.log` gets EACCES and run.sh
+            # exits 1. Measured on nuke dev and prod, 2026-10-23. An emptyDir
+            # (root:root 0755) makes the path writable without granting the
+            # container any capability; tinyproxy opens the log as root before
+            # dropping to its own user.
+            - name: proxy-log
+              mountPath: /var/log/tinyproxy
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -71,14 +81,12 @@ spec:
               # looks healthy while nothing listens on 8888. These two are the
               # minimum that lets the privilege drop succeed.
               #
-              # DAC_OVERRIDE is the third, and it is a separate failure. The
-              # entrypoint's last step is `touch /var/log/tinyproxy/tinyproxy.log`,
-              # and the image ships that directory as uid 100 / mode 0755 — so a
-              # root process without DAC_OVERRIDE is "other" there, gets EACCES and
-              # run.sh exits 1. Measured on nuke dev 2026-10-23: `touch:
-              # /var/log/tinyproxy/tinyproxy.log: Permission denied` → `Could not
-              # tail ... Exiting`. The SETUID/SETGID fix alone still crash-loops.
-              add: [SETUID, SETGID, DAC_OVERRIDE]
+              # Nothing else is added back on purpose. The log-directory
+              # permission failure is solved by the `proxy-log` emptyDir above,
+              # not by DAC_OVERRIDE: this container is the one component that
+              # enforces agent egress, so it is the last place to grant a
+              # file-permission bypass.
+              add: [SETUID, SETGID]
             seccompProfile:
               type: RuntimeDefault
         - name: selftest
@@ -124,6 +132,8 @@ spec:
         - name: proxy-files
           configMap:
             name: egress-proxy-allowlist
+        - name: proxy-log
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

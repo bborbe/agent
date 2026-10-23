@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(helm): mount an `emptyDir` at `/var/log/tinyproxy` and drop `DAC_OVERRIDE`. 0.21.2 fixed the crash-loop by granting the egress-proxy container a file-permission bypass, which is the wrong trade for the one component that enforces agent egress. The image ships `/var/log/tinyproxy` as uid 100 / mode `0755`, so root — the entrypoint's user — is "other" there and its final `touch` gets `EACCES`; a writable volume fixes that with no capability at all. `SETUID`/`SETGID` stay, because tinyproxy needs them for its own privilege drop. Chart 0.21.2→0.21.3.
+
 ## v0.123.1
 
 - fix(helm): add `DAC_OVERRIDE` to the egress-proxy container's capabilities. Chart 0.21.1 crash-looped on its first real deploy (nuke dev, 2026-10-23): the entrypoint's final step is `touch /var/log/tinyproxy/tinyproxy.log`, and the image ships `/var/log/tinyproxy` as uid 100 / mode `0755` — so a root process with `capabilities.drop: [ALL]` is "other" on that directory, gets `EACCES`, and `run.sh` exits 1 with `Could not tail ... Exiting`. The `SETUID`/`SETGID` fix in 0.21.0 addressed a different failure (tinyproxy exiting 77 after daemonizing) and does not cover this one. Chart 0.21.1→0.21.2.
