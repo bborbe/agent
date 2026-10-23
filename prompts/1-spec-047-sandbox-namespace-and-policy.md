@@ -37,7 +37,7 @@ Key facts (verified against the repo):
 - The `agent.namespace` helper uses `required`, so `.Values.namespace` is guaranteed non-empty once a render succeeds.
 - The NetworkPolicy MUST carry NO `metadata.labels`. The spec AC `grep -A5 'name: agent-sandbox-egress' | grep -c 'app: agent'` requires `app: agent` within 5 lines after the `name:` line; `agent.labels` expands to three lines and would push the podSelector out of that window (verified: with labels the AC returns 0). This is a deliberate divergence from the chart-wide "every object gets labels" convention.
 - Kafka egress is three `/32` `ipBlock`s on TCP 32159 — **not** a namespace/pod selector. Kafka on nuke is the shared cluster's external nodeport listener, so there is no in-cluster `kafka` Service to select. Every other peer is namespace-scoped, and each one selects exactly ONE service by `podSelector` — never a bare namespace+port, which would open every service on that port in that namespace.
-- Do NOT add an egress-proxy rule (port 8888, `app: egress-proxy`) — public-internet egress is owned by spec 048 `agent-egress-proxy` and must stay denied here. The docs reference policy shows the future end-state; this spec (047) ships kube-dns, `sentry-proxy` and the Kafka nodeports only.
+- Do NOT add an egress-proxy rule (port 8888, `app: egress-proxy`) — public-internet egress is owned by spec 048 `agent-egress-proxy` and must stay denied here. `docs/agent-network-security.md` is the quant-era reference shape and its own stale-note records eight divergences from it; this spec (047) ships the nine destinations in requirement 2 — kube-dns, `sentry-proxy`, `claude-code-router-<env>`, `pushgateway`, the three `vault-obsidian-*`, `frontend-gateway`, `frontend-strategy` and the Kafka nodeports.
 </context>
 
 <requirements>
@@ -121,8 +121,9 @@ Key facts (verified against the repo):
                  app: sentry-proxy
          ports:
            - { protocol: TCP, port: 9090 }
-       # claude-code-router-dev — every agent's model endpoint. 13 of the 17 job
-       # Configs set it; without this rule they cannot call a model at all.
+       # claude-code-router-<env> — every agent's model endpoint. 13 of the 17 job
+       # Configs set it; without this rule they cannot call a model at all. The
+       # instance label is per-environment (…-dev / …-prod), hence the template.
        - to:
            - namespaceSelector:
                matchLabels:
@@ -241,7 +242,7 @@ if ! command -v helm >/dev/null 2>&1; then
   go install helm.sh/helm/v3/cmd/helm@v3.16.4
   export PATH="$PATH:$(go env GOPATH)/bin"
 fi
-helm version --short   # must print v3.16
+helm version --short   # record what it prints; any v3.x or v4.x works for template/lint
 
 RENDER='helm template helm/ --set namespace=dev --set executor.kafkaBrokers=kafka:9092 --set executor.existingSecret=agent-secret'
 eval "$RENDER" > /tmp/rendered-dev.yaml
@@ -264,10 +265,12 @@ grep -c 'cidr: 192.168.178.0/24' /tmp/rendered-dev.yaml              # ==0 (neve
 grep -c 'port: 32159' /tmp/rendered-dev.yaml                         # ==1
 grep -c 'port: 8788' /tmp/rendered-dev.yaml                          # ==1 (claude-code-router-dev)
 grep -c 'port: 9092' /tmp/rendered-dev.yaml                          # ==0 (quant-era, must be gone)
-# every in-cluster destination present — a missing one breaks the agents that need it
-for n in sentry-proxy claude-code-router-dev pushgateway vault-obsidian-personal \
-         vault-obsidian-openclaw vault-obsidian-trading frontend-gateway frontend-strategy; do
-  printf '%s ' "$n"; grep -c "$n" /tmp/rendered-dev.yaml              # each >=1
+# every in-cluster destination present, asserted on the SELECTOR line, on BOTH renders.
+# A bare-name grep is useless here: the template comments name every destination and Helm
+# preserves them, so a deleted peer still greps green.
+for f in /tmp/rendered-dev.yaml /tmp/rendered-prod.yaml; do
+  echo "$f"
+  grep -cE '^\s+app(\.kubernetes\.io/instance)?: (sentry-proxy|claude-code-router-(dev|prod)|pushgateway|vault-obsidian-(personal|openclaw|trading)|frontend-(gateway|strategy))$' "$f"   # ==8
 done
 
 # AC10: the sentry peer must keep namespaceSelector AND podSelector in ONE `- to:` entry.
@@ -284,7 +287,7 @@ Every grep must return the annotated value or the prompt is not done. Do NOT run
 
 Note: the first `go install`/`go run` of helm compiles for a few minutes — that is expected; do not treat the compile output as an error.
 
-The Post-Deploy ACs (namespace Active, policy selects the probe pod, internal-service blocked, metadata endpoint blocked, Kafka and sentry-proxy reachable) are operator-executed against nuke dev with `kubectlnukedev` and nuke prod with `kubectlnukeprod`, after this prompt AND the sibling RBAC prompt land. They do NOT wait on the executor spec: the policy ACs run against a hand-created `busybox:1.36` probe pod labelled `app: agent`.
+All Post-Deploy ACs are outside this prompt's scope — they are operator-driven Rung-2/Rung-3 checks in the spec's Verification ladder (`specs/in-progress/047-agent-sandbox-namespace.md`), not commands for this container. This prompt is done when every grep above returns its annotated value.
 </verification>
 
 ---
