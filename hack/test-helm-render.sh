@@ -258,6 +258,34 @@ else
 	echo "OK: sandbox-disabled"
 fi
 
+# spec 048: agent.proxyEnv derives the NO_PROXY broker hosts from
+# executor.kafkaBrokers. A naive split on ':' yields the literal "tls" for the
+# documented tls:// form, which silently routes Kafka through the proxy.
+proxy_out="$tmpdir/proxy-env.out"
+"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
+	--set executor.kafkaBrokers=tls://kafka.example:9093 >"$proxy_out"
+for want in \
+	'NO_PROXY: 127.0.0.1,localhost,.svc.cluster.local,kafka.example$' \
+	'HTTPS_PROXY: http://egress-proxy.test-agents-sandbox.svc.cluster.local:8888'; do
+	if grep -q "$want" "$proxy_out"; then
+		echo "OK: proxy-env ($want)"
+	else
+		echo "FAIL: proxy-env: missing $want"
+		fail=1
+	fi
+done
+
+# executor.enabled=false must suppress the proxy objects and env (spec AC3).
+proxy_off_out="$tmpdir/proxy-disabled.out"
+"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
+	--set executor.enabled=false >"$proxy_off_out"
+if grep -q 'egress-proxy' "$proxy_off_out"; then
+	echo "FAIL: proxy-disabled: proxy objects render with executor.enabled=false"
+	fail=1
+else
+	echo "OK: proxy-disabled"
+fi
+
 if [ "$fail" -ne 0 ]; then
 	exit 1
 fi

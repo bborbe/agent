@@ -32,6 +32,15 @@ affinity: {}
 # Extra pod annotation used by quant to force a rollout (value of RANDOM). Empty = omit.
 rolloutNonce: ""
 
+# Egress proxy (spec 048).
+egressProxy:
+  # CIDR the kubelet uses as the source of readiness/startup probes. Rendered as an
+  # ingress peer on `egress-proxy-ingress`. Leave empty on CNIs that exempt host
+  # traffic from NetworkPolicy (the k3s/kube-router default); set it on any cluster
+  # that enforces policy against the node, or every probe fails and the proxy never
+  # becomes Ready — which takes all agent egress down.
+  nodeCidr: ""
+
 # Fleet-wide Sentry proxy URL, rendered as `SENTRY_PROXY` into every agent Job's
 # Config.spec.env (see templates/agents.yaml). A per-agent `agents[].sentry.proxy`
 # overrides it; an agent that sets `SENTRY_PROXY` in its own `env:` map wins over

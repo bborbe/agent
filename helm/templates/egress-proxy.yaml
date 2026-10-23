@@ -1,86 +1,12 @@
 {{- if .Values.executor.enabled }}
 # Egress proxy (spec 048): the ONLY path from a sandbox agent pod to the public
-# internet. tinyproxy filters the CONNECT host:port against the allowlist below
-# (FilterDefaultDeny=Yes => everything not listed is denied with a 403). No TLS
-# interception, no certificate injection.
+# internet. tinyproxy filters the CONNECT host against the allowlist in
+# egress-proxy-allowlist.yaml (FilterDefaultDeny=Yes => everything not listed is
+# denied with a 403). No TLS interception, no certificate injection.
 #
-# The allowlist + self-test live in this ConfigMap so changing the allowlist is
-# an edit + proxy restart, never an image rebuild. The proxy's own settings
-# (Filter/FilterDefaultDeny/FilterURLs) are container env vars, NOT ConfigMap data. NOTE: the
-# Deployment intentionally carries NO metadata.labels — the spec's acceptance
-# criteria grep 'replicas: 2' within 5 lines of the name line (same deliberate
-# divergence as the 047 NetworkPolicy).
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: egress-proxy-allowlist
-  namespace: {{ include "agent.sandboxNamespace" . }}
-  labels:
-    {{- include "agent.labels" . | nindent 4 }}
-data:
-  # Domain allowlist (tinyproxy Filter file). One anchored regex per line, matched
-  # against the CONNECT host:port; FilterDefaultDeny=Yes denies everything not listed.
-  #
-  # Seeded from claude-yolo's curated `files/tinyproxy-allowlist` (30 entries,
-  # anchored `^...$` so `api.github.com.evil.com` cannot match) plus the two
-  # claude-code-router upstreams `api.gpt.seibert.ai` and `api.seibert.ai`,
-  # which the router calls and which no seed list carried — 32 entries total.
-  # `api.minimax.io` is load-bearing: prod github-dark-factory-agent runs
-  # ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic.
-  tinyproxy-allowlist: |
-    ^.*\.github\.com$
-    ^.*\.githubusercontent\.com$
-    ^api\.anthropic\.com$
-    ^api\.gpt\.seibert\.ai$
-    ^api\.minimax\.io$
-    ^api\.osv\.dev$
-    ^api\.seibert\.ai$
-    ^bitbucket\.seibert\.tools$
-    ^claude\.ai$
-    ^console\.anthropic\.com$
-    ^dl-cdn\.alpinelinux\.org$
-    ^files\.pythonhosted\.org$
-    ^ghcr\.io$
-    ^github\.com$
-    ^host\.docker\.internal$
-    ^go\.dev$
-    ^marketplace\.visualstudio\.com$
-    ^pkg-containers\.githubusercontent\.com$
-    ^platform\.claude\.com$
-    ^proxy\.golang\.org$
-    ^pypi\.org$
-    ^registry\.npmjs\.org$
-    ^sentry\.io$
-    ^statsig\.anthropic\.com$
-    ^statsig\.com$
-    ^storage\.googleapis\.com$
-    ^sum\.golang\.org$
-    ^update\.code\.visualstudio\.com$
-    ^vllm\.seibert\.tools$
-    ^vscode\.blob\.core\.windows\.net$
-    ^vuln\.go\.dev$
-    ^www\.python\.org$
-  # Two-direction self-test. The readiness probe on the selftest sidecar runs
-  # this; a broken-open allowlist (negative check) or an over-tight allowlist
-  # (positive check) keeps the pod un-ready (spec failure mode).
-  selftest.sh: |
-    #!/bin/sh
-    set -u
-    PROXY="http://127.0.0.1:8888"
-    # Negative: a non-allowlisted domain MUST fail (tinyproxy 403 => curl --fail
-    # exits 22). Without --fail, a 403 is still exit 0 and this check is a no-op.
-    if curl --proxy "$PROXY" --fail --connect-timeout 5 https://example.com >/dev/null 2>&1; then
-      echo "selftest FAIL: non-allowlisted https://example.com was allowed (allowlist broken open)" >&2
-      exit 1
-    fi
-    # Positive: an allowlisted domain MUST succeed.
-    if ! curl --proxy "$PROXY" --fail --connect-timeout 5 -o /dev/null https://api.github.com/zen; then
-      echo "selftest FAIL: allowlisted https://api.github.com/zen was blocked (allowlist too tight)" >&2
-      exit 1
-    fi
-    echo "selftest OK"
----
-# No metadata.labels on this Deployment (see the note above the ConfigMap).
+# NOTE: the Deployment intentionally carries NO metadata.labels — the spec's
+# acceptance criteria grep 'replicas: 2' within 5 lines of the name line (same
+# deliberate divergence as the 047 NetworkPolicy).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -95,18 +21,41 @@ spec:
     metadata:
       labels:
         app: egress-proxy
+      annotations:
+        # tinyproxy reads the filter only at startup, so an allowlist edit must
+        # roll the pods or the proxy keeps enforcing the old list while the
+        # readiness sidecar runs the new script.
+        checksum/allowlist: {{ include (print $.Template.BasePath "/egress-proxy-allowlist.yaml") . | sha256sum }}
     spec:
+      # Both replicas are the whole egress path: never let them land on one node.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: egress-proxy
       containers:
         - name: egress-proxy
-          image: monokal/tinyproxy:latest
-          args: ["ANY"]   # ACL: allow all sources; NetworkPolicy gates who reaches it
+          # Pinned by digest: this is the only egress path for every agent, and the
+          # tag is a third-party Docker Hub build. A digest cannot be retagged under us.
+          image: monokal/tinyproxy@sha256:2c1b6f187fe18a993ec6e88cdb12c8f1d28d7416bd73492289aa5f74f687c672
+          args: ["ANY"]   # ACL: allow all sources; the egress-proxy-ingress NetworkPolicy gates who reaches it
           env:
             - name: Filter
               value: /allowlist/tinyproxy-allowlist
             - name: FilterDefaultDeny
               value: "Yes"
-            - name: FilterURLs
-              value: "On"
+            # FilterURLs is deliberately NOT set. The default domain mode matches the
+            # bare CONNECT host, which is what the anchored ^host$ patterns require;
+            # URL mode matches the raw target (host:port) and every anchored entry
+            # would miss, denying all traffic.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
           volumeMounts:
             - name: proxy-files
               mountPath: /allowlist
@@ -124,14 +73,30 @@ spec:
             - name: proxy-files
               mountPath: /allowlist
               readOnly: true
+          # Both directions, once, at startup. A pod that fails startup is never
+          # Ready, so an over-tight allowlist still cannot serve.
+          startupProbe:
+            exec:
+              command: ["/bin/sh", "/allowlist/selftest.sh", "full"]
+            periodSeconds: 30
+            timeoutSeconds: 25
+            failureThreshold: 10
+          # Deny direction only — answered locally by the proxy, no upstream call,
+          # so it can run on a short cycle without touching any rate limit.
           readinessProbe:
             exec:
-              command: ["/bin/sh", "/allowlist/selftest.sh"]
+              command: ["/bin/sh", "/allowlist/selftest.sh", "deny"]
             initialDelaySeconds: 5
             periodSeconds: 60
             timeoutSeconds: 25
             failureThreshold: 3
             successThreshold: 1
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -157,4 +122,56 @@ spec:
     - name: http
       port: 8888
       targetPort: 8888
+---
+# Without this the proxy is an open proxy: it runs with the ANY client ACL, and
+# sandbox.yaml deliberately leaves ingress undeclared, so any pod in any namespace
+# could reach it and use it to get at every allowlisted domain.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-proxy-ingress
+  namespace: {{ include "agent.sandboxNamespace" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: egress-proxy
+  policyTypes:
+    - Ingress
+  ingress:
+    # Agent pods in the sandbox namespace — the only intended clients.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "agent.sandboxNamespace" . }}
+          podSelector:
+            matchLabels:
+              app: agent
+      ports:
+        - { protocol: TCP, port: 8888 }
+    # Kubelet probes originate from the node, not a pod, and a CNI that enforces
+    # host traffic would otherwise fail every probe and keep the pods NotReady.
+    {{- with .Values.egressProxy.nodeCidr }}
+    - from:
+        - ipBlock:
+            cidr: {{ . | quote }}
+      ports:
+        - { protocol: TCP, port: 8888 }
+    {{- end }}
+---
+# Both replicas together are the entire egress path; a drain must not take them
+# both at once.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: egress-proxy
+  namespace: {{ include "agent.sandboxNamespace" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: egress-proxy
 {{- end }}

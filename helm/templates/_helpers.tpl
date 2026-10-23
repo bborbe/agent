@@ -86,7 +86,16 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{- define "agent.proxyEnv" -}}
 {{- $noProxy := list "127.0.0.1" "localhost" ".svc.cluster.local" }}
 {{- range $broker := splitList "," (toString .Values.executor.kafkaBrokers) }}
-{{-   $host := trim ((splitList ":" $broker) | first) }}
+{{/* Strip an optional scheme (values.yaml documents the tls:// form) before
+     splitting on ':' - otherwise the host parses as the literal "tls". */}}
+{{-   $b := regexReplaceAll "^[A-Za-z][A-Za-z0-9+.-]*://" (trim $broker) "" }}
+{{-   $host := "" }}
+{{-   if hasPrefix "[" $b }}
+{{/* IPv6 literal: [::1]:9092 -> ::1 */}}
+{{-     $host = trimPrefix "[" (first (splitList "]" $b)) }}
+{{-   else }}
+{{-     $host = first (splitList ":" $b) }}
+{{-   end }}
 {{-   if $host }}
 {{-     $noProxy = append $noProxy $host }}
 {{-   end }}
