@@ -1,7 +1,13 @@
 ---
-status: draft
+status: completed
 spec: [048-agent-egress-proxy]
+summary: Extended agent-sandbox-egress with an agent→egress-proxy TCP 8888 rule and added an egress-proxy-egress NetworkPolicy allowing public internet minus private ranges plus kube-dns
+execution_id: agent-egress-chart-exec-249-spec-048-egress-network-policy
+dark-factory-version: v0.198.7
 created: "2026-08-21T10:35:00Z"
+queued: "2026-10-23T10:49:18Z"
+started: "2026-10-23T10:50:31Z"
+completed: "2026-10-23T11:02:37Z"
 branch: dark-factory/agent-egress-proxy
 ---
 

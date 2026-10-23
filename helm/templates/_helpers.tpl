@@ -74,3 +74,47 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{- define "agent.sandboxNamespace" -}}
 {{- printf "%s-agents-sandbox" (include "agent.namespace" .) -}}
 {{- end -}}
+
+{{/* Proxy env injected into every agent Config when the egress proxy renders
+     (spec 048). The proxy URL is derived from the sandbox namespace; NO_PROXY
+     keeps in-cluster traffic (kube-dns, sentry-proxy) and the Kafka brokers on
+     the direct path — the Kafka hosts are read from the per-install
+     executor.kafkaBrokers value (nuke's Kafka is an external nodeport, not an
+     in-cluster Service, so .svc.cluster.local does not cover it). These values
+     override any conflicting per-agent env so an agent cannot bypass or
+     misroute the proxy. */}}
+{{- define "agent.proxyEnv" -}}
+{{- $noProxy := list "127.0.0.1" "localhost" ".svc.cluster.local" }}
+{{- /* Both broker sources: the singular executor, plus every executors[] entry
+       (list mode renders those instead of the singular Deployment, and their
+       kafkaBrokers falls back to the global). Missing the list source would leave
+       NO_PROXY without those brokers, routing Kafka through the proxy. */}}
+{{- $brokerSets := list (toString .Values.executor.kafkaBrokers) }}
+{{- range $e := .Values.executors }}
+{{-   $brokerSets = append $brokerSets (toString ($e.kafkaBrokers | default $.Values.executor.kafkaBrokers)) }}
+{{- end }}
+{{- range $brokers := $brokerSets }}
+{{- range $broker := splitList "," $brokers }}
+{{/* Strip an optional scheme (values.yaml documents the tls:// form) before
+     splitting on ':' - otherwise the host parses as the literal "tls". */}}
+{{-   $b := regexReplaceAll "^[A-Za-z][A-Za-z0-9+.-]*://" (trim $broker) "" }}
+{{-   $host := "" }}
+{{-   if hasPrefix "[" $b }}
+{{/* IPv6 literal: [::1]:9092 -> ::1 */}}
+{{-     $host = trimPrefix "[" (first (splitList "]" $b)) }}
+{{-   else }}
+{{-     $host = first (splitList ":" $b) }}
+{{-   end }}
+{{-   if $host }}
+{{-     $noProxy = append $noProxy $host }}
+{{-   end }}
+{{- end }}
+{{- end }}
+{{- $noProxyValue := join "," $noProxy }}
+HTTP_PROXY: http://egress-proxy.{{ include "agent.sandboxNamespace" . }}.svc.cluster.local:8888
+HTTPS_PROXY: http://egress-proxy.{{ include "agent.sandboxNamespace" . }}.svc.cluster.local:8888
+http_proxy: http://egress-proxy.{{ include "agent.sandboxNamespace" . }}.svc.cluster.local:8888
+https_proxy: http://egress-proxy.{{ include "agent.sandboxNamespace" . }}.svc.cluster.local:8888
+NO_PROXY: {{ $noProxyValue }}
+no_proxy: {{ $noProxyValue }}
+{{- end -}}

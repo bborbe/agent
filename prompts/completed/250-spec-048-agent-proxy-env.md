@@ -1,7 +1,13 @@
 ---
-status: draft
+status: completed
 spec: [048-agent-egress-proxy]
+summary: Added the agent.proxyEnv helper and merged per-environment egress-proxy env into every rendered agent Config, bumped the chart 0.20.0→0.21.0, and updated CHANGELOG + README.
+execution_id: agent-egress-chart-exec-250-spec-048-agent-proxy-env
+dark-factory-version: v0.198.7
 created: "2026-08-21T10:40:00Z"
+queued: "2026-10-23T10:49:18Z"
+started: "2026-10-23T11:02:38Z"
+completed: "2026-10-23T11:03:36Z"
 branch: dark-factory/agent-egress-proxy
 ---
 

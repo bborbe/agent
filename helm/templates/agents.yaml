@@ -45,14 +45,23 @@ spec:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   {{- $sentryProxy := ($agent.sentry | default dict).proxy | default $.Values.sentry.proxy }}
-  {{- if or $agent.env $sentryProxy }}
+  {{- $env := dict }}
+  {{- with $agent.env }}
+  {{-   $env = mergeOverwrite $env . }}
+  {{- end }}
+  {{- /* Proxy env only for Job agents: a `type: service` agent runs as a
+         StatefulSet in the control namespace, which `egress-proxy-ingress` does
+         not admit, so pointing it at the proxy would take away the direct egress
+         it has today. */}}
+  {{- if and $.Values.executor.enabled (ne (toString ($agent.type | default "job")) "service") }}
+  {{-   $env = mergeOverwrite $env (include "agent.proxyEnv" $ | fromYaml) }}
+  {{- end }}
+  {{- if and $sentryProxy (not (hasKey $env "SENTRY_PROXY")) }}
+  {{-   $env = mergeOverwrite $env (dict "SENTRY_PROXY" $sentryProxy) }}
+  {{- end }}
+  {{- if $env }}
   env:
-    {{- with $agent.env }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-    {{- if and $sentryProxy (not (hasKey ($agent.env | default dict) "SENTRY_PROXY")) }}
-    SENTRY_PROXY: {{ $sentryProxy | quote }}
-    {{- end }}
+    {{- toYaml $env | nindent 4 }}
   {{- end }}
   trigger:
     phases:

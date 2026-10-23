@@ -1,0 +1,92 @@
+{{- if .Values.executor.enabled }}
+# Allowlist + self-test for the egress proxy (spec 048). Kept in its own template
+# file so the Deployment can hash it into a pod annotation: tinyproxy reads the
+# filter only at startup, so without a checksum an allowlist edit would leave the
+# running proxy enforcing the old list while the readiness sidecar ran the new
+# script. The hash makes a ConfigMap change roll the Deployment.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: egress-proxy-allowlist
+  namespace: {{ include "agent.sandboxNamespace" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+data:
+  # Domain allowlist (tinyproxy Filter file). One anchored regex per line, matched
+  # against the bare CONNECT host; FilterDefaultDeny=Yes denies everything not listed.
+  #
+  # Seeded from claude-yolo's curated `files/tinyproxy-allowlist` (30 entries,
+  # anchored `^...$` so `api.github.com.evil.com` cannot match) plus the two
+  # claude-code-router upstreams `api.gpt.seibert.ai` and `api.seibert.ai`,
+  # which the router calls and which no seed list carried — 32 entries total.
+  # `api.minimax.io` is load-bearing: prod github-dark-factory-agent runs
+  # ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic.
+  tinyproxy-allowlist: |
+    ^.*\.github\.com$
+    ^.*\.githubusercontent\.com$
+    ^api\.anthropic\.com$
+    ^api\.gpt\.seibert\.ai$
+    ^api\.minimax\.io$
+    ^api\.osv\.dev$
+    ^api\.seibert\.ai$
+    ^bitbucket\.seibert\.tools$
+    ^claude\.ai$
+    ^console\.anthropic\.com$
+    ^dl-cdn\.alpinelinux\.org$
+    ^files\.pythonhosted\.org$
+    ^ghcr\.io$
+    ^github\.com$
+    ^host\.docker\.internal$
+    ^go\.dev$
+    ^marketplace\.visualstudio\.com$
+    ^pkg-containers\.githubusercontent\.com$
+    ^platform\.claude\.com$
+    ^proxy\.golang\.org$
+    ^pypi\.org$
+    ^registry\.npmjs\.org$
+    ^sentry\.io$
+    ^statsig\.anthropic\.com$
+    ^statsig\.com$
+    ^storage\.googleapis\.com$
+    ^sum\.golang\.org$
+    ^update\.code\.visualstudio\.com$
+    ^vllm\.seibert\.tools$
+    ^vscode\.blob\.core\.windows\.net$
+    ^vuln\.go\.dev$
+    ^www\.python\.org$
+  # Two-direction self-test, split across two probes by cost.
+  #
+  # Both directions assert on the HTTP status, never on curl's exit code. With
+  # --fail, curl exits non-zero for a refused connection, a 502 or a DNS failure
+  # just as it does for a 403 deny, so an exit-code test would report "correctly
+  # denied" for a proxy that is not serving at all and keep a dead pod Ready.
+  #
+  # The POSITIVE check reaches a real upstream and therefore runs from the startup
+  # probe only. It deliberately does NOT use api.github.com: that host rate-limits
+  # unauthenticated clients to 60 requests/hour per source IP, and its 403 is
+  # indistinguishable from the proxy's deny, so rolling the proxy while the egress
+  # IP's quota is exhausted would crash-loop both replicas. The operator's
+  # post-deploy probe still uses https://api.github.com/zen.
+  selftest.sh: |
+    #!/bin/sh
+    set -u
+    MODE="${1:-full}"
+    PROXY="http://127.0.0.1:8888"
+    # Negative: a non-allowlisted domain MUST be refused BY THE PROXY (403).
+    # `%{http_connect}` is the proxy's CONNECT response code; `%{http_code}` is
+    # 000 here, because curl clears the HTTP code when the tunnel fails.
+    code=$(curl --proxy "$PROXY" -s -o /dev/null --connect-timeout 5 -w '%{http_connect}' https://example.com 2>/dev/null || true)
+    if [ "$code" != "403" ]; then
+      echo "selftest FAIL: https://example.com returned proxy CONNECT code '$code', expected 403" >&2
+      exit 1
+    fi
+    # Positive: an allowlisted domain MUST get through. Startup probe only.
+    if [ "$MODE" = "full" ]; then
+      code=$(curl --proxy "$PROXY" -s -o /dev/null --connect-timeout 5 -w '%{http_code}' https://go.dev/ 2>/dev/null || true)
+      case "$code" in
+        2*|3*) : ;;
+        *) echo "selftest FAIL: allowlisted https://go.dev/ returned '$code' (allowlist too tight, or the proxy is not serving)" >&2; exit 1 ;;
+      esac
+    fi
+    echo "selftest OK ($MODE)"
+{{- end }}

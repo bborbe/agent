@@ -1,0 +1,188 @@
+{{- if .Values.executor.enabled }}
+# Egress proxy (spec 048): the ONLY path from a sandbox agent pod to the public
+# internet. tinyproxy filters the CONNECT host against the allowlist in
+# egress-proxy-allowlist.yaml (FilterDefaultDeny=Yes => everything not listed is
+# denied with a 403). No TLS interception, no certificate injection.
+#
+# NOTE: the Deployment intentionally carries NO metadata.labels — the spec's
+# acceptance criteria grep 'replicas: 2' within 5 lines of the name line (same
+# deliberate divergence as the 047 NetworkPolicy).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: egress-proxy
+  namespace: {{ include "agent.sandboxNamespace" . }}
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: egress-proxy
+  template:
+    metadata:
+      labels:
+        app: egress-proxy
+      annotations:
+        # tinyproxy reads the filter only at startup, so an allowlist edit must
+        # roll the pods or the proxy keeps enforcing the old list while the
+        # readiness sidecar runs the new script.
+        checksum/allowlist: {{ include (print $.Template.BasePath "/egress-proxy-allowlist.yaml") . | sha256sum }}
+    spec:
+      # Both replicas are the whole egress path: never let them land on one node.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: egress-proxy
+      containers:
+        - name: egress-proxy
+          # Pinned by digest: this is the only egress path for every agent, and the
+          # tag is a third-party Docker Hub build. A digest cannot be retagged under us.
+          image: monokal/tinyproxy@sha256:2c1b6f187fe18a993ec6e88cdb12c8f1d28d7416bd73492289aa5f74f687c672
+          args: ["ANY"]   # ACL: allow all sources; the egress-proxy-ingress NetworkPolicy gates who reaches it
+          env:
+            - name: Filter
+              value: /allowlist/tinyproxy-allowlist
+            - name: FilterDefaultDeny
+              value: "Yes"
+            # FilterURLs is deliberately NOT set. The default domain mode matches the
+            # bare CONNECT host, which is what the anchored ^host$ patterns require;
+            # URL mode matches the raw target (host:port) and every anchored entry
+            # would miss, denying all traffic.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: proxy-files
+              mountPath: /allowlist
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              # tinyproxy runs as root and drops to its own `tinyproxy` user at
+              # startup (setgid/setgroups/setuid). With every capability dropped
+              # those syscalls return EPERM and tinyproxy exits 77 — but it has
+              # already daemonized, so the entrypoint sees exit 0 and the pod
+              # looks healthy while nothing listens on 8888. These two are the
+              # minimum that lets the privilege drop succeed.
+              add: [SETUID, SETGID]
+            seccompProfile:
+              type: RuntimeDefault
+        - name: selftest
+          # Pinned by digest too: this container decides whether the proxy is
+          # trusted and Ready, so it is as load-bearing as the proxy itself.
+          image: curlimages/curl@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          volumeMounts:
+            - name: proxy-files
+              mountPath: /allowlist
+              readOnly: true
+          # Both directions, once, at startup. A pod that fails startup is never
+          # Ready, so an over-tight allowlist still cannot serve.
+          startupProbe:
+            exec:
+              command: ["/bin/sh", "/allowlist/selftest.sh", "full"]
+            periodSeconds: 30
+            timeoutSeconds: 25
+            failureThreshold: 10
+          # Deny direction only — answered locally by the proxy, no upstream call,
+          # so it can run on a short cycle without touching any rate limit.
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "/allowlist/selftest.sh", "deny"]
+            initialDelaySeconds: 5
+            periodSeconds: 60
+            timeoutSeconds: 25
+            failureThreshold: 3
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: proxy-files
+          configMap:
+            name: egress-proxy-allowlist
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: egress-proxy
+  namespace: {{ include "agent.sandboxNamespace" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: egress-proxy
+  ports:
+    - name: http
+      port: 8888
+      targetPort: 8888
+---
+# Without this the proxy is an open proxy: it runs with the ANY client ACL, and
+# sandbox.yaml deliberately leaves ingress undeclared, so any pod in any namespace
+# could reach it and use it to get at every allowlisted domain.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-proxy-ingress
+  namespace: {{ include "agent.sandboxNamespace" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: egress-proxy
+  policyTypes:
+    - Ingress
+  ingress:
+    # Agent pods in the sandbox namespace — the only intended clients.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "agent.sandboxNamespace" . }}
+          podSelector:
+            matchLabels:
+              app: agent
+      ports:
+        - { protocol: TCP, port: 8888 }
+    # Optional extra peer, only for httpGet/TCP probes or another in-cluster
+    # client. The chart's own probes are exec probes that curl 127.0.0.1 inside
+    # the pod, and pod loopback never crosses the interface NetworkPolicy filters,
+    # so this stays empty by default.
+    {{- with .Values.egressProxy.nodeCidr }}
+    - from:
+        - ipBlock:
+            cidr: {{ . | quote }}
+      ports:
+        - { protocol: TCP, port: 8888 }
+    {{- end }}
+---
+# Both replicas together are the entire egress path; a drain must not take them
+# both at once.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: egress-proxy
+  namespace: {{ include "agent.sandboxNamespace" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: egress-proxy
+{{- end }}

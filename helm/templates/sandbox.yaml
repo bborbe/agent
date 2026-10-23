@@ -157,4 +157,50 @@ spec:
             cidr: 192.168.178.43/32
       ports:
         - { protocol: TCP, port: 32159 }
+    # The only path to the public internet: the domain-allowlisting egress proxy
+    # (spec 048). Direct internet stays denied by omission.
+    - to:
+        - podSelector:
+            matchLabels:
+              app: egress-proxy
+      ports:
+        - { protocol: TCP, port: 8888 }
+---
+# Egress policy for the proxy pod itself (spec 048 DB 5): it may reach the public
+# internet (0.0.0.0/0) minus private ranges, plus kube-dns so it can resolve
+# allowlisted hostnames. The cloud metadata endpoint (169.254.0.0/16) and every
+# in-cluster service are denied by the except ranges. Intentionally carries NO
+# metadata.labels, consistent with agent-sandbox-egress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-proxy-egress
+  namespace: {{ include "agent.sandboxNamespace" . }}
+spec:
+  podSelector:
+    matchLabels:
+      app: egress-proxy
+  policyTypes:
+    - Egress
+  egress:
+    # kube-dns — required for the proxy to resolve allowlisted hostnames
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    # Public internet minus private ranges (169.254.0.0/16 = metadata endpoint)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
 {{- end }}
