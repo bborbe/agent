@@ -12,6 +12,8 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 - feat(helm): render a per-environment `<namespace>-agents-sandbox` Namespace and a default-deny `agent-sandbox-egress` NetworkPolicy for agent Job pods, permitting only kube-dns (53 UDP+TCP), `sentry-proxy`, `claude-code-router-<env>`, `pushgateway`, the three `vault-obsidian-*` services, `frontend-gateway`, `frontend-strategy` and the three Kafka nodeports (TCP 32159); adds the `agent.sandboxNamespace` helper and gates both objects on `executor.enabled`
 - feat(helm): add a sandbox-scoped `agent-task-executor-sandbox` Role and RoleBinding granting the executor ServiceAccount exactly `create/get/list/watch/delete` on jobs, `get/list/watch` on pods (the pod-state classifier and deadline sweeper need them), `get` on secrets and `get` on persistentvolumeclaims inside `<namespace>-agents-sandbox` — cross-namespace bound to the executor's `agent-task-executor` ServiceAccount in the control namespace, with no wildcard verbs and no cluster scope; chart 0.18.0→0.19.0
+- feat(claude): pass `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` (and their lowercase forms) through the Claude runner's child-env allowlist, so an agent pod's egress-proxy settings reach the Bash tool instead of being dropped (spec 048).
+- fix(envparse): redact the proxy variables in the child-env log line — a proxy URL may embed credentials, and these keys now reach that log line where they were previously dropped before it. `NO_PROXY` is redacted too: it carries no secret, but the marker list is deliberately conservative.
 
 ## v0.120.1
 

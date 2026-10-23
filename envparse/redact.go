@@ -19,6 +19,10 @@ var sensitiveKeyMarkers = []string{
 	"API_KEY",
 	"PRIVATE_KEY",
 	"ACCESS_KEY",
+	// A proxy URL may embed credentials ("http://user:pass@proxy:8888"). The
+	// proxy vars reach the Claude child process since spec 048, so they now
+	// reach this log line; redact them rather than rely on the URL being clean.
+	"PROXY",
 }
 
 // IsSensitiveKey reports whether key looks like it carries a secret value.
