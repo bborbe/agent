@@ -34,6 +34,15 @@ rolloutNonce: ""
 
 # Egress proxy (spec 048).
 egressProxy:
+  # Inject HTTP_PROXY/HTTPS_PROXY/NO_PROXY into every Job agent's Config. Default
+  # OFF, and it must stay off until the executor actually spawns Jobs into
+  # <namespace>-agents-sandbox (spec 002, `ConfigSpec.JobNamespace`). While agents
+  # still run in the control namespace, `egress-proxy-ingress` does not admit them,
+  # so injecting the proxy would point every agent's HTTP(S) traffic at a proxy
+  # that denies it — taking all agent egress down. Flip it per environment once
+  # `kubectlnukedev -n dev get config.agent.benjamin-borbe.de -o jsonpath='{..spec.jobNamespace}'`
+  # shows the sandbox namespace.
+  injectAgentEnv: false
   # Optional extra ingress peer for `egress-proxy-ingress`. NOT needed for the
   # chart's own probes: both are exec probes that curl 127.0.0.1 inside the pod,
   # and pod loopback never crosses the interface NetworkPolicy filters. Set this

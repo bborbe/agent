@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(helm): gate the egress-proxy env injection behind `egressProxy.injectAgentEnv`, default **false**. Injecting `HTTP_PROXY`/`HTTPS_PROXY` into every agent Config is only safe once the executor spawns Jobs into `<namespace>-agents-sandbox` (spec 002, `ConfigSpec.JobNamespace`); until then agents run in the control namespace, which `egress-proxy-ingress` does not admit, so the injection would point every agent's HTTP(S) traffic at a proxy that denies it and take all agent egress down. The proxy, its allowlist and both policies still render — they are inert. Flip the flag per environment once `spec.jobNamespace` resolves to the sandbox.
+
 ## v0.122.0
 
 - fix(helm): make the egress proxy actually serve. The proxy container dropped **all** capabilities, but tinyproxy runs as root and drops to its own `tinyproxy` user at startup — `setgid`/`setgroups`/`setuid` then fail with EPERM and tinyproxy exits 77 *after* daemonizing, so the entrypoint saw exit 0 and the pod looked healthy while nothing listened on 8888. Adds `SETUID`/`SETGID` back. The deny self-test also read `%{http_code}`, which curl reports as `000` when a CONNECT is refused; the proxy's own code is `%{http_connect}`. And proxy env is no longer injected into `type: service` agents, which run as StatefulSets in the control namespace where `egress-proxy-ingress` does not admit them — they would have lost the direct egress they have today.
