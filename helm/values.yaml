@@ -26,6 +26,9 @@ sandbox:
     # Empty opens EVERY pod in that namespace on servicePort — set it
     # whenever the namespace holds anything but the brokers.
     podLabels: {}
+    # The brokers' CONTAINER port. A NetworkPolicy port matches the
+    # destination pod, not the Service — the two usually share a number on
+    # Strimzi listeners, but where they differ this silently matches nothing.
     servicePort: 0
   # app.kubernetes.io/instance value the router peer selects.
   # Empty falls back to "claude-code-router-<namespace>".

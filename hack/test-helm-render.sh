@@ -390,7 +390,10 @@ EOF
 run_policy_case kafka-incluster-nolabels "$tmpdir/kafka-incluster-nolabels.yaml"
 kafka_doc="$(policy_doc "$POLICY_OUT" agent-sandbox-egress)"
 kafka_peer="$(awk 'BEGIN{RS="    - to:"} /metadata.name: kafka/{print; exit}' <<<"$kafka_doc")"
-if grep -q 'podSelector:' <<<"$kafka_peer"; then
+if [ -z "$kafka_peer" ]; then
+	echo "FAIL: kafka-incluster-nolabels: no kafka peer extracted — the assertion would pass vacuously"
+	fail=1
+elif grep -q 'podSelector:' <<<"$kafka_peer"; then
 	echo "FAIL: kafka-incluster-nolabels: peer carries a podSelector without podLabels"
 	fail=1
 else
