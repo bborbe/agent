@@ -168,7 +168,7 @@ Bookkeeping checks:
 
 ```bash
 grep -n '^version:' helm/Chart.yaml                       # must show 0.19.0
-head -10 CHANGELOG.md | grep -E 'Unreleased|feat\(helm\)'  # must show both
+head -15 CHANGELOG.md | grep -E 'Unreleased|feat\(helm\)'  # must show both
 grep -n 'agents-sandbox' helm/README.md                    # must show the new bullet
 ```
 

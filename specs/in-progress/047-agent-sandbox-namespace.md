@@ -24,7 +24,7 @@ Background, manifests, and the traps this inherits: `docs/agent-network-security
 
 ## Goal
 
-`<env>-agents-sandbox` exists in both dev and prod with a policy that denies egress by default and permits only kube-dns, `sentry-proxy` and the Kafka nodeports. Agent Jobs land there and provably cannot reach an internal service. The executor, still in the control namespace, retains exactly the cross-namespace rights it needs and no more.
+`<env>-agents-sandbox` exists in both dev and prod with a policy that denies egress by default and permits only kube-dns, `sentry-proxy` and the Kafka nodeports. Agent Jobs land there and provably cannot reach any internal service other than the sanctioned `sentry-proxy`. The executor, still in the control namespace, retains exactly the cross-namespace rights it needs and no more.
 
 ## Non-goals
 
