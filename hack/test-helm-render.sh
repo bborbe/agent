@@ -3,9 +3,12 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 #
-# Renders helm/templates/agents.yaml and asserts that the optional per-agent
-# rerunOnLostClaim field renders whenever it is present — including `false` —
-# and not at all when unset.
+# Renders the chart and asserts its conditional per-agent fields and the
+# sandbox/egress-proxy branches:
+#   - rerunOnLostClaim renders whenever present — including `false` — and not at all when unset
+#   - jobNamespace renders quoted when set, and not at all when unset or empty, including
+#     the per-agent scoping case (two agents, only one sets it)
+#   - the sandbox namespace, Kafka peer, PVC and egress-proxy cases each pin their branch
 #
 # Run from repo root.
 
@@ -117,6 +120,94 @@ write_values "$tmpdir/unset.yaml" ""
 run_case false "$tmpdir/false.yaml" false
 run_case true "$tmpdir/true.yaml" true
 run_case unset "$tmpdir/unset.yaml" unset
+
+# agents[].jobNamespace: rendered (quoted) when set, absent when the key is empty
+# or unset — an install that sets nothing must render exactly as before.
+write_values "$tmpdir/jobns.yaml" "" "jobNamespace: dev-agents-sandbox"
+write_values "$tmpdir/jobns-empty.yaml" "" 'jobNamespace: ""'
+
+jobns_out="$tmpdir/jobns-set.out"
+"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/jobns.yaml" --show-only templates/agents.yaml >"$jobns_out"
+if ! grep -qx '  jobNamespace: "dev-agents-sandbox"' "$jobns_out"; then
+	echo 'FAIL: job-namespace: missing the quoted jobNamespace line'
+	fail=1
+else
+	echo "OK: job-namespace"
+fi
+
+jobns_empty_out="$tmpdir/jobns-empty.out"
+"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/jobns-empty.yaml" --show-only templates/agents.yaml >"$jobns_empty_out"
+jobns_empty_count="$(grep -c '^kind: Config$' "$jobns_empty_out" || true)"
+if [ "$jobns_empty_count" -ne 1 ]; then
+	echo "FAIL: job-namespace-empty: expected exactly 1 Config document, got $jobns_empty_count"
+	fail=1
+elif grep -q 'jobNamespace' "$jobns_empty_out"; then
+	echo "FAIL: job-namespace-empty: an empty jobNamespace still rendered a line"
+	fail=1
+else
+	echo "OK: job-namespace-empty"
+fi
+
+jobns_unset_out="$tmpdir/jobns-unset.out"
+"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" --show-only templates/agents.yaml >"$jobns_unset_out"
+jobns_unset_count="$(grep -c '^kind: Config$' "$jobns_unset_out" || true)"
+if [ "$jobns_unset_count" -ne 1 ]; then
+	echo "FAIL: job-namespace-unset: expected exactly 1 Config document, got $jobns_unset_count"
+	fail=1
+elif grep -q 'jobNamespace' "$jobns_unset_out"; then
+	echo "FAIL: job-namespace-unset: unexpected jobNamespace line"
+	fail=1
+else
+	echo "OK: job-namespace-unset"
+fi
+
+# Two agents, only ONE setting jobNamespace: exactly one line, on that agent's
+# Config. This is the case that catches a template reading .Values instead of
+# $agent — such a read renders the value onto both Configs (or onto neither).
+cat >"$tmpdir/jobns-mixed.yaml" <<'EOF'
+namespace: test
+executor:
+  kafkaBrokers: kafka:9092
+  sentry:
+    dsn: dummy
+agents:
+  - name: ns-agent
+    enabled: true
+    assignee: ns
+    image: bborbe/agent-claude
+    heartbeat: 5m
+    taskTypes: [llm]
+    triggerPhases: [planning]
+    triggerStatuses: [in_progress]
+    jobNamespace: dev-agents-sandbox
+  - name: plain-agent
+    enabled: true
+    assignee: plain
+    image: bborbe/agent-claude
+    heartbeat: 5m
+    taskTypes: [llm]
+    triggerPhases: [planning]
+    triggerStatuses: [in_progress]
+EOF
+jobns_mixed_out="$tmpdir/jobns-mixed.out"
+"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/jobns-mixed.yaml" --show-only templates/agents.yaml >"$jobns_mixed_out"
+jobns_mixed_docs="$(grep -c '^kind: Config$' "$jobns_mixed_out" || true)"
+jobns_mixed_lines="$(grep -c 'jobNamespace:' "$jobns_mixed_out" || true)"
+if [ "$jobns_mixed_docs" -ne 2 ]; then
+	echo "FAIL: job-namespace-mixed: expected 2 Config documents, got $jobns_mixed_docs"
+	fail=1
+elif [ "$jobns_mixed_lines" -ne 1 ]; then
+	echo "FAIL: job-namespace-mixed: expected exactly 1 jobNamespace line, got $jobns_mixed_lines"
+	fail=1
+elif ! awk 'BEGIN{RS="---"} index($0,"kind: Config") && index($0,"  name: ns-agent\n") && index($0,"  jobNamespace: \"dev-agents-sandbox\"\n"){found=1} END{exit(found?0:1)}' "$jobns_mixed_out"; then
+	echo "FAIL: job-namespace-mixed: the jobNamespace line is not on ns-agent's Config"
+	fail=1
+elif awk 'BEGIN{RS="---"} index($0,"kind: Config") && index($0,"  name: plain-agent\n") && index($0,"jobNamespace"){found=1} END{exit(found?0:1)}' "$jobns_mixed_out"; then
+	echo "FAIL: job-namespace-mixed: plain-agent's Config carries a jobNamespace line"
+	fail=1
+else
+	echo "OK: job-namespace-mixed"
+fi
 
 # doc_has <file> <kind> <name> <namespace("" for cluster-scoped)>
 # Assert the identity of a rendered object, not a tally: a dropped object can
