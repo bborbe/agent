@@ -26,7 +26,7 @@ metadata:
 # Ingress is deliberately NOT declared, which leaves it UNRESTRICTED — this policy
 # bounds egress only. No executor→Job ingress path exists today (the agent publishes
 # its result directly to Kafka), so nothing depends on ingress either way; if
-# pod-level isolation is wanted later, add `Ingress` with an empty `ingress: []`.
+# pod-level isolation is wanted later, declare `Ingress` with an empty rules list.
 #
 # NOTE: this object intentionally carries NO metadata.labels. The approved spec
 # greps the first five lines after the name line for the podSelector label; a

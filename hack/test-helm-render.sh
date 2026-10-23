@@ -192,7 +192,10 @@ run_sandbox_case() {
 	fi
 
 	local sel
-	sel="$(grep -cE '^[[:space:]]+app(\.kubernetes\.io/instance)?: (sentry-proxy|claude-code-router-(dev|prod)|pushgateway|vault-obsidian-(personal|openclaw|trading)|frontend-(gateway|strategy))$' "$out" || true)"
+	# The router instance label must be THIS render's env. An alternation over
+	# (dev|prod) would let a hardcoded `-dev` literal in the prod template count 8
+	# and pass — which is the exact regression the prod render exists to catch.
+	sel="$(grep -cE "^[[:space:]]+app(\.kubernetes\.io/instance)?: (sentry-proxy|claude-code-router-${env}|pushgateway|vault-obsidian-(personal|openclaw|trading)|frontend-(gateway|strategy))\$" "$out" || true)"
 	if [ "$sel" -ne 8 ]; then
 		echo "FAIL: sandbox-$env: expected 8 in-cluster egress peer selectors, got $sel"
 		fail=1
@@ -207,6 +210,27 @@ run_sandbox_case() {
 		echo "FAIL: sandbox-$env: cidr/32=$cidr32 (want 3) cidr/24=$cidr24 (want 0) port9092=$port9092 (want 0)"
 		fail=1
 		return
+	fi
+
+	# pushgateway must select the `monitoring` namespace — a typo there matches
+	# nothing and the peer goes inert without any other check noticing.
+	if ! awk -v NS="monitoring" '
+		BEGIN{RS="---"}
+		index($0,"app: pushgateway") && index($0,"metadata.name: " NS "\n") {found=1}
+		END{exit(found?0:1)}' "$out"; then
+		echo "FAIL: sandbox-$env: pushgateway peer does not select namespace monitoring"; fail=1; return
+	fi
+
+	# Egress-only: declaring nothing for ingress keeps it unrestricted, which is
+	# intended — but the policy must not silently grow an ingress rule.
+	if ! grep -A40 'name: agent-sandbox-egress' "$out" | grep -q 'policyTypes'; then
+		echo "FAIL: sandbox-$env: policy has no policyTypes"; fail=1; return
+	fi
+	if grep -A40 'name: agent-sandbox-egress' "$out" | grep -q 'ingress:'; then
+		echo "FAIL: sandbox-$env: policy declares ingress, expected egress-only"; fail=1; return
+	fi
+	if ! grep -q 'helm.sh/resource-policy: keep' "$out"; then
+		echo "FAIL: sandbox-$env: Namespace missing helm.sh/resource-policy: keep"; fail=1; return
 	fi
 
 	local peer
