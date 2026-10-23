@@ -180,6 +180,23 @@ grep -c 'dev-agents-sandbox' /tmp/rendered-dev.yaml                  # AC8: >=1
 grep -c 'prod-agents-sandbox' /tmp/rendered-prod.yaml                # AC8: >=1
 grep -c 'name: agents-sandbox' /tmp/rendered-dev.yaml                # AC8 negative: ==0
 grep -c 'name: agents-sandbox' /tmp/rendered-prod.yaml               # AC8 negative: ==0
+
+# AC9: the egress DESTINATIONS — a wrong policy renders identically under AC2/AC6/AC7/AC8,
+# so these are the assertions that actually pin the rule set.
+grep -cE 'cidr: 192\.168\.178\.(41|42|43)/32' /tmp/rendered-dev.yaml # ==3
+grep -c 'cidr: 192.168.178.0/24' /tmp/rendered-dev.yaml              # ==0 (never widen to the subnet)
+grep -c 'port: 32159' /tmp/rendered-dev.yaml                         # ==1
+grep -c 'port: 9090' /tmp/rendered-dev.yaml                          # ==1
+grep -c 'port: 9092' /tmp/rendered-dev.yaml                          # ==0 (quant-era, must be gone)
+
+# AC10: the sentry peer must keep namespaceSelector AND podSelector in ONE `- to:` entry.
+# A split peer renders the same greps above and passes them all, so assert the structure:
+# the nearest `- to:` before `app: sentry-proxy` must come BEFORE its namespaceSelector.
+awk '
+  /- to:/            { last_to = NR }
+  /namespaceSelector:/ { ns = NR }
+  /app: sentry-proxy/  { print (ns > last_to) ? "SAME_PEER_OK" : "SPLIT_PEER_FAIL" }
+' /tmp/rendered-dev.yaml                                             # must print SAME_PEER_OK
 ```
 
 Every grep must return the annotated value or the prompt is not done. Do NOT run `make precommit` — this prompt changes no Go code; the render + ACs above are the verification.

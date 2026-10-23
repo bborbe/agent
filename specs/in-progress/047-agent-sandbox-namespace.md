@@ -54,23 +54,26 @@ RENDER='helm template helm/ --set namespace=dev --set executor.kafkaBrokers=kafk
 - [ ] **Post-Deploy (Rung-2):** the namespace and policy exist in dev — `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.metadata.name}'` returns `agent-sandbox-egress`
   - `deploy_check:` `kubectlnukedev get ns dev-agents-sandbox -o jsonpath='{.status.phase}'`
   - `deploy_target:` `Active`
-- [ ] **Post-Deploy (Rung-2):** the policy selects the probe pod — `kubectlnukedev -n dev-agents-sandbox get pods -l app=agent -o name | wc -l` returns ≥1. No agent Job runs here until `config-job-namespace.md` ships, so the pod is created for this check and removed afterwards:
+> **Every probe below runs inside the pod via `kubectl exec`.** Run from the workstation they prove nothing: `32159` is a cluster-wide NodePort, so a bare `nc` from the LAN answers regardless of any NetworkPolicy, and `vault-obsidian-openclaw.dev` may not even resolve there.
+
+- [ ] **Post-Deploy (Rung-2):** the policy selects the probe pod — create it, wait for Ready, then confirm the selector matches it. No agent Job runs here until `config-job-namespace.md` ships, so the pod is created for these checks and removed afterwards:
   - `kubectlnukedev -n dev-agents-sandbox run agent-egress-probe --image=busybox:1.36 --labels app=agent --restart=Never -- sleep 3600`
+  - `kubectlnukedev -n dev-agents-sandbox wait --for=condition=Ready pod/agent-egress-probe --timeout=60s`
   - teardown: `kubectlnukedev -n dev-agents-sandbox delete pod agent-egress-probe`
-  - The `wc -l` check alone would pass on any labelled pod; in the otherwise-empty sandbox that is acceptable, and every reachability AC below names the pod explicitly
   - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.podSelector.matchLabels.app}'`
   - `deploy_target:` `agent`
-- [ ] **Post-Deploy (Rung-2):** an internal service on an allowed port is still blocked — from inside the probe pod, `wget -qO- --timeout=3 http://vault-obsidian-openclaw.dev.svc.cluster.local:9090` exits non-zero within 5s and prints no body. This is the check that proves the `sentry-proxy` peer is narrow: a bare namespace+port rule would let this through. Negative evidence: exit code ≠ 0, stdout empty
+- [ ] **Post-Deploy (Rung-2):** an internal service on an allowed port is still blocked — precondition `kubectlnukedev -n dev get svc vault-obsidian-openclaw` returns the service, otherwise the negative passes vacuously on DNS failure. Then `kubectlnukedev -n dev-agents-sandbox exec agent-egress-probe -- wget -qO- --timeout=3 http://vault-obsidian-openclaw.dev.svc.cluster.local:9090` exits non-zero within 5s and prints no body. This is the check that proves the `sentry-proxy` peer is narrow: a bare namespace+port rule would let this through. Negative evidence: exit code ≠ 0, stdout empty
   - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'`
   - `deploy_target:` `53 53 9090 32159`
-- [ ] **Post-Deploy (Rung-2):** the metadata endpoint is blocked — from the same pod, `wget -qO- --timeout=3 http://169.254.169.254/` exits non-zero. Negative evidence: exit code ≠ 0
+- [ ] **Post-Deploy (Rung-2):** the metadata endpoint is blocked — `kubectlnukedev -n dev-agents-sandbox exec agent-egress-probe -- wget -qO- --timeout=3 http://169.254.169.254/` exits non-zero. Negative evidence: exit code ≠ 0
   - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.podSelector.matchLabels.app}'`
   - `deploy_target:` `agent`
-- [ ] **Post-Deploy (Rung-2):** Kafka and `sentry-proxy` are reachable — from the same probe pod, `nc -w 3 192.168.178.41 32159 </dev/null` and `nc -w 3 sentry-proxy.dev.svc.cluster.local 9090 </dev/null` both exit 0. Positive evidence: both exit codes 0. A bare connect is used deliberately, with no `-z`: `-z` is a busybox build variant, and an HTTP probe is wrong for Kafka, which does not speak HTTP — a `wget` against the broker exits non-zero on a *permitted* path, which would read as blocked
+- [ ] **Post-Deploy (Rung-2):** Kafka and `sentry-proxy` are reachable — `kubectlnukedev -n dev-agents-sandbox exec agent-egress-probe -- nc -w 3 192.168.178.41 32159` and `kubectlnukedev -n dev-agents-sandbox exec agent-egress-probe -- nc -w 3 sentry-proxy.dev.svc.cluster.local 9090` both exit 0. Positive evidence: both exit codes 0. A bare connect is used deliberately, with no `-z`: `-z` is a busybox build variant, and an HTTP probe is wrong for Kafka, which does not speak HTTP
   - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'`
   - `deploy_target:` `53 53 9090 32159`
-- [ ] **Post-Deploy (Rung-3):** the same block/allow pair holds in prod — from a probe pod in `prod-agents-sandbox`, `vault-obsidian-openclaw.prod.svc.cluster.local:9090` is blocked (exit ≠ 0), `nc -w 3 192.168.178.41 32159 </dev/null` exits 0, and `nc -w 3 sentry-proxy.prod.svc.cluster.local 9090 </dev/null` exits 0
+- [ ] **Post-Deploy (Rung-3):** the same block/allow pair holds in prod — the same three `exec` probes from `agent-egress-probe` in `prod-agents-sandbox`, against `sentry-proxy.prod.svc.cluster.local` and `vault-obsidian-openclaw.prod.svc.cluster.local`
   - `kubectlnukeprod -n prod-agents-sandbox run agent-egress-probe --image=busybox:1.36 --labels app=agent --restart=Never -- sleep 3600`
+  - `kubectlnukeprod -n prod-agents-sandbox wait --for=condition=Ready pod/agent-egress-probe --timeout=60s`
   - teardown: `kubectlnukeprod -n prod-agents-sandbox delete pod agent-egress-probe`
   - `deploy_check:` `kubectlnukeprod get ns prod-agents-sandbox -o jsonpath='{.status.phase}'`
   - `deploy_target:` `Active`
@@ -126,7 +129,7 @@ Post-Deploy ACs are operator-executed against dev, then prod, per `docs/agent-ne
 
 | Trigger | Expected behavior | Recovery |
 |---|---|---|
-| Policy applied but `podSelector` matches no pods | AC "policy selects real pods" fails; `get pods -l app=agent` returns 0 | Ship `config-job-namespace.md` first — the label comes from the executor. The policy is inert until it matches |
+| Policy applied but `podSelector` matches no pods | The "policy selects the probe pod" AC fails — `get pods -l app=agent` returns 0 | Check the probe pod was created with `--labels app=agent` and reached Ready. A real agent Job carries the label once `config-job-namespace.md` ships, but the probe pod does not depend on it |
 | Agent needs an internal service not in the allowlist | Job fails with a connection timeout, visible in Job logs | Add a named exception to the policy; never revert to allow-all |
 | A Kafka broker address changes in `values-*` but not in the policy | Kafka egress denied; the Job runs but its result never reaches its topic, and the task never completes | Update the three `ipBlock`s in lockstep with `executor.kafkaBrokers`; better, derive them from that value so the two cannot drift |
 | PVCs absent in the new namespace | Job fails to start; `kubectl describe pod` shows unbound PVC | Re-create PVCs and re-seed Secrets in the environment's sandbox namespace before cutover |
