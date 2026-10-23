@@ -1,0 +1,151 @@
+{{- if .Values.executor.enabled }}
+# Per-environment sandbox namespace hosting agent Job pods. Hosted Jobs get a
+# default-deny egress policy (agent-sandbox-egress below); the executor, still
+# in the control namespace, reaches them via the cross-namespace RBAC in
+# executor-rbac.yaml (sibling prompt).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "agent.sandboxNamespace" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+---
+# Default-deny egress for sandbox agent pods. Permitted: kube-dns (53 UDP+TCP),
+# sentry-proxy (9090), claude-code-router (8788), pushgateway (9090),
+# vault-obsidian-{personal,openclaw,trading} (9090),
+# frontend-gateway and frontend-strategy (9090), and the three Kafka
+# nodeports (32159). Everything else — other internal services, other private
+# CIDRs, 169.254.0.0/16, direct internet — is denied by omission.
+# Ingress is not declared at all: no executor→Job ingress path exists (the agent
+# publishes its result directly to Kafka).
+#
+# NOTE: this object intentionally carries NO metadata.labels. The approved spec
+# greps the first five lines after the name line for the podSelector label; a
+# labels block would push the selector out of that window.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-sandbox-egress
+  namespace: {{ include "agent.sandboxNamespace" . }}
+spec:
+  podSelector:
+    matchLabels:
+      app: agent
+  policyTypes:
+    - Egress
+  egress:
+    # kube-dns (cluster DNS for the sandbox)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    # sentry-proxy — every agent Job gets SENTRY_PROXY pointed at
+    # http://sentry-proxy.<env>.svc.cluster.local:9090 by the chart's
+    # fleet-wide `sentry.proxy` value. namespaceSelector and podSelector sit
+    # in the SAME peer: as two separate peers they OR, which opens every
+    # service on 9090 in that namespace. The namespace is templated, never a
+    # literal `dev`, so the prod render selects prod.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+          podSelector:
+            matchLabels:
+              app: sentry-proxy
+      ports:
+        - { protocol: TCP, port: 9090 }
+    # claude-code-router-<env> — every agent's model endpoint. 13 of the 17 job
+    # Configs set it; without this rule they cannot call a model at all. The
+    # instance label is per-environment (…-dev / …-prod), hence the template.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: claude-code-router-{{ .Values.namespace }}
+      ports:
+        - { protocol: TCP, port: 8788 }
+    # pushgateway — job metrics. Lives in the monitoring namespace, not the
+    # release namespace, so this peer's namespaceSelector differs.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: pushgateway
+      ports:
+        - { protocol: TCP, port: 9090 }
+    # The three vaults and the two trading frontends. One peer EACH, not one
+    # peer on port 9090 — a namespace+port rule would open every service on
+    # 9090 in the release namespace, which is the trap this policy exists to
+    # avoid. These are the destinations the egress matrix attributes to job
+    # pods (sentry-collector, the github-* agents, trading-analysis,
+    # trading-backtest); the union is shared because per-agent policies are a
+    # Non-goal for this spec.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+          podSelector:
+            matchLabels:
+              app: vault-obsidian-personal
+      ports:
+        - { protocol: TCP, port: 9090 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+          podSelector:
+            matchLabels:
+              app: vault-obsidian-openclaw
+      ports:
+        - { protocol: TCP, port: 9090 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+          podSelector:
+            matchLabels:
+              app: vault-obsidian-trading
+      ports:
+        - { protocol: TCP, port: 9090 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+          podSelector:
+            matchLabels:
+              app: frontend-gateway
+      ports:
+        - { protocol: TCP, port: 9090 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+          podSelector:
+            matchLabels:
+              app: frontend-strategy
+      ports:
+        - { protocol: TCP, port: 9090 }
+    # Kafka — the only path a task result reaches its topic. On nuke this is
+    # the shared cluster's EXTERNAL nodeport listener, not an in-cluster
+    # service, so these are LAN IPs. Three /32s, never a /24: a /24 would
+    # allow every host on that subnet on this port.
+    - to:
+        - ipBlock:
+            cidr: 192.168.178.41/32
+        - ipBlock:
+            cidr: 192.168.178.42/32
+        - ipBlock:
+            cidr: 192.168.178.43/32
+      ports:
+        - { protocol: TCP, port: 32159 }
+{{- end }}

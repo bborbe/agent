@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [047-agent-sandbox-namespace]
 created: "2026-08-21T08:00:00Z"
+queued: "2026-10-23T09:19:52Z"
 branch: dark-factory/agent-sandbox-namespace
 ---
 

@@ -1,7 +1,13 @@
 ---
-status: draft
+status: completed
 spec: [047-agent-sandbox-namespace]
+summary: Added the agent.sandboxNamespace helper and helm/templates/sandbox.yaml rendering a per-environment Namespace plus default-deny agent-sandbox-egress NetworkPolicy; all spec render ACs pass on dev and prod.
+execution_id: agent-sandbox-egress-exec-246-spec-047-sandbox-namespace-and-policy
+dark-factory-version: v0.198.7
 created: "2026-08-21T08:00:00Z"
+queued: "2026-10-23T09:19:52Z"
+started: "2026-10-23T09:19:53Z"
+completed: "2026-10-23T09:20:31Z"
 branch: dark-factory/agent-sandbox-namespace
 ---
 

@@ -66,3 +66,11 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
       - key: ca.crt
         path: file
 {{- end -}}
+
+{{/* Per-environment sandbox namespace hosting agent Job pods. Parameterized so
+     the dev + prod installs own distinct objects (dev-agents-sandbox /
+     prod-agents-sandbox) instead of colliding on a shared name (quant: dev/prod
+     are namespaces on ONE cluster). */}}
+{{- define "agent.sandboxNamespace" -}}
+{{- printf "%s-agents-sandbox" (include "agent.namespace" .) -}}
+{{- end -}}
