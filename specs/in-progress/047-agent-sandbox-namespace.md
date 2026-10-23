@@ -66,10 +66,12 @@ RENDER='helm template helm/ --set namespace=dev --set executor.kafkaBrokers=kafk
 - [ ] **Post-Deploy (Rung-2):** the metadata endpoint is blocked — from the same pod, `wget -qO- --timeout=3 http://169.254.169.254/` exits non-zero. Negative evidence: exit code ≠ 0
   - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.podSelector.matchLabels.app}'`
   - `deploy_target:` `agent`
-- [ ] **Post-Deploy (Rung-2):** Kafka and `sentry-proxy` are reachable — from the same probe pod, `nc -z 192.168.178.41 32159` and `nc -z sentry-proxy.dev.svc.cluster.local 9090` both exit 0. Positive evidence: both exit codes 0. `nc -z` is a busybox build variant, so confirm it on the first probe pod; if the applet lacks `-z`, use `wget -q -T 5 -O /dev/null http://192.168.178.41:32159` instead
+- [ ] **Post-Deploy (Rung-2):** Kafka and `sentry-proxy` are reachable — from the same probe pod, `nc -w 3 192.168.178.41 32159 </dev/null` and `nc -w 3 sentry-proxy.dev.svc.cluster.local 9090 </dev/null` both exit 0. Positive evidence: both exit codes 0. A bare connect is used deliberately, with no `-z`: `-z` is a busybox build variant, and an HTTP probe is wrong for Kafka, which does not speak HTTP — a `wget` against the broker exits non-zero on a *permitted* path, which would read as blocked
   - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'`
   - `deploy_target:` `53 53 9090 32159`
-- [ ] **Post-Deploy (Rung-3):** the same block/allow pair holds in prod — from a pod in `prod-agents-sandbox`, `vault-obsidian-openclaw.prod.svc.cluster.local:9090` is blocked (exit ≠ 0), `nc -z 192.168.178.41 32159` exits 0, and `nc -z sentry-proxy.prod.svc.cluster.local 9090` exits 0
+- [ ] **Post-Deploy (Rung-3):** the same block/allow pair holds in prod — from a probe pod in `prod-agents-sandbox`, `vault-obsidian-openclaw.prod.svc.cluster.local:9090` is blocked (exit ≠ 0), `nc -w 3 192.168.178.41 32159 </dev/null` exits 0, and `nc -w 3 sentry-proxy.prod.svc.cluster.local 9090 </dev/null` exits 0
+  - `kubectlnukeprod -n prod-agents-sandbox run agent-egress-probe --image=busybox:1.36 --labels app=agent --restart=Never -- sleep 3600`
+  - teardown: `kubectlnukeprod -n prod-agents-sandbox delete pod agent-egress-probe`
   - `deploy_check:` `kubectlnukeprod get ns prod-agents-sandbox -o jsonpath='{.status.phase}'`
   - `deploy_target:` `Active`
 
@@ -103,7 +105,7 @@ Post-Deploy ACs are operator-executed against dev, then prod, per `docs/agent-ne
 
    Everything else — other internal services, other private CIDRs, `169.254.0.0/16`, direct internet — is denied by omission.
 
-   **Lockstep invariant:** the three IPs duplicate `executor.kafkaBrokers` (`helm/values.yaml`), which is the chart's own required source of truth for the same addresses. Changing a broker address in `values-dev.yaml` / `values-prod.yaml` without changing the policy silently denies Kafka egress, and the only symptom is a Job whose result never reaches its topic. Deriving the `ipBlock`s from `executor.kafkaBrokers` (a `range` over `splitList ","` then `splitList ":"`) removes the drift and is the preferred follow-up; until then the two must move together, and Failure Modes records it.
+   **Lockstep invariant:** the three IPs duplicate `executor.kafkaBrokers`, whose value is set per install (`values-dev.yaml` / `values-prod.yaml` in the nuke repo — `helm/values.yaml` leaves it empty and required). Changing a broker address in `values-dev.yaml` / `values-prod.yaml` without changing the policy silently denies Kafka egress, and the only symptom is a Job whose result never reaches its topic. Deriving the `ipBlock`s from `executor.kafkaBrokers` (a `range` over `splitList ","` then `splitList ":"`) removes the drift and is the preferred follow-up; until then the two must move together, and Failure Modes records it.
 
    **NodePort residual:** TCP 32159 is a cluster-wide NodePort, so permitting the three node IPs on that port also reaches **any other service** bound to NodePort 32159 on those nodes — not just Kafka. The exposure is bounded to three hosts and one port, and to whatever else claims that port. Recorded as residual risk in Security.
 4. Ingress is not declared at all, because no executor→Job ingress path exists: the executor "does NOT watch Jobs, read stdout, or publish results" and the agent publishes directly to Kafka.

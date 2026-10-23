@@ -11,7 +11,7 @@ branch: dark-factory/agent-sandbox-namespace
 - Grants are sandbox-scoped and enumerated — no wildcard verbs, no cluster-scope, so the executor's rights outside its environment's sandbox namespace do not widen
 - The chart version is bumped and the change is recorded in the repo CHANGELOG
 - The full build-time Acceptance Criteria set of the spec passes after this prompt — the sandbox namespace, the policy, and the RBAC all render correctly for dev and prod
-- The Post-Deploy acceptance criteria remain a deferred operator checklist: they need real clusters and the sibling executor spec, not a scenario harness
+- The Post-Deploy acceptance criteria remain a deferred operator checklist: they need real cluster creds, not a scenario harness. They do **not** wait on the sibling executor spec — the policy ACs run against a hand-created `app: agent` probe pod
 </summary>
 
 <objective>
@@ -174,7 +174,7 @@ grep -n 'agents-sandbox' helm/README.md                    # must show the new b
 
 Do NOT run `make precommit` — this prompt changes no Go code; the render + greps above are the verification.
 
-**Deferred operator checklist (DO NOT RUN here — document as pending).** The Post-Deploy ACs require real cluster creds AND the sibling executor spec to have shipped; this container has neither. They are reproduced below for the completion report / spec Verification ladder only. Record them as pending in your completion report; never attempt to execute them here.
+**Deferred operator checklist (DO NOT RUN here — document as pending).** The Post-Deploy ACs require real cluster creds; this container has none. They do **not** wait on the sibling executor spec — the policy ACs run against a hand-created `app: agent` probe pod, as the checklist below states. They are reproduced below for the completion report / spec Verification ladder only. Record them as pending in your completion report; never attempt to execute them here.
 
 ```text
 # Rung-2 (dev), after deploy. NO executor spec needed — the policy ACs run
@@ -186,8 +186,8 @@ kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o j
 kubectlnukedev -n dev-agents-sandbox get role agent-task-executor-sandbox -o jsonpath='{.rules[*].resources}'      # expect jobs secrets persistentvolumeclaims (Failure-Modes row 4 recovery)
 # from inside the probe pod: wget -qO- --timeout=3 http://vault-obsidian-openclaw.dev.svc.cluster.local:9090        # expect non-zero, no body — proves the sentry peer is narrow
 # from inside the probe pod: wget -qO- --timeout=3 http://169.254.169.254/                                          # expect non-zero
-# from inside the probe pod: nc -z 192.168.178.41 32159                                                            # expect exit 0
-# from inside the probe pod: nc -z sentry-proxy.dev.svc.cluster.local 9090                                         # expect exit 0
+# from inside the probe pod: nc -w 3 192.168.178.41 32159 </dev/null                                                            # expect exit 0
+# from inside the probe pod: nc -w 3 sentry-proxy.dev.svc.cluster.local 9090 </dev/null                                         # expect exit 0
 # Rung-3 (prod): same block/allow pair in prod-agents-sandbox, with sentry-proxy.prod.svc.cluster.local and kubectlnukeprod
 ```
 </verification>

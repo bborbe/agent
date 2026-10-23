@@ -36,7 +36,7 @@ Key facts (verified against the repo):
   `helm template helm/ --set namespace=dev --set executor.kafkaBrokers=kafka:9092 --set executor.existingSecret=agent-secret`
 - The `agent.namespace` helper uses `required`, so `.Values.namespace` is guaranteed non-empty once a render succeeds.
 - The NetworkPolicy MUST carry NO `metadata.labels`. The spec AC `grep -A5 'name: agent-sandbox-egress' | grep -c 'app: agent'` requires `app: agent` within 5 lines after the `name:` line; `agent.labels` expands to three lines and would push the podSelector out of that window (verified: with labels the AC returns 0). This is a deliberate divergence from the chart-wide "every object gets labels" convention.
-- The strimzi Kafka namespace selector uses `kubernetes.io/metadata.name: strimzi` (the kube-apiserver adds this label to every namespace automatically) rather than the doc's `name: strimzi`. See "REVIEWER OPEN QUESTIONS" at the bottom of this prompt.
+- Kafka egress is three `/32` `ipBlock`s on TCP 32159 — **not** a namespace/pod selector. Kafka on nuke is the shared cluster's external nodeport listener, so there is no in-cluster `kafka` Service to select. The `sentry-proxy` peer is the only namespace-scoped rule in the policy.
 - Do NOT add an egress-proxy rule (port 8888, `app: egress-proxy`) — public-internet egress is owned by spec 048 `agent-egress-proxy` and must stay denied here. The docs reference policy shows the future end-state; this spec (047) ships kube-dns, `sentry-proxy` and the Kafka nodeports only.
 </context>
 
