@@ -48,6 +48,14 @@ var _ = Describe("IsSensitiveKey", func() {
 		Expect(envparse.IsSensitiveKey("PATH")).To(BeFalse())
 	})
 
+	It("flags HTTPS_PROXY as sensitive (a proxy URL may embed credentials)", func() {
+		Expect(envparse.IsSensitiveKey("HTTPS_PROXY")).To(BeTrue())
+	})
+
+	It("flags lowercase http_proxy as sensitive (case-insensitive)", func() {
+		Expect(envparse.IsSensitiveKey("http_proxy")).To(BeTrue())
+	})
+
 	It("does not flag HOME as sensitive", func() {
 		Expect(envparse.IsSensitiveKey("HOME")).To(BeFalse())
 	})
@@ -76,6 +84,11 @@ var _ = Describe("RedactForLog", func() {
 
 	It("returns an empty slice for empty input", func() {
 		Expect(envparse.RedactForLog([]string{})).To(Equal([]string{}))
+	})
+
+	It("redacts a credential-bearing proxy URL", func() {
+		input := []string{"HTTPS_PROXY=http://user:pass@proxy:8888"}
+		Expect(envparse.RedactForLog(input)).To(Equal([]string{"HTTPS_PROXY=***"}))
 	})
 
 	It(
