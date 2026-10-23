@@ -29,10 +29,13 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 fail=0
 
-# write_values <file> <rerunOnLostClaim line or empty>
+# write_values <file> <rerunOnLostClaim line or empty> [extra agent field(s)]
+# Extra fields are appended one per line, flow-style, so a multi-line field can
+# never break the 4-space indentation of the agents[] entry.
 write_values() {
 	local file="$1"
 	local rr_line="$2"
+	local extra="${3:-}"
 	{
 		cat <<'EOF'
 namespace: test
@@ -52,6 +55,13 @@ agents:
 EOF
 		if [ -n "$rr_line" ]; then
 			printf '    %s\n' "$rr_line"
+		fi
+		if [ -n "$extra" ]; then
+			while IFS= read -r line; do
+				if [ -n "$line" ]; then
+					printf '    %s\n' "$line"
+				fi
+			done <<<"$extra"
 		fi
 	} >"$file"
 }
@@ -108,30 +118,82 @@ run_case false "$tmpdir/false.yaml" false
 run_case true "$tmpdir/true.yaml" true
 run_case unset "$tmpdir/unset.yaml" unset
 
+# doc_has <file> <kind> <name> <namespace("" for cluster-scoped)>
+# Assert the identity of a rendered object, not a tally: a dropped object can
+# still reach the same `kind:` count as another object of that kind.
+doc_has() {
+	local file="$1"
+	local kind="$2"
+	local name="$3"
+	local ns="$4"
+	awk -v K="$kind" -v N="$name" -v NS="$ns" '
+		BEGIN{RS="---"}
+		index($0,"kind: " K "\n") && index($0,"  name: " N "\n") &&
+		(NS=="" || index($0,"  namespace: " NS "\n")) {found=1}
+		END{exit(found?0:1)}' "$file"
+}
+
+POLICY_OUT=""
+# run_policy_case <case> <values file> [extra helm args...]
+# Renders the WHOLE chart into $POLICY_OUT. The caller adds its own assertions
+# and prints the OK line, so a failed assertion cannot follow a premature OK.
+run_policy_case() {
+	local name="$1"
+	local values="$2"
+	shift 2
+	POLICY_OUT="$tmpdir/policy-$name.out"
+	"$helm_bin" template x "$CHART_DIR" -f "$values" "$@" >"$POLICY_OUT"
+}
+
+# policy_doc <file> <policy name> — print that NetworkPolicy document.
+policy_doc() {
+	awk -v N="$2" 'BEGIN{RS="---"} index($0,"kind: NetworkPolicy") && index($0,"  name: " N "\n"){printf "%s", $0}' "$1"
+}
+
 # Agent PVC: rendered only for a job agent with volumeMountPath, and always
 # carries helm.sh/resource-policy: keep so a render that drops it cannot prune it.
 
-# run_pvc_case <case> <values file> <0|1 expected PVC count>
+# run_pvc_case <case> <values file> <expected PVCs> <expected Secrets> <namespace(s)>
+# The namespace may be a comma-separated list when the objects are rendered into
+# more than one namespace (sandbox storage copies). Totals alone cannot express
+# "one of each here and one of each there".
 run_pvc_case() {
 	local name="$1"
 	local values="$2"
-	local expect="$3"
+	local expect_pvc="$3"
+	local expect_secret="$4"
+	local ns="$5"
 	local out="$tmpdir/$name.out"
 
 	"$helm_bin" template x "$CHART_DIR" -f "$values" --show-only templates/agents.yaml >"$out"
 
-	local count
-	count="$(grep -c '^kind: PersistentVolumeClaim$' "$out" || true)"
-	if [ "$count" -ne "$expect" ]; then
-		echo "FAIL: $name: expected $expect PersistentVolumeClaim, got $count"
+	local pvc_count secret_count
+	pvc_count="$(grep -c '^kind: PersistentVolumeClaim$' "$out" || true)"
+	secret_count="$(grep -c '^kind: Secret$' "$out" || true)"
+	if [ "$pvc_count" -ne "$expect_pvc" ] || [ "$secret_count" -ne "$expect_secret" ]; then
+		echo "FAIL: $name: expected $expect_pvc PVC / $expect_secret Secret, got $pvc_count / $secret_count"
 		fail=1
 		return
 	fi
-	if [ "$expect" -eq 1 ] && ! grep -qx '    helm.sh/resource-policy: keep' "$out"; then
+	if [ "$expect_pvc" -gt 0 ] && ! grep -qx '    helm.sh/resource-policy: keep' "$out"; then
 		echo "FAIL: $name: PVC missing 'helm.sh/resource-policy: keep'"
 		fail=1
 		return
 	fi
+
+	local one
+	for one in ${ns//,/ }; do
+		if [ "$expect_pvc" -gt 0 ] && ! doc_has "$out" PersistentVolumeClaim rr-agent "$one"; then
+			echo "FAIL: $name: missing PersistentVolumeClaim rr-agent in $one"
+			fail=1
+			return
+		fi
+		if [ "$expect_secret" -gt 0 ] && ! doc_has "$out" Secret rr-agent "$one"; then
+			echo "FAIL: $name: missing Secret rr-agent in $one"
+			fail=1
+			return
+		fi
+	done
 
 	echo "OK: $name"
 }
@@ -140,9 +202,24 @@ write_values "$tmpdir/pvc-job.yaml" "volumeMountPath: /data"
 write_values "$tmpdir/pvc-service.yaml" "volumeMountPath: /data"
 printf '    type: service\n' >>"$tmpdir/pvc-service.yaml"
 
-run_pvc_case pvc-job "$tmpdir/pvc-job.yaml" 1
-run_pvc_case pvc-no-mount "$tmpdir/unset.yaml" 0
-run_pvc_case pvc-service "$tmpdir/pvc-service.yaml" 0
+run_pvc_case pvc-job "$tmpdir/pvc-job.yaml" 1 0 test
+run_pvc_case pvc-no-mount "$tmpdir/unset.yaml" 0 0 test
+run_pvc_case pvc-service "$tmpdir/pvc-service.yaml" 0 0 test
+
+# sandbox.renderAgentStorage: the chart-rendered Secret and PVC are rendered
+# twice — once in the control namespace (the executor reads the Secret there)
+# and once in the sandbox namespace.
+storage_fields=$'secretEnv: {SENTRY_DSN: dummy}\nvolumeMountPath: /data'
+write_values "$tmpdir/storage-default.yaml" "" "$storage_fields"
+write_values "$tmpdir/storage-enabled.yaml" "" "$storage_fields"
+printf 'sandbox:\n  renderAgentStorage: true\n' >>"$tmpdir/storage-enabled.yaml"
+# executor.enabled=false must suppress the sandbox copies, like every other
+# sandbox object — the copies would land in a namespace the chart does not create.
+sed 's/^executor:$/executor:\n  enabled: false/' "$tmpdir/storage-enabled.yaml" >"$tmpdir/storage-disabled.yaml"
+
+run_pvc_case storage-default "$tmpdir/storage-default.yaml" 1 1 test
+run_pvc_case storage-enabled "$tmpdir/storage-enabled.yaml" 2 2 "test,test-agents-sandbox"
+run_pvc_case storage-disabled "$tmpdir/storage-disabled.yaml" 1 1 test
 
 # run_sandbox_case <env>
 # The spec 047 build-time ACs, in CI. The prompts' greps live in markdown and never
@@ -150,30 +227,23 @@ run_pvc_case pvc-service "$tmpdir/pvc-service.yaml" 0
 # exact shape this chart was amended to replace — would merge green.
 run_sandbox_case() {
 	local env="$1"
-	local out="$tmpdir/sandbox-$env.out"
 
-	"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
-		--set "namespace=$env" --set executor.existingSecret=agent-secret >"$out"
+	run_policy_case "sandbox-$env" "$tmpdir/unset.yaml" \
+		--set "namespace=$env" --set executor.existingSecret=agent-secret
+	local out="$POLICY_OUT"
 
 	# Assert each object by kind + name + namespace. Counting `kind:` lines does
 	# NOT work here and spec 047 AC3 says so: executor-rbac.yaml already renders a
 	# Role and RoleBinding, so a dropped sandbox Namespace or Role still reaches a
 	# count of 4. Assert the identity, not the tally.
 	local doc_ok=1
-	doc_has() { # kind name namespace("" for cluster-scoped)
-		awk -v K="$1" -v N="$2" -v NS="$3" '
-			BEGIN{RS="---"}
-			index($0,"kind: " K "\n") && index($0,"  name: " N "\n") &&
-			(NS=="" || index($0,"  namespace: " NS "\n")) {found=1}
-			END{exit(found?0:1)}' "$out"
-	}
-	doc_has Namespace "${env}-agents-sandbox" "" || {
+	doc_has "$out" Namespace "${env}-agents-sandbox" "" || {
 		echo "FAIL: sandbox-$env: missing Namespace ${env}-agents-sandbox"; doc_ok=0; }
-	doc_has NetworkPolicy "agent-sandbox-egress" "${env}-agents-sandbox" || {
+	doc_has "$out" NetworkPolicy "agent-sandbox-egress" "${env}-agents-sandbox" || {
 		echo "FAIL: sandbox-$env: missing NetworkPolicy agent-sandbox-egress in ${env}-agents-sandbox"; doc_ok=0; }
-	doc_has Role "agent-task-executor-sandbox" "${env}-agents-sandbox" || {
+	doc_has "$out" Role "agent-task-executor-sandbox" "${env}-agents-sandbox" || {
 		echo "FAIL: sandbox-$env: missing Role agent-task-executor-sandbox in ${env}-agents-sandbox"; doc_ok=0; }
-	doc_has RoleBinding "agent-task-executor-sandbox" "${env}-agents-sandbox" || {
+	doc_has "$out" RoleBinding "agent-task-executor-sandbox" "${env}-agents-sandbox" || {
 		echo "FAIL: sandbox-$env: missing RoleBinding agent-task-executor-sandbox in ${env}-agents-sandbox"; doc_ok=0; }
 	# The binding must cross namespaces: the subject SA lives in the CONTROL
 	# namespace, not the sandbox. Checked inside the sandbox RoleBinding document
@@ -246,6 +316,177 @@ run_sandbox_case() {
 
 run_sandbox_case dev
 run_sandbox_case prod
+
+# --- sandbox values -------------------------------------------------------
+# Every case below sets at least one `sandbox.*` value; the default render above
+# is the regression lock that says no install is renamed.
+
+# Explicit sandbox name. The Namespace, NetworkPolicy and sandbox RoleBinding
+# move with it and no document keeps the derived name — this covers the blast
+# radius of agent.sandboxNamespace (the egress proxy, its allowlist and the
+# sandbox RBAC resolve through the same helper).
+run_policy_case sandbox-explicit "$tmpdir/unset.yaml" \
+	--set namespace=dev --set sandbox.namespace=dev-sandbox --set executor.existingSecret=agent-secret
+out="$POLICY_OUT"
+if ! doc_has "$out" Namespace dev-sandbox ""; then
+	echo "FAIL: sandbox-explicit: missing Namespace dev-sandbox"
+	fail=1
+elif ! doc_has "$out" NetworkPolicy agent-sandbox-egress dev-sandbox; then
+	echo "FAIL: sandbox-explicit: NetworkPolicy did not move to dev-sandbox"
+	fail=1
+elif ! doc_has "$out" RoleBinding agent-task-executor-sandbox dev-sandbox; then
+	echo "FAIL: sandbox-explicit: sandbox RoleBinding did not move to dev-sandbox"
+	fail=1
+elif grep -q 'namespace: dev-agents-sandbox' "$out"; then
+	echo "FAIL: sandbox-explicit: a document still carries the derived sandbox namespace"
+	fail=1
+else
+	echo "OK: sandbox-explicit"
+fi
+
+# In-cluster Kafka: namespace + pod selector + port, and no nodeport address.
+cat >"$tmpdir/kafka-incluster.yaml" <<'EOF'
+namespace: dev
+executor:
+  kafkaBrokers: kafka:9092
+  existingSecret: agent-secret
+sandbox:
+  kafka:
+    namespace: kafka
+    podLabels:
+      strimzi.io/cluster: sun
+    servicePort: 9092
+EOF
+run_policy_case kafka-incluster "$tmpdir/kafka-incluster.yaml"
+out="$POLICY_OUT"
+kafka_doc="$(policy_doc "$out" agent-sandbox-egress)"
+# RS splits on the peer marker, so this is the single Kafka peer, not the doc.
+kafka_peer="$(awk 'BEGIN{RS="    - to:"} /metadata.name: kafka/{print; exit}' <<<"$kafka_doc")"
+if ! grep -q 'namespaceSelector:' <<<"$kafka_peer" ||
+	! grep -q 'podSelector:' <<<"$kafka_peer" ||
+	! grep -q 'strimzi.io/cluster: sun' <<<"$kafka_peer" ||
+	! grep -q 'port: 9092' <<<"$kafka_peer"; then
+	echo "FAIL: kafka-incluster: Kafka peer is missing its namespace/pod selector or port"
+	fail=1
+elif grep -q '32159' <<<"$kafka_doc"; then
+	echo "FAIL: kafka-incluster: policy still contains the nodeport address"
+	fail=1
+else
+	echo "OK: kafka-incluster"
+fi
+
+# Without podLabels the peer must carry no podSelector at all (an empty one
+# would render as `podSelector: {}` and select every pod).
+cat >"$tmpdir/kafka-incluster-nolabels.yaml" <<'EOF'
+namespace: dev
+executor:
+  kafkaBrokers: kafka:9092
+  existingSecret: agent-secret
+sandbox:
+  kafka:
+    namespace: kafka
+    servicePort: 9092
+EOF
+run_policy_case kafka-incluster-nolabels "$tmpdir/kafka-incluster-nolabels.yaml"
+kafka_doc="$(policy_doc "$POLICY_OUT" agent-sandbox-egress)"
+kafka_peer="$(awk 'BEGIN{RS="    - to:"} /metadata.name: kafka/{print; exit}' <<<"$kafka_doc")"
+if [ -z "$kafka_peer" ]; then
+	echo "FAIL: kafka-incluster-nolabels: no kafka peer extracted — the assertion would pass vacuously"
+	fail=1
+elif grep -q 'podSelector:' <<<"$kafka_peer"; then
+	echo "FAIL: kafka-incluster-nolabels: peer carries a podSelector without podLabels"
+	fail=1
+else
+	echo "OK: kafka-incluster-nolabels"
+fi
+
+# A namespace without a servicePort must fail the render. A silent `port: 0`
+# produces a policy that matches nothing and looks healthy.
+if err="$("$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
+	--set namespace=dev --set sandbox.kafka.namespace=kafka 2>&1)"; then
+	echo "FAIL: kafka-missing-port: render succeeded with sandbox.kafka.servicePort unset"
+	fail=1
+elif grep -q 'sandbox.kafka.servicePort is required' <<<"$err"; then
+	echo "OK: kafka-missing-port"
+else
+	echo "FAIL: kafka-missing-port: render failed without the expected message: $err"
+	fail=1
+fi
+
+# A non-integer servicePort must fail too. `abc` is truthy, so a falsy-only
+# guard lets it through and renders `port: abc` — a named port that matches
+# nothing, the same silent no-op as `port: 0`.
+if err="$("$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
+	--set namespace=dev --set sandbox.kafka.namespace=kafka \
+	--set sandbox.kafka.servicePort=abc 2>&1)"; then
+	echo "FAIL: kafka-nonint-port: render succeeded with a non-integer servicePort"
+	fail=1
+elif grep -q 'sandbox.kafka.servicePort is required' <<<"$err"; then
+	echo "OK: kafka-nonint-port"
+else
+	echo "FAIL: kafka-nonint-port: render failed without the expected message: $err"
+	fail=1
+fi
+
+# sandbox.namespace equal to the control namespace must fail: the chart would
+# render a second Namespace object for a namespace that already exists, and
+# helm install then aborts with "already exists".
+if err="$("$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
+	--set namespace=dev --set sandbox.namespace=dev 2>&1)"; then
+	echo "FAIL: sandbox-ns-collision: render succeeded with sandbox.namespace equal to namespace"
+	fail=1
+elif grep -q 'sandbox.namespace must differ from namespace' <<<"$err"; then
+	echo "OK: sandbox-ns-collision"
+else
+	echo "FAIL: sandbox-ns-collision: render failed without the expected message: $err"
+	fail=1
+fi
+
+# The default branch stays the nuke nodeports: exactly three /32 cidrs on 32159
+# in agent-sandbox-egress (count cidrs — egress-proxy-egress adds a fourth
+# ipBlock to the same render).
+run_policy_case kafka-default "$tmpdir/unset.yaml" \
+	--set namespace=dev --set executor.existingSecret=agent-secret
+kafka_doc="$(policy_doc "$POLICY_OUT" agent-sandbox-egress)"
+cidr32="$(grep -cE 'cidr: 192\.168\.178\.(41|42|43)/32' <<<"$kafka_doc" || true)"
+if [ "$cidr32" -ne 3 ] || ! grep -q 'port: 32159' <<<"$kafka_doc"; then
+	echo "FAIL: kafka-default: expected 3 nodeport /32 cidrs and port 32159, got cidr32=$cidr32"
+	fail=1
+else
+	echo "OK: kafka-default"
+fi
+
+# Router instance override: the peer selects the literal, not the derived name.
+run_policy_case router-override "$tmpdir/unset.yaml" \
+	--set namespace=dev --set sandbox.routerInstance=claude-code-router \
+	--set executor.existingSecret=agent-secret
+router_doc="$(policy_doc "$POLICY_OUT" agent-sandbox-egress)"
+if ! grep -q 'app.kubernetes.io/instance: claude-code-router$' <<<"$router_doc"; then
+	echo "FAIL: router-override: router peer does not select the overridden instance"
+	fail=1
+elif grep -q 'claude-code-router-dev' <<<"$router_doc"; then
+	echo "FAIL: router-override: derived instance name still present"
+	fail=1
+else
+	echo "OK: router-override"
+fi
+
+# Optional vault-API peer: present with the value, absent without it.
+run_policy_case vault-api "$tmpdir/unset.yaml" \
+	--set namespace=dev --set sandbox.vaultApiApp=vault-api-openclaw \
+	--set executor.existingSecret=agent-secret
+vault_doc="$(policy_doc "$POLICY_OUT" agent-sandbox-egress)"
+vault_peer="$(awk 'BEGIN{RS="    - to:"} /app: vault-api-openclaw/{print; exit}' <<<"$vault_doc")"
+if ! grep -q 'app: vault-api-openclaw' <<<"$vault_peer" ||
+	! grep -q 'port: 9090' <<<"$vault_peer"; then
+	echo "FAIL: vault-api: missing vault-api-openclaw peer on 9090"
+	fail=1
+elif grep -q 'app: vault-api-openclaw' <<<"$(policy_doc "$tmpdir/policy-kafka-default.out" agent-sandbox-egress)"; then
+	echo "FAIL: vault-api: peer rendered without sandbox.vaultApiApp"
+	fail=1
+else
+	echo "OK: vault-api"
+fi
 
 # executor.enabled=false must suppress every sandbox object (spec AC3).
 disabled_out="$tmpdir/sandbox-disabled.out"

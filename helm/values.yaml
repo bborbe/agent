@@ -10,6 +10,42 @@
 # Namespace the components deploy into. Required (no default — the cluster owns it).
 namespace: ""
 
+# Sandbox: the namespace hosting agent Job pods, the egress proxy and the
+# default-deny egress policy. Every key here is opt-in; an install that sets
+# nothing renders exactly what it rendered before these values existed.
+sandbox:
+  # Explicit sandbox namespace name. Empty falls back to
+  # "<namespace>-agents-sandbox", which is what every current install renders.
+  namespace: ""
+  kafka:
+    # In-cluster Kafka: set this (and servicePort) to select brokers by
+    # namespace instead of by the built-in nodeport addresses. Takes
+    # precedence over them.
+    namespace: ""
+    # Optional pod selector narrowing the peer inside that namespace.
+    # Empty opens EVERY pod in that namespace on servicePort — set it
+    # whenever the namespace holds anything but the brokers.
+    podLabels: {}
+    # The brokers' CONTAINER port. A NetworkPolicy port matches the
+    # destination pod, not the Service — the two usually share a number on
+    # Strimzi listeners, but where they differ this silently matches nothing.
+    servicePort: 0
+  # app.kubernetes.io/instance value the router peer selects.
+  # Empty falls back to "claude-code-router-<namespace>".
+  routerInstance: ""
+  # When set, render an extra egress peer selecting this `app` label on
+  # port 9090. Set on sun to "vault-api-openclaw", whose vault service
+  # carries that label rather than a vault-obsidian-* one.
+  vaultApiApp: ""
+  # When true, also render each agent's Secret and PVC into the sandbox
+  # namespace, gated on executor.enabled. Only chart-rendered objects are
+  # copied: an agent referencing an externally managed Secret via
+  # `secretName` renders no Secret, so the operator must still place that
+  # Secret in the sandbox namespace by hand. A copied PVC is a NEW, EMPTY
+  # volume, not a view of the control-namespace claim — data written to the
+  # original is not visible in the sandbox copy.
+  renderAgentStorage: false
+
 # Image coordinates. Default to the public Docker Hub image; a self-sufficient
 # cluster overrides registry to its in-cluster mirror.
 image:

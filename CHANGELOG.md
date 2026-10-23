@@ -8,6 +8,12 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(helm): make the sandbox shape configurable without changing any default render. New `sandbox` values: `namespace` (overrides the derived `<namespace>-agents-sandbox`), `kafka.namespace`/`kafka.podLabels`/`kafka.servicePort` (select an in-cluster Kafka Service instead of the hardcoded nuke `/32` nodeports on 32159, failing the render when the port is missing or not a positive integer rather than emitting a policy that matches nothing), `routerInstance` (router peer label, default `claude-code-router-<namespace>`), `vaultApiApp` (optional extra `app`-labelled peer on 9090), and `renderAgentStorage` (also render each chart-rendered agent Secret and PVC into the sandbox namespace — a copied PVC is a new, empty volume, not a view of the control-namespace claim). Chart 0.21.2→0.22.0.
+- test(helm): refactor `hack/test-helm-render.sh` around `run_policy_case`/`doc_has` and add render cases for the explicit sandbox namespace, the in-cluster Kafka branch and its missing-port failure, the default Kafka addresses, the router override, the vault-API peer and the sandbox storage copies.
+- docs(helm): add the `sandbox` values reference and correct the generic-cluster and agents sections; update `docs/agent-network-security.md` for the value-driven sandbox name and the two Kafka branches.
+
 ## v0.123.1
 
 - fix(helm): add `DAC_OVERRIDE` to the egress-proxy container's capabilities. Chart 0.21.1 crash-looped on its first real deploy (nuke dev, 2026-10-23): the entrypoint's final step is `touch /var/log/tinyproxy/tinyproxy.log`, and the image ships `/var/log/tinyproxy` as uid 100 / mode `0755` — so a root process with `capabilities.drop: [ALL]` is "other" on that directory, gets `EACCES`, and `run.sh` exits 1 with `Could not tail ... Exiting`. The `SETUID`/`SETGID` fix in 0.21.0 addressed a different failure (tinyproxy exiting 77 after daemonizing) and does not cover this one. Chart 0.21.1→0.21.2.

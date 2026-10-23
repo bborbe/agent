@@ -88,6 +88,25 @@ data:
   {{- range $k, $v := $agent.secretEnv }}
   {{ $k }}: {{ $v | b64enc }}
   {{- end }}
+{{- if and ($.Values.sandbox | default dict).renderAgentStorage $.Values.executor.enabled }}
+---
+# Sandbox copy (sandbox.renderAgentStorage). The control-namespace Secret above
+# stays put — the executor reads it from there. Only chart-rendered Secrets are
+# copied; an agent pointing `secretName` at an externally managed Secret renders
+# none here and the operator must place that Secret by hand.
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: {{ $agent.name }}
+  namespace: {{ include "agent.sandboxNamespace" $ }}
+  labels:
+    {{- include "agent.labels" $ | nindent 4 }}
+data:
+  {{- range $k, $v := $agent.secretEnv }}
+  {{ $k }}: {{ $v | b64enc }}
+  {{- end }}
+{{- end }}
 {{- end }}
 {{- if and $agent.volumeMountPath (ne ($agent.type | default "job") "service") }}
 ---
@@ -118,6 +137,30 @@ spec:
   resources:
     requests:
       storage: {{ $agent.storageSize | default "1Gi" }}
+{{- if and ($.Values.sandbox | default dict).renderAgentStorage $.Values.executor.enabled }}
+---
+# Sandbox copy (sandbox.renderAgentStorage). This is a NEW, EMPTY volume in the
+# sandbox namespace — NOT a view of the control-namespace claim above, so data
+# written to the original is not visible here. `resource-policy: keep` matches
+# the original: a render that drops this claim must not delete it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $agent.volumeClaim | default $agent.name }}
+  namespace: {{ include "agent.sandboxNamespace" $ }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    {{- include "agent.labels" $ | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with $agent.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $agent.storageSize | default "1Gi" }}
+{{- end }}
 {{- end }}
 ---
 # PriorityClass is cluster-scoped (no namespace). Named per-agent so the

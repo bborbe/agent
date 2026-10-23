@@ -99,6 +99,18 @@ agents: []
 | `cluster` | `""` | Cluster name rendered as `CLUSTER` on every executor and every controller. Controllers publish only tasks whose `cluster:` frontmatter matches. Requires agent-task-controller ≥ v0.14.0 and agent-task-executor ≥ v0.19.0. Empty = nothing rendered. |
 | `publishUntagged` | unset | Rendered as `PUBLISH_UNTAGGED` (quoted `"true"`/`"false"`) on every controller **only when the key is set** — `false` is honoured, absent renders nothing. Set `false` on clusters that must run only explicitly tagged tasks (e.g. sun). Requires agent-task-controller ≥ v0.14.0. |
 
+### sandbox
+
+| Key | Default | Description |
+|---|---|---|
+| `sandbox.namespace` | `""` | Explicit sandbox namespace. Empty falls back to `<namespace>-agents-sandbox`, which every current install renders. Must differ from `namespace` — the render fails otherwise, since equal values emit a second `Namespace` object for the control namespace. Also relocates the egress proxy, its allowlist and the sandbox RBAC. |
+| `sandbox.kafka.namespace` | `""` | Select Kafka by namespace (in-cluster Service) instead of the built-in nodeport addresses. Takes precedence over them. |
+| `sandbox.kafka.podLabels` | `{}` | Pod selector narrowing the Kafka peer inside `sandbox.kafka.namespace`. Empty opens **every** pod in that namespace on `servicePort` — set it unless the namespace holds only brokers. |
+| `sandbox.kafka.servicePort` | `0` | The broker pods' **container** port — not the Service port, since a NetworkPolicy port matches the destination pod. Required when `sandbox.kafka.namespace` is set, and must be a positive integer — the render fails on `0` or on a non-numeric value, either of which would emit a policy that matches nothing. |
+| `sandbox.routerInstance` | `""` | `app.kubernetes.io/instance` the router peer selects. Empty = `claude-code-router-<namespace>`. |
+| `sandbox.vaultApiApp` | `""` | When set, render an extra egress peer selecting this `app` label on port 9090 (e.g. `vault-api-openclaw`). |
+| `sandbox.renderAgentStorage` | `false` | Also render each chart-rendered agent Secret and PVC into the sandbox namespace (gated on `executor.enabled`). Only chart-rendered objects are copied, and a copied PVC is a new, empty volume — not a view of the control-namespace claim. |
+
 ### executor
 
 | Key | Default | Description |
@@ -196,9 +208,10 @@ There is no per-entry `kafkaUser` — executor mTLS stays driven by the single s
 
 ### agents (leaf agents — values-driven)
 
-`agents` is a list; each **enabled** entry emits a `Config` CR + Secret + PVC +
-PriorityClass (cluster-scoped) + ResourceQuota (concurrency cap). Nothing is
-hard-coded — add/remove agents purely in values.
+`agents` is a list; each **enabled** entry emits a `Config` CR + PriorityClass
+(cluster-scoped) + ResourceQuota (concurrency cap), plus a Secret only when
+`secretEnv` is set and a PVC only when `volumeMountPath` is set (and the agent is
+not `type: service`). Nothing is hard-coded — add/remove agents purely in values.
 
 ```yaml
 agents:
@@ -288,21 +301,23 @@ secrets, Strimzi mTLS. **None of that is required.** A vanilla cluster:
   `*.kafkaBrokers` at your plaintext/SASL bootstrap.
 - **Your own namespace** — set `namespace` to anything; cluster-scoped objects
   (PriorityClass, per-namespace ClusterRoles) are named so multiple namespaces coexist.
-- **Network-isolated sandbox** — the chart renders `<namespace>-agents-sandbox` with a
-  default-deny egress NetworkPolicy (kube-dns, sentry-proxy, claude-code-router, pushgateway, the three
-  vault-obsidian services, frontend-gateway, frontend-strategy and the Kafka nodeports — nothing else) and cross-namespace RBAC for
+- **Network-isolated sandbox** — the chart renders the sandbox namespace
+  (`sandbox.namespace`, default `<namespace>-agents-sandbox`) with a
+  default-deny egress NetworkPolicy (kube-dns, sentry-proxy, the router, pushgateway, the three
+  vault-obsidian services, frontend-gateway, frontend-strategy, Kafka and the egress proxy —
+  nothing else) and cross-namespace RBAC for
   the executor. Agent Jobs land there; it is inert until the executor ships
   `ConfigSpec.JobNamespace` (spawns Jobs into the sandbox). The namespace also hosts a
   two-replica tinyproxy egress proxy (`egress-proxy`, port 8888) and its allowlist
   ConfigMap — the only path from a sandbox pod to the public internet; changing the
   allowlist is a ConfigMap edit, never an image rebuild.
-  ⚠️ The destination set is **nuke-shaped and hardcoded** — the Kafka rule is three
-  nuke LAN `/32`s on 32159 and `pushgateway` is pinned to the `monitoring`
-  namespace. On a vanilla cluster (`executor.kafkaBrokers: kafka:9092`) this policy
-  blocks Kafka egress once Jobs actually land there, so the sandbox is nuke-only
-  until those destinations become values.
+  Kafka is selected either by the built-in nuke nodeport `/32`s on 32159 (the
+  default) or, when `sandbox.kafka.namespace` + `sandbox.kafka.servicePort` are
+  set, by an in-cluster namespace + optional `sandbox.kafka.podLabels` selector.
+  `pushgateway` remains pinned to the `monitoring` namespace.
 - **Egress proxy** — the chart renders a domain-allowlisting tinyproxy (`egress-proxy`,
-  port 8888) in `<namespace>-agents-sandbox`. The allowlist lives in the
+  port 8888) in the sandbox namespace (`sandbox.namespace`, default
+  `<namespace>-agents-sandbox`). The allowlist lives in the
   `egress-proxy-allowlist` ConfigMap — change it there and restart the proxy, no image
   rebuild. Direct internet egress from agent pods is denied except through the proxy.
   ⚠️ The proxy env is **not** injected by default: set `egressProxy.injectAgentEnv: true`
