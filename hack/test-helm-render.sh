@@ -155,16 +155,44 @@ run_sandbox_case() {
 	"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
 		--set "namespace=$env" --set executor.existingSecret=agent-secret >"$out"
 
-	local kinds
-	kinds="$(grep -cE '^kind: (Namespace|NetworkPolicy|Role|RoleBinding)$' "$out" || true)"
-	if [ "$kinds" -lt 4 ]; then
-		echo "FAIL: sandbox-$env: expected >=4 sandbox objects, got $kinds"
+	# Assert each object by kind + name + namespace. Counting `kind:` lines does
+	# NOT work here and spec 047 AC3 says so: executor-rbac.yaml already renders a
+	# Role and RoleBinding, so a dropped sandbox Namespace or Role still reaches a
+	# count of 4. Assert the identity, not the tally.
+	local doc_ok=1
+	doc_has() { # kind name namespace("" for cluster-scoped)
+		awk -v K="$1" -v N="$2" -v NS="$3" '
+			BEGIN{RS="---"}
+			index($0,"kind: " K "\n") && index($0,"  name: " N "\n") &&
+			(NS=="" || index($0,"  namespace: " NS "\n")) {found=1}
+			END{exit(found?0:1)}' "$out"
+	}
+	doc_has Namespace "${env}-agents-sandbox" "" || {
+		echo "FAIL: sandbox-$env: missing Namespace ${env}-agents-sandbox"; doc_ok=0; }
+	doc_has NetworkPolicy "agent-sandbox-egress" "${env}-agents-sandbox" || {
+		echo "FAIL: sandbox-$env: missing NetworkPolicy agent-sandbox-egress in ${env}-agents-sandbox"; doc_ok=0; }
+	doc_has Role "agent-task-executor-sandbox" "${env}-agents-sandbox" || {
+		echo "FAIL: sandbox-$env: missing Role agent-task-executor-sandbox in ${env}-agents-sandbox"; doc_ok=0; }
+	doc_has RoleBinding "agent-task-executor-sandbox" "${env}-agents-sandbox" || {
+		echo "FAIL: sandbox-$env: missing RoleBinding agent-task-executor-sandbox in ${env}-agents-sandbox"; doc_ok=0; }
+	# The binding must cross namespaces: the subject SA lives in the CONTROL
+	# namespace, not the sandbox. Checked inside the sandbox RoleBinding document
+	# only — the chart renders a second RoleBinding (agent-task-executor) whose
+	# subject is also in the control namespace and would mask a regression here.
+	if ! awk -v NS="${env}" '
+		BEGIN{RS="---"}
+		index($0,"kind: RoleBinding") && index($0,"  name: agent-task-executor-sandbox\n") &&
+		index($0,"    namespace: " NS "\n") {found=1}
+		END{exit(found?0:1)}' "$out"; then
+		echo "FAIL: sandbox-$env: RoleBinding subject is not in the control namespace ${env}"; doc_ok=0
+	fi
+	if [ "$doc_ok" -ne 1 ]; then
 		fail=1
 		return
 	fi
 
 	local sel
-	sel="$(grep -cE '^\s+app(\.kubernetes\.io/instance)?: (sentry-proxy|claude-code-router-(dev|prod)|pushgateway|vault-obsidian-(personal|openclaw|trading)|frontend-(gateway|strategy))$' "$out" || true)"
+	sel="$(grep -cE '^[[:space:]]+app(\.kubernetes\.io/instance)?: (sentry-proxy|claude-code-router-(dev|prod)|pushgateway|vault-obsidian-(personal|openclaw|trading)|frontend-(gateway|strategy))$' "$out" || true)"
 	if [ "$sel" -ne 8 ]; then
 		echo "FAIL: sandbox-$env: expected 8 in-cluster egress peer selectors, got $sel"
 		fail=1
@@ -194,6 +222,17 @@ run_sandbox_case() {
 
 run_sandbox_case dev
 run_sandbox_case prod
+
+# executor.enabled=false must suppress every sandbox object (spec AC3).
+disabled_out="$tmpdir/sandbox-disabled.out"
+"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
+	--set namespace=dev --set executor.enabled=false >"$disabled_out"
+if grep -q 'agents-sandbox' "$disabled_out"; then
+	echo "FAIL: sandbox-disabled: sandbox objects render with executor.enabled=false"
+	fail=1
+else
+	echo "OK: sandbox-disabled"
+fi
 
 if [ "$fail" -ne 0 ]; then
 	exit 1

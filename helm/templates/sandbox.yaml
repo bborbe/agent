@@ -9,6 +9,13 @@ metadata:
   name: {{ include "agent.sandboxNamespace" . }}
   labels:
     {{- include "agent.labels" . | nindent 4 }}
+  annotations:
+    # The operator places the PVCs and Secrets the job Configs reference into this
+    # namespace by hand (spec 047's pre-cutover Rung-2 AC — the chart deliberately
+    # creates neither), so `helm uninstall` must not delete the namespace and take
+    # that data with it. Same convention the agent PVCs already use (v0.118.1).
+    # Removing the sandbox is therefore a deliberate `kubectl delete ns`.
+    helm.sh/resource-policy: keep
 ---
 # Default-deny egress for sandbox agent pods. Permitted: kube-dns (53 UDP+TCP),
 # sentry-proxy (9090), claude-code-router (8788), pushgateway (9090),
