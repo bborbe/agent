@@ -11,6 +11,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 ## Unreleased
 
 - feat(helm): render a two-replica tinyproxy egress proxy (`egress-proxy`) with its allowlist + two-direction self-test ConfigMap in `<namespace>-agents-sandbox`. Chart 0.19.0→0.20.0.
+- feat(helm): enforce the egress-proxy network layer — append an agent→proxy rule (`app: egress-proxy`, TCP 8888) to `agent-sandbox-egress` as its last peer, and add an `egress-proxy-egress` NetworkPolicy permitting the public internet (`0.0.0.0/0` minus `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`) plus kube-dns for the proxy pod, both gated on `executor.enabled`.
 
 ## v0.121.0
 
