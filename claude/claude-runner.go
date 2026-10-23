@@ -364,7 +364,11 @@ func scanOutput(
 //     The parent process (task executor) typically runs with secrets, Kafka creds,
 //     and other sensitive vars in its environment; we do NOT want those flowing into
 //     Claude sessions by default. This allowlist enforces that trust boundary — only
-//     well-known, non-sensitive vars pass through automatically.
+//     well-known, non-sensitive vars pass through automatically. The proxy variables
+//     (HTTP_PROXY/HTTPS_PROXY/NO_PROXY and their lowercase forms) are part of the
+//     allowlist because the agent reaches the internet only through the egress proxy:
+//     a pod-level proxy setting is useless if the child process cannot see it. This
+//     stays an allowlist, not a pass-through.
 //  2. CLAUDE_CONFIG_DIR: explicit config > parent process env > default "~/.claude".
 //  3. Consumer-provided r.config.Env: arbitrary overrides — highest precedence.
 //     To pass additional vars (e.g. GH_TOKEN for gh CLI auth), populate
@@ -384,7 +388,14 @@ func buildSubprocessEnv(ctx context.Context, config ClaudeRunnerConfig) ([]strin
 	env := map[string]string{}
 
 	// Layer 1: allowlist pass-through.
-	for _, k := range []string{"HOME", "PATH", "USER", "TZ", "ZONEINFO", "TMPDIR", "LANG", "LC_ALL"} {
+	for _, k := range []string{
+		"HOME", "PATH", "USER", "TZ", "ZONEINFO", "TMPDIR", "LANG", "LC_ALL",
+		// Proxy settings (spec 048): the agent's Bash tool reaches the internet
+		// only through the egress proxy, so the pod's proxy configuration has to
+		// survive this boundary. Without them every outbound call fails closed.
+		"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY",
+		"http_proxy", "https_proxy", "no_proxy",
+	} {
 		if v, ok := os.LookupEnv(k); ok {
 			env[k] = v
 		}

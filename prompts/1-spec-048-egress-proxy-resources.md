@@ -17,7 +17,7 @@ branch: dark-factory/agent-egress-proxy
 </summary>
 
 <objective>
-Render a two-replica tinyproxy egress proxy (Deployment + Service + allowlist ConfigMap carrying the domain allowlist, the tinyproxy config, and the two-direction self-test) inside the per-environment sandbox namespace, so that agent pods have a single, domain-allowlisted, fail-closed path to the public internet. After this prompt the chart's dev and prod renders each contain the proxy resources and the spec's proxy-related build-time acceptance criteria pass.
+Render a two-replica tinyproxy egress proxy (Deployment + Service + ConfigMap carrying the domain allowlist and the two-direction self-test; the proxy's own settings travel as container env vars) inside the per-environment sandbox namespace, so that agent pods have a single, domain-allowlisted, fail-closed path to the public internet. After this prompt the chart's dev and prod renders each contain the proxy resources and the spec's proxy-related build-time acceptance criteria pass.
 </objective>
 
 <context>
@@ -56,8 +56,9 @@ Key facts (verified against the repo):
    # (FilterDefaultDeny=Yes => everything not listed is denied with a 403). No TLS
    # interception, no certificate injection.
    #
-   # The allowlist + config + self-test all live in this ConfigMap so changing the
-   # allowlist is an edit + proxy restart, never an image rebuild. NOTE: the
+   # The allowlist + self-test live in this ConfigMap so changing the allowlist is
+   # an edit + proxy restart, never an image rebuild. The proxy's own settings
+   # (Filter/FilterDefaultDeny/FilterURLs) are container env vars, NOT ConfigMap data. NOTE: the
    # Deployment intentionally carries NO metadata.labels — the spec's acceptance
    # criteria grep 'replicas: 2' within 5 lines of the name line (same deliberate
    # divergence as the 047 NetworkPolicy).
@@ -69,20 +70,48 @@ Key facts (verified against the repo):
      labels:
        {{- include "agent.labels" . | nindent 4 }}
    data:
-     # Domain allowlist (tinyproxy Filter file). One regex per line, matched against
-     # the CONNECT host:port; FilterDefaultDeny=Yes denies everything not listed.
+     # Domain allowlist (tinyproxy Filter file). One anchored regex per line, matched
+     # against the CONNECT host:port; FilterDefaultDeny=Yes denies everything not listed.
      #
-     # >>> SEED REQUIRED: replace/extend this list with claude-yolo's
-     #     files/tinyproxy-allowlist (extended with api.minimax.io) before deploy. <<<
-     # (Reviewer must paste the curated seed; the entries below are the spec-mandated
-     # minimum + the domains the platform's own agents actually call.)
+     # Seeded from claude-yolo's curated `files/tinyproxy-allowlist` (30 entries,
+     # anchored `^...$` so `api.github.com.evil.com` cannot match) plus the two
+     # claude-code-router upstreams `api.gpt.seibert.ai` and `api.seibert.ai`,
+     # which the router calls and which no seed list carried — 32 entries total.
+     # `api.minimax.io` is load-bearing: prod github-dark-factory-agent runs
+     # ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic.
      tinyproxy-allowlist: |
-       api.anthropic.com
-       api.minimax.io
-       github.com
-       api.github.com
-       codeload.github.com
-       raw.githubusercontent.com
+       ^.*\.github\.com$
+       ^.*\.githubusercontent\.com$
+       ^api\.anthropic\.com$
+       ^api\.gpt\.seibert\.ai$
+       ^api\.minimax\.io$
+       ^api\.osv\.dev$
+       ^api\.seibert\.ai$
+       ^bitbucket\.seibert\.tools$
+       ^claude\.ai$
+       ^console\.anthropic\.com$
+       ^dl-cdn\.alpinelinux\.org$
+       ^files\.pythonhosted\.org$
+       ^ghcr\.io$
+       ^github\.com$
+       ^host\.docker\.internal$
+       ^go\.dev$
+       ^marketplace\.visualstudio\.com$
+       ^pkg-containers\.githubusercontent\.com$
+       ^platform\.claude\.com$
+       ^proxy\.golang\.org$
+       ^pypi\.org$
+       ^registry\.npmjs\.org$
+       ^sentry\.io$
+       ^statsig\.anthropic\.com$
+       ^statsig\.com$
+       ^storage\.googleapis\.com$
+       ^sum\.golang\.org$
+       ^update\.code\.visualstudio\.com$
+       ^vllm\.seibert\.tools$
+       ^vscode\.blob\.core\.windows\.net$
+       ^vuln\.go\.dev$
+       ^www\.python\.org$
      # Two-direction self-test. The readiness probe on the selftest sidecar runs
      # this; a broken-open allowlist (negative check) or an over-tight allowlist
      # (positive check) keeps the pod un-ready (spec failure mode).
@@ -92,12 +121,12 @@ Key facts (verified against the repo):
        PROXY="http://127.0.0.1:8888"
        # Negative: a non-allowlisted domain MUST fail (tinyproxy 403 => curl --fail
        # exits 22). Without --fail, a 403 is still exit 0 and this check is a no-op.
-       if curl --fail --proxy "$PROXY" --connect-timeout 5 https://example.com >/dev/null 2>&1; then
+       if curl --proxy "$PROXY" --fail --connect-timeout 5 https://example.com >/dev/null 2>&1; then
          echo "selftest FAIL: non-allowlisted https://example.com was allowed (allowlist broken open)" >&2
          exit 1
        fi
        # Positive: an allowlisted domain MUST succeed.
-       if ! curl --fail --proxy "$PROXY" --connect-timeout 5 -o /dev/null https://api.github.com/zen; then
+       if ! curl --proxy "$PROXY" --fail --connect-timeout 5 -o /dev/null https://api.github.com/zen; then
          echo "selftest FAIL: allowlisted https://api.github.com/zen was blocked (allowlist too tight)" >&2
          exit 1
        fi
@@ -195,12 +224,21 @@ Key facts (verified against the repo):
    - Do NOT change any Go code, any agent image, or any agent pod security context (`drop: ALL`, no `NET_ADMIN`).
    - Do NOT commit — dark-factory handles git.
 
+3. **Bump `helm/Chart.yaml` and add a CHANGELOG entry.** The project DoD (`docs/dod.md`, wired as `validationPrompt`) requires a `## Unreleased` bullet. Bump `version:` by one minor from its CURRENT value (read the file — do not assume a number), and add one bullet under `## Unreleased` (create the section directly under `# Changelog` if absent):
+
+   ```
+   - feat(helm): render a two-replica tinyproxy egress proxy (`egress-proxy`) with its allowlist + two-direction self-test ConfigMap in `<namespace>-agents-sandbox`. Chart <old>→<new>.
+   ```
+
+   Replace `<old>→<new>` with the actual transition. The sibling prompt that injects the proxy env into agent Configs adds its own bullet.
+
 </requirements>
 
 <constraints>
 - No agent image or agent Go code changes — proxy configuration travels through `ConfigSpec.Env` only (handled by a sibling prompt).
 - Agent pods keep `drop: ALL`; no `NET_ADMIN` is introduced — the proxy is a separate pod, not a sidecar in the agent pod.
 - Changing the allowlist must not require rebuilding any image — the allowlist is ConfigMap data.
+- `MaxClients` is NOT ConfigMap-editable on `monokal/tinyproxy` (baked into the image's `/etc/tinyproxy/tinyproxy.conf`). The spec's Failure Modes row 6 recovery is therefore **scale replicas only**, not "raise MaxClients". Do not attempt to add `MaxClients` here; changing that would require a different image and a separate spec.
 - The internal-egress rules from `agent-sandbox-namespace.md` (spec 047) must not be loosened — this prompt adds no NetworkPolicy at all; the sibling prompt does.
 - The dev and prod installs must never share proxy resources — everything lands in the parameterized `{{ .Values.namespace }}-agents-sandbox` namespace.
 - Existing chart behavior must not regress — the sandbox namespace, policy, and RBAC from spec 047 must still render.
@@ -211,6 +249,10 @@ Key facts (verified against the repo):
 Render the chart and run the spec's build-time ACs for the proxy. The executor container may not ship `helm` and `get.helm.sh` is unreachable from the build network (403) — install helm from the Go proxy (verified working) before rendering:
 
 ```bash
+# Precondition (spec 047): the sandbox namespace + helper MUST already be on this branch.
+test -f helm/templates/sandbox.yaml || { echo "PRECONDITION FAIL: helm/templates/sandbox.yaml missing (spec 047)"; exit 1; }
+grep -q 'define "agent.sandboxNamespace"' helm/templates/_helpers.tpl || { echo "PRECONDITION FAIL: agent.sandboxNamespace missing (spec 047)"; exit 1; }
+
 if ! command -v helm >/dev/null 2>&1; then
   go install helm.sh/helm/v3/cmd/helm@v3.16.4
   export PATH="$PATH:$(go env GOPATH)/bin"
@@ -238,21 +280,10 @@ Then the per-environment isolation:
 helm template helm/ --set namespace=prod --set executor.kafkaBrokers=kafka:9092 \
   --set executor.existingSecret=agent-secret > /tmp/rendered-prod.yaml
 grep -c 'name: prod-agents-sandbox' /tmp/rendered-prod.yaml          # >=1
-grep -c 'name: dev-agents-sandbox' /tmp/rendered-prod.yaml           # negative: ==0
+grep -c 'name: dev-agents-sandbox' /tmp/rendered-prod.yaml || true   # negative: ==0 (grep exits 1 on zero matches)
 ```
 
 Every grep must return the annotated value or the prompt is not done. Do NOT run `make precommit` — this prompt changes no Go code; the render + AC greps above are the verification.
 
 The Post-Deploy ACs (rung-2/rung-3: example.com blocked from a real pod, api.github.com allowed, direct-egress denied, broken-open allowlist keeps the pod unready, one real agent completes end-to-end) are operator-executed against real clusters with `kubectlquant` after this prompt AND its siblings AND the executor's sandbox rollout all land — they are NOT part of this prompt's verification.
 </verification>
-
----
-
-## REVIEWER OPEN QUESTIONS (audit-time only — not actionable by the executor)
-
-- **Allowlist seed content (CRITICAL).** The spec says the ConfigMap is "seeded from claude-yolo's `files/tinyproxy-allowlist`, extended with `api.minimax.io`". That file lives in a local workspace that is NOT mounted in this repo or the YOLO container, so the executor cannot read it. The template ships a minimal functional seed (the spec-mandated `api.minimax.io` + the domains the platform's own agents actually call). Before approving/deploying, paste claude-yolo's real `files/tinyproxy-allowlist` contents (plus `api.minimax.io`) into the `tinyproxy-allowlist` key of `helm/templates/egress-proxy.yaml`.
-- **Proxy image choice.** `monokal/tinyproxy:latest` was chosen because its config mechanics are verifiable (env-driven `Filter`/`FilterDefaultDeny`/`FilterURLs`, ACL as first arg, default port 8888). Two consequences: (a) the tag is unpinned `latest` — consider pinning an immutable tag; (b) `MaxClients` and `ConnectPort` are NOT env-configurable on this image (baked into its `/etc/tinyproxy/tinyproxy.conf`), so the spec's failure-mode recovery "raise MaxClients in the ConfigMap" is unavailable — the recovery becomes "scale replicas". If ConfigMap-editable `MaxClients` is required, switch to an image that loads a full mounted `tinyproxy.conf` (e.g. the official tinyproxy container) — unverified from here, so the reviewer must confirm its entrypoint.
-- **Spec AC#4 deploy_check anomaly.** The "non-allowlisted domain is blocked" AC's `deploy_check` compares `containers[0].image` tag to `$(git rev-parse --short HEAD)`, which is meaningless for a third-party tinyproxy image and would never match. Likely a copy-paste artifact from a bborbe-image AC. Recommend re-pointing that deploy_check (e.g. to the `egress-proxy-allowlist` ConfigMap data or the Service) or accepting it as a deploy-marker no-op.
-- **Filter regex anchoring.** The allowlist uses plain hostname lines (tinyproxy regex substring match, consistent with claude-yolo's "domain allowlist regex" file). A substring match means `api.github.com` also matches `api.github.com.evil.com`. Anchoring (`(^|\.)api\.github\.com(:443)?$`) would tighten it but adds port-aware complexity; the enforcement layer (NetworkPolicy: only the proxy pod reaches the internet) bounds the blast radius either way. Reviewer decides against claude-yolo's proven file.
-- **Proxy pod runs as root with drop ALL.** `monokal/tinyproxy` runs as root; the container carries the chart-standard `capabilities.drop: [ALL]` + no privilege escalation. tinyproxy is a userspace TCP forwarder on a non-privileged port and should not need capabilities; if it fails to start, relax deliberately (the spec only constrains AGENT pods, not the proxy pod).
-- **Self-test sidecar shell assumption.** `curlimages/curl:8.21.0` is Alpine-based (ships `/bin/sh`, `curl`, CA certs). If the audit prefers an image with a guaranteed long-lived command, `sleep infinity` (busybox) is valid on Alpine.
