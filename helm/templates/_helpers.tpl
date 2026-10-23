@@ -67,12 +67,19 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
         path: file
 {{- end -}}
 
-{{/* Per-environment sandbox namespace hosting agent Job pods. Parameterized so
-     the dev + prod installs own distinct objects (dev-agents-sandbox /
-     prod-agents-sandbox) instead of colliding on a shared name (quant: dev/prod
-     are namespaces on ONE cluster). */}}
+{{/* Sandbox namespace hosting agent Job pods. `.Values.sandbox.namespace` wins
+     when non-empty; otherwise fall back to the per-environment
+     "<namespace>-agents-sandbox" so every existing install renders unchanged
+     (dev + prod own distinct objects instead of colliding on a shared name —
+     quant: dev/prod are namespaces on ONE cluster). The fallback is
+     load-bearing: changing it would rename a deployed namespace and orphan the
+     `resource-policy: keep` object and its PVCs. */}}
 {{- define "agent.sandboxNamespace" -}}
+{{- if (.Values.sandbox | default dict).namespace -}}
+{{- (.Values.sandbox | default dict).namespace -}}
+{{- else -}}
 {{- printf "%s-agents-sandbox" (include "agent.namespace" .) -}}
+{{- end -}}
 {{- end -}}
 
 {{/* Proxy env for Job agent Configs (spec 048). Applied only when
