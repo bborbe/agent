@@ -93,4 +93,50 @@ subjects:
   - kind: ServiceAccount
     name: agent-task-executor
     namespace: {{ $ns }}
+---
+# Sandbox-scoped grants: the executor, still in the control namespace, gets exactly
+# the cross-namespace rights it needs inside this environment's sandbox namespace
+# and no more. No wildcard verbs, no cluster-scope — a widened grant here would
+# widen the executor's blast radius past the sandbox boundary.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: agent-task-executor-sandbox
+  namespace: {{ include "agent.sandboxNamespace" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [create, get, list, watch, delete]
+  # Pod reads are not optional: the executor's pod-state classifier and deadline
+  # sweeper watch the Pods of the Jobs it spawns (spec 043 — ImagePullBackOff,
+  # eviction, crash-before-stdout). The control-namespace Role grants exactly
+  # this; omitting it here makes every Pod read Forbidden once Jobs move into
+  # the sandbox, which breaks zombie detection rather than failing loudly.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agent-task-executor-sandbox
+  namespace: {{ include "agent.sandboxNamespace" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: agent-task-executor-sandbox
+subjects:
+  - kind: ServiceAccount
+    name: agent-task-executor
+    namespace: {{ $ns }}
 {{- end }}

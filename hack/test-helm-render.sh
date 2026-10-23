@@ -144,6 +144,120 @@ run_pvc_case pvc-job "$tmpdir/pvc-job.yaml" 1
 run_pvc_case pvc-no-mount "$tmpdir/unset.yaml" 0
 run_pvc_case pvc-service "$tmpdir/pvc-service.yaml" 0
 
+# run_sandbox_case <env>
+# The spec 047 build-time ACs, in CI. The prompts' greps live in markdown and never
+# run here, so without this a regression back to a three-destination policy — the
+# exact shape this chart was amended to replace — would merge green.
+run_sandbox_case() {
+	local env="$1"
+	local out="$tmpdir/sandbox-$env.out"
+
+	"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
+		--set "namespace=$env" --set executor.existingSecret=agent-secret >"$out"
+
+	# Assert each object by kind + name + namespace. Counting `kind:` lines does
+	# NOT work here and spec 047 AC3 says so: executor-rbac.yaml already renders a
+	# Role and RoleBinding, so a dropped sandbox Namespace or Role still reaches a
+	# count of 4. Assert the identity, not the tally.
+	local doc_ok=1
+	doc_has() { # kind name namespace("" for cluster-scoped)
+		awk -v K="$1" -v N="$2" -v NS="$3" '
+			BEGIN{RS="---"}
+			index($0,"kind: " K "\n") && index($0,"  name: " N "\n") &&
+			(NS=="" || index($0,"  namespace: " NS "\n")) {found=1}
+			END{exit(found?0:1)}' "$out"
+	}
+	doc_has Namespace "${env}-agents-sandbox" "" || {
+		echo "FAIL: sandbox-$env: missing Namespace ${env}-agents-sandbox"; doc_ok=0; }
+	doc_has NetworkPolicy "agent-sandbox-egress" "${env}-agents-sandbox" || {
+		echo "FAIL: sandbox-$env: missing NetworkPolicy agent-sandbox-egress in ${env}-agents-sandbox"; doc_ok=0; }
+	doc_has Role "agent-task-executor-sandbox" "${env}-agents-sandbox" || {
+		echo "FAIL: sandbox-$env: missing Role agent-task-executor-sandbox in ${env}-agents-sandbox"; doc_ok=0; }
+	doc_has RoleBinding "agent-task-executor-sandbox" "${env}-agents-sandbox" || {
+		echo "FAIL: sandbox-$env: missing RoleBinding agent-task-executor-sandbox in ${env}-agents-sandbox"; doc_ok=0; }
+	# The binding must cross namespaces: the subject SA lives in the CONTROL
+	# namespace, not the sandbox. Checked inside the sandbox RoleBinding document
+	# only — the chart renders a second RoleBinding (agent-task-executor) whose
+	# subject is also in the control namespace and would mask a regression here.
+	if ! awk -v NS="${env}" '
+		BEGIN{RS="---"}
+		index($0,"kind: RoleBinding") && index($0,"  name: agent-task-executor-sandbox\n") &&
+		index($0,"    namespace: " NS "\n") {found=1}
+		END{exit(found?0:1)}' "$out"; then
+		echo "FAIL: sandbox-$env: RoleBinding subject is not in the control namespace ${env}"; doc_ok=0
+	fi
+	if [ "$doc_ok" -ne 1 ]; then
+		fail=1
+		return
+	fi
+
+	local sel
+	# The router instance label must be THIS render's env. An alternation over
+	# (dev|prod) would let a hardcoded `-dev` literal in the prod template count 8
+	# and pass — which is the exact regression the prod render exists to catch.
+	sel="$(grep -cE "^[[:space:]]+app(\.kubernetes\.io/instance)?: (sentry-proxy|claude-code-router-${env}|pushgateway|vault-obsidian-(personal|openclaw|trading)|frontend-(gateway|strategy))\$" "$out" || true)"
+	if [ "$sel" -ne 8 ]; then
+		echo "FAIL: sandbox-$env: expected 8 in-cluster egress peer selectors, got $sel"
+		fail=1
+		return
+	fi
+
+	local cidr32 cidr24 port9092
+	cidr32="$(grep -cE 'cidr: 192\.168\.178\.(41|42|43)/32' "$out" || true)"
+	cidr24="$(grep -c 'cidr: 192.168.178.0/24' "$out" || true)"
+	port9092="$(grep -c 'port: 9092' "$out" || true)"
+	if [ "$cidr32" -ne 3 ] || [ "$cidr24" -ne 0 ] || [ "$port9092" -ne 0 ]; then
+		echo "FAIL: sandbox-$env: cidr/32=$cidr32 (want 3) cidr/24=$cidr24 (want 0) port9092=$port9092 (want 0)"
+		fail=1
+		return
+	fi
+
+	# pushgateway must select the `monitoring` namespace — a typo there matches
+	# nothing and the peer goes inert without any other check noticing.
+	if ! awk -v NS="monitoring" '
+		BEGIN{RS="---"}
+		index($0,"app: pushgateway") && index($0,"metadata.name: " NS "\n") {found=1}
+		END{exit(found?0:1)}' "$out"; then
+		echo "FAIL: sandbox-$env: pushgateway peer does not select namespace monitoring"; fail=1; return
+	fi
+
+	# Egress-only: declaring nothing for ingress keeps it unrestricted, which is
+	# intended — but the policy must not silently grow an ingress rule.
+	if ! grep -A40 'name: agent-sandbox-egress' "$out" | grep -q 'policyTypes'; then
+		echo "FAIL: sandbox-$env: policy has no policyTypes"; fail=1; return
+	fi
+	if grep -A40 'name: agent-sandbox-egress' "$out" | grep -q 'ingress:'; then
+		echo "FAIL: sandbox-$env: policy declares ingress, expected egress-only"; fail=1; return
+	fi
+	if ! grep -q 'helm.sh/resource-policy: keep' "$out"; then
+		echo "FAIL: sandbox-$env: Namespace missing helm.sh/resource-policy: keep"; fail=1; return
+	fi
+
+	local peer
+	peer="$(awk '/- to:/{t=NR} /namespaceSelector:/{n=NR} /app: sentry-proxy/{print (n>t)?"SAME_PEER_OK":"SPLIT_PEER_FAIL"}' "$out")"
+	if [ "$peer" != "SAME_PEER_OK" ]; then
+		echo "FAIL: sandbox-$env: sentry peer does not keep both selectors in one to: entry ($peer)"
+		fail=1
+		return
+	fi
+
+	echo "OK: sandbox-$env"
+}
+
+run_sandbox_case dev
+run_sandbox_case prod
+
+# executor.enabled=false must suppress every sandbox object (spec AC3).
+disabled_out="$tmpdir/sandbox-disabled.out"
+"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
+	--set namespace=dev --set executor.enabled=false >"$disabled_out"
+if grep -q 'agents-sandbox' "$disabled_out"; then
+	echo "FAIL: sandbox-disabled: sandbox objects render with executor.enabled=false"
+	fail=1
+else
+	echo "OK: sandbox-disabled"
+fi
+
 if [ "$fail" -ne 0 ]; then
 	exit 1
 fi

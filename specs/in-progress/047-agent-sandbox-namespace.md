@@ -1,8 +1,9 @@
 ---
-status: prompted
+status: verifying
 approved: "2026-08-08T20:38:38Z"
 generating: "2026-08-21T07:52:06Z"
 prompted: "2026-08-21T08:13:02Z"
+verifying: "2026-10-23T09:21:10Z"
 branch: dark-factory/agent-sandbox-namespace
 ---
 
@@ -46,13 +47,14 @@ RENDER='helm template helm/ --set namespace=dev --set executor.kafkaBrokers=kafk
 - [ ] `eval "$RENDER"` exits 0
 - [ ] The chart renders the sandbox namespace — `$RENDER | grep -c 'name: dev-agents-sandbox'` returns ≥1
 - [ ] The chart renders a sandbox-scoped Role named `agent-task-executor-sandbox` **in the sandbox namespace**, not the control namespace — `$RENDER | grep -A3 'name: agent-task-executor-sandbox' | grep -c 'namespace: dev-agents-sandbox'` returns ≥1. (A bare `grep -cE 'kind: (Namespace|NetworkPolicy|Role|RoleBinding)' >= 4` does NOT work here: the pre-existing chart already renders 3 such lines from `executor-rbac.yaml`, so a Namespace + NetworkPolicy alone would reach 4 and let the RBAC be skipped entirely.)
-- [ ] That Role carries exactly the verbs in DB 5 — `$RENDER | grep -A15 'name: agent-task-executor-sandbox' | grep -cE 'jobs|secrets|persistentvolumeclaims'` returns ≥3, and `$RENDER | grep -A15 'name: agent-task-executor-sandbox' | grep -c '\*'` returns 0. Negative evidence: no wildcard verb or resource
+- [ ] That Role carries exactly the verbs in DB 5 — `$RENDER | grep -A25 'name: agent-task-executor-sandbox' | grep -cE 'jobs|pods|secrets|persistentvolumeclaims'` returns ≥4 (all four resources present), and `$RENDER | grep -A25 'name: agent-task-executor-sandbox' | grep -c '\*'` returns 0. The window is `-A25`, not `-A15`: the Role has four rules and the old window ended inside the third, which is how a missing resource would read as a pass. Negative evidence: no wildcard verb or resource
 - [ ] A RoleBinding binds it to the executor's ServiceAccount in the sandbox namespace — `$RENDER | grep -A6 'kind: RoleBinding' | grep -c 'agent-task-executor-sandbox'` returns ≥1
 - [ ] The rendered policy selects `app: agent` — `$RENDER | grep -A5 'name: agent-sandbox-egress' | grep -c 'app: agent'` returns ≥1
 - [ ] The policy permits exactly the intended destinations, and no others — **against both renders**, `/tmp/rendered-dev.yaml` and `/tmp/rendered-prod.yaml`: `grep -cE 'cidr: 192\.168\.178\.(41|42|43)/32'` returns `3`; `grep -c 'cidr: 192.168.178.0/24'` returns `0`; `grep -c 'port: 9092'` returns `0`; and every in-cluster destination's **selector line** appears under a `podSelector` — `grep -cE '^\s+app(\.kubernetes\.io/instance)?: (sentry-proxy|claude-code-router-<env>|pushgateway|vault-obsidian-(personal|openclaw|trading)|frontend-(gateway|strategy))$'` returns `8`. Assert the selector, not the bare service name: the template comments name every destination and Helm preserves comments, so a bare-name grep stays green with the peer deleted. The prod half is what catches a `-dev` literal in a both-env template
 - [ ] The `sentry-proxy` peer keeps `namespaceSelector` and `podSelector` in **one** `- to:` entry — a split peer renders identically under every grep above and ORs into "every service on 9090 in that namespace". Assert the structure: the nearest `- to:` before `app: sentry-proxy` must precede its `namespaceSelector`. `awk '/- to:/{t=NR} /namespaceSelector:/{n=NR} /app: sentry-proxy/{print (n>t)?"SAME_PEER_OK":"SPLIT_PEER_FAIL"}' /tmp/rendered-dev.yaml` prints `SAME_PEER_OK`
 - [ ] The policy declares egress only, no ingress — `$RENDER | grep -A30 'name: agent-sandbox-egress' | grep -c 'policyTypes'` returns 1, and the rendered `policyTypes` list contains only `Egress`. Negative evidence: `$RENDER | grep -A30 'name: agent-sandbox-egress' | grep -c 'ingress:'` returns 0
 - [ ] The sandbox namespace is per-environment, not a shared literal — `helm template helm/ --set namespace=dev ... | grep -c 'dev-agents-sandbox'` returns ≥1 **and** `helm template helm/ --set namespace=prod ... | grep -c 'prod-agents-sandbox'` returns ≥1. Negative evidence: neither render contains a bare `name: agents-sandbox` line
+- [ ] **Pre-cutover (Rung-2, before `config-job-namespace.md` may ship):** the sandbox namespace holds the PVCs and Secrets the job Configs reference — the chart deliberately creates **neither** (`helm/templates/agents.yaml` renders them into the control namespace only), so the first Job that carries a `volumeMountPath` or a `secretEnv` hangs on an unbound PVC or a missing Secret. Check: `kubectlnukedev -n dev-agents-sandbox get pvc` and `get secret` list the names the target Configs reference. Failure Modes row 4.
 - [ ] **Post-Deploy (Rung-2):** the namespace and policy exist in dev — `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.metadata.name}'` returns `agent-sandbox-egress`
   - `deploy_check:` `kubectlnukedev get ns dev-agents-sandbox -o jsonpath='{.status.phase}'`
   - `deploy_target:` `Active`
@@ -132,7 +134,7 @@ Post-Deploy ACs are operator-executed against dev, then prod, per `docs/agent-ne
 
    **NodePort residual:** TCP 32159 is a cluster-wide NodePort, so permitting the three node IPs on that port also reaches **any other service** bound to NodePort 32159 on those nodes — not just Kafka. The exposure is bounded to three hosts and one port, and to whatever else claims that port. Recorded as residual risk in Security.
 4. Ingress is not declared at all, because no executor→Job ingress path exists: the executor "does NOT watch Jobs, read stdout, or publish results" and the agent publishes directly to Kafka.
-5. The chart renders a Role and RoleBinding named `agent-task-executor-sandbox`, in the sandbox namespace, granting the executor's ServiceAccount `create`/`get`/`list`/`watch`/`delete` on `jobs`, `get` on `secrets`, and `get` on `persistentvolumeclaims` within the environment's sandbox namespace — and nothing else.
+5. The chart renders a Role and RoleBinding named `agent-task-executor-sandbox`, in the sandbox namespace, granting the executor's ServiceAccount `create`/`get`/`list`/`watch`/`delete` on `jobs`, `get`/`list`/`watch` on `pods`, `get` on `secrets`, and `get` on `persistentvolumeclaims` within the environment's sandbox namespace — and nothing else. **`pods` is load-bearing, not padding:** the executor's pod-state classifier and deadline sweeper watch the Pods of the Jobs it spawns (spec 043), and the control-namespace Role grants exactly this. Omit it and every Pod read becomes Forbidden the moment Jobs move into the sandbox, silently breaking zombie detection rather than failing loudly.
 
 ## Constraints
 

@@ -1,7 +1,13 @@
 ---
-status: draft
+status: completed
 spec: [047-agent-sandbox-namespace]
+summary: Added sandbox-scoped executor Role/RoleBinding, bumped chart to 0.19.0, and documented the sandbox in CHANGELOG and README
+execution_id: agent-sandbox-egress-exec-247-spec-047-sandbox-rbac
+dark-factory-version: v0.198.7
 created: "2026-08-21T08:00:00Z"
+queued: "2026-10-23T09:19:52Z"
+started: "2026-10-23T09:20:33Z"
+completed: "2026-10-23T09:21:10Z"
 branch: dark-factory/agent-sandbox-namespace
 ---
 
@@ -156,6 +162,22 @@ grep -c 'dev-agents-sandbox' /tmp/rendered-dev.yaml                  # AC8: >=1
 grep -c 'prod-agents-sandbox' /tmp/rendered-prod.yaml                # AC8: >=1
 grep -c 'name: agents-sandbox' /tmp/rendered-dev.yaml                # AC8 negative: ==0
 grep -c 'name: agents-sandbox' /tmp/rendered-prod.yaml               # AC8 negative: ==0
+
+# Spec AC7 — the nine destinations, asserted on the SELECTOR line, on BOTH renders.
+# A bare-name grep is useless: the template comments name every destination and Helm
+# preserves them, so a deleted peer still greps green.
+for f in /tmp/rendered-dev.yaml /tmp/rendered-prod.yaml; do
+  echo "$f"
+  grep -cE '^\s+app(\.kubernetes\.io/instance)?: (sentry-proxy|claude-code-router-(dev|prod)|pushgateway|vault-obsidian-(personal|openclaw|trading)|frontend-(gateway|strategy))$' "$f"   # ==8
+  grep -cE 'cidr: 192\.168\.178\.(41|42|43)/32' "$f"   # ==3
+  grep -c 'cidr: 192.168.178.0/24' "$f"                # ==0
+  grep -c 'port: 9092' "$f"                            # ==0
+done
+
+# Spec AC8 — sentry-proxy keeps namespaceSelector and podSelector in ONE `- to:` entry.
+# A split peer renders identically under every grep above and ORs into "every service on
+# 9090 in that namespace", which is what this policy exists to prevent.
+awk '/- to:/{t=NR} /namespaceSelector:/{n=NR} /app: sentry-proxy/{print (n>t)?"SAME_PEER_OK":"SPLIT_PEER_FAIL"}' /tmp/rendered-dev.yaml   # SAME_PEER_OK
 ```
 
 Every grep must return the annotated value or the prompt is not done. Also confirm the RBAC subject is cross-namespace (the RoleBinding's subject ServiceAccount namespace must be `dev`, the control namespace, not `dev-agents-sandbox`):
@@ -175,20 +197,5 @@ grep -n 'agents-sandbox' helm/README.md                    # must show the new b
 
 Do NOT run `make precommit` — this prompt changes no Go code; the render + greps above are the verification.
 
-**Deferred operator checklist (DO NOT RUN here — document as pending).** The Post-Deploy ACs require real cluster creds; this container has none. They do **not** wait on the sibling executor spec — the policy ACs run against a hand-created `app: agent` probe pod, as the checklist below states. They are reproduced below for the completion report / spec Verification ladder only. Record them as pending in your completion report; never attempt to execute them here.
-
-```text
-# Rung-2 (dev), after deploy. NO executor spec needed — the policy ACs run
-# against a hand-created busybox:1.36 probe pod labelled app: agent.
-kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.metadata.name}'        # expect agent-sandbox-egress
-kubectlnukedev get ns dev-agents-sandbox -o jsonpath='{.status.phase}'                                             # expect Active
-kubectlnukedev -n dev-agents-sandbox get pods -l app=agent -o name | wc -l                                         # expect >=1 (the probe pod)
-kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'  # expect 53 53 9090 32159
-kubectlnukedev -n dev-agents-sandbox get role agent-task-executor-sandbox -o jsonpath='{.rules[*].resources}'      # expect jobs secrets persistentvolumeclaims (Failure-Modes row 4 recovery)
-# from inside the probe pod: wget -qO- --timeout=3 http://vault-obsidian-openclaw.dev.svc.cluster.local:9090        # expect non-zero, no body — proves the sentry peer is narrow
-# from inside the probe pod: wget -qO- --timeout=3 http://169.254.169.254/                                          # expect non-zero
-# from inside the probe pod: nc -w 3 192.168.178.41 32159 </dev/null                                                            # expect exit 0
-# from inside the probe pod: nc -w 3 sentry-proxy.dev.svc.cluster.local 9090 </dev/null                                         # expect exit 0
-# Rung-3 (prod): same block/allow pair in prod-agents-sandbox, with sentry-proxy.prod.svc.cluster.local and kubectlnukeprod
-```
+All Post-Deploy ACs are outside this prompt's scope — they are operator-driven Rung-2/Rung-3 checks in the spec's Verification ladder (`specs/in-progress/047-agent-sandbox-namespace.md`), not commands for this container. This prompt is done when every grep above returns its annotated value.
 </verification>
