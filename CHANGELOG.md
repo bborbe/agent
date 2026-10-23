@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.125.0
 
 - feat(helm): render `spec.jobNamespace` from a new optional `agents[].jobNamespace` value, quoted, so an install can spawn an agent's Jobs into its sandbox namespace instead of the executor's own. Nothing renders when the key is absent or empty, so no existing agent's Config changes; the namespace must already exist and hold the agent's PVC/Secret (point it at the chart's `sandbox.namespace` and set `sandbox.renderAgentStorage`, or place them yourself), it must be a DNS-1123 label, and a value equal to the executor namespace is rejected by the executor. Requires agent-task-executor >= v0.31.0 (older executors ignore the field). The bundled Config CRD now declares the field too: it sets `preserveUnknownFields: false`, so without that declaration the API server would prune `spec.jobNamespace` from a freshly installed Config and the value would silently do nothing until a later `helm upgrade`. Chart 0.22.0→0.22.1.
 
