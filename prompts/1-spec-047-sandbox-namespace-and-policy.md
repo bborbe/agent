@@ -8,7 +8,7 @@ branch: dark-factory/agent-sandbox-namespace
 <summary>
 - The chart renders a per-environment `<env>-agents-sandbox` Namespace, so the dev and prod installs own distinct objects (`dev-agents-sandbox` / `prod-agents-sandbox`) even when they share one cluster
 - The sandbox name is derived from the existing required `namespace` value — no new chart values are introduced
-- The chart renders a default-deny egress NetworkPolicy `agent-sandbox-egress` that selects pods labelled `app: agent` and permits only kube-dns (53 UDP+TCP) and strimzi Kafka (9092 TCP)
+- The chart renders a default-deny egress NetworkPolicy `agent-sandbox-egress` that selects pods labelled `app: agent` and permits only kube-dns (53 UDP+TCP), `sentry-proxy` (9090 TCP) and the three Kafka nodeports (32159 TCP)
 - Everything else — internal services, private CIDRs, the cloud metadata endpoint `169.254.169.254`, direct internet — is denied by omission
 - Ingress is not declared at all, matching the executor→Job architecture (the agent publishes its result directly to Kafka)
 - The policy lives only in the sandbox namespace, so existing workloads in `dev`/`prod` are untouched
@@ -37,7 +37,7 @@ Key facts (verified against the repo):
 - The `agent.namespace` helper uses `required`, so `.Values.namespace` is guaranteed non-empty once a render succeeds.
 - The NetworkPolicy MUST carry NO `metadata.labels`. The spec AC `grep -A5 'name: agent-sandbox-egress' | grep -c 'app: agent'` requires `app: agent` within 5 lines after the `name:` line; `agent.labels` expands to three lines and would push the podSelector out of that window (verified: with labels the AC returns 0). This is a deliberate divergence from the chart-wide "every object gets labels" convention.
 - The strimzi Kafka namespace selector uses `kubernetes.io/metadata.name: strimzi` (the kube-apiserver adds this label to every namespace automatically) rather than the doc's `name: strimzi`. See "REVIEWER OPEN QUESTIONS" at the bottom of this prompt.
-- Do NOT add an egress-proxy rule (port 8888, `app: egress-proxy`) — public-internet egress is owned by spec 048 `agent-egress-proxy` and must stay denied here. The docs reference policy shows the future end-state; this spec (047) only ships kube-dns + Kafka.
+- Do NOT add an egress-proxy rule (port 8888, `app: egress-proxy`) — public-internet egress is owned by spec 048 `agent-egress-proxy` and must stay denied here. The docs reference policy shows the future end-state; this spec (047) ships kube-dns, `sentry-proxy` and the Kafka nodeports only.
 </context>
 
 <requirements>
@@ -71,9 +71,10 @@ Key facts (verified against the repo):
      labels:
        {{- include "agent.labels" . | nindent 4 }}
    ---
-   # Default-deny egress for sandbox agent pods: only kube-dns (53 UDP+TCP) and
-   # strimzi Kafka (9092 TCP) are reachable. Everything else — internal services,
-   # private CIDRs, 169.254.0.0/16, direct internet — is denied by omission.
+   # Default-deny egress for sandbox agent pods: only kube-dns (53 UDP+TCP),
+   # sentry-proxy (9090 TCP) and the Kafka nodeports (32159 TCP) are reachable.
+   # Everything else — other internal services, other private CIDRs,
+   # 169.254.0.0/16, direct internet — is denied by omission.
    # Ingress is not declared at all: no executor→Job ingress path exists (the agent
    # publishes its result directly to Kafka).
    #
@@ -103,23 +104,41 @@ Key facts (verified against the repo):
          ports:
            - { protocol: UDP, port: 53 }
            - { protocol: TCP, port: 53 }
-       # strimzi Kafka — the only path a task result reaches its topic
+       # sentry-proxy — every agent Job gets SENTRY_PROXY pointed at
+       # http://sentry-proxy.<env>.svc.cluster.local:9090 by the chart's
+       # fleet-wide `sentry.proxy` value. namespaceSelector and podSelector sit
+       # in the SAME peer: as two separate peers they OR, which opens every
+       # service on 9090 in that namespace. The namespace is templated, never a
+       # literal `dev`, so the prod render selects prod.
        - to:
            - namespaceSelector:
                matchLabels:
-                 kubernetes.io/metadata.name: strimzi
+                 kubernetes.io/metadata.name: {{ .Values.namespace }}
              podSelector:
                matchLabels:
-                 strimzi.io/cluster: my-cluster
+                 app: sentry-proxy
          ports:
-           - { protocol: TCP, port: 9092 }
+           - { protocol: TCP, port: 9090 }
+       # Kafka — the only path a task result reaches its topic. On nuke this is
+       # the shared cluster's EXTERNAL nodeport listener, not an in-cluster
+       # service, so these are LAN IPs. Three /32s, never a /24: a /24 would
+       # allow every host on that subnet on this port.
+       - to:
+           - ipBlock:
+               cidr: 192.168.178.41/32
+           - ipBlock:
+               cidr: 192.168.178.42/32
+           - ipBlock:
+               cidr: 192.168.178.43/32
+         ports:
+           - { protocol: TCP, port: 32159 }
    {{- end }}
    ```
 
    Copy this file verbatim. Do not reformat the inline flow-mapped ports (`{ protocol: UDP, port: 53 }` style) — the rendered output is asserted against the spec's ACs.
 
 3. **Do NOT make any of these changes** (spec Non-goals / Constraints):
-   - Do NOT add an egress rule for the public internet, egress-proxy, or any port beyond 53 UDP, 53 TCP, and 9092 TCP. `agent-egress-proxy.md` (spec 048) owns public-internet egress.
+   - Do NOT add an egress rule for the public internet or the `egress-proxy` (port 8888, `app: egress-proxy`) — `agent-egress-proxy.md` (spec 048) owns public-internet egress. The only permitted destinations are the three in the policy above: kube-dns 53, `sentry-proxy` 9090, Kafka 32159.
    - Do NOT add `metadata.labels` to the NetworkPolicy (see context — the spec AC grep depends on `app: agent` being within 5 lines of the `name:` line).
    - Do NOT add any new keys to `helm/values.yaml` — the sandbox name derives from the existing `namespace` value and the Kafka/DNS selectors are hardcoded per `docs/agent-network-security.md`.
    - Do NOT touch anything in the executor Go code, `ConfigSpec.JobNamespace`, or pod labelling — the sibling spec `bborbe/agent-task-executor:specs/config-job-namespace.md` owns those.
@@ -130,7 +149,7 @@ Key facts (verified against the repo):
 
 <constraints>
 - Existing workloads in `dev`/`prod` must not be affected — the policy is scoped to the sandbox namespace and selects only `app: agent`.
-- Kafka result publishing must not regress — Kafka egress (9092 TCP) must be permitted.
+- Kafka result publishing must not regress — Kafka egress (TCP 32159 to the three nodeport IPs) must be permitted.
 - No capability, securityContext, or privilege change to any pod.
 - The dev and prod installs must never share a sandbox namespace or NetworkPolicy — the name is parameterized per env via `{{ .Values.namespace }}-agents-sandbox`.
 - Deploying this chart before `config-job-namespace.md` ships must be a no-op, not a breakage — nothing spawns into the namespace yet.
@@ -167,13 +186,14 @@ Every grep must return the annotated value or the prompt is not done. Do NOT run
 
 Note: the first `go install`/`go run` of helm compiles for a few minutes — that is expected; do not treat the compile output as an error.
 
-The Post-Deploy ACs (namespace Active, policy selects real pods, internal-service blocked, metadata endpoint blocked, Kafka reachable) are operator-executed against real clusters with `kubectlquant` after this prompt AND the sibling RBAC prompt AND the executor spec all land — they are NOT part of this prompt's verification.
+The Post-Deploy ACs (namespace Active, policy selects the probe pod, internal-service blocked, metadata endpoint blocked, Kafka and sentry-proxy reachable) are operator-executed against nuke dev with `kubectlnukedev` and nuke prod with `kubectlnukeprod`, after this prompt AND the sibling RBAC prompt land. They do NOT wait on the executor spec: the policy ACs run against a hand-created `busybox:1.36` probe pod labelled `app: agent`.
 </verification>
 
 ---
 
 ## REVIEWER OPEN QUESTIONS (audit-time only — not actionable by the executor)
 
-- **strimzi namespace selector form.** This prompt uses `kubernetes.io/metadata.name: strimzi` for the Kafka rule's `namespaceSelector`, where `docs/agent-network-security.md`'s reference policy uses `name: strimzi`. `kubernetes.io/metadata.name` is auto-added by the kube-apiserver to every namespace (guaranteed match); `name: strimzi` requires a manually-applied label whose existence on quant could not be verified from the repo. The spec's Kafka-reachability AC only asserts ports (`53 53 9092`), so both forms pass. If quant's strimzi namespace carries a different metadata.name than `strimzi` (the chart's `executor.kafkaUser.strimziNamespace` default), this rule must be re-pointed.
+- **Kafka is an `ipBlock`, not a strimzi selector.** On nuke, Kafka is the shared cluster's external nodeport listener (`kafkaBrokers: 192.168.178.41:32159,192.168.178.42:32159,192.168.178.43:32159` in `values-dev.yaml` and `values-prod.yaml`), not an in-cluster Service — `kubectlnukedev -n dev get svc | grep -i kafka` returns nothing. So the rule is three `/32` `ipBlock`s on TCP 32159. Never widen to `192.168.178.0/24`: that allows every host on the subnet on that port. `docs/agent-network-security.md`'s reference policy still shows the quant-era strimzi `namespaceSelector` form and is out of date on this point.
+- **`sentry-proxy` peer shape.** `namespaceSelector` and `podSelector` must sit in the SAME `to:` entry. Split into two entries they OR, and the rule then permits every service on 9090 in the environment's namespace — which the spec's `vault-obsidian-openclaw` block AC catches.
 - **NetworkPolicy carries no `agent.labels`.** Required for the spec AC `grep -A5 'name: agent-sandbox-egress' | grep -c 'app: agent'` to pass (verified: with labels it returns 0). Diverges from the chart-wide convention of labelling every object. Confirm this is acceptable.
 - **Helm availability in the executor container.** The verification installs helm via `go install helm.sh/helm/v3/cmd/helm@v3.16.4` because `get.helm.sh` returned 403 from the build network. If the claude-yolo container already ships helm, the `command -v helm` guard skips the install.

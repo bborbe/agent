@@ -9,7 +9,7 @@ branch: dark-factory/agent-sandbox-namespace
 ## Summary
 
 - A dedicated per-environment `<env>-agents-sandbox` namespace is added to the helm chart, with a default-deny egress NetworkPolicy
-- Agent Jobs spawned into it can reach kube-dns and Kafka, and nothing else — no internal services, no private ranges, no cloud metadata endpoint
+- Agent Jobs spawned into it can reach kube-dns, `sentry-proxy` and the three Kafka nodeport IPs, and nothing else — no other internal services, no other private ranges, no cloud metadata endpoint
 - The executor gets cross-namespace RBAC so it can create Jobs, read Secrets, and bind PVCs there
 - Public-internet egress stays denied here; `agent-egress-proxy.md` restores it through a filtered path
 - The executor-side mechanism (`ConfigSpec.JobNamespace`, pod labelling) is specified separately in `bborbe/agent-task-executor:specs/config-job-namespace.md` and must ship first
@@ -24,7 +24,7 @@ Background, manifests, and the traps this inherits: `docs/agent-network-security
 
 ## Goal
 
-`<env>-agents-sandbox` exists in both dev and prod with a policy that denies egress by default and permits only kube-dns and Kafka. Agent Jobs land there and provably cannot reach an internal service. The executor, still in the control namespace, retains exactly the cross-namespace rights it needs and no more.
+`<env>-agents-sandbox` exists in both dev and prod with a policy that denies egress by default and permits only kube-dns, `sentry-proxy` and the Kafka nodeports. Agent Jobs land there and provably cannot reach an internal service. The executor, still in the control namespace, retains exactly the cross-namespace rights it needs and no more.
 
 ## Non-goals
 
@@ -51,23 +51,23 @@ RENDER='helm template helm/ --set namespace=dev --set executor.kafkaBrokers=kafk
 - [ ] The rendered policy selects `app: agent` — `$RENDER | grep -A5 'name: agent-sandbox-egress' | grep -c 'app: agent'` returns ≥1
 - [ ] The policy declares egress only, no ingress — `$RENDER | grep -A30 'name: agent-sandbox-egress' | grep -c 'policyTypes'` returns 1, and the rendered `policyTypes` list contains only `Egress`. Negative evidence: `$RENDER | grep -A30 'name: agent-sandbox-egress' | grep -c 'ingress:'` returns 0
 - [ ] The sandbox namespace is per-environment, not a shared literal — `helm template helm/ --set namespace=dev ... | grep -c 'dev-agents-sandbox'` returns ≥1 **and** `helm template helm/ --set namespace=prod ... | grep -c 'prod-agents-sandbox'` returns ≥1. Negative evidence: neither render contains a bare `name: agents-sandbox` line
-- [ ] **Post-Deploy (Rung-2):** the namespace and policy exist in dev — `kubectlquant -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.metadata.name}'` returns `agent-sandbox-egress`
-  - `deploy_check:` `kubectlquant get ns dev-agents-sandbox -o jsonpath='{.status.phase}'`
+- [ ] **Post-Deploy (Rung-2):** the namespace and policy exist in dev — `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.metadata.name}'` returns `agent-sandbox-egress`
+  - `deploy_check:` `kubectlnukedev get ns dev-agents-sandbox -o jsonpath='{.status.phase}'`
   - `deploy_target:` `Active`
-- [ ] **Post-Deploy (Rung-2):** the policy selects real pods, not zero — while an agent Job runs, `kubectlquant -n dev-agents-sandbox get pods -l app=agent -o name | wc -l` returns ≥1
-  - `deploy_check:` `kubectlquant -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.podSelector.matchLabels.app}'`
+- [ ] **Post-Deploy (Rung-2):** the policy selects the probe pod — `kubectlnukedev -n dev-agents-sandbox get pods -l app=agent -o name | wc -l` returns ≥1. The pod is hand-created (`busybox:1.36`); no agent Job runs here until `config-job-namespace.md` ships
+  - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.podSelector.matchLabels.app}'`
   - `deploy_target:` `agent`
-- [ ] **Post-Deploy (Rung-2):** an internal service is blocked — from inside a sandbox agent pod, `wget -qO- --timeout=3 http://vault-obsidian-openclaw.dev.svc.cluster.local:9090` exits non-zero within 5s and prints no body. Negative evidence: exit code ≠ 0, stdout empty
-  - `deploy_check:` `kubectlquant -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'`
-  - `deploy_target:` `53 53 9092`
+- [ ] **Post-Deploy (Rung-2):** an internal service on an allowed port is still blocked — from inside the probe pod, `wget -qO- --timeout=3 http://vault-obsidian-openclaw.dev.svc.cluster.local:9090` exits non-zero within 5s and prints no body. This is the check that proves the `sentry-proxy` peer is narrow: a bare namespace+port rule would let this through. Negative evidence: exit code ≠ 0, stdout empty
+  - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'`
+  - `deploy_target:` `53 53 32159 9090`
 - [ ] **Post-Deploy (Rung-2):** the metadata endpoint is blocked — from the same pod, `wget -qO- --timeout=3 http://169.254.169.254/` exits non-zero. Negative evidence: exit code ≠ 0
-  - `deploy_check:` `kubectlquant -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.podSelector.matchLabels.app}'`
+  - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.podSelector.matchLabels.app}'`
   - `deploy_target:` `agent`
-- [ ] **Post-Deploy (Rung-2):** Kafka still reachable — an agent Job run in the sandbox publishes its result and its task file reaches a terminal phase; `kubectlquant -n dev logs deploy/agent-task-executor --since=15m | grep -c 'consume 1 messages'` returns ≥1
-  - `deploy_check:` `kubectlquant -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'`
-  - `deploy_target:` `53 53 9092`
-- [ ] **Post-Deploy (Rung-3):** the same block/allow pair holds in prod — from a pod in `prod-agents-sandbox`, an internal service is blocked (exit ≠ 0) and Kafka publishing succeeds
-  - `deploy_check:` `kubectlquant get ns prod-agents-sandbox -o jsonpath='{.status.phase}'`
+- [ ] **Post-Deploy (Rung-2):** Kafka and `sentry-proxy` are reachable — from the same probe pod, `nc -z 192.168.178.41 32159` and `nc -z sentry-proxy.dev.svc.cluster.local 9090` both exit 0. Positive evidence: both exit codes 0
+  - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'`
+  - `deploy_target:` `53 53 32159 9090`
+- [ ] **Post-Deploy (Rung-3):** the same block/allow pair holds in prod — from a pod in `prod-agents-sandbox`, `vault-obsidian-openclaw.prod.svc.cluster.local:9090` is blocked (exit ≠ 0), `nc -z 192.168.178.41 32159` exits 0, and `nc -z sentry-proxy.prod.svc.cluster.local 9090` exits 0
+  - `deploy_check:` `kubectlnukeprod get ns prod-agents-sandbox -o jsonpath='{.status.phase}'`
   - `deploy_target:` `Active`
 
 ## Verification
@@ -85,7 +85,7 @@ A bare `helm template helm/` exits 1 — the chart has no defaults for `namespac
 
 Post-Deploy ACs are operator-executed against dev, then prod, per `docs/agent-network-security.md`.
 
-**Ordering precondition:** the Kafka-reachability and policy-selects-real-pods ACs require a Job to actually run in the sandbox, which only happens once `bborbe/agent-task-executor:specs/config-job-namespace.md` has shipped and deployed. Until then this chart is an intentional no-op (Failure Modes row 5) and those two ACs cannot be exercised.
+**Ordering:** no AC here requires an agent Job. The Kafka/sentry-reachability and policy-selects-the-pod ACs run against a hand-created probe pod labelled `app: agent`, so this chart is verifiable on its own, before `bborbe/agent-task-executor:specs/config-job-namespace.md` ships. Until that lands the namespace carries no real work (Failure Modes row 5), which is exactly why the probe pod exists.
 
 **No dark-factory scenario:** live kube-router enforcement cannot be reproduced by a scenario harness building a fresh binary in `/tmp/`. The Post-Deploy AC ladder against real dev/prod clusters is the substitute, deliberately.
 
@@ -93,7 +93,12 @@ Post-Deploy ACs are operator-executed against dev, then prod, per `docs/agent-ne
 
 1. The chart renders a namespace named `{{ .Values.namespace }}-agents-sandbox`, so the dev and prod installs own distinct objects (`dev-agents-sandbox`, `prod-agents-sandbox`) rather than colliding on one cluster-scoped name.
 2. It renders a NetworkPolicy `agent-sandbox-egress` selecting pods labelled `app: agent`, with `policyTypes: [Egress]` only.
-3. The policy permits egress to kube-dns (53 UDP+TCP) and strimzi Kafka (9092 TCP). Everything else — internal services, private CIDRs, `169.254.0.0/16`, direct internet — is denied by omission.
+3. The policy permits egress to exactly three destinations, and no others:
+   - kube-dns, 53 UDP+TCP
+   - `sentry-proxy` in the environment's control namespace, 9090 TCP — a **single** peer carrying both `namespaceSelector` (the release namespace, templated, not a literal) and `podSelector` (`sentry-proxy`). Separate peers would OR and open every service on 9090 in that namespace, which is why the `vault-obsidian-openclaw` block AC exists
+   - Kafka, TCP 32159, as three `ipBlock`s — `192.168.178.41/32`, `192.168.178.42/32`, `192.168.178.43/32`. Kafka on nuke is the shared cluster's **external nodeport listener**, not an in-cluster service, so these are LAN IPs; an `ipBlock` of `192.168.178.0/24` would allow every host on that subnet on that port
+
+   Everything else — other internal services, other private CIDRs, `169.254.0.0/16`, direct internet — is denied by omission.
 4. Ingress is not declared at all, because no executor→Job ingress path exists: the executor "does NOT watch Jobs, read stdout, or publish results" and the agent publishes directly to Kafka.
 5. The chart renders a Role and RoleBinding named `agent-task-executor-sandbox`, in the sandbox namespace, granting the executor's ServiceAccount `create`/`get`/`list`/`watch`/`delete` on `jobs`, `get` on `secrets`, and `get` on `persistentvolumeclaims` within the environment's sandbox namespace — and nothing else.
 
@@ -105,7 +110,7 @@ Post-Deploy ACs are operator-executed against dev, then prod, per `docs/agent-ne
 - The executor's rights outside its environment's sandbox namespace must not widen
 - The dev and prod installs must never share a sandbox namespace, NetworkPolicy, Role, or RoleBinding. On **quant** — where agents run today — `dev` and `prod` are namespaces on one cluster, so any unparameterized cluster-scoped name collides (the chart's `executor-rbac.yaml` already suffixes its ClusterRole for this reason).
 
-  **Transitional, by design:** the new **nukedev** (`192.168.178.30`) and **nukeprod** (`192.168.178.37`) clusters are *separate clusters*, where a plain `agents-sandbox` could not collide and the `{{ .Values.namespace }}-` prefix is redundant. The prefix stays because these specs must deploy to quant first, and it is harmless on separate clusters. **Removal trigger:** once the quant → nuke migration completes and no install targets a shared-namespace cluster, drop the prefix and simplify to `agents-sandbox`
+  **Transitional, by design:** the new **nukedev** (`192.168.178.30`) and **nukeprod** (`192.168.178.37`) clusters are *separate clusters*, where a plain `agents-sandbox` could not collide and the `{{ .Values.namespace }}-` prefix is redundant. The prefix stays because these specs may still deploy to quant, and it is harmless on separate clusters. **Removal trigger:** once the quant → nuke migration completes and no install targets a shared-namespace cluster, drop the prefix and simplify to `agents-sandbox`
 - Deploying this chart before `config-job-namespace.md` ships must be a no-op, not a breakage — nothing spawns into the namespace yet
 
 ## Failure Modes
@@ -115,7 +120,7 @@ Post-Deploy ACs are operator-executed against dev, then prod, per `docs/agent-ne
 | Policy applied but `podSelector` matches no pods | AC "policy selects real pods" fails; `get pods -l app=agent` returns 0 | Ship `config-job-namespace.md` first — the label comes from the executor. The policy is inert until it matches |
 | Agent needs an internal service not in the allowlist | Job fails with a connection timeout, visible in Job logs | Add a named exception to the policy; never revert to allow-all |
 | PVCs absent in the new namespace | Job fails to start; `kubectl describe pod` shows unbound PVC | Re-create PVCs and re-seed Secrets in the environment's sandbox namespace before cutover |
-| Executor lacks cross-namespace RBAC | Job spawn fails with 403 in executor logs | Re-run `helm upgrade --install`; confirm with `kubectlquant -n dev-agents-sandbox get role agent-task-executor-sandbox -o jsonpath='{.rules[*].resources}'` returning `jobs secrets persistentvolumeclaims` |
+| Executor lacks cross-namespace RBAC | Job spawn fails with 403 in executor logs | Re-run `helm upgrade --install`; confirm with `kubectlnukedev -n dev-agents-sandbox get role agent-task-executor-sandbox -o jsonpath='{.rules[*].resources}'` returning `jobs secrets persistentvolumeclaims` |
 | Chart deployed while executor is pre-`JobNamespace` | Nothing spawns into the sandbox; namespace sits empty | Expected no-op; deploy order is chart-then-executor or either order |
 | Both dev and prod releases create the same sandbox namespace | Second `helm upgrade --install` fails a Helm ownership check, or silently shares one namespace and collapses env isolation | Namespace is parameterized per env (DB 1). If a shared `agents-sandbox` already exists from an earlier install, delete it before re-installing |
 | Prometheus can no longer scrape agent pods | Scrape targets go stale for sandbox pods | Ingress is undeclared, so scraping is unaffected — but confirm during dev soak; if broken, add a monitoring-namespace ingress rule |

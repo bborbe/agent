@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- docs(spec): amend spec 047 and both of its prompts so they describe the policy nuke actually needs — permit `sentry-proxy` (9090 TCP, `namespaceSelector` and `podSelector` in the **same** peer, namespace templated per release) and Kafka as three `/32` `ipBlock`s on TCP 32159 rather than a strimzi `namespaceSelector` on 9092, because Kafka on nuke is the shared cluster's external nodeport listener and not an in-cluster service. Convert the two agent-Job-dependent post-deploy ACs to a hand-created `app: agent` probe pod, so the chart is verifiable before the executor's `ConfigJobNamespace` ships, and re-point every `kubectlquant` command to `kubectlnukedev` / `kubectlnukeprod`. Chart target `0.18.0 → 0.19.0`. No template change in this commit — the chart itself lands in the prompt execution.
+
 ## v0.120.0
 
 - feat(helm): remove the `clusterAssigner` CronJob from the chart — delete `helm/templates/cluster-assigner-{cronjob,kafkauser,sun-secret}.yaml`, the `clusterAssigner` values block and its README section, and the `EXCLUDE_ASSIGNEES` render case in `hack/test-helm-render.sh`; chart 0.17.0→0.18.0. Claims replace the push model ([[Agent Tasks Are Scheduled Across Clusters by Claim]] SC5): an executor takes work by claim instead of having `cluster:` stamped on the task before it starts, and `cluster:` survives only as a hand-set pin. **Consumers must drop their `clusterAssigner` values in the same change** — Helm ignores unknown values, so a values file that still sets the key renders unchanged but silently no longer deploys the CronJob; nuke does this in bborbe/nuke#626. `SUN_ROUTING` disappears with the template that was its only carrier. ⚠️ Not for release before claims run `CLAIM_MODE=on` on nuke dev, nuke prod and sun: the removal is behaviourally inert today (the assigner has always run with `DRY_RUN=true` and never published), but releasing early retires the bridge before the pull model is proven.
