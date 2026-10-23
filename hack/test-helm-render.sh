@@ -304,6 +304,27 @@ else
 	echo "OK: proxy-default (no env injected)"
 fi
 
+# ...and the proxy objects themselves must still render with injection off.
+for obj in 'name: egress-proxy$' 'name: egress-proxy-ingress' 'name: egress-proxy-egress'; do
+	if grep -q "$obj" "$proxy_default_out"; then
+		echo "OK: proxy-default renders $obj"
+	else
+		echo "FAIL: proxy-default: missing $obj (proxy objects must render with injection off)"
+		fail=1
+	fi
+done
+
+# A quoted "false" must not enable injection — the fail-safe direction.
+quoted_out="$tmpdir/proxy-quoted.out"
+"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
+	--set-string egressProxy.injectAgentEnv=false >"$quoted_out"
+if grep -q 'HTTPS_PROXY' "$quoted_out"; then
+	echo "FAIL: proxy-quoted: injectAgentEnv=\"false\" enabled injection"
+	fail=1
+else
+	echo "OK: proxy-quoted (quoted false stays off)"
+fi
+
 # A type: service agent never gets proxy env, even when injection is on.
 printf 'namespace: test\nexecutor:\n  kafkaBrokers: kafka:9092\n  existingSecret: agent-secret\nagents:\n  - name: svc-only\n    type: service\n    enabled: true\n    assignee: b\n    image: bborbe/agent-claude\n    heartbeat: 5m\n    taskTypes: [llm]\n    triggerPhases: [planning]\n    triggerStatuses: [in_progress]\n' >"$tmpdir/svc-only.yaml"
 svc_out="$tmpdir/proxy-svc.out"

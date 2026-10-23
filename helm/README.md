@@ -302,10 +302,14 @@ secrets, Strimzi mTLS. **None of that is required.** A vanilla cluster:
   blocks Kafka egress once Jobs actually land there, so the sandbox is nuke-only
   until those destinations become values.
 - **Egress proxy** — the chart renders a domain-allowlisting tinyproxy (`egress-proxy`,
-  port 8888) in `<namespace>-agents-sandbox` and injects `HTTP_PROXY`/`HTTPS_PROXY`/
-  `no_proxy` env into every agent Config. The allowlist lives in the
+  port 8888) in `<namespace>-agents-sandbox`. The allowlist lives in the
   `egress-proxy-allowlist` ConfigMap — change it there and restart the proxy, no image
   rebuild. Direct internet egress from agent pods is denied except through the proxy.
+  ⚠️ The proxy env is **not** injected by default: set `egressProxy.injectAgentEnv: true`
+  to add `HTTP_PROXY`/`HTTPS_PROXY`/`no_proxy` to Job agents' Configs. It stays off until
+  the executor spawns Jobs into the sandbox (`ConfigSpec.JobNamespace`, spec 002) — while
+  Jobs run in the control namespace, `egress-proxy-ingress` does not admit them and the
+  injected proxy would deny every outbound call. `type: service` agents never receive it.
 
 ---
 

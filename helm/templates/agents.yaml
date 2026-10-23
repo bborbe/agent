@@ -55,7 +55,7 @@ spec:
          executor spawn Jobs into <ns>-agents-sandbox, Job agents run in the
          control namespace too — so the default is OFF, or every agent would be
          pointed at a proxy that denies it. */}}
-  {{- if and $.Values.egressProxy.injectAgentEnv $.Values.executor.enabled (ne (toString ($agent.type | default "job")) "service") }}
+  {{- if and (eq (toString $.Values.egressProxy.injectAgentEnv) "true") $.Values.executor.enabled (ne (toString ($agent.type | default "job")) "service") }}
   {{-   $env = mergeOverwrite $env (include "agent.proxyEnv" $ | fromYaml) }}
   {{- end }}
   {{- if and $sentryProxy (not (hasKey $env "SENTRY_PROXY")) }}

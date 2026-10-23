@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
-- fix(helm): gate the egress-proxy env injection behind `egressProxy.injectAgentEnv`, default **false**. Injecting `HTTP_PROXY`/`HTTPS_PROXY` into every agent Config is only safe once the executor spawns Jobs into `<namespace>-agents-sandbox` (spec 002, `ConfigSpec.JobNamespace`); until then agents run in the control namespace, which `egress-proxy-ingress` does not admit, so the injection would point every agent's HTTP(S) traffic at a proxy that denies it and take all agent egress down. The proxy, its allowlist and both policies still render — they are inert. Flip the flag per environment once `spec.jobNamespace` resolves to the sandbox.
+- fix(helm): gate the egress-proxy env injection behind `egressProxy.injectAgentEnv`, default **false**. Injecting `HTTP_PROXY`/`HTTPS_PROXY` into every agent Config is only safe once the executor spawns Jobs into `<namespace>-agents-sandbox` (spec 002, `ConfigSpec.JobNamespace`); until then agents run in the control namespace, which `egress-proxy-ingress` does not admit, so the injection would point every agent's HTTP(S) traffic at a proxy that denies it and take all agent egress down. The proxy, its allowlist and both policies still render — they are inert. Flip the flag per environment once `spec.jobNamespace` resolves to the sandbox. Chart 0.21.0→0.21.1.
 
 ## v0.122.0
 
