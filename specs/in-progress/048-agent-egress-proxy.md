@@ -11,7 +11,7 @@ branch: dark-factory/agent-egress-proxy
 - Agent Jobs reach the public internet only through a domain-allowlisting proxy, never directly
 - A `tinyproxy` Deployment in the per-environment sandbox namespace filters on the `CONNECT host:443` line — no TLS interception, no certificate injection
 - The allowlist lives in a ConfigMap, seeded from claude-yolo's curated list, so changing it is an edit rather than an image rebuild
-- Agents receive proxy configuration through `ConfigSpec.Env`, which is already a plain string map — no agent code changes
+- Agents receive proxy configuration through `ConfigSpec.Env`, which is already a plain string map; the only code change is six names added to the Claude runner's child-env allowlist, without which the Bash tool never sees them
 - A startup self-test proves both directions: a non-allowlisted domain must fail *and* an allowlisted one must succeed
 
 ## Problem
@@ -43,6 +43,7 @@ RENDER='helm template helm/ --set namespace=dev --set executor.kafkaBrokers=kafk
 ```
 
 - [ ] `make precommit` exits 0
+- [ ] The Claude runner's child-env allowlist admits **all six** proxy names — a unit test in `claude/claude-runner_test.go` sets `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, `http_proxy`, `https_proxy` and `no_proxy` in the parent environment, asserts all six appear in the child's environment, and asserts an arbitrary parent var (e.g. `AWS_SECRET_ACCESS_KEY`) still does **not** (the allowlist must stay an allowlist, not become a pass-through). Evidence: `go test ./claude/...` exits 0. Testing only the uppercase trio would leave lowercase-only consumers (`curl`, some Go clients) silently without a proxy
 - [ ] `eval "$RENDER"` exits 0
 - [ ] The allowlist ConfigMap contains `api.minimax.io` — `$RENDER | grep -c 'api\.minimax\.io'` returns ≥1 (prod `github-dark-factory-agent` runs `ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic`; allowlisting only `api.anthropic.com` breaks it)
 - [ ] The self-test actually probes both directions rather than merely naming the domains — in the rendered chart, all four hold: `$RENDER | grep -c 'example\.com'` ≥1, `$RENDER | grep -c 'api\.github\.com'` ≥1, `$RENDER | grep -c 'curl --proxy'` ≥2, and `$RENDER | grep -c 'exit 1'` ≥1 (a self-test that greps green without issuing requests is the laziest passing implementation; the `curl` and `exit 1` counts close it)
@@ -76,9 +77,14 @@ grep -c 'example\.com'     /tmp/rendered.yaml   # ≥1
 grep -c 'api\.github\.com' /tmp/rendered.yaml   # ≥1
 grep -c 'curl --proxy'     /tmp/rendered.yaml   # ≥2
 grep -c 'exit 1'           /tmp/rendered.yaml   # ≥1
+
+# The one permitted code change (prompt 4)
+go test ./claude/... 2>&1 | tail -20            # must pass, including the six-name allowlist test
+grep -c '"HTTP_PROXY"' claude/claude-runner.go  # ≥1 (quoted slice entry)
+grep -c '"NO_PROXY"'   claude/claude-runner.go  # ≥1
 ```
 
-Each grep is a separate assertion — an OR across them would pass with half the self-test wired.
+Each grep is a separate assertion — an OR across them would pass with half the self-test wired. `make precommit` covers the Go half as well; it also runs `test-helm`, so a chart render failure fails it too.
 
 Post-Deploy ACs are operator-executed against dev first, then prod, per `docs/agent-network-security.md`.
 
@@ -87,19 +93,27 @@ Post-Deploy ACs are operator-executed against dev first, then prod, per `docs/ag
 ## Desired Behavior
 
 1. A `tinyproxy` Deployment (`replicas: 2`) and Service named `egress-proxy`, rendered per environment alongside the sandbox namespace, run in the environment's sandbox namespace (`<env>-agents-sandbox`), listening on 8888, filtering CONNECT requests against a domain allowlist. Two replicas because every agent's internet egress flows through this one component.
-2. The allowlist is a ConfigMap (`egress-proxy-allowlist`), seeded from claude-yolo's `files/tinyproxy-allowlist`, extended with `api.minimax.io`. All resources render from `helm/templates/egress-proxy.yaml`; the self-test is carried in the ConfigMap and referenced by the readiness probe, so nothing depends on a loose file outside the chart.
+2. The allowlist is a ConfigMap (`egress-proxy-allowlist`), seeded from claude-yolo's `files/tinyproxy-allowlist` and extended with `api.minimax.io`, `api.gpt.seibert.ai` and `api.seibert.ai` (32 anchored entries). All resources render from `helm/templates/egress-proxy.yaml`; the self-test is carried in the ConfigMap and referenced by the readiness probe, so nothing depends on a loose file outside the chart.
 3. The proxy's readiness probe runs the two-direction self-test; a broken-open or over-tight allowlist keeps the pod un-ready rather than serving traffic.
 4. `agent-sandbox-egress` permits agent pods to reach `egress-proxy:8888`; direct internet egress remains denied.
 5. The proxy pod carries its own policy allowing egress to `0.0.0.0/0` minus private CIDRs.
-6. Agent Configs set `HTTP_PROXY`, `HTTPS_PROXY`, lowercase `http_proxy`/`https_proxy`, and `NO_PROXY` (in-cluster destinations) via `ConfigSpec.Env`.
+6. Agent Configs set `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` and the lowercase `http_proxy`/`https_proxy`/`no_proxy` (in-cluster destinations) via `ConfigSpec.Env`, **and the Claude runner passes those names through to the CLI child process** — the library's child-env allowlist (`claude/claude-runner.go`) admits `HOME, PATH, USER, TZ, ZONEINFO, TMPDIR, LANG, LC_ALL` today and must also admit the six proxy names, or the Bash tool inside the agent sees no proxy at all and every outbound call fails closed.
 
 ## Constraints
 
-- No agent image or agent Go code changes — proxy configuration travels through `ConfigSpec.Env` only
-- Kafka, kube-dns, and sentry-proxy stay on the direct in-cluster path via `NO_PROXY`; they must not be routed through the proxy
+- Proxy configuration is carried in `ConfigSpec.Env`. The **one** permitted code change is a six-name addition to the Claude runner's child-env allowlist in `bborbe/agent` `claude/claude-runner.go` (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, plus their lowercase forms) — without it the library's fixed allowlist drops the proxy vars before the Claude CLI starts and the Bash tool never sees them. No Dockerfile or entrypoint change and no new dependency, but the `bborbe/agent-claude` image **must be rebuilt and redeployed** for the allowlist to take effect — a chart-only rollout leaves the pod env set and the Bash tool still without a proxy. No behaviour change when the vars are unset.
+- kube-dns and sentry-proxy stay on the direct path via `NO_PROXY`, and so do the Kafka brokers — whose hosts are derived from the per-install `executor.kafkaBrokers` value because nuke's Kafka is an external nodeport, not an in-cluster Service. None of them may be routed through the proxy
 - Agent pods keep `drop: ALL`; no `NET_ADMIN` is introduced
 - The internal-egress rules from `agent-sandbox-namespace.md` must not be loosened to accommodate the proxy
 - Changing the allowlist must not require rebuilding any image
+
+## Assumptions
+
+- The allowlist is claude-yolo's curated 30-entry list plus the two claude-code-router upstreams `api.gpt.seibert.ai` and `api.seibert.ai` (32 entries). `vllm.seibert.tools` is kept although no workload in the goal's egress matrix calls it — it is still referenced by claude-code-router configs across the fleet, and the list is not pruned to what a config-derived matrix can see, because runtime tool calls reach hosts no static matrix records.
+- Spec 047 (`agent-sandbox-namespace`) is merged on the branch before any prompt of this spec runs — prompts 1-3 hard-stop without `helm/templates/sandbox.yaml` and the `agent.sandboxNamespace` helper.
+- `monokal/tinyproxy` reads `Filter`/`FilterDefaultDeny`/`FilterURLs` from environment variables, defaults to port 8888, and takes its client ACL as the first positional arg; `MaxClients` is baked into the image, not ConfigMap-editable.
+- The `bborbe/agent-claude` image is rebuilt and redeployed after prompt 4 — the runner change has no effect on a stale image.
+- Kafka on nuke is reachable at an external nodeport (`192.168.178.41:32159`), not in-cluster, so `.svc.cluster.local` does not cover it. **Resolved (2026-10-23):** the proxy env derives the Kafka hosts from the per-install `executor.kafkaBrokers` value and appends them to `NO_PROXY`, so dev, prod and sun each get their own list with no hardcoded address in the template. Go Kafka clients use raw TCP and ignore proxy env anyway; the explicit entry covers any agent tool that does honour it.
 
 ## Failure Modes
 
@@ -107,10 +121,11 @@ Post-Deploy ACs are operator-executed against dev first, then prod, per `docs/ag
 |---|---|---|
 | Agent needs a domain not on the allowlist | Job fails with a proxy 403; tinyproxy logs `Filtered request from <ip>: host` | Add the domain to the ConfigMap, restart the proxy |
 | Tool does not honour proxy env (raw TCP client) | Connection denied by NetworkPolicy — fails closed | Intended. Either allow the destination explicitly or fix the tool |
+| The running `agent-claude` image predates the runner allowlist change | Pod env carries the proxy vars; the Bash tool still has none; every outbound call fails closed | Rebuild and redeploy `agent/claude` (dev first), then confirm the child process env contains `HTTPS_PROXY` |
 | Agent uses git over SSH | Blocked — SSH is not proxied and 22/7999 is not in the policy | Switch that agent to HTTPS with a token; claude-yolo's SSH exemption does not carry over |
 | Allowlist edited to `.*` | Readiness self-test negative check fails; pod never becomes ready; old pod keeps serving | Revert the ConfigMap. Failing ready is the designed outcome |
 | Proxy Deployment down | All agent internet egress stops; Jobs fail with connection refused | `kubectlquant -n dev-agents-sandbox rollout restart deploy/egress-proxy`; confirm `kubectlquant -n dev-agents-sandbox get deploy/egress-proxy -o jsonpath='{.status.readyReplicas}'` returns ≥1 within 60s |
-| N concurrent agent Jobs exceed tinyproxy's `MaxClients` | New connections refused or queued; agents see intermittent proxy errors under load | Raise `MaxClients` in the ConfigMap, or scale replicas: `kubectlquant -n dev-agents-sandbox scale deploy/egress-proxy --replicas=3`. The shared chokepoint is inherent to the central-proxy design |
+| N concurrent agent Jobs exceed tinyproxy's `MaxClients` | New connections refused or queued; agents see intermittent proxy errors under load | Scale replicas: `kubectlquant -n dev-agents-sandbox scale deploy/egress-proxy --replicas=3`. `MaxClients` is baked into the `monokal/tinyproxy` image and is **not** ConfigMap-editable — raising it would need a different image and a separate spec. The shared chokepoint is inherent to the central-proxy design |
 | Agent reaches an allowlisted host that is itself attacker-controlled | Not detected — allowlist is host-level, not content-level | Out of scope; keep the allowlist minimal |
 
 ## Security / Abuse Cases
@@ -123,14 +138,14 @@ Post-Deploy ACs are operator-executed against dev first, then prod, per `docs/ag
 
 ## Suggested Decomposition
 
-| # | Prompt focus | Covers DBs | Covers ACs | Depends on |
+| # | Prompt focus | Covers DBs | Covers ACs (by description, not number — the AC list is unnumbered) | Depends on |
 |---|---|---|---|---|
-| 1 | tinyproxy Deployment (2 replicas) + Service + allowlist ConfigMap in `helm/templates/egress-proxy.yaml` | 1, 2 | 2, 3, 5 | — |
-| 2 | Two-direction self-test carried in the ConfigMap, wired as the readiness probe | 3 | 4, 9 | 1 |
-| 3 | NetworkPolicy updates — agent→proxy allow, proxy→internet allow | 4, 5 | 6, 7, 8 | 1 |
-| 4 | Proxy env on agent Configs (`ConfigSpec.Env`), dev first | 6 | 10, 11 | 2, 3 |
+| 1 | tinyproxy Deployment (2 replicas) + Service + allowlist ConfigMap + two-direction self-test wired as the readiness probe, in `helm/templates/egress-proxy.yaml` | 1, 2, 3 | render exits 0; `api.minimax.io` present; self-test four-grep set; `replicas: 2` | — |
+| 2 | NetworkPolicy updates — agent→proxy allow, proxy→internet allow | 4, 5 | the post-deploy rung-2/rung-3 block/allow/deny probes | 1 |
+| 3 | Proxy env on agent Configs (`ConfigSpec.Env`), dev first | 6 | the `spec.env.HTTPS_PROXY` deploy_checks on the dev and prod Configs | 2 |
+| 4 | Claude runner child-env allowlist admits the six proxy names (`claude/claude-runner.go` + its test) | 6 | the runner allowlist unit test (six names present, control absent) | — |
 
-Rationale: the proxy must exist and prove itself healthy (1, 2) before any policy points at it (3), and no agent is pointed at it (4) until the block/allow pair is demonstrably enforced.
+Rationale: the proxy must exist and prove itself healthy (1) before any policy points at it (2), and no agent is pointed at it (3) until the block/allow pair is demonstrably enforced. Prompt 4 is independent of the chart and may land first — until it does, prompt 3's env reaches the pod but not the Bash tool, so nothing actually egresses through the proxy.
 
 ## Do-Nothing Option
 

@@ -10,7 +10,7 @@ branch: dark-factory/agent-egress-proxy
 - Direct internet egress from agent pods remains denied exactly as before; nothing else is loosened
 - The proxy pod gets its own egress policy: it may reach the public internet (0.0.0.0/0) but not private ranges, the cloud metadata endpoint (169.254.0.0/16), or any in-cluster service
 - The proxy's policy also keeps cluster DNS (kube-dns, 53) reachable so allowlisted hostnames can resolve — without this the proxy cannot resolve anything and its self-test would fail
-- The spec 047 acceptance criteria for the sandbox policy are preserved: it still selects `app: agent`, still declares Egress-only, still renders per-environment
+- The sandbox policy from spec 047 keeps working exactly as before: it still covers agent pods, still blocks everything except the named destinations, and still renders separately for dev and prod
 - The dev and prod renders both pass the policy checks
 </summary>
 
@@ -23,11 +23,11 @@ Read `CLAUDE.md` for project conventions.
 
 Read these project files in full before editing:
 - `docs/agent-network-security.md` — the background document; its "NetworkPolicy reference" section shows the future end-state `agent-sandbox-egress` including the `app: egress-proxy` :8888 rule and the "proxy pod carries its own policy allowing egress to 0.0.0.0/0 minus private ranges" requirement (DB 5).
-- `helm/templates/sandbox.yaml` — the file this prompt extends. It was created by spec 047 and MUST already exist with the `agent-sandbox-egress` NetworkPolicy (kube-dns 53 UDP+TCP rule, then strimzi Kafka 9092 rule). If it is missing, STOP and report a precondition failure — do not recreate it (spec 047 owns it).
+- `helm/templates/sandbox.yaml` — the file this prompt extends. It was created by spec 047 and MUST already exist with the `agent-sandbox-egress` NetworkPolicy (kube-dns 53 UDP+TCP rule, then strimzi Kafka 9092 rule). If it is missing, STOP and report a precondition failure — do not recreate it (spec 047 owns it). Likewise, if `helm/templates/_helpers.tpl` has no `agent.sandboxNamespace` define, STOP: requirement 2 cannot render without it.
 - `helm/templates/egress-proxy.yaml` — created by the sibling prompt of this spec (execution order: this prompt runs after it). The proxy Deployment's pod template carries `labels: {app: egress-proxy}` — the selector both new policies depend on.
 - `helm/templates/_helpers.tpl` — the `agent.sandboxNamespace` helper (spec 047) that all policies use for the namespace.
 
-Key facts (verified against the repo):
+Key facts (verified against the spec 047 prompt's verbatim `sandbox.yaml` content and spec 048's ACs — `sandbox.yaml` and the `agent.sandboxNamespace` helper do not exist in the repo until spec 047's prompt 1 executes):
 - `agent-sandbox-egress` lives in `helm/templates/sandbox.yaml`, namespace `{{ include "agent.sandboxNamespace" . }}`, selects `app: agent`, `policyTypes: [Egress]`, and currently has exactly two egress rules (kube-dns, strimzi Kafka). The spec 047 acceptance criteria that MUST keep passing are:
   - `grep -A5 'name: agent-sandbox-egress' | grep -c 'app: agent'` ≥ 1 (podSelector stays within 5 lines of the name line — do not add labels or reorder metadata)
   - `grep -A30 'name: agent-sandbox-egress' | grep -c 'policyTypes'` == 1 and `grep -A30 ... | grep -c 'ingress:'` == 0
@@ -35,7 +35,7 @@ Key facts (verified against the repo):
 - The 048 post-deploy AC "direct egress bypassing the proxy is denied" checks the live policy's egress podSelector labels contain `egress-proxy` — the agent→proxy rule must use `podSelector: { matchLabels: { app: egress-proxy } }` and port 8888.
 - The existing rule blocks in `sandbox.yaml` use flow-mapped ports (`{ protocol: UDP, port: 53 }` style) and `kubernetes.io/metadata.name` for namespaceSelector — match that style exactly.
 - The proxy pod's egress policy MUST include a kube-dns rule (53 UDP+TCP) in addition to the 0.0.0.0/0-minus-private rule: kube-dns resolves at a cluster IP inside 10.0.0.0/8, which the `except` ranges would otherwise deny, and the proxy's own self-test would fail without DNS.
-- This prompt changes NO Go code and NO values keys — run the render + greps below, not `make precommit`.
+- This prompt changes NO Go code and NO values keys, but `make precommit` is the harness's `validationCommand` and includes `make test-helm`; let it pass in addition to the render + greps below.
 </context>
 
 <requirements>
@@ -115,7 +115,7 @@ Key facts (verified against the repo):
 </requirements>
 
 <constraints>
-- No agent image or agent Go code changes.
+- No agent image or Go code changes **in this prompt** — the only code change the spec permits is the runner's child-env allowlist (sibling prompt 4).
 - Kafka result publishing must not regress — the Kafka 9092 rule is untouched.
 - Agent pods keep `drop: ALL`; no `NET_ADMIN` is introduced.
 - The internal-egress rules from `agent-sandbox-namespace.md` must not be loosened to accommodate the proxy.
@@ -145,30 +145,36 @@ grep -A30 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'ingress
 # 048: agent -> proxy rule present
 grep -A30 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'egress-proxy' # >=1
 grep -A30 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'port: 8888'   # >=1
+# 048: the deny half must NOT regress — no direct internet, Kafka + DNS rules intact
+grep -A40 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'ipBlock'       # negative: ==0 (no direct internet)
+grep -A40 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'port: 9092'    # >=1 (Kafka rule preserved)
+grep -A40 'name: agent-sandbox-egress' /tmp/rendered-dev.yaml | grep -c 'port: 53'      # ==2 (DNS UDP+TCP preserved)
 
 # 048: proxy pod's own policy
 grep -A8 'name: egress-proxy-egress' /tmp/rendered-dev.yaml | grep -c 'Egress'         # >=1
+grep -A8 'name: egress-proxy-egress' /tmp/rendered-dev.yaml | grep -c 'namespace: dev-agents-sandbox'  # >=1
+grep -A8 'name: egress-proxy-egress' /tmp/rendered-dev.yaml | grep -c 'app: egress-proxy'              # >=1
 grep -A40 'name: egress-proxy-egress' /tmp/rendered-dev.yaml | grep -c 'kube-dns'      # >=1 (DNS exception)
 grep -A40 'name: egress-proxy-egress' /tmp/rendered-dev.yaml | grep -c '0.0.0.0/0'     # >=1
 grep -A40 'name: egress-proxy-egress' /tmp/rendered-dev.yaml | grep -c '169.254.0.0/16' # >=1 (metadata endpoint denied)
+
+# Selector <-> pod-label contract: a policy selecting zero pods looks like a working policy
+grep -c 'app: egress-proxy' /tmp/rendered-dev.yaml               # ==5 (agent rule + proxy selector + Deployment selector + pod template + Service selector)
 
 # Per-environment isolation
 helm template helm/ --set namespace=prod --set executor.kafkaBrokers=kafka:9092 \
   --set executor.existingSecret=agent-secret > /tmp/rendered-prod.yaml
 grep -c 'name: egress-proxy-egress' /tmp/rendered-prod.yaml  # >=1
-grep -c 'namespace: dev-agents-sandbox' /tmp/rendered-prod.yaml  # negative: ==0
+grep -c 'namespace: dev-agents-sandbox' /tmp/rendered-prod.yaml || true  # negative: ==0 (grep exits 1 on zero matches)
 grep -c 'namespace: prod-agents-sandbox' /tmp/rendered-prod.yaml # >=1
+
+# Gate: the new policy must stay inside {{- if .Values.executor.enabled }}
+helm template helm/ --set namespace=dev --set executor.enabled=false \
+  --set executor.kafkaBrokers=kafka:9092 --set executor.existingSecret=agent-secret \
+  | grep -c 'egress-proxy-egress'   # negative: ==0
 ```
 
-Every grep must return the annotated value or the prompt is not done. Do NOT run `make precommit` — this prompt changes no Go code; the render + greps above are the verification.
+Every grep must return the annotated value or the prompt is not done. The render + greps above are the task-specific verification; the harness also runs `make precommit` (`validationCommand`), which includes `make test-helm` — let it pass.
 
 The Post-Deploy ACs (rung-2: non-allowlisted domain blocked, allowlisted domain succeeds, direct egress denied, broken-open allowlist keeps the pod unready; rung-3: same pair in prod) are operator-executed against real clusters with `kubectlquant` after this prompt and its siblings land — they are NOT part of this prompt's verification.
 </verification>
-
----
-
-## REVIEWER OPEN QUESTIONS (audit-time only — not actionable by the executor)
-
-- **DNS exception inside the proxy's egress policy.** DB 5 says the proxy policy allows "0.0.0.0/0 minus private CIDRs". kube-dns resolves at a cluster IP inside 10.0.0.0/8, so a literal reading of DB 5 would deny DNS and break the proxy's self-test. This prompt adds the kube-dns 53 rule as a required exception. Confirm this is the intended reading (it matches the `agent-sandbox-egress` pattern).
-- **No port restriction on the proxy's internet rule.** The internet egress rule has no `ports`, per DB 5's literal wording. The L7 port restriction is the tinyproxy default CONNECT ports (443/563). If the reviewer wants port-level restriction at the policy layer too, add `ports: [443, 80]` to the internet rule.
-- **Ordering / branch dependency on spec 047.** This prompt edits `helm/templates/sandbox.yaml`, which only exists after spec 047 merges. The operator must sequence 047 (and the sibling 048 resource prompt) before this prompt executes; if the file is missing the executor reports a precondition failure by design.
