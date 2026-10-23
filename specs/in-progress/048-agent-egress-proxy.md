@@ -12,7 +12,7 @@ branch: dark-factory/agent-egress-proxy
 - Agent Jobs reach the public internet only through a domain-allowlisting proxy, never directly
 - A `tinyproxy` Deployment in the per-environment sandbox namespace filters on the `CONNECT host:443` line — no TLS interception, no certificate injection
 - The allowlist lives in a ConfigMap, seeded from claude-yolo's curated list, so changing it is an edit rather than an image rebuild
-- Agents receive proxy configuration through `ConfigSpec.Env`, which is already a plain string map; the only code change is six names added to the Claude runner's child-env allowlist, without which the Bash tool never sees them
+- Agents receive proxy configuration through `ConfigSpec.Env`, which is already a plain string map; the code changes are six names added to the Claude runner's child-env allowlist, without which the Bash tool never sees them, plus the redaction that keeps a credential-bearing proxy URL out of the child-env log
 - A startup self-test proves both directions: a non-allowlisted domain must fail *and* an allowlisted one must succeed
 
 ## Problem
@@ -102,7 +102,7 @@ Post-Deploy ACs are operator-executed against dev first, then prod, per `docs/ag
 
 ## Constraints
 
-- Proxy configuration is carried in `ConfigSpec.Env`. The **one** permitted code change is a six-name addition to the Claude runner's child-env allowlist in `bborbe/agent` `claude/claude-runner.go` (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, plus their lowercase forms) — without it the library's fixed allowlist drops the proxy vars before the Claude CLI starts and the Bash tool never sees them. No Dockerfile or entrypoint change and no new dependency, but the `bborbe/agent-claude` image **must be rebuilt and redeployed** for the allowlist to take effect — a chart-only rollout leaves the pod env set and the Bash tool still without a proxy. No behaviour change when the vars are unset.
+- Proxy configuration is carried in `ConfigSpec.Env`. **Two** code changes are permitted, and only these: (1) a six-name addition to the Claude runner's child-env allowlist in `bborbe/agent` `claude/claude-runner.go` (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, plus their lowercase forms) — without it the library's fixed allowlist drops the proxy vars before the Claude CLI starts and the Bash tool never sees them; and (2) the companion redaction in `envparse/redact.go`, because admitting those names makes them the first allowlisted variables that can embed credentials (`http://user:pass@host`), so `PROXY` joins the sensitive-key markers and the child-env log line shows `***`. No Dockerfile or entrypoint change and no new dependency, but the `bborbe/agent-claude` image **must be rebuilt and redeployed** for the allowlist to take effect — a chart-only rollout leaves the pod env set and the Bash tool still without a proxy. No behaviour change when the vars are unset.
 - kube-dns and sentry-proxy stay on the direct path via `NO_PROXY`, and so do the Kafka brokers — whose hosts are derived from the per-install `executor.kafkaBrokers` value because nuke's Kafka is an external nodeport, not an in-cluster Service. None of them may be routed through the proxy
 - Agent pods keep `drop: ALL`; no `NET_ADMIN` is introduced
 - The internal-egress rules from `agent-sandbox-namespace.md` must not be loosened to accommodate the proxy
