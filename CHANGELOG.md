@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.124.0
 
 - feat(helm): make the sandbox shape configurable without changing any default render. New `sandbox` values: `namespace` (overrides the derived `<namespace>-agents-sandbox`), `kafka.namespace`/`kafka.podLabels`/`kafka.servicePort` (select an in-cluster Kafka Service instead of the hardcoded nuke `/32` nodeports on 32159, failing the render when the port is missing or not a positive integer rather than emitting a policy that matches nothing), `routerInstance` (router peer label, default `claude-code-router-<namespace>`), `vaultApiApp` (optional extra `app`-labelled peer on 9090), and `renderAgentStorage` (also render each chart-rendered agent Secret and PVC into the sandbox namespace — a copied PVC is a new, empty volume, not a view of the control-namespace claim). Chart 0.21.2→0.22.0.
 - test(helm): refactor `hack/test-helm-render.sh` around `run_policy_case`/`doc_has` and add render cases for the explicit sandbox namespace, the in-cluster Kafka branch and its missing-port failure, the default Kafka addresses, the router override, the vault-API peer and the sandbox storage copies.
