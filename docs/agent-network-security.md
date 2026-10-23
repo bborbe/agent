@@ -137,7 +137,7 @@ spec:
         - { protocol: TCP, port: 9092 }
 ```
 
-> ⚠️ **Stale on Kafka and `sentry-proxy`.** The reference policy above is the quant-era shape: it selects strimzi on TCP 9092 and has no `sentry-proxy` rule. On nuke, Kafka is the shared cluster's **external nodeport listener** (`192.168.178.41-43:32159`), so the real rule is three `/32` `ipBlock`s on 32159, and `sentry-proxy` (9090, in the environment's control namespace) must be permitted because every agent Job receives `SENTRY_PROXY` when the fleet-wide `sentry.proxy` (or a per-agent `agents[].sentry.proxy`) is set. **`bborbe/agent` `specs/in-progress/047-agent-sandbox-namespace.md` is authoritative** where the two disagree.
+> ⚠️ **Stale — the reference policy above is the quant-era shape.** It selects strimzi on TCP 9092, and it lacks rules for `sentry-proxy`, `claude-code-router`, `pushgateway`, the three `vault-obsidian-*` services and the two trading frontends — eight divergences in total. On nuke, Kafka is the shared cluster's **external nodeport listener** (`192.168.178.41-43:32159`), so the real rule is three `/32` `ipBlock`s on 32159, and `sentry-proxy` (9090, in the environment's control namespace) must be permitted because every agent Job receives `SENTRY_PROXY` when the fleet-wide `sentry.proxy` (or a per-agent `agents[].sentry.proxy`) is set. **`bborbe/agent` `specs/in-progress/047-agent-sandbox-namespace.md` is authoritative** where the two disagree.
 
 **Ingress is denied entirely.** There is no executor→Job ingress path: the executor "does NOT watch Jobs, read stdout, or publish results" (`docs/agent-job-interface.md`), and "the agent publishes its result directly to Kafka" (`docs/agent-job-lifecycle.md`). No ingress rule is needed.
 

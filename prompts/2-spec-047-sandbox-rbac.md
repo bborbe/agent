@@ -95,7 +95,7 @@ Key facts (verified against the repo):
    ```
    ## Unreleased
 
-   - feat(helm): add a per-environment `<namespace>-agents-sandbox` namespace with a default-deny egress NetworkPolicy (kube-dns 53 UDP+TCP, sentry-proxy 9090 TCP, Kafka nodeports 32159 TCP only) and a sandbox-scoped Role/RoleBinding granting the executor ServiceAccount exactly `create/get/list/watch/delete` on jobs, `get` on secrets, and `get` on persistentvolumeclaims in that namespace. Chart 0.18.0→0.19.0. Inert until the executor ships `ConfigSpec.JobNamespace` (agent-task-executor); agent Jobs then land in an environment with no reachable internal service, private range, metadata endpoint, or direct internet.
+   - feat(helm): add a per-environment `<namespace>-agents-sandbox` namespace with a default-deny egress NetworkPolicy (kube-dns 53 UDP+TCP; sentry-proxy 9090; claude-code-router 8788; pushgateway 9090; vault-obsidian-personal/openclaw/trading 9090; frontend-gateway and frontend-strategy 9090; Kafka nodeports 32159 — and nothing else) and a sandbox-scoped Role/RoleBinding granting the executor ServiceAccount exactly `create/get/list/watch/delete` on jobs, `get` on secrets, and `get` on persistentvolumeclaims in that namespace. Chart 0.18.0→0.19.0. Inert until the executor ships `ConfigSpec.JobNamespace` (agent-task-executor); agent Jobs then land in an environment with no reachable service outside that list, no other private range, no metadata endpoint, and no direct internet.
    ```
 
    Follow the existing CHANGELOG.md style (dash-prefixed bullets, past-tense, no trailing period on the prefix).
@@ -104,7 +104,8 @@ Key facts (verified against the repo):
 
    ```
    - **Network-isolated sandbox** — the chart renders `<namespace>-agents-sandbox` with a
-     default-deny egress NetworkPolicy (kube-dns, sentry-proxy and the Kafka nodeports only) and cross-namespace RBAC for
+     default-deny egress NetworkPolicy (kube-dns, sentry-proxy, claude-code-router, pushgateway, the three
+     vault-obsidian services, frontend-gateway, frontend-strategy and the Kafka nodeports — nothing else) and cross-namespace RBAC for
      the executor. Agent Jobs land there; it is inert until the executor ships
      `ConfigSpec.JobNamespace` (spawns Jobs into the sandbox).
    ```

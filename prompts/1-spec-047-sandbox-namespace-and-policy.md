@@ -71,10 +71,12 @@ Key facts (verified against the repo):
      labels:
        {{- include "agent.labels" . | nindent 4 }}
    ---
-   # Default-deny egress for sandbox agent pods: only kube-dns (53 UDP+TCP),
-   # sentry-proxy (9090 TCP) and the Kafka nodeports (32159 TCP) are reachable.
-   # Everything else — other internal services, other private CIDRs,
-   # 169.254.0.0/16, direct internet — is denied by omission.
+   # Default-deny egress for sandbox agent pods. Permitted: kube-dns (53 UDP+TCP),
+   # sentry-proxy (9090), claude-code-router (8788), pushgateway (9090),
+   # vault-obsidian-{personal,openclaw,trading} (9090),
+   # frontend-gateway and frontend-strategy (9090), and the three Kafka
+   # nodeports (32159). Everything else — other internal services, other private
+   # CIDRs, 169.254.0.0/16, direct internet — is denied by omission.
    # Ingress is not declared at all: no executor→Job ingress path exists (the agent
    # publishes its result directly to Kafka).
    #
@@ -127,7 +129,7 @@ Key facts (verified against the repo):
                  kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
              podSelector:
                matchLabels:
-                 app.kubernetes.io/instance: claude-code-router-dev
+                 app.kubernetes.io/instance: claude-code-router-{{ .Values.namespace }}
          ports:
            - { protocol: TCP, port: 8788 }
        # pushgateway — job metrics. Lives in the monitoring namespace, not the
