@@ -11,6 +11,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 ## Unreleased
 
 - feat(helm): render a per-environment `<namespace>-agents-sandbox` Namespace and a default-deny `agent-sandbox-egress` NetworkPolicy for agent Job pods, permitting only kube-dns (53 UDP+TCP), `sentry-proxy`, `claude-code-router-<env>`, `pushgateway`, the three `vault-obsidian-*` services, `frontend-gateway`, `frontend-strategy` and the three Kafka nodeports (TCP 32159); adds the `agent.sandboxNamespace` helper and gates both objects on `executor.enabled`
+- feat(helm): add a sandbox-scoped `agent-task-executor-sandbox` Role and RoleBinding granting the executor ServiceAccount exactly `create/get/list/watch/delete` on jobs, `get` on secrets and `get` on persistentvolumeclaims inside `<namespace>-agents-sandbox` — cross-namespace bound to the executor's `agent-task-executor` ServiceAccount in the control namespace, with no wildcard verbs and no cluster scope; chart 0.18.0→0.19.0
 
 ## v0.120.1
 

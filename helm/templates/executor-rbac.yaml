@@ -93,4 +93,42 @@ subjects:
   - kind: ServiceAccount
     name: agent-task-executor
     namespace: {{ $ns }}
+---
+# Sandbox-scoped grants: the executor, still in the control namespace, gets exactly
+# the cross-namespace rights it needs inside this environment's sandbox namespace
+# and no more. No wildcard verbs, no cluster-scope — a widened grant here would
+# widen the executor's blast radius past the sandbox boundary.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: agent-task-executor-sandbox
+  namespace: {{ include "agent.sandboxNamespace" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [create, get, list, watch, delete]
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agent-task-executor-sandbox
+  namespace: {{ include "agent.sandboxNamespace" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: agent-task-executor-sandbox
+subjects:
+  - kind: ServiceAccount
+    name: agent-task-executor
+    namespace: {{ $ns }}
 {{- end }}

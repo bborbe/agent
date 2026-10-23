@@ -288,6 +288,11 @@ secrets, Strimzi mTLS. **None of that is required.** A vanilla cluster:
   `*.kafkaBrokers` at your plaintext/SASL bootstrap.
 - **Your own namespace** — set `namespace` to anything; cluster-scoped objects
   (PriorityClass, per-namespace ClusterRoles) are named so multiple namespaces coexist.
+- **Network-isolated sandbox** — the chart renders `<namespace>-agents-sandbox` with a
+  default-deny egress NetworkPolicy (kube-dns, sentry-proxy, claude-code-router, pushgateway, the three
+  vault-obsidian services, frontend-gateway, frontend-strategy and the Kafka nodeports — nothing else) and cross-namespace RBAC for
+  the executor. Agent Jobs land there; it is inert until the executor ships
+  `ConfigSpec.JobNamespace` (spawns Jobs into the sandbox).
 
 ---
 

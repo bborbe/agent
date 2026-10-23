@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [047-agent-sandbox-namespace]
+summary: Added sandbox-scoped executor Role/RoleBinding, bumped chart to 0.19.0, and documented the sandbox in CHANGELOG and README
+execution_id: agent-sandbox-egress-exec-247-spec-047-sandbox-rbac
+dark-factory-version: v0.198.7
 created: "2026-08-21T08:00:00Z"
 queued: "2026-10-23T09:19:52Z"
+started: "2026-10-23T09:20:33Z"
+completed: "2026-10-23T09:21:10Z"
 branch: dark-factory/agent-sandbox-namespace
 ---
 
