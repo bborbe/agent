@@ -109,6 +109,14 @@ rules:
   - apiGroups: [batch]
     resources: [jobs]
     verbs: [create, get, list, watch, delete]
+  # Pod reads are not optional: the executor's pod-state classifier and deadline
+  # sweeper watch the Pods of the Jobs it spawns (spec 043 — ImagePullBackOff,
+  # eviction, crash-before-stdout). The control-namespace Role grants exactly
+  # this; omitting it here makes every Pod read Forbidden once Jobs move into
+  # the sandbox, which breaks zombie detection rather than failing loudly.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
   - apiGroups: [""]
     resources: [secrets]
     verbs: [get]

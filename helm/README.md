@@ -293,6 +293,11 @@ secrets, Strimzi mTLS. **None of that is required.** A vanilla cluster:
   vault-obsidian services, frontend-gateway, frontend-strategy and the Kafka nodeports — nothing else) and cross-namespace RBAC for
   the executor. Agent Jobs land there; it is inert until the executor ships
   `ConfigSpec.JobNamespace` (spawns Jobs into the sandbox).
+  ⚠️ The destination set is **nuke-shaped and hardcoded** — the Kafka rule is three
+  nuke LAN `/32`s on 32159 and `pushgateway` is pinned to the `monitoring`
+  namespace. On a vanilla cluster (`executor.kafkaBrokers: kafka:9092`) this policy
+  blocks Kafka egress once Jobs actually land there, so the sandbox is nuke-only
+  until those destinations become values.
 
 ---
 
