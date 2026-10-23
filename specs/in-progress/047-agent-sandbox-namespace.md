@@ -49,6 +49,8 @@ RENDER='helm template helm/ --set namespace=dev --set executor.kafkaBrokers=kafk
 - [ ] That Role carries exactly the verbs in DB 5 — `$RENDER | grep -A15 'name: agent-task-executor-sandbox' | grep -cE 'jobs|secrets|persistentvolumeclaims'` returns ≥3, and `$RENDER | grep -A15 'name: agent-task-executor-sandbox' | grep -c '\*'` returns 0. Negative evidence: no wildcard verb or resource
 - [ ] A RoleBinding binds it to the executor's ServiceAccount in the sandbox namespace — `$RENDER | grep -A6 'kind: RoleBinding' | grep -c 'agent-task-executor-sandbox'` returns ≥1
 - [ ] The rendered policy selects `app: agent` — `$RENDER | grep -A5 'name: agent-sandbox-egress' | grep -c 'app: agent'` returns ≥1
+- [ ] The policy permits exactly the three intended destinations, and no others — against a render saved as `/tmp/rendered-dev.yaml`: `grep -cE 'cidr: 192\.168\.178\.(41|42|43)/32'` returns `3`, `grep -c 'cidr: 192.168.178.0/24'` returns `0`, `grep -c 'port: 32159'` returns `1`, `grep -c 'port: 9090'` returns `1`, and `grep -c 'port: 9092'` returns `0`. Without this, a policy still allowing the quant-era 9092, or widened to the `/24`, passes every other build-time AC
+- [ ] The `sentry-proxy` peer keeps `namespaceSelector` and `podSelector` in **one** `- to:` entry — a split peer renders identically under every grep above and ORs into "every service on 9090 in that namespace". Assert the structure: the nearest `- to:` before `app: sentry-proxy` must precede its `namespaceSelector`. `awk '/- to:/{t=NR} /namespaceSelector:/{n=NR} /app: sentry-proxy/{print (n>t)?"SAME_PEER_OK":"SPLIT_PEER_FAIL"}' /tmp/rendered-dev.yaml` prints `SAME_PEER_OK`
 - [ ] The policy declares egress only, no ingress — `$RENDER | grep -A30 'name: agent-sandbox-egress' | grep -c 'policyTypes'` returns 1, and the rendered `policyTypes` list contains only `Egress`. Negative evidence: `$RENDER | grep -A30 'name: agent-sandbox-egress' | grep -c 'ingress:'` returns 0
 - [ ] The sandbox namespace is per-environment, not a shared literal — `helm template helm/ --set namespace=dev ... | grep -c 'dev-agents-sandbox'` returns ≥1 **and** `helm template helm/ --set namespace=prod ... | grep -c 'prod-agents-sandbox'` returns ≥1. Negative evidence: neither render contains a bare `name: agents-sandbox` line
 - [ ] **Post-Deploy (Rung-2):** the namespace and policy exist in dev — `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.metadata.name}'` returns `agent-sandbox-egress`
@@ -56,10 +58,9 @@ RENDER='helm template helm/ --set namespace=dev --set executor.kafkaBrokers=kafk
   - `deploy_target:` `Active`
 > **Every probe below runs inside the pod via `kubectl exec`.** Run from the workstation they prove nothing: `32159` is a cluster-wide NodePort, so a bare `nc` from the LAN answers regardless of any NetworkPolicy, and `vault-obsidian-openclaw.dev` may not even resolve there.
 
-- [ ] **Post-Deploy (Rung-2):** the policy selects the probe pod — create it, wait for Ready, then confirm the selector matches it. No agent Job runs here until `config-job-namespace.md` ships, so the pod is created for these checks and removed afterwards:
+- [ ] **Post-Deploy (Rung-2):** the policy selects the probe pod — create it and wait for Ready. No agent Job runs here until `config-job-namespace.md` ships, so the pod is created for these checks and removed by the teardown AC **after** them:
   - `kubectlnukedev -n dev-agents-sandbox run agent-egress-probe --image=busybox:1.36 --labels app=agent --restart=Never -- sleep 3600`
   - `kubectlnukedev -n dev-agents-sandbox wait --for=condition=Ready pod/agent-egress-probe --timeout=60s`
-  - teardown: `kubectlnukedev -n dev-agents-sandbox delete pod agent-egress-probe`
   - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.podSelector.matchLabels.app}'`
   - `deploy_target:` `agent`
 - [ ] **Post-Deploy (Rung-2):** an internal service on an allowed port is still blocked — precondition `kubectlnukedev -n dev get svc vault-obsidian-openclaw` returns the service, otherwise the negative passes vacuously on DNS failure. Then `kubectlnukedev -n dev-agents-sandbox exec agent-egress-probe -- wget -qO- --timeout=3 http://vault-obsidian-openclaw.dev.svc.cluster.local:9090` exits non-zero within 5s and prints no body. This is the check that proves the `sentry-proxy` peer is narrow: a bare namespace+port rule would let this through. Negative evidence: exit code ≠ 0, stdout empty
@@ -71,12 +72,12 @@ RENDER='helm template helm/ --set namespace=dev --set executor.kafkaBrokers=kafk
 - [ ] **Post-Deploy (Rung-2):** Kafka and `sentry-proxy` are reachable — `kubectlnukedev -n dev-agents-sandbox exec agent-egress-probe -- nc -w 3 192.168.178.41 32159` and `kubectlnukedev -n dev-agents-sandbox exec agent-egress-probe -- nc -w 3 sentry-proxy.dev.svc.cluster.local 9090` both exit 0. Positive evidence: both exit codes 0. A bare connect is used deliberately, with no `-z`: `-z` is a busybox build variant, and an HTTP probe is wrong for Kafka, which does not speak HTTP
   - `deploy_check:` `kubectlnukedev -n dev-agents-sandbox get networkpolicy agent-sandbox-egress -o jsonpath='{.spec.egress[*].ports[*].port}'`
   - `deploy_target:` `53 53 9090 32159`
-- [ ] **Post-Deploy (Rung-3):** the same block/allow pair holds in prod — the same three `exec` probes from `agent-egress-probe` in `prod-agents-sandbox`, against `sentry-proxy.prod.svc.cluster.local` and `vault-obsidian-openclaw.prod.svc.cluster.local`
-  - `kubectlnukeprod -n prod-agents-sandbox run agent-egress-probe --image=busybox:1.36 --labels app=agent --restart=Never -- sleep 3600`
-  - `kubectlnukeprod -n prod-agents-sandbox wait --for=condition=Ready pod/agent-egress-probe --timeout=60s`
-  - teardown: `kubectlnukeprod -n prod-agents-sandbox delete pod agent-egress-probe`
+- [ ] **Post-Deploy (Rung-2):** tear down the dev probe pod — **only after every probe above has run**: `kubectlnukedev -n dev-agents-sandbox delete pod agent-egress-probe`. Deleting it earlier makes the two negative ACs pass vacuously, because a `kubectl exec` against a missing pod exits non-zero for the wrong reason
+- [ ] **Post-Deploy (Rung-3):** create the prod probe pod — `kubectlnukeprod -n prod-agents-sandbox run agent-egress-probe --image=busybox:1.36 --labels app=agent --restart=Never -- sleep 3600`, then `kubectlnukeprod -n prod-agents-sandbox wait --for=condition=Ready pod/agent-egress-probe --timeout=60s`
   - `deploy_check:` `kubectlnukeprod get ns prod-agents-sandbox -o jsonpath='{.status.phase}'`
   - `deploy_target:` `Active`
+- [ ] **Post-Deploy (Rung-3):** the same block/allow pair holds in prod — the same three `exec` probes from `agent-egress-probe`, against `sentry-proxy.prod.svc.cluster.local` and `vault-obsidian-openclaw.prod.svc.cluster.local` (blocked: exit ≠ 0; Kafka on `192.168.178.41:32159` and sentry on 9090: exit 0)
+- [ ] **Post-Deploy (Rung-3):** tear down the prod probe pod — `kubectlnukeprod -n prod-agents-sandbox delete pod agent-egress-probe`, after the probes above
 
 ## Verification
 
