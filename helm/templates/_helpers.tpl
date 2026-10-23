@@ -74,3 +74,28 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{- define "agent.sandboxNamespace" -}}
 {{- printf "%s-agents-sandbox" (include "agent.namespace" .) -}}
 {{- end -}}
+
+{{/* Proxy env injected into every agent Config when the egress proxy renders
+     (spec 048). The proxy URL is derived from the sandbox namespace; NO_PROXY
+     keeps in-cluster traffic (kube-dns, sentry-proxy) and the Kafka brokers on
+     the direct path — the Kafka hosts are read from the per-install
+     executor.kafkaBrokers value (nuke's Kafka is an external nodeport, not an
+     in-cluster Service, so .svc.cluster.local does not cover it). These values
+     override any conflicting per-agent env so an agent cannot bypass or
+     misroute the proxy. */}}
+{{- define "agent.proxyEnv" -}}
+{{- $noProxy := list "127.0.0.1" "localhost" ".svc.cluster.local" }}
+{{- range $broker := splitList "," (toString .Values.executor.kafkaBrokers) }}
+{{-   $host := trim ((splitList ":" $broker) | first) }}
+{{-   if $host }}
+{{-     $noProxy = append $noProxy $host }}
+{{-   end }}
+{{- end }}
+{{- $noProxyValue := join "," $noProxy }}
+HTTP_PROXY: http://egress-proxy.{{ include "agent.sandboxNamespace" . }}.svc.cluster.local:8888
+HTTPS_PROXY: http://egress-proxy.{{ include "agent.sandboxNamespace" . }}.svc.cluster.local:8888
+http_proxy: http://egress-proxy.{{ include "agent.sandboxNamespace" . }}.svc.cluster.local:8888
+https_proxy: http://egress-proxy.{{ include "agent.sandboxNamespace" . }}.svc.cluster.local:8888
+NO_PROXY: {{ $noProxyValue }}
+no_proxy: {{ $noProxyValue }}
+{{- end -}}

@@ -45,14 +45,19 @@ spec:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   {{- $sentryProxy := ($agent.sentry | default dict).proxy | default $.Values.sentry.proxy }}
-  {{- if or $agent.env $sentryProxy }}
+  {{- $env := dict }}
+  {{- with $agent.env }}
+  {{-   $env = mergeOverwrite $env . }}
+  {{- end }}
+  {{- if $.Values.executor.enabled }}
+  {{-   $env = mergeOverwrite $env (include "agent.proxyEnv" $ | fromYaml) }}
+  {{- end }}
+  {{- if and $sentryProxy (not (hasKey $env "SENTRY_PROXY")) }}
+  {{-   $env = mergeOverwrite $env (dict "SENTRY_PROXY" $sentryProxy) }}
+  {{- end }}
+  {{- if $env }}
   env:
-    {{- with $agent.env }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-    {{- if and $sentryProxy (not (hasKey ($agent.env | default dict) "SENTRY_PROXY")) }}
-    SENTRY_PROXY: {{ $sentryProxy | quote }}
-    {{- end }}
+    {{- toYaml $env | nindent 4 }}
   {{- end }}
   trigger:
     phases:

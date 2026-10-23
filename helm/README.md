@@ -301,6 +301,11 @@ secrets, Strimzi mTLS. **None of that is required.** A vanilla cluster:
   namespace. On a vanilla cluster (`executor.kafkaBrokers: kafka:9092`) this policy
   blocks Kafka egress once Jobs actually land there, so the sandbox is nuke-only
   until those destinations become values.
+- **Egress proxy** — the chart renders a domain-allowlisting tinyproxy (`egress-proxy`,
+  port 8888) in `<namespace>-agents-sandbox` and injects `HTTP_PROXY`/`HTTPS_PROXY`/
+  `no_proxy` env into every agent Config. The allowlist lives in the
+  `egress-proxy-allowlist` ConfigMap — change it there and restart the proxy, no image
+  rebuild. Direct internet egress from agent pods is denied except through the proxy.
 
 ---
 

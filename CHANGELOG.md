@@ -10,6 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
+- feat(helm): add a domain-allowlisting egress proxy (tinyproxy, 2 replicas) in `<namespace>-agents-sandbox` with the allowlist + two-direction self-test carried in a ConfigMap `egress-proxy-allowlist` and wired as the readiness probe; extend `agent-sandbox-egress` to permit agent pods to the proxy on 8888 (the only internet path) and add an `egress-proxy-egress` policy (0.0.0.0/0 minus private ranges + kube-dns); inject `HTTP_PROXY`/`HTTPS_PROXY`/`http_proxy`/`https_proxy`/`NO_PROXY`/`no_proxy` into every agent Config's `spec.env`, derived per environment, with in-cluster traffic (Kafka, kube-dns, sentry-proxy) on the direct path. Chart 0.20.0→0.21.0.
 - feat(helm): render a two-replica tinyproxy egress proxy (`egress-proxy`) with its allowlist + two-direction self-test ConfigMap in `<namespace>-agents-sandbox`. Chart 0.19.0→0.20.0.
 - feat(helm): enforce the egress-proxy network layer — append an agent→proxy rule (`app: egress-proxy`, TCP 8888) to `agent-sandbox-egress` as its last peer, and add an `egress-proxy-egress` NetworkPolicy permitting the public internet (`0.0.0.0/0` minus `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`) plus kube-dns for the proxy pod, both gated on `executor.enabled`.
 
