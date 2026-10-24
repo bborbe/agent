@@ -423,10 +423,12 @@ no_proxy: {{ $noProxyValue }}
 {{- if and $proxyNS (not (hasKey $domains $proxyNS)) -}}
 {{- fail (printf "sandbox.proxyNamespace %q is not one of the declared sandbox.domains: a proxy in a namespace nothing creates is a silent outage" $proxyNS) -}}
 {{- end -}}
+{{- end -}}
+{{- /* Applies in both branches: the legacy policy renders the same peer, so a
+       namespace without a servicePort must fail there too. */ -}}
 {{- if $sandbox.kafka.namespace -}}
 {{- if not (regexMatch "^[1-9][0-9]*$" (toString $sandbox.kafka.servicePort)) -}}
 {{- fail "sandbox.kafka.servicePort is required as a positive integer when sandbox.kafka.namespace is set" -}}
-{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

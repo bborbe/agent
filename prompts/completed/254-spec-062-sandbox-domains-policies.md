@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [062-sandbox-domains]
+summary: Restructured helm/templates/sandbox.yaml into a domains branch rendering one Namespace and one <domain>-egress policy per declared domain via the peer catalog, kept the legacy single-sandbox branch verbatim, moved egress-proxy-egress to agent.proxyNamespace, and made the Kafka servicePort validation apply in both branches.
+execution_id: agent-sandbox-domains-exec-254-spec-062-sandbox-domains-policies
+dark-factory-version: v0.198.7
 created: "2026-10-24T20:38:48Z"
 queued: "2026-10-24T20:57:59Z"
+started: "2026-10-24T20:59:00Z"
+completed: "2026-10-24T21:12:33Z"
 branch: dark-factory/sandbox-domains
 ---
 
