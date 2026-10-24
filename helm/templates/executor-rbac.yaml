@@ -68,6 +68,20 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  # Pod quota read (executor >= v0.37.0). The executor bounds spawn admission by
+  # the enforced pod capacity of the agent's own priority class, not only by the
+  # Config's maxConcurrentJobs. Where the two disagree the quota is what actually
+  # limits pods, so a cluster that admitted on the declared cap alone created Jobs
+  # whose pods the quota refused: the Job never ran, its dispatch claim was held
+  # and renewed, and the peer cluster was refused `lease not expired` on that task
+  # for the whole hold (measured on nuke prod 2026-10-24: maxConcurrentJobs 5
+  # against `github-pr-review-agent pods: 3`). `list` is the verb used; `get` is
+  # granted so a future by-name read needs no chart change. Without this rule the
+  # executor's read is refused and it falls back to the declared cap, which is the
+  # old behaviour rather than an error.
+  - apiGroups: [""]
+    resources: [resourcequotas]
+    verbs: [get, list]
   - apiGroups: [agent.benjamin-borbe.de]
     resources: [configs]
     verbs: [get, list, watch]

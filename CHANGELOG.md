@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(helm): grant the executor `get`/`list` on `resourcequotas` so it can bound spawn admission by the pod quota of an agent's priority class. The executor admits a task for spawn when its running Job count is below `maxConcurrentJobs`; where the namespace quota allows fewer pods than that, the Job is created and its pod is refused, so the Job never runs while the dispatch claim taken for it is held and renewed — and the peer cluster is refused `lease not expired` on that task for the whole hold. Measured on nuke prod 2026-10-24: `github-pr-review-agent` runs `maxConcurrentJobs: 5` against `ResourceQuota github-pr-review-agent pods: 3`, and a ten-pull-request saturation run filled 4 of 11 reviewer slots while 6 pull requests sat unclaimed. The executor release that reads the quota ships safely before this grant: a refused read falls back to the declared cap, which is the old behaviour rather than an error. Chart 0.22.2→0.22.3.
+
 ## v0.126.0
 
 - feat(helm): add the optional `sandbox.peerNamespace` value so the sandbox egress policy survives a control-plane move. The policy selected sentry-proxy, the three `vault-obsidian-*` services, `frontend-gateway`/`frontend-strategy` and the optional vault-API app in the **control** namespace, which is correct only while those services share it. Moving the control plane to a namespace of its own would re-render those peers against the new namespace, where nothing of theirs lives — and a NetworkPolicy peer that matches nothing denies, so every sandboxed Job would lose its vault, its Sentry proxy and the trading frontends with no error anywhere. The new key names their namespace; empty falls back to the control namespace, so no existing install renders differently. The router is deliberately excluded — it is a control-plane component and follows `namespace`. Chart 0.22.1→0.22.2.
