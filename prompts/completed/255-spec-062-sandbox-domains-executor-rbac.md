@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [062-sandbox-domains]
+summary: Wrapped the sandbox Role/RoleBinding in executor-rbac.yaml in a range over agent.sandboxNamespaces, rendering one narrow grant pair per declared domain with subjects still bound in the control namespace; legacy single-namespace render unchanged.
+execution_id: agent-sandbox-domains-exec-255-spec-062-sandbox-domains-executor-rbac
+dark-factory-version: v0.198.7
 created: "2026-10-24T20:38:48Z"
 queued: "2026-10-24T20:57:59Z"
+started: "2026-10-24T21:12:35Z"
+completed: "2026-10-24T21:24:00Z"
 branch: dark-factory/sandbox-domains
 ---
 
