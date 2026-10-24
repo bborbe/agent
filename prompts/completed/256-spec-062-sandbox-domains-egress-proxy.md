@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [062-sandbox-domains]
+summary: 'Moved all egress proxy objects (Deployment, Service, ingress NetworkPolicy, PDB, allowlist ConfigMap) to agent.proxyNamespace and generalized egress-proxy-ingress to admit app: agent pods from every rendered sandbox namespace'
+execution_id: agent-sandbox-domains-exec-256-spec-062-sandbox-domains-egress-proxy
+dark-factory-version: v0.198.7
 created: "2026-10-24T20:38:48Z"
 queued: "2026-10-24T20:57:59Z"
+started: "2026-10-24T21:24:03Z"
+completed: "2026-10-24T21:37:08Z"
 branch: dark-factory/sandbox-domains
 ---
 
