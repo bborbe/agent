@@ -1,8 +1,9 @@
 ---
-status: prompted
+status: verifying
 approved: "2026-10-24T20:36:55Z"
 generating: "2026-10-24T20:36:56Z"
 prompted: "2026-10-24T20:45:10Z"
+verifying: "2026-10-24T21:52:58Z"
 branch: dark-factory/sandbox-domains
 ---
 
