@@ -38,17 +38,17 @@ An install can declare an arbitrary set of sandbox namespaces in its values. Eac
 
 ## Acceptance Criteria
 
-- [ ] **AC1 — a domain set renders one Namespace per entry.** `helm template` with a values file declaring four domains emits exactly four `kind: Namespace` documents, named exactly those four keys, **each carrying `helm.sh/resource-policy: keep`**. Evidence: the set of `metadata.name` over `kind: Namespace` documents equals the four declared names exactly (set equality, not a count — a dropped Namespace still reaches the same `kind:` tally), and `grep -c 'helm.sh/resource-policy: keep'` over that subset equals 4.
-- [ ] **AC2 — each domain gets its own Egress-only policy, from its own peer set.** Every declared domain `<D>` renders a `NetworkPolicy` **named `<D>-egress`** in namespace `<D>`, with `podSelector.matchLabels.app: agent` and `policyTypes` exactly `[Egress]`. The name is per-domain on purpose: the legacy policy is `agent-sandbox-egress` and the suite's `policy_doc` helper matches by name only, so four domains sharing one name would concatenate into a blob and every per-domain assertion would be meaningless. With `development-sandbox: {peers: [router, pushgateway, sentry-proxy, kafka]}` and `trading-sandbox: {peers: [router, pushgateway, frontend-gateway, frontend-strategy]}`, the `trading-sandbox-egress` document contains **zero** `sentry-proxy` entries and **zero** `vault-obsidian-` entries, while `development-sandbox-egress` contains both `sentry-proxy` and `kafka`. Evidence: `--show-only templates/sandbox.yaml`, each document selected by `kind` + `metadata.name` + `metadata.namespace`; positive `doc_has` for each listed peer, a negative `grep -c` per foreign peer returning 0, and an explicit assertion of the `app: agent` pod selector.
+- [ ] **AC1 — a domain set renders one Namespace per entry.** `helm template` with a values file declaring four domains emits exactly four `kind: Namespace` documents, named exactly those four keys, **each carrying `helm.sh/resource-policy: keep`**. Evidence: the set of `metadata.name` over `kind: Namespace` documents equals the four declared names exactly (set equality, not a count — a dropped Namespace still reaches the same `kind:` tally), and each of those four documents carries `helm.sh/resource-policy: keep` — checked per document, not by a bare `grep -c` over the whole render, which also counts the identical annotation on every PVC.
+- [ ] **AC2 — each domain gets its own Egress-only policy, from its own peer set.** Every declared domain `<D>` renders a `NetworkPolicy` **named `<D>-egress`** in namespace `<D>`, with `podSelector.matchLabels.app: agent` and `policyTypes` exactly `[Egress]`. The name is per-domain on purpose: the legacy policy is `agent-sandbox-egress` and the suite's `policy_doc` helper matches by name only, so four domains sharing one name would concatenate into a blob and every per-domain assertion would be meaningless. With `development-sandbox: {peers: [router, pushgateway, sentry-proxy, kafka]}` and `trading-sandbox: {peers: [router, pushgateway, frontend-gateway, frontend-strategy]}`, the `trading-sandbox-egress` document contains **zero** `sentry-proxy` entries and **zero** `vault-obsidian-` entries, while `development-sandbox-egress` contains both `sentry-proxy` and `kafka`. Evidence: `--show-only templates/sandbox.yaml`; each policy document selected by `kind` + `metadata.name` + `metadata.namespace`; then `policy_doc "$out" <D>-egress | grep -q 'app: sentry-proxy'` (and one per listed peer — `doc_has` is an object-identity helper and cannot assert a peer), a negative `grep -c` per foreign peer returning 0, and an explicit assertion of the `app: agent` pod selector.
 - [ ] **AC3 — the executor's sandbox RBAC renders once per domain.** Each declared domain namespace contains a `Role` and a `RoleBinding` named `agent-task-executor-sandbox`, the binding's subject being the executor ServiceAccount in the control namespace. Evidence: `doc_has <render> Role agent-task-executor-sandbox <domain>` and the RoleBinding equivalent, once per declared domain, and the subject's `namespace` equal to the control namespace.
 - [ ] **AC4 — one egress proxy, in a declared domain, reachable from every domain.** Exactly one `egress-proxy` Deployment, one Service, one PodDisruptionBudget, one allowlist ConfigMap, one `egress-proxy-ingress` and one `egress-proxy-egress` policy render, **each identified by kind + name + namespace** (not by a per-kind count) in `sandbox.proxyNamespace`, and `proxyNamespace` must be one of the declared domains — a proxy in a namespace nothing creates is a silent outage. `egress-proxy-ingress` admits `app: agent` pods from every rendered sandbox namespace. **And the egress side:** every domain's policy carries a `proxy` peer whose `to:` entry holds `namespaceSelector` for `proxyNamespace` **and** `podSelector: app: egress-proxy` **in the same entry** on port 8888 — a bare `podSelector` matches only same-namespace pods, so in every other domain it would match nothing, default-deny would hold, and all internet egress would be lost with no render failure. Evidence: identity per object, one `kubernetes.io/metadata.name: <domain>` entry per declared domain in the ingress policy, and the `proxy` peer's two selectors asserted inside one `to:` block in every `<D>-egress` document.
 - [ ] **AC5 — the storage copy follows `jobNamespace` in domains mode, and only then.** With `sandbox.renderAgentStorage: true` and domains declared, an agent whose `jobNamespace` names domain D has its Secret and PVC rendered in D; an agent whose `jobNamespace` is absent or names a namespace that is not a declared domain renders **no** sandbox copy. Evidence: `--show-only templates/agents.yaml` — positive `doc_has` per declared domain for the mapped agent, and `grep -c 'namespace: <other-domain>'` returning 0 for each non-target domain.
-- [ ] **AC6 — no install changes its render unless it opts in.** With no `domains` key, the render's object identities — the set of `(kind, metadata.name, metadata.namespace)` over every document — equal those of the branch point (`git merge-base HEAD origin/master`), and no declared domain name appears: `grep -cE '(agent|development|sentry|trading)-sandbox'` returns 0. Evidence: extract the identity triples from both renders and `diff` them. Identities carry no labels, so the chart-version bump cannot perturb this comparison — that is why the check is on triples and not on bytes. Content changes the triples cannot see are covered by the suite's existing cases, which must stay green: `sandbox-dev`, `sandbox-prod`, `kafka-incluster`, `kafka-default`, `peer-namespace`, `peer-namespace-default`, `router-override`, `vault-api`.
+- [ ] **AC6 — no install changes its render unless it opts in.** With no `domains` key, the render's object identities — the set of `(kind, metadata.name, metadata.namespace)` over every document — equal those of the branch point. Evidence: `BASE=$(git merge-base HEAD origin/master)`, render the branch point's chart (`git archive "$BASE" | tar -x -C "$tmp/base"`, then `helm template … "$tmp/base/helm"`) and the worktree's (`helm template … ./helm`) with the same values, extract the identity triples from both and `diff` them — empty. Identities carry no labels, so the chart-version bump cannot perturb this comparison, which is why the check is on triples and not on bytes. ⚠️ **No `grep` for a `<domain>-sandbox` string here:** the legacy policy is named `agent-sandbox-egress` and must stay that name — six existing suite cases pin it — so such a grep returns 3 on a *correct* render (the policy name plus two comment lines) and could only pass by breaking the identity clause above. The absence of a domain `Namespace` is already proved by the triple diff. Content changes the triples cannot see are covered by the suite's existing cases, which must stay green: `sandbox-dev`, `sandbox-prod`, `kafka-incluster`, `kafka-default`, `peer-namespace`, `peer-namespace-default`, `router-override`, `vault-api`.
 - [ ] **AC7 — a domain named as the control namespace fails the render.** A values file whose `sandbox.domains` contains the control namespace's name fails `helm template` with a non-zero exit and a message naming the collision, rather than rendering a second `Namespace` object for the control namespace. Evidence: exit code non-zero, and stderr contains the control namespace's name.
 - [ ] **AC8 — `sandbox.namespace` and `domains` together fail the render.** Declaring both is ambiguous — a fifth namespace, or one silently ignored — so the render fails naming the conflict, mirroring AC7. Evidence: exit code non-zero, stderr names both keys.
 - [ ] **AC9 — the proxy env points at the proxy's namespace.** With `egressProxy.injectAgentEnv: true`, domains declared and `proxyNamespace: P`, the rendered agent Config carries `http://egress-proxy.P.svc.cluster.local:8888` for `HTTP_PROXY`/`HTTPS_PROXY` and their lowercase twins, and **no** other domain's host. Evidence: `--show-only templates/agents.yaml`, positive match on `egress-proxy.P.svc.cluster.local:8888`, and `grep -c 'egress-proxy.<any-other-domain>'` returning 0.
 - [ ] **AC10 — the peer set comes from values, including for a domain the spec never names.** Declare `research-sandbox: {peers: [router, vault-trading]}` — a name that appears nowhere else — and assert its document contains `router` and `vault-trading`, contains **zero** `sentry-proxy`, `kafka`, `frontend-`, `pushgateway`, `vault-obsidian-personal` and `vault-obsidian-openclaw`, and **does** contain `kube-dns` (DB3's unconditional peer). Separately, declare one domain with the `peers` key **omitted** and assert its document carries the full union. Evidence: `--show-only templates/sandbox.yaml`, positive and negative greps as named. Without this, an implementation that hardcodes the four example domain names and never reads `peers` passes every other criterion.
-- [ ] **AC11 — the three fail-fast rules are implemented, not just documented.** Three bad values files, each asserting a non-zero `helm template` exit and a message naming the offending key: (a) a domain whose `peers` names `not-a-peer`; (b) two domains declared with no `proxyNamespace`; (c) `peers: [vault-api]` with no `sandbox.vaultApiApp`. Evidence: three non-zero exits with the named key in stderr, in the same shape as the suite's existing `sandbox-ns-collision` and `kafka-missing-port` cases.
+- [ ] **AC11 — the fail-fast rules are implemented, not just documented.** Four bad values files, each asserting a non-zero `helm template` exit and a message naming the offending key: (a) a domain whose `peers` names `not-a-peer`; (b) two domains declared with no `proxyNamespace`; (c) `peers: [vault-api]` with no `sandbox.vaultApiApp`; (d) `proxyNamespace: not-a-domain` with domains declared. Evidence: four non-zero exits with the named key in stderr, in the same shape as the suite's existing `sandbox-ns-collision` and `kafka-missing-port` cases. Case (d) is the one that keeps a proxy out of a namespace nothing creates — without it, the check DB4 requires can be omitted and every other criterion still passes.
 - [ ] **AC12 — the chart's own suite passes.** `make test` exits 0 in this worktree, including new `hack/test-helm-render.sh` cases covering AC1–AC11. Evidence: exit code 0.
 
 ## Verification
@@ -68,6 +68,12 @@ egressProxy:
   injectAgentEnv: true
 sandbox:
   proxyNamespace: agent-sandbox
+  renderAgentStorage: true
+  kafka:
+    namespace: kafka
+    servicePort: 9092
+    podLabels:
+      strimzi.io/cluster: sun
   domains:
     agent-sandbox: {}
     development-sandbox:
@@ -78,13 +84,34 @@ sandbox:
       peers: [router, pushgateway, frontend-gateway, frontend-strategy]
     research-sandbox:
       peers: [router, vault-trading]
+# Two agents on purpose: one whose jobNamespace names a domain (AC5 positive, AC9)
+# and one with no jobNamespace (AC5 negative). Without an agents: list the render
+# emits zero Config documents and neither criterion has anything to observe.
+agents:
+  - name: mapped-agent
+    enabled: true
+    assignee: mapped
+    image: bborbe/agent-claude
+    heartbeat: 5m
+    taskTypes: [llm]
+    triggerPhases: [planning]
+    triggerStatuses: [in_progress]
+    jobNamespace: trading-sandbox
+  - name: unmapped-agent
+    enabled: true
+    assignee: unmapped
+    image: bborbe/agent-claude
+    heartbeat: 5m
+    taskTypes: [llm]
+    triggerPhases: [planning]
+    triggerStatuses: [in_progress]
 EOF
 
 helm template agent ./helm -f /tmp/domains.yaml --show-only templates/sandbox.yaml
 helm template agent ./helm -f /tmp/domains.yaml --show-only templates/agents.yaml | grep -c 'egress-proxy.agent-sandbox.svc'
 ```
 
-Expected: five `Namespace` documents; five policies named `<domain>-egress`; `trading-sandbox-egress` with no `sentry-proxy` and no `vault-obsidian-` peer; `development-sandbox-egress` with both; `research-sandbox-egress` with only `router`, `vault-trading`, `kube-dns` and the unconditional `proxy`; every policy's `proxy` peer carrying a namespace selector for `agent-sandbox` in the same `to:` as `app: egress-proxy`; and the agent Config's proxy host pointing at `agent-sandbox`. `--version` is deliberately absent: against a local path it is ignored, and adding it would look like it pinned a release it did not.
+Expected: five `Namespace` documents; five policies named `<domain>-egress`; `trading-sandbox-egress` with no `sentry-proxy` and no `vault-obsidian-` peer; `development-sandbox-egress` with both; `research-sandbox-egress` with only `router`, `vault-trading`, `kube-dns` and the unconditional `proxy`; every policy's `proxy` peer carrying a namespace selector for `agent-sandbox` in the same `to:` as `app: egress-proxy`; `mapped-agent`'s Secret and PVC rendered in `trading-sandbox` and in no other sandbox; `unmapped-agent` rendering **no** sandbox copy at all; and both agents' Configs carrying `http://egress-proxy.agent-sandbox.svc.cluster.local:8888`. With `sandbox.kafka.namespace` set the `kafka` peer renders as a namespace selector — leave it unset and it renders as three `/32` blocks on 32159, where the string `kafka` never appears and a grep for it passes vacuously. `--version` is deliberately absent: against a local path it is ignored, and adding it would look like it pinned a release it did not.
 
 ## Desired Behavior
 
@@ -113,6 +140,7 @@ Expected: five `Namespace` documents; five policies named `<domain>-egress`; `tr
 - `helm/Chart.yaml` version bumps. `CHANGELOG.md` has no `## Unreleased` section today (its top section is `## v0.127.0`), so add one at the top and let the releaser fold it.
 - No `values.schema.json` exists; every new key must therefore be asserted by a render test, or a typo in it is accepted and dropped silently.
 - `docs/agent-network-security.md` §"Target topology" and §"NetworkPolicy reference" describe the single-sandbox shape, including a proxy peer with a bare `podSelector`; both must be updated in the same change — a spec dies, that doc is read.
+- `helm/values.yaml`'s own comment on `agents[].jobNamespace` says *"renderAgentStorage never follows jobNamespace to a different name"*. DB5 makes it follow `jobNamespace` in domains mode, so that comment becomes false and must be corrected in the same change — a stale values comment is read as the interface.
 
 ## Failure Modes
 
@@ -150,7 +178,7 @@ The values file renders a NetworkPolicy, so a wrong shape in the template is a s
 | 3 | `templates/executor-rbac.yaml`: one Role/RoleBinding pair per domain | — | AC3 | 1 |
 | 4 | `templates/egress-proxy.yaml` + `egress-proxy-allowlist.yaml`: Deployment, Service, PDB, ConfigMap and `egress-proxy-ingress` once, in `proxyNamespace`, with a multi-namespace ingress | 4 | AC4 | 1, 2 |
 | 5 | `templates/agents.yaml`: the storage copy, domains mode vs legacy mode | 5 | AC5 | 1 |
-| 6 | Tests (`hack/test-helm-render.sh` cases for AC1–AC11), `helm/README.md` values reference, `docs/agent-network-security.md`, CHANGELOG + Chart.yaml bump | — | AC11, AC12 | 2, 3, 4, 5 |
+| 6 | Tests (`hack/test-helm-render.sh` cases for AC1–AC11), `helm/README.md` values reference, `helm/values.yaml`'s `jobNamespace` comment, `docs/agent-network-security.md`, CHANGELOG + Chart.yaml bump | — | AC11, AC12 | 2, 3, 4, 5 |
 
 Rationale: prompt 1 establishes the helpers every later template resolves through; prompts 3 and 5 are independent of everything after 1. **Prompts 2 and 4 both touch the proxy's policy set** — `egress-proxy-egress` lives in `templates/sandbox.yaml` while the rest of the proxy lives in `templates/egress-proxy.yaml` — so prompt 4 depends on 2 for the final placement of that document and must not run concurrently with it. Prompt 6 depends on all of them because it encodes their expected output.
 
