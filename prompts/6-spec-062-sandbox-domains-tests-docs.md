@@ -1,7 +1,8 @@
 ---
-spec: ["062-sandbox-domains"]
 status: draft
+spec: [062-sandbox-domains]
 created: "2026-10-24T20:38:48Z"
+branch: dark-factory/sandbox-domains
 ---
 
 # test(helm)+docs: pin the sandbox-domains render and document it
@@ -333,6 +334,7 @@ agents:
 - Assert by object identity (`kind` + `metadata.name` + `metadata.namespace`), not by per-kind tallies — a dropped object can reach the same `kind:` count as another object of that kind.
 - Grep selector lines (`app: …`, `k8s-app: …`, `metadata.name: …`), never bare catalog words: a policy header comment containing the word would make a negative assertion pass vacuously.
 - Do NOT commit — dark-factory handles git.
+- `docs/dod.md` (the daemon's `validationPrompt`) asks for a `CHANGELOG.md` entry and a `README.md` update. Both are owned by prompt 6 of this spec: report them as deferred, do not edit either file, and do not report them as a blocker for this prompt.
 - Do not edit `specs/`, the template files, or `helm/templates/_helpers.tpl` in this prompt. If a test reveals a template bug, fix the template and say so in the completion report.
 </constraints>
 

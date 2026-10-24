@@ -1,7 +1,8 @@
 ---
-spec: ["062-sandbox-domains"]
 status: draft
+spec: [062-sandbox-domains]
 created: "2026-10-24T20:38:48Z"
+branch: dark-factory/sandbox-domains
 ---
 
 # feat(helm): place each agent's storage copy in the sandbox its `jobNamespace` names
@@ -76,14 +77,18 @@ Verified current behaviour the render tests pin: `storage-enabled` expects 2 PVC
 - The copy stays gated on `sandbox.renderAgentStorage` and `executor.enabled`.
 - `helm.sh/resource-policy: keep` stays on the copied PVC.
 - Do NOT commit — dark-factory handles git.
+- `docs/dod.md` (the daemon's `validationPrompt`) asks for a `CHANGELOG.md` entry and a `README.md` update. Both are owned by prompt 6 of this spec: report them as deferred, do not edit either file, and do not report them as a blocker for this prompt.
 - Do not edit `specs/`, `helm/templates/sandbox.yaml`, `helm/templates/egress-proxy.yaml`, `helm/templates/egress-proxy-allowlist.yaml`, `helm/templates/executor-rbac.yaml`, `helm/values.yaml`, `hack/test-helm-render.sh`, `CHANGELOG.md`, `helm/Chart.yaml`, `helm/README.md` or `docs/`.
 </constraints>
 
 <verification>
 ```bash
-bash hack/test-helm-render.sh   # pvc-* and storage-* cases must stay green
+fail=0
 command -v helm >/dev/null 2>&1 || go install helm.sh/helm/v3/cmd/helm@v3.16.4
 HELM_BIN="$(command -v helm || echo "$(go env GOPATH)/bin/helm")"
+
+# pvc-* and storage-* cases must stay green; the exit status is checked, not discarded.
+make test >/dev/null || { echo "FAIL: make test exited non-zero"; fail=1; }
 
 cat > /tmp/domains-storage.yaml <<'EOF'
 namespace: dev
@@ -110,6 +115,17 @@ agents:
     jobNamespace: trading-sandbox
     secretEnv: {SENTRY_DSN: dummy}
     volumeMountPath: /data
+  - name: undeclared-agent
+    enabled: true
+    assignee: undeclared
+    image: bborbe/agent-claude
+    heartbeat: 5m
+    taskTypes: [llm]
+    triggerPhases: [planning]
+    triggerStatuses: [in_progress]
+    jobNamespace: not-a-domain
+    secretEnv: {SENTRY_DSN: dummy}
+    volumeMountPath: /data
   - name: unmapped-agent
     enabled: true
     assignee: unmapped
@@ -128,16 +144,28 @@ EOF
 # AC5 positive: mapped-agent's Secret and PVC in trading-sandbox.
 for kind in Secret PersistentVolumeClaim; do
   awk -v K="$kind" 'BEGIN{RS="---"} index($0,"kind: " K "\n") && index($0,"  name: mapped-agent\n") && index($0,"  namespace: trading-sandbox\n"){f=1} END{exit(f?0:1)}' /tmp/storage.out \
-    && echo "OK: $kind mapped-agent in trading-sandbox" || echo "FAIL: $kind mapped-agent missing in trading-sandbox"
+    && echo "OK: $kind mapped-agent in trading-sandbox" || { echo "FAIL: $kind mapped-agent missing in trading-sandbox"; fail=1; }
 done
 
-# AC5 negative: no copy in any other sandbox, and none at all for unmapped-agent.
-[ "$(grep -c 'namespace: agent-sandbox' /tmp/storage.out)" -eq 0 ] && echo "OK: no copy in agent-sandbox"
-[ "$(awk 'BEGIN{RS="---"} index($0,"name: unmapped-agent\n") && (index($0,"kind: Secret\n") || index($0,"kind: PersistentVolumeClaim\n")) && index($0,"namespace: trading-sandbox"){c++} END{print c+0}' /tmp/storage.out)" -eq 0 ] && echo "OK: unmapped-agent has no sandbox copy"
+# AC5 negative: no copy in any other sandbox, and none at all for an agent whose
+# jobNamespace is absent (unmapped-agent) or names a namespace that is not a
+# declared domain (undeclared-agent).
+[ "$(grep -c 'namespace: agent-sandbox' /tmp/storage.out)" -eq 0 ] \
+  || { echo "FAIL: a storage copy rendered in agent-sandbox"; fail=1; }
 
-# Control-namespace copies still render for both agents.
-[ "$(grep -c '^kind: PersistentVolumeClaim$' /tmp/storage.out)" -eq 2 ] && echo "OK: two control-namespace PVCs"
-[ "$(grep -c '^kind: Secret$' /tmp/storage.out)" -eq 2 ] && echo "OK: two control-namespace Secrets"
+# mapped-agent: the control-namespace object plus exactly one copy, so 2 of each
+# kind. unmapped-agent / undeclared-agent: the control-namespace object only, so
+# exactly 1 — a second one is a copy in some namespace. Counting every object of a
+# kind in the render instead would pass on a copy in the wrong place and fail on a
+# correct one, since the copy adds to the total.
+for kind in Secret PersistentVolumeClaim; do
+  n="$(awk -v K="$kind" 'BEGIN{RS="---"} index($0,"kind: " K "\n") && index($0,"  name: mapped-agent\n"){c++} END{print c+0}' /tmp/storage.out)"
+  if [ "$n" -eq 2 ]; then echo "OK: mapped-agent has control + one $kind copy"; else echo "FAIL: mapped-agent has $n $kind (want 2: control + one copy)"; fail=1; fi
+  for a in unmapped-agent undeclared-agent; do
+    n="$(awk -v K="$kind" -v N="$a" 'BEGIN{RS="---"} index($0,"kind: " K "\n") && index($0,"  name: " N "\n"){c++} END{print c+0}' /tmp/storage.out)"
+    if [ "$n" -eq 1 ]; then echo "OK: $a has no sandbox $kind copy"; else echo "FAIL: $a has $n $kind (want 1: control namespace only)"; fail=1; fi
+  done
+done
 
 # Legacy mode: the copy still ignores jobNamespace and targets the single sandbox.
 cat > /tmp/legacy-storage.yaml <<'EOF'
@@ -162,10 +190,15 @@ agents:
     volumeMountPath: /data
 EOF
 "$HELM_BIN" template agent ./helm -f /tmp/legacy-storage.yaml \
-  --show-only templates/agents.yaml > /tmp/storage-legacy.out
-awk 'BEGIN{RS="---"} index($0,"kind: PersistentVolumeClaim\n") && index($0,"  namespace: test-agents-sandbox\n"){f=1} END{exit(f?0:1)}' /tmp/storage-legacy.out \
-  && echo "OK: legacy copy targets the single sandbox" || echo "FAIL: legacy copy missing"
+  --show-only templates/agents.yaml > /tmp/storage-legacy.out \
+  || { echo "FAIL: legacy render exited non-zero"; fail=1; }
+for kind in Secret PersistentVolumeClaim; do
+  awk -v K="$kind" 'BEGIN{RS="---"} index($0,"kind: " K "\n") && index($0,"  namespace: test-agents-sandbox\n"){f=1} END{exit(f?0:1)}' /tmp/storage-legacy.out \
+    && echo "OK: legacy $kind copy targets the single sandbox" || { echo "FAIL: legacy $kind copy missing"; fail=1; }
+done
+
+[ "$fail" -eq 0 ] && echo "OK: all storage checks passed" || { echo "FAIL: storage checks"; exit 1; }
 ```
 
-Every `OK` line must print and no `FAIL` line may appear. `bash hack/test-helm-render.sh` must exit 0.
+Every `OK` line must print and no `FAIL` line may appear. The block accumulates failures in `$fail` and ends with a non-zero exit when any assertion failed — a check that prints nothing is a failure, not a pass.
 </verification>

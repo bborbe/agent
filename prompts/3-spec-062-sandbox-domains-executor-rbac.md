@@ -1,7 +1,8 @@
 ---
-spec: ["062-sandbox-domains"]
 status: draft
+spec: [062-sandbox-domains]
 created: "2026-10-24T20:38:48Z"
+branch: dark-factory/sandbox-domains
 ---
 
 # feat(helm): grant the executor its sandbox rights in every declared domain
@@ -111,6 +112,7 @@ subjects:
 - The binding's subject ServiceAccount lives in the control namespace, not in the sandbox namespace.
 - Legacy render (no `domains`) is unchanged: one Role and one RoleBinding in the single sandbox namespace.
 - Do NOT commit — dark-factory handles git.
+- `docs/dod.md` (the daemon's `validationPrompt`) asks for a `CHANGELOG.md` entry and a `README.md` update. Both are owned by prompt 6 of this spec: report them as deferred, do not edit either file, and do not report them as a blocker for this prompt.
 - Do not edit `specs/`, `helm/values.yaml`, `helm/templates/sandbox.yaml`, `helm/templates/egress-proxy.yaml`, `helm/templates/egress-proxy-allowlist.yaml`, `helm/templates/agents.yaml`, `hack/test-helm-render.sh`, `CHANGELOG.md`, `helm/Chart.yaml`, `helm/README.md` or `docs/`.
 </constraints>
 

@@ -1,7 +1,8 @@
 ---
-spec: ["062-sandbox-domains"]
 status: draft
+spec: [062-sandbox-domains]
 created: "2026-10-24T20:38:48Z"
+branch: dark-factory/sandbox-domains
 ---
 
 # feat(helm): render the egress proxy once, in `proxyNamespace`, and admit every domain
