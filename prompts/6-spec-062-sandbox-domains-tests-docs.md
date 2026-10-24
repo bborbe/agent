@@ -140,6 +140,9 @@ agents:
    elif grep -q 'ingress:' <<<"$trading_policy"; then
    	echo "FAIL: domains-policies: a domain policy declares ingress, expected egress-only"
    	fail=1
+   elif ! grep -q 'policyTypes:' <<<"$trading_policy" || grep -q -- '- Ingress' <<<"$trading_policy"; then
+   	echo "FAIL: domains-policies: a domain policy does not declare policyTypes: [Egress] only"
+   	fail=1
    elif ! grep -q 'app: sentry-proxy' <<<"$dev_policy" || ! grep -q 'metadata.name: kafka' <<<"$dev_policy"; then
    	echo "FAIL: domains-policies: development-sandbox-egress lacks sentry-proxy or the kafka peer"
    	fail=1
@@ -183,7 +186,18 @@ agents:
    	fi
    done
    ingress_policy="$(policy_doc "$out" egress-proxy-ingress)"
-   if [ "$domains_proxy_objects_ok" -ne 1 ] || [ "$(grep -c 'app: agent' <<<"$ingress_policy" || true)" -ne 5 ]; then
+   ingress_bad=0
+   for d in agent-sandbox development-sandbox sentry-sandbox trading-sandbox research-sandbox; do
+   	grep -q "kubernetes.io/metadata.name: $d" <<<"$ingress_policy" || {
+   		echo "FAIL: domains-proxy-objects: egress-proxy-ingress does not admit $d"; ingress_bad=1; }
+   done
+   # A namespace-wide from: peer (namespaceSelector without podSelector) turns the proxy
+   # into an open proxy for every pod in that namespace — spec Security invariant.
+   if ! awk 'BEGIN{RS="    - from:"} /namespaceSelector:/{if (index($0,"podSelector:")==0) bad=1} END{exit(bad?1:0)}' <<<"$ingress_policy"; then
+   	echo "FAIL: domains-proxy-objects: egress-proxy-ingress carries a namespace-wide peer"
+   	ingress_bad=1
+   fi
+   if [ "$domains_proxy_objects_ok" -ne 1 ] || [ "$ingress_bad" -ne 0 ] || [ "$(grep -c 'app: agent' <<<"$ingress_policy" || true)" -ne 5 ]; then
    	echo "FAIL: domains-proxy-objects: ingress policy does not admit exactly the five domains"
    	fail=1
    else
@@ -236,6 +250,52 @@ agents:
 
    The proxy-env count is 8 because each of the two Configs carries `HTTP_PROXY`, `HTTPS_PROXY`, `http_proxy` and `https_proxy`.
 
+   g2. **AC5 (third branch) — a `jobNamespace` naming an undeclared namespace gets no copy.** A separate values file, so the counts in 1.g stay fixed at 8:
+
+   ```bash
+   cat >"$tmpdir/domains-stray.yaml" <<'EOF'
+   namespace: test
+   executor:
+     kafkaBrokers: kafka:9092
+     sentry:
+       dsn: dummy
+   sandbox:
+     proxyNamespace: agent-sandbox
+     renderAgentStorage: true
+     domains:
+       agent-sandbox: {}
+       trading-sandbox:
+         peers: [router]
+   agents:
+     - name: stray-agent
+       enabled: true
+       assignee: stray
+       image: bborbe/agent-claude
+       heartbeat: 5m
+       taskTypes: [llm]
+       triggerPhases: [planning]
+       triggerStatuses: [in_progress]
+       jobNamespace: undeclared-sandbox
+       secretEnv: {SENTRY_DSN: dummy}
+       volumeMountPath: /data
+   EOF
+   "$helm_bin" template x "$CHART_DIR" -f "$tmpdir/domains-stray.yaml" --show-only templates/agents.yaml >"$tmpdir/domains-stray.out"
+   stray_out="$tmpdir/domains-stray.out"
+   stray_bad=0
+   for obj_kind in Secret PersistentVolumeClaim; do
+   	stray_count="$(awk -v K="$obj_kind" 'BEGIN{RS="---"} index($0,"kind: " K "\n"){c++} END{print c+0}' "$stray_out")"
+   	if [ "$stray_count" -ne 1 ]; then
+   		echo "FAIL: domains-storage-stray: $obj_kind renders $stray_count times, want 1 (control namespace only)"; stray_bad=1
+   	fi
+   	if doc_has "$stray_out" "$obj_kind" stray-agent undeclared-sandbox; then
+   		echo "FAIL: domains-storage-stray: $obj_kind stray-agent copied into the undeclared namespace"; stray_bad=1
+   	fi
+   done
+   if [ "$stray_bad" -ne 0 ]; then fail=1; else echo "OK: domains-storage-stray"; fi
+   ```
+
+   Then add `domains-storage-stray` to the expected `OK` list in `<verification>`.
+
    h. **AC10 — the peer set comes from values, including a domain the spec never names.** A second values file:
 
    ```bash
@@ -279,7 +339,7 @@ agents:
 
    Quote every `--set` value containing braces: `--set 'sandbox.domains.dev-sandbox.peers={router}'`.
 
-   l. **AC6 — no install changes its render unless it opts in.** Add a `domains-legacy-identity` case: render the whole chart from `"$tmpdir/unset.yaml"` and assert the Namespace set is exactly `test-agents-sandbox`, `NetworkPolicy agent-sandbox-egress` exists in it, `NetworkPolicy egress-proxy-egress` exists in it, and no Namespace whose name ends in `-sandbox` other than `test-agents-sandbox` renders. Add a comment above the case: the spec's byte-level evidence is a `(kind, name, namespace)` diff against the fork commit; this worktree is not a git repository, so the identity check here is the container-executable half and the base-commit diff stays an operator-side rung of the spec's Verification ladder.
+   l. **AC6 — no install changes its render unless it opts in.** Add a `domains-legacy-identity` case: render the whole chart from `"$tmpdir/unset.yaml"` and assert the Namespace set is exactly `test-agents-sandbox`, `NetworkPolicy agent-sandbox-egress` exists in it, `NetworkPolicy egress-proxy-egress` exists in it, and no Namespace whose name ends in `-sandbox` other than `test-agents-sandbox` renders. Add a comment above the case: the spec's byte-level evidence is a `(kind, name, namespace)` diff against the fork commit. A linked worktree's object database lives outside the container mount, so `git archive "$BASE"` cannot run in-container; the identity check here is the container-executable half, and the base-commit diff is **not executed by any rung** — record it in the completion report as an open AC6 item (this prompt must not edit `specs/`).
 
 2. **`helm/README.md` — values reference.** In `### sandbox`, add these rows directly after the `sandbox.namespace` row (keep the table's existing column style):
 
@@ -335,7 +395,7 @@ agents:
 - Grep selector lines (`app: …`, `k8s-app: …`, `metadata.name: …`), never bare catalog words: a policy header comment containing the word would make a negative assertion pass vacuously.
 - Do NOT commit — dark-factory handles git.
 - `docs/dod.md` (the daemon's `validationPrompt`) asks for a `CHANGELOG.md` entry and a `README.md` update. Both are owned by prompt 6 of this spec: report them as deferred, do not edit either file, and do not report them as a blocker for this prompt.
-- Do not edit `specs/`, the template files, or `helm/templates/_helpers.tpl` in this prompt. If a test reveals a template bug, fix the template and say so in the completion report.
+- Do not edit `specs/` in this prompt. The templates and `helm/templates/_helpers.tpl` are owned by prompts 1–5: if a render case reveals a template bug, fix it minimally inside the template that owns the behaviour (never by weakening the assertion), and name the file and the bug in the completion report.
 </constraints>
 
 <verification>
@@ -350,13 +410,19 @@ make test
 bash hack/test-helm-render.sh 2>&1 | grep -E '^(OK|FAIL): (domains|sandbox-domains)' | sort
 ```
 
-Expected `OK` lines, at minimum: `domains-namespaces`, `domains-policies`, `domains-proxy-peer`, `domains-proxy-objects`, `domains-rbac`, `domains-storage`, `domains-peers`, `domains-single`, `domains-disabled`, `domains-legacy-identity`, plus one `OK` per fail-fast case (`domains-ns-collision`, `domains-both-keys`, `domains-unknown-peer`, `domains-proxy-required`, `domains-vault-api-value`, `domains-proxy-not-domain`, `domains-proxy-without-domains`). No `FAIL:` line may appear.
+Expected `OK` lines, at minimum: `domains-namespaces`, `domains-policies`, `domains-proxy-peer`, `domains-proxy-objects`, `domains-rbac`, `domains-storage`, `domains-storage-stray`, `domains-peers`, `domains-single`, `domains-disabled`, `domains-legacy-identity`, plus one `OK` per fail-fast case (`domains-ns-collision`, `domains-both-keys`, `domains-unknown-peer`, `domains-proxy-required`, `domains-vault-api-value`, `domains-proxy-not-domain`, `domains-proxy-without-domains`). No `FAIL:` line may appear.
 
 ```bash
 # The docs must no longer claim the old single-sandbox storage behaviour.
-grep -n 'renderAgentStorage never follows jobNamespace' helm/values.yaml helm/README.md || echo "OK: stale comment gone"
-grep -n 'sandbox.domains' helm/README.md docs/agent-network-security.md
-grep -n '0.23.0' helm/Chart.yaml
-grep -n '^## Unreleased' CHANGELOG.md
+# Absence is a failure here, so each check sets `bad` — `grep … || echo OK` would
+# print OK on absence and exit 0 either way.
+bad=0
+grep -q 'never follows' helm/values.yaml && { echo "FAIL: values.yaml still says renderAgentStorage never follows jobNamespace"; bad=1; }
+grep -q 'never follows' helm/README.md && { echo "FAIL: helm/README.md still says renderAgentStorage never follows jobNamespace"; bad=1; }
+grep -q 'sandbox.domains' helm/README.md || { echo "FAIL: helm/README.md has no sandbox.domains row"; bad=1; }
+grep -q 'sandbox.domains' docs/agent-network-security.md || { echo "FAIL: docs/agent-network-security.md does not mention sandbox.domains"; bad=1; }
+grep -qx 'version: 0.23.0' helm/Chart.yaml || { echo "FAIL: helm/Chart.yaml is not at version 0.23.0"; bad=1; }
+grep -qx '## Unreleased' CHANGELOG.md || { echo "FAIL: CHANGELOG.md has no top-level ## Unreleased"; bad=1; }
+[ "$bad" -eq 0 ] || exit 1
 ```
 </verification>
