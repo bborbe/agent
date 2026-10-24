@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [062-sandbox-domains]
+summary: Replaced the two hardcoded sandboxNamespace storage copies in helm/templates/agents.yaml with the per-agent agent.agentStorageNamespace resolver, computed once per agent under the existing renderAgentStorage/executor.enabled gate; domains installs now copy into the agent's declared jobNamespace or skip the copy entirely, and no-domains installs keep today's single-sandbox behaviour.
+execution_id: agent-sandbox-domains-exec-257-spec-062-sandbox-domains-agent-storage
+dark-factory-version: v0.198.7
 created: "2026-10-24T20:38:48Z"
 queued: "2026-10-24T20:57:59Z"
+started: "2026-10-24T21:37:09Z"
+completed: "2026-10-24T21:42:10Z"
 branch: dark-factory/sandbox-domains
 ---
 
