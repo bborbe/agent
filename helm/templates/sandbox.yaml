@@ -78,9 +78,10 @@ metadata:
 # its result directly to Kafka), so nothing depends on ingress either way; if
 # pod-level isolation is wanted later, declare `Ingress` with an empty rules list.
 #
-# NOTE: this object intentionally carries NO metadata.labels. The approved spec
-# greps the first five lines after the name line for the podSelector label; a
-# labels block would push the selector out of that window.
+# NOTE: this object intentionally carries NO metadata.labels, so that
+# `spec.podSelector` stays within the first few lines of the document. The
+# render suite asserts the selector there; a labels block would push it past
+# that window and the assertion would match nothing.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

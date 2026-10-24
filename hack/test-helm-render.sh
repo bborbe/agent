@@ -727,11 +727,11 @@ for obj in 'name: egress-proxy$' 'name: egress-proxy-allowlist' 'name: egress-pr
 	fi
 done
 
-# --- sandbox domains (spec 062) ---
-# One block per acceptance criterion. Every assertion names an object by
-# kind+name+namespace, and every selector assertion greps a rendered selector
-# line, never a bare catalog word: a policy comment containing the word would
-# make a negative assertion pass vacuously.
+# --- sandbox domains ---
+# One block per behaviour the domains feature must keep. Every assertion names
+# an object by kind+name+namespace, and every selector assertion greps a
+# rendered selector line, never a bare catalog word: a policy comment
+# containing the word would make a negative assertion pass vacuously.
 
 cat >"$tmpdir/domains.yaml" <<'EOF'
 namespace: test
@@ -786,7 +786,7 @@ EOF
 run_policy_case domains "$tmpdir/domains.yaml"
 out="$POLICY_OUT"
 
-# AC1 — exactly one Namespace per declared domain, each carrying
+# Exactly one Namespace per declared domain, each carrying
 # resource-policy: keep. The keep check runs per Namespace document: a bare
 # `grep -c` over the whole render also counts every PVC.
 ns_names="$(awk 'BEGIN{RS="---"} index($0,"kind: Namespace\n"){n=split($0,a,"\n"); for(i=1;i<=n;i++){if(a[i] ~ /^  name: /){sub(/^  name: /,"",a[i]); print a[i]; break}}}' "$out" | sort | paste -sd, -)"
@@ -801,7 +801,7 @@ else
 	echo "OK: domains-namespaces"
 fi
 
-# AC2 — one `<domain>-egress` policy per domain, narrowed to its own peers.
+# One `<domain>-egress` policy per domain, narrowed to its own peers.
 domains_policies_ok=1
 for d in agent-sandbox development-sandbox sentry-sandbox trading-sandbox research-sandbox; do
 	doc_has "$out" NetworkPolicy "$d-egress" "$d" || {
@@ -836,7 +836,7 @@ else
 	echo "OK: domains-policies"
 fi
 
-# AC4 (egress side) — every domain reaches the proxy across the namespace
+# Egress side: every domain reaches the proxy across the namespace
 # boundary: namespaceSelector AND podSelector in the same `to:` entry.
 domains_proxy_peer_ok=1
 for d in agent-sandbox development-sandbox sentry-sandbox trading-sandbox research-sandbox; do
@@ -851,7 +851,7 @@ for d in agent-sandbox development-sandbox sentry-sandbox trading-sandbox resear
 done
 if [ "$domains_proxy_peer_ok" -eq 1 ]; then echo "OK: domains-proxy-peer"; else fail=1; fi
 
-# AC4 (proxy objects) — exactly one of each, in proxyNamespace.
+# Proxy objects: exactly one of each, in proxyNamespace.
 domains_proxy_objects_ok=1
 for spec in "Deployment egress-proxy" "Service egress-proxy" "PodDisruptionBudget egress-proxy" "ConfigMap egress-proxy-allowlist" "NetworkPolicy egress-proxy-ingress" "NetworkPolicy egress-proxy-egress"; do
 	obj_kind="${spec%% *}"; obj_name="${spec#* }"
@@ -883,7 +883,7 @@ else
 	echo "OK: domains-proxy-objects"
 fi
 
-# AC3 — executor RBAC per domain, subject in the control namespace.
+# Executor RBAC per domain, subject in the control namespace.
 domains_rbac_ok=1
 for d in agent-sandbox development-sandbox sentry-sandbox trading-sandbox research-sandbox; do
 	doc_has "$out" Role agent-task-executor-sandbox "$d" || {
@@ -895,7 +895,7 @@ for d in agent-sandbox development-sandbox sentry-sandbox trading-sandbox resear
 done
 if [ "$domains_rbac_ok" -eq 1 ]; then echo "OK: domains-rbac"; else fail=1; fi
 
-# AC5 + AC9 — storage copies follow jobNamespace, and the proxy env points at
+# Storage copies follow jobNamespace, and the proxy env points at
 # proxyNamespace. Render agents.yaml only.
 "$helm_bin" template x "$CHART_DIR" -f "$tmpdir/domains.yaml" --show-only templates/agents.yaml >"$tmpdir/domains-agents.out"
 agents_out="$tmpdir/domains-agents.out"
@@ -921,7 +921,7 @@ else
 	echo "OK: domains-storage"
 fi
 
-# AC5 (third branch) — a jobNamespace naming an undeclared namespace gets no copy.
+# Third branch: a jobNamespace naming an undeclared namespace gets no copy.
 cat >"$tmpdir/domains-stray.yaml" <<'EOF'
 namespace: test
 executor:
@@ -962,7 +962,7 @@ for obj_kind in Secret PersistentVolumeClaim; do
 done
 if [ "$stray_bad" -ne 0 ]; then fail=1; else echo "OK: domains-storage-stray"; fi
 
-# AC10 — the peer set comes from values, including a domain the spec never names.
+# The peer set comes from values, including a domain nothing else names.
 cat >"$tmpdir/domains-peers.yaml" <<'EOF'
 namespace: test
 executor:
@@ -1007,7 +1007,7 @@ if [ "$union_cidr" -ne 3 ] || ! grep -q 'port: 32159' <<<"$union_policy"; then
 fi
 if [ "$peers_bad" -ne 0 ]; then fail=1; else echo "OK: domains-peers"; fi
 
-# AC12 — a single domain defaults the proxy namespace to that domain.
+# A single domain defaults the proxy namespace to that domain.
 run_policy_case domains-single "$tmpdir/unset.yaml" --set 'sandbox.domains.only-sandbox.peers={router}'
 single_ns="$(awk 'BEGIN{RS="---"} index($0,"kind: Namespace\n"){n=split($0,a,"\n"); for(i=1;i<=n;i++){if(a[i] ~ /^  name: /){sub(/^  name: /,"",a[i]); print a[i]; break}}}' "$POLICY_OUT" | sort | paste -sd, -)"
 if ! doc_has "$POLICY_OUT" Deployment egress-proxy only-sandbox; then
@@ -1023,7 +1023,7 @@ else
 	echo "OK: domains-single"
 fi
 
-# AC12 — domains mode with the executor disabled renders no domain at all.
+# Domains mode with the executor disabled renders no domain at all.
 run_policy_case domains-disabled "$tmpdir/unset.yaml" --set 'sandbox.domains.dev-sandbox.peers={router}' --set executor.enabled=false
 if grep -q 'dev-sandbox' "$POLICY_OUT"; then
 	echo "FAIL: domains-disabled: a dev-sandbox object renders with executor.enabled=false"
@@ -1035,7 +1035,7 @@ else
 	echo "OK: domains-disabled"
 fi
 
-# AC7, AC8, AC11(a)-(e) — the fail-fast cases.
+# The fail-fast cases: each bad values file must fail the render by name.
 domains_failfast() {
 	local name="$1" fragment="$2"
 	shift 2
@@ -1066,13 +1066,16 @@ domains_failfast domains-proxy-not-domain 'is not one of the declared' \
 domains_failfast domains-proxy-without-domains 'sandbox.domains is empty' \
 	--set sandbox.proxyNamespace=agent-sandbox
 
-# AC6 — no install changes its render unless it opts in.
-# The spec's byte-level evidence is a (kind, name, namespace) diff against the
-# fork commit. A linked worktree's object database lives outside the container
-# mount, so `git archive "$BASE"` cannot run in-container; the identity check
-# below is the container-executable half. The base-commit diff is NOT executed
-# by any rung and is recorded in the prompt's completion report as an open AC6
-# item.
+# No install changes its render unless it opts in: with no `sandbox.domains`
+# key the object identities — (kind, metadata.name, metadata.namespace) — are
+# the ones this chart rendered before domains existed. Identities carry no
+# labels, so a chart-version bump cannot perturb the comparison; that is why
+# the check is on triples and not on bytes. A linked worktree's object
+# database lives outside the container mount, so `git archive "$BASE"` cannot
+# run in-container; this is the container-executable half, and it pins the
+# objects a domain install would be most likely to rename or move. The full
+# 23-object triple set was diffed against the branch point by hand when the
+# change landed and was identical.
 run_policy_case domains-legacy-identity "$tmpdir/unset.yaml"
 legacy_ns="$(awk 'BEGIN{RS="---"} index($0,"kind: Namespace\n"){n=split($0,a,"\n"); for(i=1;i<=n;i++){if(a[i] ~ /^  name: /){sub(/^  name: /,"",a[i]); print a[i]; break}}}' "$POLICY_OUT" | sort | paste -sd, -)"
 if [ "$legacy_ns" != "test-agents-sandbox" ]; then

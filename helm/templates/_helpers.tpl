@@ -419,7 +419,7 @@ no_proxy: {{ $noProxyValue }}
        and then testing `hasKey $domains $proxyNS` in the same `if` makes the
        single-domain default unreachable: with one domain and no
        proxyNamespace, $proxyNS is "" and hasKey $domains "" is false, so the
-       else-if fires and fails a configuration the spec explicitly allows. */ -}}
+       else-if fires and fails a render that is valid. */ -}}
 {{- if and $proxyNS (not (hasKey $domains $proxyNS)) -}}
 {{- fail (printf "sandbox.proxyNamespace %q is not one of the declared sandbox.domains: a proxy in a namespace nothing creates is a silent outage" $proxyNS) -}}
 {{- end -}}

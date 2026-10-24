@@ -132,10 +132,11 @@ spec:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
     # The only path to the public internet — unconditional in every domain.
-    # BOTH selectors must stay in the SAME `to:` entry.
+    # BOTH selectors must stay in the SAME `to:` entry. `<proxy domain>` is
+    # sandbox.proxyNamespace, e.g. agent-sandbox.
     - to:
         - namespaceSelector:
-            matchLabels: { kubernetes.io/metadata.name: agent-sandbox }
+            matchLabels: { kubernetes.io/metadata.name: <proxy domain> }
           podSelector:
             matchLabels: { app: egress-proxy }
       ports:
@@ -168,7 +169,15 @@ two selectors sit in one `to:` entry so they AND rather than OR.
 > per-agent `agents[].sentry.proxy`) is set. **`bborbe/agent`'s chart is
 > authoritative** where this reference and the rendered output disagree.
 
-**Ingress is denied entirely.** There is no executor→Job ingress path: the executor "does NOT watch Jobs, read stdout, or publish results" (`docs/agent-job-interface.md`), and "the agent publishes its result directly to Kafka" (`docs/agent-job-lifecycle.md`). No ingress rule is needed.
+**Ingress is left unrestricted, deliberately.** The sandbox policies declare
+`policyTypes: [Egress]` only, so they bound egress and say nothing about
+ingress. Nothing depends on ingress either way, because there is no executor→Job
+ingress path: the executor "does NOT watch Jobs, read stdout, or publish
+results" (`docs/agent-job-interface.md`), and "the agent publishes its result
+directly to Kafka" (`docs/agent-job-lifecycle.md`). If pod-level ingress
+isolation is wanted later, declare `Ingress` with an empty `rules` list — but
+check the proxy first: `egress-proxy-ingress` is the only ingress policy in the
+chart, and it exists because the proxy is otherwise an open proxy.
 
 The proxy pod carries its own policy allowing egress to `0.0.0.0/0` minus private ranges.
 
