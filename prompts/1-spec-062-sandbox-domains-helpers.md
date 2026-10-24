@@ -1,7 +1,8 @@
 ---
-spec: ["062-sandbox-domains"]
 status: draft
+spec: [062-sandbox-domains]
 created: "2026-10-24T20:38:48Z"
+branch: dark-factory/sandbox-domains
 ---
 
 # feat(helm): add `sandbox.domains` values and the peer-catalog helpers
@@ -396,9 +397,12 @@ The peer catalog and its namespace rules are fixed by spec 062 DB2:
    {{- end -}}
    {{- end -}}
    {{- end -}}
+   {{- end -}}
    ```
 
-   Note the `if not $proxyNS` / `else if` shape: when `proxyNamespace` is set it must be a declared domain; when it is absent, more than one domain is an error and exactly one domain is fine (the `agent.proxyNamespace` helper picks it).
+   Two independent guards, deliberately **not** an if/else chain: more than one domain with no `proxyNamespace` fails, and a `proxyNamespace` that is set but names no declared domain fails. With exactly one domain and no `proxyNamespace` both guards pass and `agent.proxyNamespace` picks that domain. Do not collapse them into one `if not $proxyNS … else if` — that shape makes the single-domain default unreachable, because `hasKey $domains ""` is false.
+
+   The block above has **15 opens and 15 closes** (`define` 1, `if`/`else`/`range` 14). A missing close is a parse error — `unexpected EOF` — and the whole chart fails to render, so count them if you edit this block.
 
 3. **`helm/templates/_helpers.tpl` — point the proxy env at the proxy namespace.** In `agent.proxyEnv`, replace all four occurrences of `include "agent.sandboxNamespace" .` with `include "agent.proxyNamespace" .` (the `HTTP_PROXY`, `HTTPS_PROXY`, `http_proxy` and `https_proxy` lines). Update the helper's doc comment: the URL is derived from the namespace that hosts the proxy, not from "the" sandbox, so an agent in any domain reaches the one proxy. Leave the `NO_PROXY` computation untouched.
 
@@ -475,16 +479,44 @@ if "$HELM_BIN" template agent ./helm -f /tmp/domains-valid.yaml \
   echo "FAIL: both keys accepted"; else grep -q 'mutually exclusive' /tmp/e1 && echo OK; fi
 
 # AC7: a domain naming the control namespace must fail, naming it.
+# Grep the validator's own wording, not the bare word `dev` — that matches a
+# path, a namespace or `dev-agents-sandbox` and cannot tell this failure from
+# any other render error.
 if "$HELM_BIN" template agent ./helm \
     --set namespace=dev --set 'sandbox.domains.dev.peers={router}' >/dev/null 2>/tmp/e2; then
-  echo "FAIL: control-namespace domain accepted"; else grep -q 'dev' /tmp/e2 && echo OK; fi
+  echo "FAIL: control-namespace domain accepted"
+else grep -q 'must not name the control namespace' /tmp/e2 && echo OK || echo "FAIL: wrong message in /tmp/e2"; fi
 
-# proxyNamespace with no domains must fail; unknown peer must fail.
-if "$HELM_BIN" template agent ./helm --set sandbox.proxyNamespace=agent-sandbox >/dev/null 2>/tmp/e3; then
-  echo "FAIL: proxyNamespace without domains accepted"; else grep -q 'sandbox.domains is empty' /tmp/e3 && echo OK; fi
-if "$HELM_BIN" template agent ./helm --set 'sandbox.domains.dev-sandbox.peers={not-a-peer}' >/dev/null 2>/tmp/e4; then
-  echo "FAIL: unknown peer accepted"; else grep -q 'not-a-peer' /tmp/e4 && echo OK; fi
+# Every render below must carry `namespace` and the executor's required values:
+# without them `helm template` dies on `namespace is required` before the
+# validator runs, the grep finds nothing, and the check prints no line at all —
+# which reads as a pass to anyone scanning for FAIL.
+if "$HELM_BIN" template agent ./helm --set namespace=dev \
+    --set sandbox.proxyNamespace=agent-sandbox >/dev/null 2>/tmp/e3; then
+  echo "FAIL: proxyNamespace without domains accepted"
+else grep -q 'sandbox.domains is empty' /tmp/e3 && echo OK || echo "FAIL: wrong message in /tmp/e3"; fi
+if "$HELM_BIN" template agent ./helm --set namespace=dev \
+    --set 'sandbox.domains.dev-sandbox.peers={not-a-peer}' >/dev/null 2>/tmp/e4; then
+  echo "FAIL: unknown peer accepted"
+else grep -q 'unknown peer' /tmp/e4 && echo OK || echo "FAIL: wrong message in /tmp/e4"; fi
+
+# AC11(d): a proxyNamespace that names no declared domain must fail — this is the
+# rule that keeps the proxy out of a namespace nothing creates.
+if "$HELM_BIN" template agent ./helm --set namespace=dev \
+    --set sandbox.proxyNamespace=not-a-domain \
+    --set 'sandbox.domains.agent-sandbox.peers={router}' >/dev/null 2>/tmp/e5; then
+  echo "FAIL: undeclared proxyNamespace accepted"
+else grep -q 'is not one of the declared' /tmp/e5 && echo OK || echo "FAIL: wrong message in /tmp/e5"; fi
+
+# DB4 third branch: exactly one domain and no proxyNamespace must RENDER — the
+# proxy defaults to that domain. An inverted membership guard breaks this and
+# nothing else in this block notices.
+if "$HELM_BIN" template agent ./helm --set namespace=dev \
+    --set executor.kafkaBrokers=k:9092 --set executor.sentry.dsn=dummy \
+    --set 'sandbox.domains.agent-sandbox.peers={router}' >/dev/null 2>/tmp/e6; then
+  echo OK
+else echo "FAIL: single domain without proxyNamespace did not render"; cat /tmp/e6; fi
 ```
 
-Every command above must produce its `OK`/expected count. `bash hack/test-helm-render.sh` must exit 0. Do not run `make precommit` (this is a chart-only change); `make test` runs in prompt 6.
+Every command above must print its `OK`/expected count — **a check that prints nothing is a failure, not a pass**. `bash hack/test-helm-render.sh` must exit 0. Do not run `make precommit` (this is a chart-only change); `make test` runs in prompt 6.
 </verification>
