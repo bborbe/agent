@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.126.0
 
 - feat(helm): add the optional `sandbox.peerNamespace` value so the sandbox egress policy survives a control-plane move. The policy selected sentry-proxy, the three `vault-obsidian-*` services, `frontend-gateway`/`frontend-strategy` and the optional vault-API app in the **control** namespace, which is correct only while those services share it. Moving the control plane to a namespace of its own would re-render those peers against the new namespace, where nothing of theirs lives — and a NetworkPolicy peer that matches nothing denies, so every sandboxed Job would lose its vault, its Sentry proxy and the trading frontends with no error anywhere. The new key names their namespace; empty falls back to the control namespace, so no existing install renders differently. The router is deliberately excluded — it is a control-plane component and follows `namespace`. Chart 0.22.1→0.22.2.
 
