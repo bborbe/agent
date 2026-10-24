@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [062-sandbox-domains]
+summary: 'Added the spec-062 sandbox-domains render suite (18 passing cases incl. seven fail-fast and the legacy-identity check), updated helm/README.md, helm/values.yaml comments, docs/agent-network-security.md, bumped Chart.yaml to 0.23.0 and added ## Unreleased; make precommit passed with exit 0 (run as `make precommit ROOTDIR=/workspace` because hideGit leaves ROOTDIR empty). The AC6 byte-level base-commit diff is the one open item: `git archive $BASE` cannot run in-container under hideGit, so only the container-executable identity check is executed.'
+execution_id: agent-sandbox-domains-exec-258-spec-062-sandbox-domains-tests-docs
+dark-factory-version: v0.198.7
 created: "2026-10-24T20:38:48Z"
 queued: "2026-10-24T20:57:59Z"
+started: "2026-10-24T21:42:12Z"
+completed: "2026-10-24T21:52:58Z"
 branch: dark-factory/sandbox-domains
 ---
 

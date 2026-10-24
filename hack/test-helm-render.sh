@@ -727,6 +727,367 @@ for obj in 'name: egress-proxy$' 'name: egress-proxy-allowlist' 'name: egress-pr
 	fi
 done
 
+# --- sandbox domains (spec 062) ---
+# One block per acceptance criterion. Every assertion names an object by
+# kind+name+namespace, and every selector assertion greps a rendered selector
+# line, never a bare catalog word: a policy comment containing the word would
+# make a negative assertion pass vacuously.
+
+cat >"$tmpdir/domains.yaml" <<'EOF'
+namespace: test
+executor:
+  kafkaBrokers: kafka:9092
+  sentry:
+    dsn: dummy
+egressProxy:
+  injectAgentEnv: true
+sandbox:
+  proxyNamespace: agent-sandbox
+  renderAgentStorage: true
+  kafka:
+    namespace: kafka
+    servicePort: 9092
+    podLabels:
+      strimzi.io/cluster: sun
+  domains:
+    agent-sandbox: {}
+    development-sandbox:
+      peers: [router, pushgateway, sentry-proxy, kafka]
+    sentry-sandbox:
+      peers: [router, pushgateway, kafka, vault-personal]
+    trading-sandbox:
+      peers: [router, pushgateway, frontend-gateway, frontend-strategy]
+    research-sandbox:
+      peers: [router, vault-trading]
+agents:
+  - name: mapped-agent
+    enabled: true
+    assignee: mapped
+    image: bborbe/agent-claude
+    heartbeat: 5m
+    taskTypes: [llm]
+    triggerPhases: [planning]
+    triggerStatuses: [in_progress]
+    jobNamespace: trading-sandbox
+    secretEnv: {SENTRY_DSN: dummy}
+    volumeMountPath: /data
+  - name: unmapped-agent
+    enabled: true
+    assignee: unmapped
+    image: bborbe/agent-claude
+    heartbeat: 5m
+    taskTypes: [llm]
+    triggerPhases: [planning]
+    triggerStatuses: [in_progress]
+    secretEnv: {SENTRY_DSN: dummy}
+    volumeMountPath: /data
+EOF
+
+run_policy_case domains "$tmpdir/domains.yaml"
+out="$POLICY_OUT"
+
+# AC1 — exactly one Namespace per declared domain, each carrying
+# resource-policy: keep. The keep check runs per Namespace document: a bare
+# `grep -c` over the whole render also counts every PVC.
+ns_names="$(awk 'BEGIN{RS="---"} index($0,"kind: Namespace\n"){n=split($0,a,"\n"); for(i=1;i<=n;i++){if(a[i] ~ /^  name: /){sub(/^  name: /,"",a[i]); print a[i]; break}}}' "$out" | sort | paste -sd, -)"
+want_ns="agent-sandbox,development-sandbox,research-sandbox,sentry-sandbox,trading-sandbox"
+if [ "$ns_names" != "$want_ns" ]; then
+	echo "FAIL: domains-namespaces: Namespace set is '$ns_names', want '$want_ns'"
+	fail=1
+elif ! awk 'BEGIN{RS="---"} index($0,"kind: Namespace\n"){c++; if (index($0,"helm.sh/resource-policy: keep")==0) bad=1} END{exit(bad||c!=5?1:0)}' "$out"; then
+	echo "FAIL: domains-namespaces: a Namespace lacks helm.sh/resource-policy: keep (or the count is not 5)"
+	fail=1
+else
+	echo "OK: domains-namespaces"
+fi
+
+# AC2 — one `<domain>-egress` policy per domain, narrowed to its own peers.
+domains_policies_ok=1
+for d in agent-sandbox development-sandbox sentry-sandbox trading-sandbox research-sandbox; do
+	doc_has "$out" NetworkPolicy "$d-egress" "$d" || {
+		echo "FAIL: domains-policies: missing NetworkPolicy $d-egress in $d"; domains_policies_ok=0; }
+done
+trading_policy="$(policy_doc "$out" trading-sandbox-egress)"
+dev_policy="$(policy_doc "$out" development-sandbox-egress)"
+if [ -z "$trading_policy" ] || [ -z "$dev_policy" ]; then
+	echo "FAIL: domains-policies: a policy could not be extracted — the assertions would pass vacuously"
+	fail=1
+elif [ "$(grep -c 'app: sentry-proxy' <<<"$trading_policy" || true)" -ne 0 ]; then
+	echo "FAIL: domains-policies: trading-sandbox-egress carries the sentry-proxy peer"
+	fail=1
+elif [ "$(grep -c 'app: vault-obsidian-' <<<"$trading_policy" || true)" -ne 0 ]; then
+	echo "FAIL: domains-policies: trading-sandbox-egress carries a vault peer"
+	fail=1
+elif ! grep -q 'app: agent' <<<"$trading_policy"; then
+	echo "FAIL: domains-policies: trading-sandbox-egress lacks the app: agent pod selector"
+	fail=1
+elif grep -q 'ingress:' <<<"$trading_policy"; then
+	echo "FAIL: domains-policies: a domain policy declares ingress, expected egress-only"
+	fail=1
+elif ! grep -q 'policyTypes:' <<<"$trading_policy" || grep -q -- '- Ingress' <<<"$trading_policy"; then
+	echo "FAIL: domains-policies: a domain policy does not declare policyTypes: [Egress] only"
+	fail=1
+elif ! grep -q 'app: sentry-proxy' <<<"$dev_policy" || ! grep -q 'metadata.name: kafka' <<<"$dev_policy"; then
+	echo "FAIL: domains-policies: development-sandbox-egress lacks sentry-proxy or the kafka peer"
+	fail=1
+elif [ "$domains_policies_ok" -ne 1 ]; then
+	fail=1
+else
+	echo "OK: domains-policies"
+fi
+
+# AC4 (egress side) — every domain reaches the proxy across the namespace
+# boundary: namespaceSelector AND podSelector in the same `to:` entry.
+domains_proxy_peer_ok=1
+for d in agent-sandbox development-sandbox sentry-sandbox trading-sandbox research-sandbox; do
+	doc="$(policy_doc "$out" "$d-egress")"
+	peer="$(awk 'BEGIN{RS="    - to:"} /app: egress-proxy/{print; exit}' <<<"$doc")"
+	if [ -z "$peer" ] || ! grep -q 'namespaceSelector:' <<<"$peer" ||
+		! grep -q 'metadata.name: agent-sandbox' <<<"$peer" ||
+		! grep -q 'podSelector:' <<<"$peer" || ! grep -q 'port: 8888' <<<"$peer"; then
+		echo "FAIL: domains-proxy-peer: $d-egress proxy peer lacks the namespace+pod selectors in one to: entry"
+		domains_proxy_peer_ok=0
+	fi
+done
+if [ "$domains_proxy_peer_ok" -eq 1 ]; then echo "OK: domains-proxy-peer"; else fail=1; fi
+
+# AC4 (proxy objects) — exactly one of each, in proxyNamespace.
+domains_proxy_objects_ok=1
+for spec in "Deployment egress-proxy" "Service egress-proxy" "PodDisruptionBudget egress-proxy" "ConfigMap egress-proxy-allowlist" "NetworkPolicy egress-proxy-ingress" "NetworkPolicy egress-proxy-egress"; do
+	obj_kind="${spec%% *}"; obj_name="${spec#* }"
+	obj_count="$(awk -v K="$obj_kind" -v N="$obj_name" 'BEGIN{RS="---"} index($0,"kind: " K "\n") && index($0,"  name: " N "\n"){c++} END{print c+0}' "$out")"
+	if [ "$obj_count" -ne 1 ]; then
+		echo "FAIL: domains-proxy-objects: $obj_kind/$obj_name renders $obj_count times, want 1"
+		domains_proxy_objects_ok=0
+	elif ! doc_has "$out" "$obj_kind" "$obj_name" agent-sandbox; then
+		echo "FAIL: domains-proxy-objects: $obj_kind/$obj_name is not in agent-sandbox"
+		domains_proxy_objects_ok=0
+	fi
+done
+ingress_policy="$(policy_doc "$out" egress-proxy-ingress)"
+ingress_bad=0
+for d in agent-sandbox development-sandbox sentry-sandbox trading-sandbox research-sandbox; do
+	grep -q "kubernetes.io/metadata.name: $d" <<<"$ingress_policy" || {
+		echo "FAIL: domains-proxy-objects: egress-proxy-ingress does not admit $d"; ingress_bad=1; }
+done
+# A namespace-wide from: peer (namespaceSelector without podSelector) turns the proxy
+# into an open proxy for every pod in that namespace — spec Security invariant.
+if ! awk 'BEGIN{RS="    - from:"} /namespaceSelector:/{if (index($0,"podSelector:")==0) bad=1} END{exit(bad?1:0)}' <<<"$ingress_policy"; then
+	echo "FAIL: domains-proxy-objects: egress-proxy-ingress carries a namespace-wide peer"
+	ingress_bad=1
+fi
+if [ "$domains_proxy_objects_ok" -ne 1 ] || [ "$ingress_bad" -ne 0 ] || [ "$(grep -c 'app: agent' <<<"$ingress_policy" || true)" -ne 5 ]; then
+	echo "FAIL: domains-proxy-objects: ingress policy does not admit exactly the five domains"
+	fail=1
+else
+	echo "OK: domains-proxy-objects"
+fi
+
+# AC3 — executor RBAC per domain, subject in the control namespace.
+domains_rbac_ok=1
+for d in agent-sandbox development-sandbox sentry-sandbox trading-sandbox research-sandbox; do
+	doc_has "$out" Role agent-task-executor-sandbox "$d" || {
+		echo "FAIL: domains-rbac: missing Role agent-task-executor-sandbox in $d"; domains_rbac_ok=0; }
+	doc_has "$out" RoleBinding agent-task-executor-sandbox "$d" || {
+		echo "FAIL: domains-rbac: missing RoleBinding agent-task-executor-sandbox in $d"; domains_rbac_ok=0; }
+	awk -v NS="$d" 'BEGIN{RS="---"} index($0,"kind: RoleBinding\n") && index($0,"  name: agent-task-executor-sandbox\n") && index($0,"  namespace: " NS "\n") && index($0,"    namespace: test\n"){f=1} END{exit(f?0:1)}' "$out" || {
+		echo "FAIL: domains-rbac: the $d binding subject is not in the control namespace test"; domains_rbac_ok=0; }
+done
+if [ "$domains_rbac_ok" -eq 1 ]; then echo "OK: domains-rbac"; else fail=1; fi
+
+# AC5 + AC9 — storage copies follow jobNamespace, and the proxy env points at
+# proxyNamespace. Render agents.yaml only.
+"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/domains.yaml" --show-only templates/agents.yaml >"$tmpdir/domains-agents.out"
+agents_out="$tmpdir/domains-agents.out"
+domains_storage_ok=1
+for obj_kind in Secret PersistentVolumeClaim; do
+	doc_has "$agents_out" "$obj_kind" mapped-agent trading-sandbox || {
+		echo "FAIL: domains-storage: missing $obj_kind mapped-agent in trading-sandbox"; domains_storage_ok=0; }
+	for d in agent-sandbox development-sandbox sentry-sandbox research-sandbox; do
+		if doc_has "$agents_out" "$obj_kind" mapped-agent "$d"; then
+			echo "FAIL: domains-storage: mapped-agent $obj_kind copied into $d"; domains_storage_ok=0
+		fi
+		if doc_has "$agents_out" "$obj_kind" unmapped-agent "$d" || doc_has "$agents_out" "$obj_kind" unmapped-agent trading-sandbox; then
+			echo "FAIL: domains-storage: unmapped-agent got a sandbox $obj_kind copy"; domains_storage_ok=0
+		fi
+	done
+done
+proxy_env_count="$(grep -c 'egress-proxy\.agent-sandbox\.svc\.cluster\.local:8888' "$agents_out" || true)"
+foreign_proxy_count="$(grep -cE 'egress-proxy\.(development|sentry|trading|research)-sandbox' "$agents_out" || true)"
+if [ "$domains_storage_ok" -ne 1 ] || [ "$proxy_env_count" -ne 8 ] || [ "$foreign_proxy_count" -ne 0 ]; then
+	echo "FAIL: domains-storage/proxy-env: storage_ok=$domains_storage_ok proxy_env=$proxy_env_count foreign=$foreign_proxy_count (want 8/0)"
+	fail=1
+else
+	echo "OK: domains-storage"
+fi
+
+# AC5 (third branch) — a jobNamespace naming an undeclared namespace gets no copy.
+cat >"$tmpdir/domains-stray.yaml" <<'EOF'
+namespace: test
+executor:
+  kafkaBrokers: kafka:9092
+  sentry:
+    dsn: dummy
+sandbox:
+  proxyNamespace: agent-sandbox
+  renderAgentStorage: true
+  domains:
+    agent-sandbox: {}
+    trading-sandbox:
+      peers: [router]
+agents:
+  - name: stray-agent
+    enabled: true
+    assignee: stray
+    image: bborbe/agent-claude
+    heartbeat: 5m
+    taskTypes: [llm]
+    triggerPhases: [planning]
+    triggerStatuses: [in_progress]
+    jobNamespace: undeclared-sandbox
+    secretEnv: {SENTRY_DSN: dummy}
+    volumeMountPath: /data
+EOF
+"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/domains-stray.yaml" --show-only templates/agents.yaml >"$tmpdir/domains-stray.out"
+stray_out="$tmpdir/domains-stray.out"
+stray_bad=0
+for obj_kind in Secret PersistentVolumeClaim; do
+	stray_count="$(awk -v K="$obj_kind" 'BEGIN{RS="---"} index($0,"kind: " K "\n"){c++} END{print c+0}' "$stray_out")"
+	if [ "$stray_count" -ne 1 ]; then
+		echo "FAIL: domains-storage-stray: $obj_kind renders $stray_count times, want 1 (control namespace only)"; stray_bad=1
+	fi
+	if doc_has "$stray_out" "$obj_kind" stray-agent undeclared-sandbox; then
+		echo "FAIL: domains-storage-stray: $obj_kind stray-agent copied into the undeclared namespace"; stray_bad=1
+	fi
+done
+if [ "$stray_bad" -ne 0 ]; then fail=1; else echo "OK: domains-storage-stray"; fi
+
+# AC10 — the peer set comes from values, including a domain the spec never names.
+cat >"$tmpdir/domains-peers.yaml" <<'EOF'
+namespace: test
+executor:
+  kafkaBrokers: kafka:9092
+  sentry:
+    dsn: dummy
+sandbox:
+  proxyNamespace: agent-sandbox
+  domains:
+    agent-sandbox: {}
+    research-sandbox:
+      peers: [router, vault-trading]
+    union-sandbox: {}
+EOF
+run_policy_case domains-peers "$tmpdir/domains-peers.yaml"
+peers_out="$POLICY_OUT"
+research_policy="$(policy_doc "$peers_out" research-sandbox-egress)"
+union_policy="$(policy_doc "$peers_out" union-sandbox-egress)"
+peers_bad=0
+if [ -z "$research_policy" ] || [ -z "$union_policy" ]; then
+	echo "FAIL: domains-peers: a policy could not be extracted — the assertions would pass vacuously"
+	peers_bad=1
+fi
+grep -q 'app: vault-obsidian-trading' <<<"$research_policy" || {
+	echo "FAIL: domains-peers: research-sandbox-egress lacks the rendered vault-trading selector"; peers_bad=1; }
+grep -q 'app.kubernetes.io/instance: claude-code-router-test' <<<"$research_policy" || {
+	echo "FAIL: domains-peers: research-sandbox-egress lacks the router instance"; peers_bad=1; }
+grep -q 'k8s-app: kube-dns' <<<"$research_policy" || {
+	echo "FAIL: domains-peers: research-sandbox-egress lacks DNS"; peers_bad=1; }
+for absent in 'app: sentry-proxy' 'app: pushgateway' 'app: frontend-' 'metadata.name: kafka' 'vault-trading'; do
+	if grep -q -- "$absent" <<<"$research_policy"; then
+		echo "FAIL: domains-peers: research-sandbox-egress carries '$absent'"; peers_bad=1
+	fi
+done
+union_sel="$(grep -cE "^[[:space:]]+app(\.kubernetes\.io/instance)?: (sentry-proxy|claude-code-router-test|pushgateway|vault-obsidian-(personal|openclaw|trading)|frontend-(gateway|strategy))\$" <<<"$union_policy" || true)"
+union_cidr="$(grep -cE 'cidr: 192\.168\.178\.(41|42|43)/32' <<<"$union_policy" || true)"
+if [ "$union_sel" -ne 8 ]; then
+	echo "FAIL: domains-peers: union-sandbox-egress has $union_sel in-cluster selectors, want 8"; peers_bad=1
+fi
+if [ "$union_cidr" -ne 3 ] || ! grep -q 'port: 32159' <<<"$union_policy"; then
+	echo "FAIL: domains-peers: union-sandbox-egress lacks the three nodeport /32 cidrs on 32159"; peers_bad=1
+fi
+if [ "$peers_bad" -ne 0 ]; then fail=1; else echo "OK: domains-peers"; fi
+
+# AC12 — a single domain defaults the proxy namespace to that domain.
+run_policy_case domains-single "$tmpdir/unset.yaml" --set 'sandbox.domains.only-sandbox.peers={router}'
+single_ns="$(awk 'BEGIN{RS="---"} index($0,"kind: Namespace\n"){n=split($0,a,"\n"); for(i=1;i<=n;i++){if(a[i] ~ /^  name: /){sub(/^  name: /,"",a[i]); print a[i]; break}}}' "$POLICY_OUT" | sort | paste -sd, -)"
+if ! doc_has "$POLICY_OUT" Deployment egress-proxy only-sandbox; then
+	echo "FAIL: domains-single: egress-proxy Deployment is not in the only domain"
+	fail=1
+elif ! doc_has "$POLICY_OUT" NetworkPolicy egress-proxy-ingress only-sandbox; then
+	echo "FAIL: domains-single: egress-proxy-ingress is not in the only domain"
+	fail=1
+elif grep -q 'test-agents-sandbox' <<<"$single_ns"; then
+	echo "FAIL: domains-single: the legacy derived namespace still renders ($single_ns)"
+	fail=1
+else
+	echo "OK: domains-single"
+fi
+
+# AC12 — domains mode with the executor disabled renders no domain at all.
+run_policy_case domains-disabled "$tmpdir/unset.yaml" --set 'sandbox.domains.dev-sandbox.peers={router}' --set executor.enabled=false
+if grep -q 'dev-sandbox' "$POLICY_OUT"; then
+	echo "FAIL: domains-disabled: a dev-sandbox object renders with executor.enabled=false"
+	fail=1
+elif grep -q -- '-egress' "$POLICY_OUT"; then
+	echo "FAIL: domains-disabled: an egress NetworkPolicy renders with executor.enabled=false"
+	fail=1
+else
+	echo "OK: domains-disabled"
+fi
+
+# AC7, AC8, AC11(a)-(e) — the fail-fast cases.
+domains_failfast() {
+	local name="$1" fragment="$2"
+	shift 2
+	local err
+	if err="$("$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" "$@" 2>&1)"; then
+		echo "FAIL: $name: render succeeded, want a failure naming $fragment"
+		fail=1
+	elif grep -q -- "$fragment" <<<"$err"; then
+		echo "OK: $name"
+	else
+		echo "FAIL: $name: render failed without the expected message: $err"
+		fail=1
+	fi
+}
+
+domains_failfast domains-ns-collision 'must not name the control namespace' \
+	--set 'sandbox.domains.test.peers={router}'
+domains_failfast domains-both-keys 'mutually exclusive' \
+	--set sandbox.namespace=dev-sandbox --set 'sandbox.domains.dev-sandbox.peers={router}'
+domains_failfast domains-unknown-peer 'unknown peer' \
+	--set 'sandbox.domains.dev-sandbox.peers={not-a-peer}'
+domains_failfast domains-proxy-required 'sandbox.proxyNamespace is required' \
+	--set 'sandbox.domains.a-sandbox.peers={router}' --set 'sandbox.domains.b-sandbox.peers={router}'
+domains_failfast domains-vault-api-value 'vaultApiApp is empty' \
+	--set 'sandbox.domains.dev-sandbox.peers={vault-api}'
+domains_failfast domains-proxy-not-domain 'is not one of the declared' \
+	--set sandbox.proxyNamespace=not-a-domain --set 'sandbox.domains.dev-sandbox.peers={router}'
+domains_failfast domains-proxy-without-domains 'sandbox.domains is empty' \
+	--set sandbox.proxyNamespace=agent-sandbox
+
+# AC6 — no install changes its render unless it opts in.
+# The spec's byte-level evidence is a (kind, name, namespace) diff against the
+# fork commit. A linked worktree's object database lives outside the container
+# mount, so `git archive "$BASE"` cannot run in-container; the identity check
+# below is the container-executable half. The base-commit diff is NOT executed
+# by any rung and is recorded in the prompt's completion report as an open AC6
+# item.
+run_policy_case domains-legacy-identity "$tmpdir/unset.yaml"
+legacy_ns="$(awk 'BEGIN{RS="---"} index($0,"kind: Namespace\n"){n=split($0,a,"\n"); for(i=1;i<=n;i++){if(a[i] ~ /^  name: /){sub(/^  name: /,"",a[i]); print a[i]; break}}}' "$POLICY_OUT" | sort | paste -sd, -)"
+if [ "$legacy_ns" != "test-agents-sandbox" ]; then
+	echo "FAIL: domains-legacy-identity: Namespace set is '$legacy_ns', want 'test-agents-sandbox'"
+	fail=1
+elif ! doc_has "$POLICY_OUT" NetworkPolicy agent-sandbox-egress test-agents-sandbox; then
+	echo "FAIL: domains-legacy-identity: missing NetworkPolicy agent-sandbox-egress"
+	fail=1
+elif ! doc_has "$POLICY_OUT" NetworkPolicy egress-proxy-egress test-agents-sandbox; then
+	echo "FAIL: domains-legacy-identity: missing NetworkPolicy egress-proxy-egress"
+	fail=1
+else
+	echo "OK: domains-legacy-identity"
+fi
+
 if [ "$fail" -ne 0 ]; then
 	exit 1
 fi

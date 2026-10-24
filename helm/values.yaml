@@ -76,7 +76,10 @@ sandbox:
   # `secretName` renders no Secret, so the operator must still place that
   # Secret in the sandbox namespace by hand. A copied PVC is a NEW, EMPTY
   # volume, not a view of the control-namespace claim — data written to the
-  # original is not visible in the sandbox copy.
+  # original is not visible in the sandbox copy. In domains mode
+  # (`sandbox.domains` declared) the copy follows the agent's `jobNamespace`
+  # and renders only when that names a declared domain; with no domains it
+  # targets the single `sandbox.namespace` regardless of `jobNamespace`.
   renderAgentStorage: false
 
 # Image coordinates. Default to the public Docker Hub image; a self-sufficient
@@ -497,9 +500,13 @@ agents: []
   #                                 # sandbox namespace (`sandbox.namespace`, default
   #                                 # `<namespace>-agents-sandbox`) and set
   #                                 # `sandbox.renderAgentStorage: true`, which renders
-  #                                 # the chart-managed copies into THAT namespace.
-  #                                 # renderAgentStorage never follows jobNamespace to a
-  #                                 # different name. Must be a valid DNS-1123 label
+  #                                 # the chart-managed copies into THAT namespace. In
+  #                                 # domains mode (`sandbox.domains` declared),
+  #                                 # renderAgentStorage copies the Secret and PVC into
+  #                                 # the sandbox this jobNamespace names, and only when
+  #                                 # that name is a declared domain; with no domains the
+  #                                 # copy still targets the single sandbox.namespace.
+  #                                 # Must be a valid DNS-1123 label
   #                                 # (lowercase alphanumerics and `-`, at most 63
   #                                 # characters) — the executor's Config CRD schema
   #                                 # rejects anything else at apply time — and must
