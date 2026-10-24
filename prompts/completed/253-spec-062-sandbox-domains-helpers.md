@@ -1,7 +1,13 @@
 ---
-status: draft
+status: completed
 spec: [062-sandbox-domains]
+summary: Added sandbox.domains/proxyNamespace values and the domain, peer-catalog, storage-namespace and fail-fast validator helpers; legacy render unchanged and all render checks pass
+execution_id: agent-sandbox-domains-exec-253-spec-062-sandbox-domains-helpers
+dark-factory-version: v0.198.7
 created: "2026-10-24T20:38:48Z"
+queued: "2026-10-24T20:57:58Z"
+started: "2026-10-24T20:58:00Z"
+completed: "2026-10-24T20:58:58Z"
 branch: dark-factory/sandbox-domains
 ---
 

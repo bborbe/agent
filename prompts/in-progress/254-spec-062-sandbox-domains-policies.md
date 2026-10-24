@@ -1,7 +1,8 @@
 ---
-status: draft
+status: approved
 spec: [062-sandbox-domains]
 created: "2026-10-24T20:38:48Z"
+queued: "2026-10-24T20:57:59Z"
 branch: dark-factory/sandbox-domains
 ---
 

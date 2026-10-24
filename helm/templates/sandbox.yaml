@@ -1,3 +1,4 @@
+{{- include "agent.sandboxValidate" . -}}
 {{- if .Values.executor.enabled }}
 # Per-environment sandbox namespace hosting agent Job pods. Hosted Jobs get a
 # default-deny egress policy (agent-sandbox-egress below); the executor, still

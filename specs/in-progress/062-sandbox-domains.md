@@ -1,5 +1,9 @@
 ---
-status: draft
+status: prompted
+approved: "2026-10-24T20:36:55Z"
+generating: "2026-10-24T20:36:56Z"
+prompted: "2026-10-24T20:45:10Z"
+branch: dark-factory/sandbox-domains
 ---
 
 ## Summary

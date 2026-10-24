@@ -17,6 +17,29 @@ sandbox:
   # Explicit sandbox namespace name. Empty falls back to
   # "<namespace>-agents-sandbox", which is what every current install renders.
   namespace: ""
+  # A map of sandbox namespace name to its egress peer set. When non-empty the
+  # chart renders one Namespace and one `<name>-egress` default-deny policy per
+  # entry, and the egress proxy renders once in `proxyNamespace`. Empty (the
+  # default) renders today's single sandbox exactly, so no existing install
+  # changes. Mutually exclusive with `namespace` above — declaring both fails
+  # the render, because a fifth namespace or one silently ignored is ambiguous.
+  #
+  # Each entry takes an optional `peers` list naming destinations from the
+  # fixed catalog: dns, router, pushgateway, sentry-proxy, vault-personal,
+  # vault-openclaw, vault-trading, frontend-gateway, frontend-strategy,
+  # vault-api, kafka, proxy. An unknown name fails the render. `dns` and
+  # `proxy` are added to every domain unconditionally — they are how a pod
+  # resolves anything and the only route to the public internet. OMITTING
+  # `peers` renders today's full union (every catalog peer except proxy/dns
+  # duplication), deliberately: the first apply of a domains install must not
+  # narrow any agent's reach. An explicit `peers: []` renders only dns+proxy.
+  domains: {}
+  # Namespace hosting the single egress proxy (Deployment, Service, PDB,
+  # allowlist ConfigMap and its two policies). Required when more than one
+  # domain is declared, and must be one of the declared domains. With exactly
+  # one domain it defaults to that domain. Setting it with no `domains`
+  # declared fails the render — it would name a namespace nothing creates.
+  proxyNamespace: ""
   # Namespace holding the sandbox policy's NON-agent peers: sentry-proxy, the
   # three vault-obsidian-* services, the two trading frontends and the optional
   # vault-API app. Empty falls back to the control namespace, which is where
