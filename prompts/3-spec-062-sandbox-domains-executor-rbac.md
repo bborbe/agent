@@ -24,7 +24,7 @@ This is prompt 3 of 6 for spec `062-sandbox-domains`; it depends on prompt 1 onl
 Read fully before editing:
 
 - `helm/templates/executor-rbac.yaml` — the file you are editing. It opens with `{{- if .Values.executor.enabled }}` and `{{- $ns := include "agent.namespace" . }}` (the control namespace). It renders a ServiceAccount, a ClusterRole/ClusterRoleBinding, a control-namespace Role/RoleBinding, and finally the sandbox-scoped pair (`agent-task-executor-sandbox`) at the end of the file. The sandbox Role grants `batch/jobs` create/get/list/watch/delete, `pods` get/list/watch, `secrets` get and `persistentvolumeclaims` get. The RoleBinding subject is `ServiceAccount agent-task-executor` in `{{ $ns }}` — the control namespace, not the sandbox.
-- `helm/templates/_helpers.tpl` — `agent.sandboxNamespaces` returns a comma-separated list of the namespaces that host agent pods: the sorted declared domains, or the single sandbox namespace when no domains are declared. It is a plain `include`, so consume it with `| splitList ","`.
+- `helm/templates/_helpers.tpl` — **prompt 1 has landed when this file defines `agent.sandboxNamespaces`; if the helper is missing, stop and report that prompt 1 has not landed rather than adding it yourself.** `agent.sandboxNamespaces` returns a comma-separated list of the namespaces that host agent pods: the sorted declared domains, or the single sandbox namespace when no domains are declared. It is a plain `include`, so consume it with `| splitList ","`.
 
 Current shape of the sandbox pair (namespace interpolated in two places per document):
 
@@ -51,7 +51,7 @@ subjects:
 </context>
 
 <requirements>
-1. **Wrap the sandbox Role and RoleBinding in a range over the namespace list.** Immediately before the `# Sandbox-scoped grants:` comment (the one that introduces the Role), add:
+1. **Wrap the sandbox Role and RoleBinding in a range over the namespace list.** Replace the existing `---` separator line that precedes the `# Sandbox-scoped grants:` comment with the range opener, so each iteration opens with its own `---` and no separator is left outside the loop:
 
    ```gotemplate
    {{- range $sandboxNS := (include "agent.sandboxNamespaces" . | splitList ",") }}
@@ -104,7 +104,8 @@ subjects:
 
 3. **Leave the rest of the file untouched.** The ServiceAccount, ClusterRole, ClusterRoleBinding and the control-namespace Role/RoleBinding keep their current names, namespaces and rules. The `{{- $ns := include "agent.namespace" . }}` declaration stays where it is.
 
-4. **Do not add render tests.** Prompt 6 owns `hack/test-helm-render.sh`. The existing `sandbox-dev`, `sandbox-prod` and `sandbox-explicit` cases must stay green: in legacy mode the range yields exactly one namespace, so the same two documents render.
+4. **Re-run `<verification>` and confirm it exits 0 before finishing** — walk AC3 against the rendered output, not against the template source.
+5. **Do not add render tests.** Prompt 6 owns `hack/test-helm-render.sh`. The existing `sandbox-dev`, `sandbox-prod` and `sandbox-explicit` cases must stay green: in legacy mode the range yields exactly one namespace, so the same two documents render.
 </requirements>
 
 <constraints>
@@ -118,35 +119,66 @@ subjects:
 
 <verification>
 ```bash
-bash hack/test-helm-render.sh   # legacy cases must stay green
+set -euo pipefail
+
 command -v helm >/dev/null 2>&1 || go install helm.sh/helm/v3/cmd/helm@v3.16.4
 HELM_BIN="$(command -v helm || echo "$(go env GOPATH)/bin/helm")"
 
+make test   # includes hack/test-helm-render.sh; legacy cases must stay green
+
+# `--show-only` filters the OUTPUT; Helm still renders every template, so the
+# chart's own `required` checks must be satisfied or the render exits 1 and
+# writes an empty file (executor-deployment.yaml needs executor.kafkaBrokers,
+# executor-secret.yaml needs executor.sentry.dsn or executor.existingSecret).
+REQ=(--set executor.kafkaBrokers=1.2.3.4:9092 --set executor.sentry.dsn=dummy)
+
+# Count documents by a LINE-ANCHORED kind. `index($0,"kind: Role\n")` also
+# matches a RoleBinding's `roleRef: kind: Role`, so a render with no sandbox
+# Role at all would satisfy a Role assertion.
+count_docs() {
+  awk -v K="$2" -v N="$3" 'BEGIN{RS="---"}
+    $0 ~ ("(^|\n)kind: " K "\n") && index($0,"  name: " N "\n") {c++}
+    END{print c+0}' "$1"
+}
+
 # Domains mode: one Role and one RoleBinding named agent-task-executor-sandbox in
 # every declared domain, each subject in the control namespace.
-"$HELM_BIN" template agent ./helm \
+"$HELM_BIN" template agent ./helm "${REQ[@]}" \
   --set namespace=dev \
   --set 'sandbox.domains.agent-sandbox.peers={router}' \
   --set 'sandbox.domains.trading-sandbox.peers={router}' \
   --set sandbox.proxyNamespace=agent-sandbox \
   --show-only templates/executor-rbac.yaml > /tmp/rbac.out
 
+[ "$(count_docs /tmp/rbac.out Role agent-task-executor-sandbox)" -eq 2 ] \
+  || { echo "FAIL: expected 2 sandbox Roles, got $(count_docs /tmp/rbac.out Role agent-task-executor-sandbox)"; exit 1; }
+[ "$(count_docs /tmp/rbac.out RoleBinding agent-task-executor-sandbox)" -eq 2 ] \
+  || { echo "FAIL: expected 2 sandbox RoleBindings, got $(count_docs /tmp/rbac.out RoleBinding agent-task-executor-sandbox)"; exit 1; }
+
 for d in agent-sandbox trading-sandbox; do
   for kind in Role RoleBinding; do
-    awk -v K="$kind" -v NS="$d" 'BEGIN{RS="---"} index($0,"kind: " K "\n") && index($0,"  name: agent-task-executor-sandbox\n") && index($0,"  namespace: " NS "\n"){f=1} END{exit(f?0:1)}' /tmp/rbac.out \
-      || echo "FAIL: missing $kind agent-task-executor-sandbox in $d"
+    awk -v K="$kind" -v NS="$d" 'BEGIN{RS="---"} $0 ~ ("(^|\n)kind: " K "\n") && index($0,"  name: agent-task-executor-sandbox\n") && index($0,"  namespace: " NS "\n"){f=1} END{exit(f?0:1)}' /tmp/rbac.out \
+      || { echo "FAIL: missing $kind agent-task-executor-sandbox in $d"; exit 1; }
   done
-  awk -v NS="$d" 'BEGIN{RS="---"} index($0,"kind: RoleBinding\n") && index($0,"  name: agent-task-executor-sandbox\n") && index($0,"  namespace: " NS "\n") && index($0,"    namespace: dev\n"){f=1} END{exit(f?0:1)}' /tmp/rbac.out \
-    || echo "FAIL: $d binding subject is not in the control namespace dev"
+  awk -v NS="$d" 'BEGIN{RS="---"} $0 ~ /(^|\n)kind: RoleBinding\n/ && index($0,"  name: agent-task-executor-sandbox\n") && index($0,"  namespace: " NS "\n") && index($0,"    namespace: dev\n"){f=1} END{exit(f?0:1)}' /tmp/rbac.out \
+    || { echo "FAIL: $d binding subject is not in the control namespace dev"; exit 1; }
 done
-[ "$(grep -c 'name: agent-task-executor-sandbox$' /tmp/rbac.out)" -eq 4 ] && echo "OK: 2 domains x Role+RoleBinding"
+
+# The grant must stay narrow: no wildcard verb or resource anywhere in it.
+! grep -q '\*' /tmp/rbac.out || { echo "FAIL: wildcard verb rendered in the sandbox Role"; exit 1; }
+echo "OK: 2 domains x Role+RoleBinding, subjects in dev, no wildcards"
 
 # Legacy mode: exactly one pair, in dev-agents-sandbox.
-"$HELM_BIN" template agent ./helm --set namespace=dev \
+"$HELM_BIN" template agent ./helm "${REQ[@]}" --set namespace=dev \
   --show-only templates/executor-rbac.yaml > /tmp/rbac-legacy.out
-[ "$(grep -c 'name: agent-task-executor-sandbox$' /tmp/rbac-legacy.out)" -eq 2 ] && echo "OK: legacy pair"
-awk 'BEGIN{RS="---"} index($0,"kind: Role\n") && index($0,"  name: agent-task-executor-sandbox\n") && index($0,"  namespace: dev-agents-sandbox\n"){f=1} END{exit(f?0:1)}' /tmp/rbac-legacy.out && echo "OK: legacy placement"
+[ "$(count_docs /tmp/rbac-legacy.out Role agent-task-executor-sandbox)" -eq 1 ] \
+  || { echo "FAIL: legacy must render exactly 1 sandbox Role"; exit 1; }
+[ "$(count_docs /tmp/rbac-legacy.out RoleBinding agent-task-executor-sandbox)" -eq 1 ] \
+  || { echo "FAIL: legacy must render exactly 1 sandbox RoleBinding"; exit 1; }
+awk 'BEGIN{RS="---"} $0 ~ /(^|\n)kind: Role\n/ && index($0,"  name: agent-task-executor-sandbox\n") && index($0,"  namespace: dev-agents-sandbox\n"){f=1} END{exit(f?0:1)}' /tmp/rbac-legacy.out \
+  || { echo "FAIL: legacy placement is not dev-agents-sandbox"; exit 1; }
+echo "OK: legacy pair in dev-agents-sandbox"
 ```
 
-Every `OK` line must print and no `FAIL` line may appear. `bash hack/test-helm-render.sh` must exit 0.
+The block must exit 0. Each `OK` line marks an assertion that passed; a failing assertion prints `FAIL` and exits non-zero.
 </verification>
