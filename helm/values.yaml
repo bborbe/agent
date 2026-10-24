@@ -17,6 +17,16 @@ sandbox:
   # Explicit sandbox namespace name. Empty falls back to
   # "<namespace>-agents-sandbox", which is what every current install renders.
   namespace: ""
+  # Namespace holding the sandbox policy's NON-agent peers: sentry-proxy, the
+  # three vault-obsidian-* services, the two trading frontends and the optional
+  # vault-API app. Empty falls back to the control namespace, which is where
+  # every current install places them, so the render is unchanged unless set.
+  # Set it when the control plane moves to its own namespace but those services
+  # stay behind — otherwise the peers name a namespace that holds none of them
+  # and the policy silently denies every sandboxed Job its vault and Sentry
+  # proxy. The router is NOT covered by this key: it is a control-plane
+  # component and moves with `namespace`.
+  peerNamespace: ""
   kafka:
     # In-cluster Kafka: set this (and servicePort) to select brokers by
     # namespace instead of by the built-in nodeport addresses. Takes

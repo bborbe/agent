@@ -85,6 +85,23 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{- end -}}
 {{- end -}}
 
+{{/* Namespace holding the sandbox policy's NON-agent peers: sentry-proxy, the
+     three vault-obsidian-* services, the two trading frontends and the optional
+     vault-API app. `.Values.sandbox.peerNamespace` wins when non-empty; the
+     fallback is the control namespace, which is where every current install
+     places them, so the render is unchanged unless the key is set.
+
+     Why the key exists: those services are not part of the agent control plane.
+     An install that relocates the control plane — e.g. to a dedicated `agent`
+     namespace — while leaving the vaults and sentry-proxy in their stage
+     namespace would otherwise render peers naming the NEW control namespace and
+     matching nothing, silently denying every sandboxed Job its vault, its Sentry
+     proxy and the trading frontends. The router is deliberately NOT covered: it
+     is a control-plane component and moves with the control namespace. */}}
+{{- define "agent.sandboxPeerNamespace" -}}
+{{- (.Values.sandbox | default dict).peerNamespace | default (include "agent.namespace" .) -}}
+{{- end -}}
+
 {{/* Proxy env for Job agent Configs (spec 048). Applied only when
      `egressProxy.injectAgentEnv` is true — see agents.yaml. The proxy URL is
      derived from the sandbox namespace; NO_PROXY
