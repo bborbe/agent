@@ -579,6 +579,51 @@ else
 	echo "OK: vault-api"
 fi
 
+# sandbox.peerNamespace: the non-agent peers follow it, the router does NOT.
+# This is the case that catches a template which moved every peer — the router
+# is a control-plane component, so a peer set that follows peerNamespace for the
+# router too would deny sandboxed Jobs their model endpoint.
+run_policy_case peer-namespace "$tmpdir/unset.yaml" \
+	--set namespace=agent --set sandbox.namespace=dev-agents-sandbox \
+	--set sandbox.peerNamespace=dev --set executor.existingSecret=agent-secret
+peer_ns_doc="$(policy_doc "$POLICY_OUT" agent-sandbox-egress)"
+peer_ns_sentry="$(awk 'BEGIN{RS="    - to:"} /app: sentry-proxy/{print; exit}' <<<"$peer_ns_doc")"
+peer_ns_router="$(awk 'BEGIN{RS="    - to:"} /app.kubernetes.io\/instance: claude-code-router-agent/{print; exit}' <<<"$peer_ns_doc")"
+peer_ns_vault="$(awk 'BEGIN{RS="    - to:"} /app: vault-obsidian-personal/{print; exit}' <<<"$peer_ns_doc")"
+peer_ns_frontend="$(awk 'BEGIN{RS="    - to:"} /app: frontend-gateway/{print; exit}' <<<"$peer_ns_doc")"
+peer_ns_control="$(grep -c 'metadata.name: agent$' <<<"$peer_ns_doc" || true)"
+if [ -z "$peer_ns_sentry" ] || [ -z "$peer_ns_router" ] || [ -z "$peer_ns_vault" ] || [ -z "$peer_ns_frontend" ]; then
+	echo "FAIL: peer-namespace: a peer could not be extracted — the assertion would pass vacuously"
+	fail=1
+elif ! grep -q 'metadata.name: dev$' <<<"$peer_ns_sentry" ||
+	! grep -q 'metadata.name: dev$' <<<"$peer_ns_vault" ||
+	! grep -q 'metadata.name: dev$' <<<"$peer_ns_frontend"; then
+	echo "FAIL: peer-namespace: a non-agent peer does not select sandbox.peerNamespace (dev)"
+	fail=1
+elif ! grep -q 'metadata.name: agent$' <<<"$peer_ns_router"; then
+	echo "FAIL: peer-namespace: the router peer does not select the control namespace (agent)"
+	fail=1
+elif [ "$peer_ns_control" -ne 1 ]; then
+	echo "FAIL: peer-namespace: expected exactly 1 control-namespace peer (the router), got $peer_ns_control"
+	fail=1
+else
+	echo "OK: peer-namespace"
+fi
+
+# Unset peerNamespace keeps the old render: every in-cluster peer, router
+# included, selects the control namespace.
+run_policy_case peer-namespace-default "$tmpdir/unset.yaml" \
+	--set namespace=agent --set sandbox.namespace=dev-agents-sandbox \
+	--set executor.existingSecret=agent-secret
+peer_ns_default_doc="$(policy_doc "$POLICY_OUT" agent-sandbox-egress)"
+peer_ns_default_control="$(grep -c 'metadata.name: agent$' <<<"$peer_ns_default_doc" || true)"
+if [ "$peer_ns_default_control" -ne 7 ]; then
+	echo "FAIL: peer-namespace-default: expected 7 control-namespace peers, got $peer_ns_default_control"
+	fail=1
+else
+	echo "OK: peer-namespace-default"
+fi
+
 # executor.enabled=false must suppress every sandbox object (spec AC3).
 disabled_out="$tmpdir/sandbox-disabled.out"
 "$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \

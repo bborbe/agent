@@ -23,8 +23,11 @@ metadata:
 # sentry-proxy (9090), the router (8788), pushgateway (9090), the
 # vault-obsidian-{personal,openclaw,trading} services (9090), an optional
 # vault-API app (9090), frontend-gateway and frontend-strategy (9090), Kafka,
-# and the egress proxy (8888). The Kafka peer is either the built-in external
-# nodeport addresses (three /32s on the listener port) or, when
+# and the egress proxy (8888). The router lives in the control namespace; every
+# other in-cluster peer is selected in `sandbox.peerNamespace`, which defaults to
+# the control namespace and exists so an install can move the control plane
+# without its vaults and Sentry proxy. The Kafka peer is either the built-in
+# external nodeport addresses (three /32s on the listener port) or, when
 # `sandbox.kafka.namespace` is set, an in-cluster Service selected by namespace
 # on `sandbox.kafka.servicePort`. Everything else — other internal services, other
 # private CIDRs, 169.254.0.0/16, direct internet — is denied by omission.
@@ -63,12 +66,14 @@ spec:
     # http://sentry-proxy.<env>.svc.cluster.local:9090 by the chart's
     # fleet-wide `sentry.proxy` value. namespaceSelector and podSelector sit
     # in the SAME peer: as two separate peers they OR, which opens every
-    # service on 9090 in that namespace. The namespace is templated, never a
-    # literal `dev`, so the prod render selects prod.
+    # service on 9090 in that namespace. The namespace is
+    # `sandbox.peerNamespace` (default: the control namespace), never a literal
+    # `dev` — sentry-proxy is not a control-plane component, so an install that
+    # relocates the control plane must be able to keep this peer where it is.
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
           podSelector:
             matchLabels:
               app: sentry-proxy
@@ -100,15 +105,16 @@ spec:
         - { protocol: TCP, port: 9090 }
     # The three vaults and the two trading frontends. One peer EACH, not one
     # peer on port 9090 — a namespace+port rule would open every service on
-    # 9090 in the release namespace, which is the trap this policy exists to
+    # 9090 in `sandbox.peerNamespace`, which is the trap this policy exists to
     # avoid. These are the destinations the egress matrix attributes to job
     # pods (sentry-collector, the github-* agents, trading-analysis,
     # trading-backtest); the union is shared because per-agent policies are a
-    # Non-goal for this spec.
+    # Non-goal for this spec. None of them is a control-plane component, so all
+    # five select `sandbox.peerNamespace` rather than the control namespace.
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
           podSelector:
             matchLabels:
               app: vault-obsidian-personal
@@ -117,7 +123,7 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
           podSelector:
             matchLabels:
               app: vault-obsidian-openclaw
@@ -126,7 +132,7 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
           podSelector:
             matchLabels:
               app: vault-obsidian-trading
@@ -135,7 +141,7 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
           podSelector:
             matchLabels:
               app: frontend-gateway
@@ -144,7 +150,7 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
           podSelector:
             matchLabels:
               app: frontend-strategy
@@ -156,7 +162,7 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
           podSelector:
             matchLabels:
               app: {{ .Values.sandbox.vaultApiApp }}
