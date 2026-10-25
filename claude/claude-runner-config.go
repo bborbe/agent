@@ -6,20 +6,15 @@ package claude
 
 import (
 	"time"
-
-	libtime "github.com/bborbe/time"
 )
 
 // ClaudeRunnerConfig holds configuration for spawning Claude Code CLI.
 type ClaudeRunnerConfig struct {
-	// CurrentDateTime is the clock the rate-limit retry loop reads when deciding
-	// whether the context deadline still leaves room for a backoff. Nil means the
-	// real clock; tests inject a fixed one so that decision is deterministic.
-	CurrentDateTime libtime.CurrentDateTimeGetter
 	// RateLimitBackoffBase overrides the first backoff before a rate-limit
-	// re-invoke; each subsequent re-invoke doubles it. Zero means the 15s
-	// default. Tests set it to milliseconds so the retry loop runs without
-	// waiting on the wall clock.
+	// re-invoke; each subsequent re-invoke doubles it, and equal jitter is applied
+	// on top. Zero means the 15s default. The result is clamped to 2m, so a larger
+	// value is silently shortened — tests set it to milliseconds so the retry loop
+	// runs without waiting on the wall clock.
 	RateLimitBackoffBase time.Duration
 	// ClaudeConfigDir overrides the Claude CLI config directory via CLAUDE_CONFIG_DIR.
 	ClaudeConfigDir ClaudeConfigDir

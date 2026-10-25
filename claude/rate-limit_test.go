@@ -114,6 +114,37 @@ exit 1`,
 		})
 	})
 
+	Context("when a rate-limited attempt consumed tokens before the re-invoke", func() {
+		var statePath string
+
+		BeforeEach(func() {
+			statePath = filepath.Join(GinkgoT().TempDir(), "state")
+			writeShim(fmt.Sprintf(
+				`if [ -f %s ]; then
+  echo '{"type":"result","result":"done","usage":{"input_tokens":5,"output_tokens":2},"num_turns":1}'
+  exit 0
+fi
+touch %s
+echo '{"type":"result","result":"","usage":{"input_tokens":7,"output_tokens":3},"num_turns":2}'
+%s
+exit 1`,
+				statePath, statePath, rateLimitRetryStorm,
+			))
+		})
+
+		It("sums the usage across every attempt", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+				RateLimitBackoffBase: time.Millisecond,
+			}).Run(ctx, "test")
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.InputTokens).To(Equal(int64(12)))
+			Expect(result.OutputTokens).To(Equal(int64(5)))
+			Expect(result.NumTurns).To(Equal(int64(3)))
+			Expect(result.RateLimitRetries).To(Equal(int64(1)))
+		})
+	})
+
 	Context("when the failure is not a rate limit", func() {
 		var countPath string
 

@@ -7,6 +7,7 @@ package claude
 import (
 	"context"
 	"encoding/json"
+	"math/rand/v2"
 	"strings"
 	"time"
 )
@@ -26,12 +27,18 @@ const (
 	// maxRateLimitReinvokes cannot stretch one sleep past a useful length.
 	rateLimitBackoffMax = 2 * time.Minute
 
-	// rateLimitDeadlineFloor is how much time must remain on the context deadline
+	// rateLimitMinRemaining is how much time must remain on the context deadline
 	// BEYOND the backoff itself for a re-invoke to be worth starting. A retry that
 	// cannot finish inside the budget is not started at all: that is the guard
 	// against turning a rate-limit crash into a deadline_exceeded crash, which
 	// would move the failure rather than remove it.
-	rateLimitDeadlineFloor = 30 * time.Second
+	//
+	// The reserve is the CLI's own retry budget, not a small margin. A re-invoke
+	// launched into the same storm will spend up to ~5 minutes exhausting the CLI's
+	// ten API retries before it either succeeds or gives up; admitting one with
+	// only the backoff plus a few seconds left guarantees it is killed at the
+	// deadline mid-run, which is exactly the trade this guard exists to prevent.
+	rateLimitMinRemaining = 5 * time.Minute
 
 	// httpStatusTooManyRequests and httpStatusOverloaded are the two capacity
 	// responses the CLI retries and eventually gives up on.
@@ -101,8 +108,12 @@ func namesRateLimit(text string) bool {
 }
 
 // rateLimitBackoff returns the wait before re-invoke number `retries` (0-based):
-// base, 2×base, 4×base, then the cap. Exponential so a storm is not amplified by
-// a lockstep client, capped so a single wait stays useful.
+// base, 2×base, 4×base, then the cap, with equal jitter applied on top.
+//
+// The jitter is not decoration. Several reviewer pods rate-limited by the same
+// router would otherwise sleep the same deterministic interval and re-invoke in
+// lockstep, converting one 429 burst into the next — the exact amplification the
+// exponential growth is meant to avoid.
 func (r *claudeRunner) rateLimitBackoff(retries int64) time.Duration {
 	base := r.config.RateLimitBackoffBase
 	if base <= 0 {
@@ -110,20 +121,33 @@ func (r *claudeRunner) rateLimitBackoff(retries int64) time.Duration {
 	}
 	wait := base << retries
 	if wait > rateLimitBackoffMax || wait <= 0 {
-		return rateLimitBackoffMax
+		wait = rateLimitBackoffMax
 	}
-	return wait
+	// Equal jitter: half the interval fixed, half random. Full jitter would admit
+	// a near-zero wait and re-create the lockstep it is meant to break.
+	half := wait / 2
+	if half <= 0 {
+		return wait
+	}
+	return half + rand.N(half) //nolint:gosec // jitter, not a security decision
 }
 
 // hasTimeFor reports whether the context deadline leaves room for a backoff of
-// `wait` plus the floor. A context without a deadline is unbounded, so the retry
-// is always admitted.
+// `wait` plus the reserve. A context without a deadline is unbounded, so the
+// retry is always admitted.
+//
+// This reads time.Until rather than an injected libtime clock on purpose. The
+// rule against time.Now() exists so business logic is testable, and a fake clock
+// makes it so; a context deadline is a real-time instant that no injected clock
+// can move, so pairing a fake "now" with a real deadline would make the guard
+// report a remaining time that does not exist — the one thing it must not do.
+// time.Until measures the same real-time interval the context itself uses.
 func (r *claudeRunner) hasTimeFor(ctx context.Context, wait time.Duration) bool {
 	deadline, ok := ctx.Deadline()
 	if !ok {
 		return true
 	}
-	return deadline.Sub(r.currentDateTime.Now().Time()) > wait+rateLimitDeadlineFloor
+	return time.Until(deadline) > wait+rateLimitMinRemaining
 }
 
 // sleepCtx waits for d or until the context is done, whichever comes first. A

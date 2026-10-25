@@ -14,7 +14,6 @@ import (
 
 	"github.com/bborbe/collection"
 	"github.com/bborbe/errors"
-	libtime "github.com/bborbe/time"
 	"github.com/golang/glog"
 
 	"github.com/bborbe/agent/envparse"
@@ -43,22 +42,13 @@ type ClaudeRunner interface {
 
 // NewClaudeRunner creates a ClaudeRunner that spawns claude --print with MCP tools.
 func NewClaudeRunner(config ClaudeRunnerConfig) ClaudeRunner {
-	currentDateTime := config.CurrentDateTime
-	if currentDateTime == nil {
-		currentDateTime = libtime.NewCurrentDateTime()
-	}
 	return &claudeRunner{
-		config:          config,
-		currentDateTime: currentDateTime,
+		config: config,
 	}
 }
 
 type claudeRunner struct {
 	config ClaudeRunnerConfig
-	// currentDateTime is the clock the retry loop reads when deciding whether the
-	// context deadline still leaves room for a backoff. Injected so that decision
-	// is testable without waiting on the wall clock.
-	currentDateTime libtime.CurrentDateTimeGetter
 }
 
 // Run spawns the CLI, and re-invokes it when it gave up on a rate limit rather
@@ -74,13 +64,37 @@ type claudeRunner struct {
 // Every other failure is returned immediately and unchanged, including the final
 // give-up after the last re-invoke: the `claude CLI failed: <reason>` text is what
 // the crash taxonomy buckets on, so it must not be rewritten here.
+//
+// A re-invoke replays the same prompt in the same working directory with the same
+// allowed tools, so any side effect the abandoned attempt already performed is
+// performed again. That is deliberate rather than overlooked. Resuming the
+// captured SessionID would avoid it, but the flag combination is unverified
+// against this CLI version, and an unverified resume that fails would replace a
+// working retry with a broken one — a worse trade than a duplicate. The exposure
+// is also bounded on both ends: 43 of the 62 measured rate-limit crashes died in
+// preflight, before any side effect, and a consumer that cannot tolerate a repeat
+// already faces one today, because the pre-retry behaviour was to fail the whole
+// run and re-drive it from scratch. Consumers that write a visible artefact (a
+// PR comment) are the ones to watch; a duplicate there is a follow-up, not a
+// reason to withhold the retry.
 func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, error) {
 	var retries int64
-	// report stamps the retry count onto the result before returning it. A result
-	// is nil when the CLI could not even be spawned, and that path must return the
-	// build error untouched rather than dereference it.
+	// spentUsage accumulates the token and turn counts of the attempts that ended
+	// in a give-up. Those attempts really consumed tokens, so the returned result
+	// must report them: a run that needed three re-invokes reports the whole cost,
+	// not just the last invocation's.
+	var spentUsage ClaudeResult
+	// report stamps the retry count and the accumulated usage onto the result
+	// before returning it. A result is nil when the CLI could not even be spawned,
+	// and that path must return the build error untouched rather than dereference
+	// it.
 	report := func(result *ClaudeResult, err error) (*ClaudeResult, error) {
 		if result != nil {
+			result.InputTokens += spentUsage.InputTokens
+			result.OutputTokens += spentUsage.OutputTokens
+			result.CacheReadTokens += spentUsage.CacheReadTokens
+			result.CacheCreationTokens += spentUsage.CacheCreationTokens
+			result.NumTurns += spentUsage.NumTurns
 			result.RateLimitRetries = retries
 		}
 		return result, err
@@ -103,7 +117,7 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 			// finish inside the budget would trade a rate-limit crash for a
 			// deadline_exceeded one.
 			glog.V(1).Infof(
-				"claude CLI rate-limited (HTTP %d), no retry: %s plus the floor does not fit the context deadline",
+				"claude CLI rate-limited (HTTP %d), no retry: %s plus the reserve does not fit the context deadline",
 				status,
 				wait,
 			)
@@ -121,6 +135,15 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 			// The context died while waiting. Report the CLI's own failure, not
 			// the cancellation: the reason the run is ending is still the CLI.
 			return report(result, err)
+		}
+		// The attempt is abandoned only once the wait completed; carrying its cost
+		// forward before that would double-count it in report on the paths above.
+		if result != nil {
+			spentUsage.InputTokens += result.InputTokens
+			spentUsage.OutputTokens += result.OutputTokens
+			spentUsage.CacheReadTokens += result.CacheReadTokens
+			spentUsage.CacheCreationTokens += result.CacheCreationTokens
+			spentUsage.NumTurns += result.NumTurns
 		}
 		retries++
 	}
@@ -157,8 +180,16 @@ func (r *claudeRunner) runOnce(
 		if len(tail) > 0 {
 			tailMsg = FailureReason(tail)
 		}
+		// The usage is carried on the error path too: a rate-limited attempt really
+		// consumed these tokens, and Run sums them across re-invokes so the token
+		// metrics report what the run cost rather than what its last attempt cost.
 		return &ClaudeResult{
-			Partial: partial,
+			Partial:             partial,
+			InputTokens:         usage.inputTokens,
+			OutputTokens:        usage.outputTokens,
+			CacheCreationTokens: usage.cacheCreationTokens,
+			CacheReadTokens:     usage.cacheReadTokens,
+			NumTurns:            usage.numTurns,
 		}, tail, errors.Wrapf(ctx, err, "claude CLI failed: %s", tailMsg)
 	}
 
