@@ -4,8 +4,18 @@
 
 package claude
 
+import (
+	"time"
+)
+
 // ClaudeRunnerConfig holds configuration for spawning Claude Code CLI.
 type ClaudeRunnerConfig struct {
+	// RateLimitBackoffBase overrides the first backoff before a rate-limit
+	// re-invoke; each subsequent re-invoke doubles it, and equal jitter is applied
+	// on top. Zero means the 15s default. The result is clamped to 2m, so a larger
+	// value is silently shortened — tests set it to milliseconds so the retry loop
+	// runs without waiting on the wall clock.
+	RateLimitBackoffBase time.Duration
 	// ClaudeConfigDir overrides the Claude CLI config directory via CLAUDE_CONFIG_DIR.
 	ClaudeConfigDir ClaudeConfigDir
 	// AllowedTools is passed to claude --allowedTools to restrict tool access.
