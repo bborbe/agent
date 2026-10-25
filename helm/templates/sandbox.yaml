@@ -1,5 +1,8 @@
 {{- include "agent.sandboxValidate" . -}}
 {{- if .Values.executor.enabled }}
+{{- /* sandbox.renderPolicies=false keeps every Namespace below and drops every
+       NetworkPolicy; see agent.sandboxRenderPolicies. */}}
+{{- $renderPolicies := include "agent.sandboxRenderPolicies" . }}
 {{- $domains := (.Values.sandbox | default dict).domains | default dict }}
 {{- if $domains }}
 {{- range $name, $cfg := $domains }}
@@ -17,6 +20,7 @@ metadata:
   annotations:
     helm.sh/resource-policy: keep
 {{- end }}
+{{- if $renderPolicies }}
 {{- range $name, $cfg := $domains }}
 ---
 # Default-deny egress for agent pods in this domain. Permitted destinations are
@@ -40,6 +44,7 @@ spec:
     {{- include "agent.sandboxPeer" (dict "root" $ "name" $peer) | nindent 4 }}
     {{- end }}
 {{- end }}
+{{- end }}
 {{- else }}
 # Per-environment sandbox namespace hosting agent Job pods. Hosted Jobs get a
 # default-deny egress policy (agent-sandbox-egress below); the executor, still
@@ -60,6 +65,7 @@ metadata:
     # claim. Same convention the agent PVCs already use (v0.118.1).
     # Removing the sandbox is therefore a deliberate `kubectl delete ns`.
     helm.sh/resource-policy: keep
+{{- if $renderPolicies }}
 ---
 # Default-deny egress for sandbox agent pods. Permitted: kube-dns (53 UDP+TCP),
 # sentry-proxy (9090), the router (8788), pushgateway (9090), the
@@ -253,6 +259,8 @@ spec:
       ports:
         - { protocol: TCP, port: 8888 }
 {{- end }}
+{{- end }}
+{{- if $renderPolicies }}
 ---
 # Egress policy for the proxy pod itself (spec 048 DB 5): it may reach the public
 # internet (0.0.0.0/0) minus private ranges, plus kube-dns so it can resolve
@@ -295,4 +303,5 @@ spec:
               - 172.16.0.0/12
               - 192.168.0.0/16
               - 169.254.0.0/16
+{{- end }}
 {{- end }}

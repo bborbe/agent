@@ -105,6 +105,12 @@ namespace, named by `sandbox.namespace` or derived as
 `<namespace>-agents-sandbox`; that legacy namespace hosts the Jobs, the proxy
 and the `agent-sandbox-egress` policy together.
 
+`sandbox.renderPolicies: false` removes the egress layer from either topology —
+every NetworkPolicy above, the egress-proxy objects and the injected proxy env —
+while the namespaces, the executor's sandbox RBAC and the storage copies stay.
+It parks enforcement without un-placing the fleet; sandboxed pods then have
+unrestricted egress until the flag is unset again.
+
 ## NetworkPolicy reference
 
 Egress from sandbox agent pods. Everything not listed is denied by omission — including private CIDRs, `169.254.169.254`, and direct internet. The chart renders one of these per declared sandbox domain, named `<domain>-egress`; an install that declares no `sandbox.domains` renders the legacy `agent-sandbox-egress` instead. `dns` and `proxy` are unconditional in every domain.

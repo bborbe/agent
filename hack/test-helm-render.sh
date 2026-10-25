@@ -1145,6 +1145,112 @@ else
 	echo "OK: domains-legacy-identity"
 fi
 
+# --- sandbox.renderPolicies ---
+# `false` drops the egress layer (every NetworkPolicy, the whole egress proxy,
+# the proxy env) and nothing else: Namespaces, the executor's sandbox RBAC and
+# the per-agent Secret/PVC copies stay in the same namespaces. Unset and `true`
+# must render byte-identically to each other, which is the regression lock that
+# says no install changes unless it opts out.
+
+# count_kind <file> <kind> — number of rendered documents of that kind.
+count_kind() {
+	grep -c "^kind: $2\$" "$1" || true
+}
+
+# assert_no_egress_layer <case> <file>
+assert_no_egress_layer() {
+	local name="$1" out="$2" n
+	n="$(count_kind "$out" NetworkPolicy)"
+	if [ "$n" -ne 0 ]; then
+		echo "FAIL: $name: $n NetworkPolicy objects render with sandbox.renderPolicies=false, want 0"
+		return 1
+	fi
+	n="$(count_kind "$out" PodDisruptionBudget)"
+	if [ "$n" -ne 0 ]; then
+		echo "FAIL: $name: $n PodDisruptionBudget objects render with sandbox.renderPolicies=false, want 0"
+		return 1
+	fi
+	if doc_has "$out" Deployment egress-proxy "" || doc_has "$out" Service egress-proxy "" ||
+		doc_has "$out" ConfigMap egress-proxy-allowlist ""; then
+		echo "FAIL: $name: an egress-proxy object renders with sandbox.renderPolicies=false"
+		return 1
+	fi
+	if grep -qE '^    (HTTPS?_PROXY|https?_proxy|NO_PROXY|no_proxy): ' "$out"; then
+		echo "FAIL: $name: proxy env is injected into a Config with sandbox.renderPolicies=false"
+		return 1
+	fi
+	return 0
+}
+
+# Domains mode: every domain Namespace, the per-domain executor RBAC and the
+# mapped agent's storage copy in its own domain survive; the egress layer does not.
+run_policy_case render-policies-false-domains "$tmpdir/domains.yaml" --set sandbox.renderPolicies=false
+out="$POLICY_OUT"
+rp_ok=1
+assert_no_egress_layer render-policies-false-domains "$out" || rp_ok=0
+for ns in agent-sandbox development-sandbox research-sandbox sentry-sandbox trading-sandbox; do
+	if ! doc_has "$out" Namespace "$ns" ""; then
+		echo "FAIL: render-policies-false-domains: missing Namespace $ns"; rp_ok=0
+	fi
+	if ! doc_has "$out" Role agent-task-executor-sandbox "$ns"; then
+		echo "FAIL: render-policies-false-domains: missing Role agent-task-executor-sandbox in $ns"; rp_ok=0
+	fi
+done
+if ! doc_has "$out" Secret mapped-agent trading-sandbox || ! doc_has "$out" PersistentVolumeClaim mapped-agent trading-sandbox; then
+	echo "FAIL: render-policies-false-domains: mapped-agent storage copy is not in trading-sandbox"; rp_ok=0
+fi
+if grep -q 'test-agents-sandbox' "$out"; then
+	echo "FAIL: render-policies-false-domains: storage fell back to the single test-agents-sandbox namespace"; rp_ok=0
+fi
+# Storage is untouched by the flag: same Secret and PVC count as the policies-on render.
+run_policy_case render-policies-true-domains "$tmpdir/domains.yaml"
+for kind in Secret PersistentVolumeClaim Namespace; do
+	if [ "$(count_kind "$out" "$kind")" -ne "$(count_kind "$POLICY_OUT" "$kind")" ]; then
+		echo "FAIL: render-policies-false-domains: $kind count $(count_kind "$out" "$kind") differs from the policies-on render $(count_kind "$POLICY_OUT" "$kind")"; rp_ok=0
+	fi
+done
+if [ "$rp_ok" -eq 1 ]; then
+	echo "OK: render-policies-false-domains"
+else
+	fail=1
+fi
+
+# Legacy single-sandbox mode: the derived namespace and its storage copy survive.
+run_policy_case render-policies-false-legacy "$tmpdir/storage-enabled.yaml" --set sandbox.renderPolicies=false
+out="$POLICY_OUT"
+rp_ok=1
+assert_no_egress_layer render-policies-false-legacy "$out" || rp_ok=0
+if ! doc_has "$out" Namespace test-agents-sandbox ""; then
+	echo "FAIL: render-policies-false-legacy: missing Namespace test-agents-sandbox"; rp_ok=0
+fi
+if ! doc_has "$out" Secret rr-agent test-agents-sandbox || ! doc_has "$out" PersistentVolumeClaim rr-agent test-agents-sandbox; then
+	echo "FAIL: render-policies-false-legacy: rr-agent storage copy is not in test-agents-sandbox"; rp_ok=0
+fi
+if [ "$rp_ok" -eq 1 ]; then
+	echo "OK: render-policies-false-legacy"
+else
+	fail=1
+fi
+
+# Unset and an explicit `true` are the same render, byte for byte, in both modes.
+for fixture in domains storage-enabled; do
+	run_policy_case "render-policies-unset-$fixture" "$tmpdir/$fixture.yaml"
+	unset_out="$POLICY_OUT"
+	run_policy_case "render-policies-explicit-true-$fixture" "$tmpdir/$fixture.yaml" --set sandbox.renderPolicies=true
+	if ! cmp -s "$unset_out" "$POLICY_OUT"; then
+		echo "FAIL: render-policies-identity-$fixture: unset and renderPolicies=true render differently"
+		fail=1
+	elif [ "$(count_kind "$unset_out" NetworkPolicy)" -eq 0 ]; then
+		echo "FAIL: render-policies-identity-$fixture: the default render has no NetworkPolicy"
+		fail=1
+	else
+		echo "OK: render-policies-identity-$fixture"
+	fi
+done
+
+domains_failfast render-policies-invalid 'sandbox.renderPolicies must be true or false' \
+	--set sandbox.renderPolicies=maybe
+
 if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
