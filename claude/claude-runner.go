@@ -14,6 +14,7 @@ import (
 
 	"github.com/bborbe/collection"
 	"github.com/bborbe/errors"
+	libtime "github.com/bborbe/time"
 	"github.com/golang/glog"
 
 	"github.com/bborbe/agent/envparse"
@@ -42,28 +43,108 @@ type ClaudeRunner interface {
 
 // NewClaudeRunner creates a ClaudeRunner that spawns claude --print with MCP tools.
 func NewClaudeRunner(config ClaudeRunnerConfig) ClaudeRunner {
+	currentDateTime := config.CurrentDateTime
+	if currentDateTime == nil {
+		currentDateTime = libtime.NewCurrentDateTime()
+	}
 	return &claudeRunner{
-		config: config,
+		config:          config,
+		currentDateTime: currentDateTime,
 	}
 }
 
 type claudeRunner struct {
 	config ClaudeRunnerConfig
+	// currentDateTime is the clock the retry loop reads when deciding whether the
+	// context deadline still leaves room for a backoff. Injected so that decision
+	// is testable without waiting on the wall clock.
+	currentDateTime libtime.CurrentDateTimeGetter
 }
 
+// Run spawns the CLI, and re-invokes it when it gave up on a rate limit rather
+// than on anything else.
+//
+// The retry exists because the CLI's own budget is short relative to a reviewer's
+// phase budget: it exhausts its ten API retries in roughly five minutes and exits
+// 1, which the executor can only record as a crash. Re-invoking here keeps the
+// work inside the same pod, the same checkout and the same phase, and it is
+// source-agnostic — it does not matter whether the router or the provider answered
+// the 429.
+//
+// Every other failure is returned immediately and unchanged, including the final
+// give-up after the last re-invoke: the `claude CLI failed: <reason>` text is what
+// the crash taxonomy buckets on, so it must not be rewritten here.
 func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, error) {
+	var retries int64
+	// report stamps the retry count onto the result before returning it. A result
+	// is nil when the CLI could not even be spawned, and that path must return the
+	// build error untouched rather than dereference it.
+	report := func(result *ClaudeResult, err error) (*ClaudeResult, error) {
+		if result != nil {
+			result.RateLimitRetries = retries
+		}
+		return result, err
+	}
+
+	for {
+		result, tail, err := r.runOnce(ctx, prompt)
+		if err == nil {
+			return report(result, nil)
+		}
+
+		status := rateLimitStatus(tail)
+		if status == 0 || retries >= maxRateLimitReinvokes {
+			return report(result, err)
+		}
+
+		wait := r.rateLimitBackoff(retries)
+		if !r.hasTimeFor(ctx, wait) {
+			// Not started rather than started and cut off: a retry that cannot
+			// finish inside the budget would trade a rate-limit crash for a
+			// deadline_exceeded one.
+			glog.V(1).Infof(
+				"claude CLI rate-limited (HTTP %d), no retry: %s plus the floor does not fit the context deadline",
+				status,
+				wait,
+			)
+			return report(result, err)
+		}
+
+		glog.Infof(
+			"claude CLI rate-limited (HTTP %d), retry %d/%d after %s",
+			status,
+			retries+1,
+			maxRateLimitReinvokes,
+			wait,
+		)
+		if sleepErr := sleepCtx(ctx, wait); sleepErr != nil {
+			// The context died while waiting. Report the CLI's own failure, not
+			// the cancellation: the reason the run is ending is still the CLI.
+			return report(result, err)
+		}
+		retries++
+	}
+}
+
+// runOnce performs exactly one CLI invocation. It returns the bounded tail
+// alongside the result so Run can decide from the CLI's own evidence whether the
+// failure was a rate limit worth re-invoking for.
+func (r *claudeRunner) runOnce(
+	ctx context.Context,
+	prompt string,
+) (*ClaudeResult, []string, error) {
 	cmd, err := r.buildCommand(ctx, prompt)
 	if err != nil {
-		return nil, errors.Wrap(ctx, err, "build command")
+		return nil, nil, errors.Wrap(ctx, err, "build command")
 	}
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, errors.Wrap(ctx, err, "create stdout pipe")
+		return nil, nil, errors.Wrap(ctx, err, "create stdout pipe")
 	}
 
 	if err := cmd.Start(); err != nil {
-		return nil, errors.Wrap(ctx, err, "start claude CLI")
+		return nil, nil, errors.Wrap(ctx, err, "start claude CLI")
 	}
 
 	resultText, usage, partial, tail, sessionID := scanOutput(ctx, stdoutPipe)
@@ -78,13 +159,13 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 		}
 		return &ClaudeResult{
 			Partial: partial,
-		}, errors.Wrapf(ctx, err, "claude CLI failed: %s", tailMsg)
+		}, tail, errors.Wrapf(ctx, err, "claude CLI failed: %s", tailMsg)
 	}
 
 	if resultText == "" {
 		return &ClaudeResult{
 			Partial: partial,
-		}, errors.New(ctx, "no result event found in claude CLI output")
+		}, tail, errors.New(ctx, "no result event found in claude CLI output")
 	}
 
 	return &ClaudeResult{
@@ -97,7 +178,7 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 		NumTurns:            usage.numTurns,
 		SessionID:           sessionID,
 		InteractionCount:    r.countHumanInteractions(ctx, sessionID),
-	}, nil
+	}, tail, nil
 }
 
 // resolveConfigDir returns the Claude config directory the CLI subprocess is given,

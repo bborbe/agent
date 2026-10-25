@@ -29,4 +29,10 @@ type ClaudeResult struct {
 	// transcript, or an unreadable or unparseable transcript. A non-nil zero is an
 	// observation: the transcript was read and contained no human-authored entry.
 	InteractionCount *int64 `json:"interaction_count,omitempty"`
+	// RateLimitRetries is how many times this run re-invoked the CLI after it
+	// exhausted its own API retries on a rate limit. Zero when the CLI never hit
+	// one — which is the common case, and the reason this is a count rather than a
+	// boolean: a run that needed three re-invokes is a different observation from
+	// one that needed a single one.
+	RateLimitRetries int64 `json:"rate_limit_retries,omitempty"`
 }
