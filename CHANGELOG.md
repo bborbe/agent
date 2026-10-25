@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.129.1
 
 - fix(helm): add the namespace-qualified short names of the sandbox catalog's Service peers to the injected `NO_PROXY` (`pushgateway.monitoring`, `sentry-proxy.<peerNamespace>`, `vault-obsidian-{personal,openclaw,trading}.<peerNamespace>`, `frontend-{gateway,strategy}.<peerNamespace>`, the router as `<routerInstance>.<namespace>`, and `<vaultApiApp>.<peerNamespace>` when set). `.svc.cluster.local` matches only the FQDN, so agents calling `pushgateway.monitoring:9090` were sent through the proxy and refused with `403 Filtered` (measured on nuke dev once the proxy became reachable). The hosts come from one `agent.sandboxPeerHost` helper beside the policy catalog, and the default domain union now reads the same `agent.sandboxServicePeers` list, so the policy and `NO_PROXY` cannot drift; no bare namespace suffix is ever emitted, since `.prod` would let public hosts bypass the proxy. Repeated broker hosts now render once. NetworkPolicy output is byte-identical. Chart 0.23.1→0.23.2.
 - test(helm): assert the short names are present (following `sandbox.peerNamespace`), that no bare suffix besides `.svc.cluster.local` renders, that repeated brokers dedupe, and a drift guard that every `app:` peer the default egress policy admits has a `NO_PROXY` host.
