@@ -1,4 +1,46 @@
+{{- include "agent.sandboxValidate" . -}}
 {{- if .Values.executor.enabled }}
+{{- $domains := (.Values.sandbox | default dict).domains | default dict }}
+{{- if $domains }}
+{{- range $name, $cfg := $domains }}
+---
+# Sandbox namespace for one domain. Agent Job pods run here; the per-domain
+# policy below bounds their egress. resource-policy: keep so `helm uninstall`
+# does not delete the namespace and take operator-placed PVCs and Secrets with
+# it — removing a sandbox is a deliberate `kubectl delete ns`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "agent.labels" $ | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+{{- end }}
+{{- range $name, $cfg := $domains }}
+---
+# Default-deny egress for agent pods in this domain. Permitted destinations are
+# exactly the domain's declared peers, plus kube-dns and the egress proxy, which
+# are unconditional. Keep this comment free of peer names: the render tests
+# assert on selector lines, and a catalog word in a comment would make a
+# negative assertion pass vacuously.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-egress
+  namespace: {{ $name }}
+spec:
+  podSelector:
+    matchLabels:
+      app: agent
+  policyTypes:
+    - Egress
+  egress:
+    {{- range $peer := (include "agent.sandboxDomainPeers" (dict "root" $ "name" $name) | splitList ",") }}
+    {{- include "agent.sandboxPeer" (dict "root" $ "name" $peer) | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- else }}
 # Per-environment sandbox namespace hosting agent Job pods. Hosted Jobs get a
 # default-deny egress policy (agent-sandbox-egress below); the executor, still
 # in the control namespace, reaches them via the cross-namespace RBAC in
@@ -36,9 +78,10 @@ metadata:
 # its result directly to Kafka), so nothing depends on ingress either way; if
 # pod-level isolation is wanted later, declare `Ingress` with an empty rules list.
 #
-# NOTE: this object intentionally carries NO metadata.labels. The approved spec
-# greps the first five lines after the name line for the podSelector label; a
-# labels block would push the selector out of that window.
+# NOTE: this object intentionally carries NO metadata.labels, so that
+# `spec.podSelector` stays within the first few lines of the document. The
+# render suite asserts the selector there; a labels block would push it past
+# that window and the assertion would match nothing.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -176,9 +219,6 @@ spec:
     # set. namespaceSelector and podSelector stay in the SAME peer — as separate
     # peers they OR and open every service on that port in that namespace.
     {{- if .Values.sandbox.kafka.namespace }}
-    {{- if not (regexMatch "^[1-9][0-9]*$" (toString .Values.sandbox.kafka.servicePort)) }}
-    {{- fail "sandbox.kafka.servicePort is required as a positive integer when sandbox.kafka.namespace is set" }}
-    {{- end }}
     - to:
         - namespaceSelector:
             matchLabels:
@@ -209,17 +249,22 @@ spec:
               app: egress-proxy
       ports:
         - { protocol: TCP, port: 8888 }
+{{- end }}
 ---
 # Egress policy for the proxy pod itself (spec 048 DB 5): it may reach the public
 # internet (0.0.0.0/0) minus private ranges, plus kube-dns so it can resolve
 # allowlisted hostnames. The cloud metadata endpoint (169.254.0.0/16) and every
 # in-cluster service are denied by the except ranges. Intentionally carries NO
 # metadata.labels, consistent with agent-sandbox-egress.
+#
+# The proxy renders once for every sandbox domain, in `sandbox.proxyNamespace`;
+# without domains the helper resolves to the single sandbox namespace, so the
+# legacy render is unchanged.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: egress-proxy-egress
-  namespace: {{ include "agent.sandboxNamespace" . }}
+  namespace: {{ include "agent.proxyNamespace" . }}
 spec:
   podSelector:
     matchLabels:

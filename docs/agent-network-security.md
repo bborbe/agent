@@ -88,25 +88,33 @@ namespace: agents              (control plane)
   - AgentConfig CRDs
   - Kafka SASL config
 
-namespace: agents-sandbox      (data plane)
-  # shown with sandbox.namespace set explicitly to "agents-sandbox"; left empty
-  # it defaults to <namespace>-agents-sandbox, i.e. agents-agents-sandbox here
+namespace: <domain>            (data plane, one per sandbox domain)
   - Job pods (agent-claude-*, backtest-agent-*, github-dark-factory-agent-*, ...)
-  - egress-proxy Deployment + Service + allowlist ConfigMap
-  - PVCs, Secrets (operator-managed, or copied by sandbox.renderAgentStorage)
-  - NetworkPolicy: default-deny egress
+  - NetworkPolicy <domain>-egress: default-deny egress
+  - PVCs, Secrets (operator-managed, or copied by sandbox.renderAgentStorage
+    when the agent's jobNamespace names this domain)
+
+namespace: <proxy domain>      (a declared domain, from sandbox.proxyNamespace)
+  - egress-proxy Deployment + Service + PDB + allowlist ConfigMap
+  - NetworkPolicy egress-proxy-ingress (admits app: agent from every domain)
+  - NetworkPolicy egress-proxy-egress
 ```
+
+With `sandbox.domains` empty the chart still renders a **single** sandbox
+namespace, named by `sandbox.namespace` or derived as
+`<namespace>-agents-sandbox`; that legacy namespace hosts the Jobs, the proxy
+and the `agent-sandbox-egress` policy together.
 
 ## NetworkPolicy reference
 
-Egress from sandbox agent pods. Everything not listed is denied by omission — including private CIDRs, `169.254.169.254`, and direct internet.
+Egress from sandbox agent pods. Everything not listed is denied by omission — including private CIDRs, `169.254.169.254`, and direct internet. The chart renders one of these per declared sandbox domain, named `<domain>-egress`; an install that declares no `sandbox.domains` renders the legacy `agent-sandbox-egress` instead. `dns` and `proxy` are unconditional in every domain.
 
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: agent-sandbox-egress
-  namespace: agents-sandbox
+  name: <domain>-egress
+  namespace: <domain>
 spec:
   podSelector:
     matchLabels:
@@ -114,7 +122,7 @@ spec:
   policyTypes:
     - Egress
   egress:
-    # DNS
+    # DNS — unconditional in every domain
     - to:
         - namespaceSelector:
             matchLabels: { kubernetes.io/metadata.name: kube-system }
@@ -123,25 +131,53 @@ spec:
       ports:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
-    # The only path to the public internet
+    # The only path to the public internet — unconditional in every domain.
+    # BOTH selectors must stay in the SAME `to:` entry. `<proxy domain>` is
+    # sandbox.proxyNamespace, e.g. agent-sandbox.
     - to:
-        - podSelector:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: <proxy domain> }
+          podSelector:
             matchLabels: { app: egress-proxy }
       ports:
         - { protocol: TCP, port: 8888 }
-    # Kafka (result publishing)
-    - to:
-        - namespaceSelector:
-            matchLabels: { name: strimzi }
-          podSelector:
-            matchLabels: { strimzi.io/cluster: my-cluster }
-      ports:
-        - { protocol: TCP, port: 9092 }
 ```
 
-> ⚠️ **Stale — the reference policy above is the quant-era shape.** It selects strimzi on TCP 9092, and it lacks rules for `sentry-proxy`, the router, `pushgateway`, the three `vault-obsidian-*` services and the two trading frontends — eight divergences in total. The chart's Kafka peer now has two branches: the default selects the nuke **external nodeport listener** as three `/32` `ipBlock`s on 32159, and setting `sandbox.kafka.namespace` + `sandbox.kafka.servicePort` selects the broker pods by namespace (optionally narrowed by `sandbox.kafka.podLabels`) on that port. A NetworkPolicy port matches the destination **pod's** container port, not the Service's — the two normally share a number on Strimzi listeners, but where they differ the policy silently matches nothing. `sentry-proxy` (9090, in the environment's control namespace) must be permitted because every agent Job receives `SENTRY_PROXY` when the fleet-wide `sentry.proxy` (or a per-agent `agents[].sentry.proxy`) is set. **`bborbe/agent`'s spec 047 (agent sandbox namespace) is authoritative** where the two disagree.
+A bare `podSelector` on the proxy peer matches only pods in the policy's **own**
+namespace, so in every domain other than the one hosting the proxy it matches
+nothing and all internet egress is lost with no render failure. The
+`namespaceSelector` is what carries the peer across the namespace boundary; the
+two selectors sit in one `to:` entry so they AND rather than OR.
 
-**Ingress is denied entirely.** There is no executor→Job ingress path: the executor "does NOT watch Jobs, read stdout, or publish results" (`docs/agent-job-interface.md`), and "the agent publishes its result directly to Kafka" (`docs/agent-job-lifecycle.md`). No ingress rule is needed.
+> ⚠️ **The reference above is the domain shape; the chart also renders the
+> other peers.** Per-domain policies carry only their declared `peers` (plus
+> `dns` and `proxy`), so the full set is: DNS; the router on 8788; sentry-proxy
+> on 9090; pushgateway on 9090 in `monitoring`; the three
+> `vault-obsidian-{personal,openclaw,trading}` services and the two
+> `frontend-{gateway,strategy}` services on 9090 in `sandbox.peerNamespace`
+> (default: the control namespace); the optional `vault-api` app on 9090; Kafka
+> in either of two branches; and the proxy. The Kafka branches: the default
+> selects the nuke **external nodeport listener** as three `/32` `ipBlock`s on
+> 32159 — never a `/24`, which would allow every host on that subnet on this
+> port — while setting `sandbox.kafka.namespace` + `sandbox.kafka.servicePort`
+> selects the broker pods by namespace (optionally narrowed by
+> `sandbox.kafka.podLabels`) on that port. A NetworkPolicy port matches the
+> destination **pod's** container port, not the Service's; the two normally
+> share a number on Strimzi listeners, but where they differ the policy
+> silently matches nothing. `sentry-proxy` must be permitted because every
+> agent Job receives `SENTRY_PROXY` when the fleet-wide `sentry.proxy` (or a
+> per-agent `agents[].sentry.proxy`) is set. **`bborbe/agent`'s chart is
+> authoritative** where this reference and the rendered output disagree.
+
+**Ingress is left unrestricted, deliberately.** The sandbox policies declare
+`policyTypes: [Egress]` only, so they bound egress and say nothing about
+ingress. Nothing depends on ingress either way, because there is no executor→Job
+ingress path: the executor "does NOT watch Jobs, read stdout, or publish
+results" (`docs/agent-job-interface.md`), and "the agent publishes its result
+directly to Kafka" (`docs/agent-job-lifecycle.md`). If pod-level ingress
+isolation is wanted later, declare `Ingress` with an empty `rules` list — but
+check the proxy first: `egress-proxy-ingress` is the only ingress policy in the
+chart, and it exists because the proxy is otherwise an open proxy.
 
 The proxy pod carries its own policy allowing egress to `0.0.0.0/0` minus private ranges.
 

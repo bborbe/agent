@@ -107,18 +107,20 @@ subjects:
   - kind: ServiceAccount
     name: agent-task-executor
     namespace: {{ $ns }}
+{{- range $sandboxNS := (include "agent.sandboxNamespaces" . | splitList ",") }}
 ---
 # Sandbox-scoped grants: the executor, still in the control namespace, gets exactly
-# the cross-namespace rights it needs inside this environment's sandbox namespace
+# the cross-namespace rights it needs inside this environment's sandbox namespaces
 # and no more. No wildcard verbs, no cluster-scope — a widened grant here would
-# widen the executor's blast radius past the sandbox boundary.
+# widen the executor's blast radius past the sandbox boundary. One pair per declared
+# domain (or the single sandbox namespace when no domains are declared).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: agent-task-executor-sandbox
-  namespace: {{ include "agent.sandboxNamespace" . }}
+  namespace: {{ $sandboxNS }}
   labels:
-    {{- include "agent.labels" . | nindent 4 }}
+    {{- include "agent.labels" $ | nindent 4 }}
 rules:
   - apiGroups: [batch]
     resources: [jobs]
@@ -142,9 +144,9 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: agent-task-executor-sandbox
-  namespace: {{ include "agent.sandboxNamespace" . }}
+  namespace: {{ $sandboxNS }}
   labels:
-    {{- include "agent.labels" . | nindent 4 }}
+    {{- include "agent.labels" $ | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -153,4 +155,5 @@ subjects:
   - kind: ServiceAccount
     name: agent-task-executor
     namespace: {{ $ns }}
+{{- end }}
 {{- end }}

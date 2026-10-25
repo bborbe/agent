@@ -104,13 +104,54 @@ agents: []
 | Key | Default | Description |
 |---|---|---|
 | `sandbox.namespace` | `""` | Explicit sandbox namespace. Empty falls back to `<namespace>-agents-sandbox`, which every current install renders. Must differ from `namespace` — the render fails otherwise, since equal values emit a second `Namespace` object for the control namespace. Also relocates the egress proxy, its allowlist and the sandbox RBAC. |
+| `sandbox.domains` | `{}` | Map of sandbox namespace name to its egress peer set. Non-empty renders one `Namespace` and one `<name>-egress` default-deny policy per entry, and the egress proxy once in `proxyNamespace`. Empty renders today's single sandbox unchanged. Mutually exclusive with `sandbox.namespace` — declaring both fails the render. Each entry takes an optional `peers` list; see **Multiple sandbox domains** below. |
+| `sandbox.domains.<name>.peers` | unset | Destinations this domain may reach, from the fixed catalog `dns`, `router`, `pushgateway`, `sentry-proxy`, `vault-personal`, `vault-openclaw`, `vault-trading`, `frontend-gateway`, `frontend-strategy`, `vault-api`, `kafka`, `proxy`. An unknown name fails the render. `dns` and `proxy` are added unconditionally. **Omitting `peers` renders the full union** — deliberately, so the first apply of a domains install narrows nothing; `peers: []` renders only DNS and the proxy. |
+| `sandbox.proxyNamespace` | `""` | Namespace hosting the single egress proxy (Deployment, Service, PDB, allowlist ConfigMap and both its policies). Must be one of the declared domains; required when more than one domain is declared, defaults to the only domain when exactly one is. Setting it with no `domains` fails the render. |
 | `sandbox.peerNamespace` | `""` | Namespace the sandbox policy's **non-agent** peers select: sentry-proxy, the three `vault-obsidian-*` services, `frontend-gateway`, `frontend-strategy` and the optional vault-API app. Empty falls back to the control namespace, so every current install renders unchanged. Set it when the control plane moves to its own namespace but those services stay behind — otherwise the peers name a namespace holding none of them and the policy silently denies every sandboxed Job its vault and its Sentry proxy. **The router is not covered**: it is a control-plane component and follows `namespace`. |
 | `sandbox.kafka.namespace` | `""` | Select Kafka by namespace (in-cluster Service) instead of the built-in nodeport addresses. Takes precedence over them. |
 | `sandbox.kafka.podLabels` | `{}` | Pod selector narrowing the Kafka peer inside `sandbox.kafka.namespace`. Empty opens **every** pod in that namespace on `servicePort` — set it unless the namespace holds only brokers. |
 | `sandbox.kafka.servicePort` | `0` | The broker pods' **container** port — not the Service port, since a NetworkPolicy port matches the destination pod. Required when `sandbox.kafka.namespace` is set, and must be a positive integer — the render fails on `0` or on a non-numeric value, either of which would emit a policy that matches nothing. |
 | `sandbox.routerInstance` | `""` | `app.kubernetes.io/instance` the router peer selects. Empty = `claude-code-router-<namespace>`. |
 | `sandbox.vaultApiApp` | `""` | When set, render an extra egress peer selecting this `app` label on port 9090 (e.g. `vault-api-openclaw`). |
-| `sandbox.renderAgentStorage` | `false` | Also render each chart-rendered agent Secret and PVC into the sandbox namespace (gated on `executor.enabled`). Only chart-rendered objects are copied, and a copied PVC is a new, empty volume — not a view of the control-namespace claim. |
+| `sandbox.renderAgentStorage` | `false` | Also render each chart-rendered agent Secret and PVC into the sandbox namespace (gated on `executor.enabled`). With `domains` declared the copy follows each agent's `jobNamespace` and renders only when that names a declared domain; without domains it targets the single sandbox namespace regardless of `jobNamespace`. Only chart-rendered objects are copied, and a copied PVC is a new, empty volume — not a view of the control-namespace claim. |
+
+### Multiple sandbox domains
+
+Declare `sandbox.domains` when one install must host agents in more than one
+namespace — for example a general `agent-sandbox` and a narrower
+`trading-sandbox` whose Jobs may only reach trading services:
+
+```yaml
+sandbox:
+  proxyNamespace: agent-sandbox
+  domains:
+    agent-sandbox: {}          # omitting peers renders the full union
+    trading-sandbox:
+      peers: [router, pushgateway, frontend-gateway, frontend-strategy]
+```
+
+The chart renders one `Namespace` per entry, carrying
+`helm.sh/resource-policy: keep` so `helm uninstall` does not delete it, and one
+`<name>-egress` `NetworkPolicy` with `podSelector app: agent`, `policyTypes:
+[Egress]` and no ingress rules. Each domain's egress is exactly its `peers`
+list, plus `dns` and `proxy`, which are unconditional: DNS is how a pod resolves
+anything and the proxy is the only route to the public internet, so making
+either opt-in would be an off-switch for egress that fails silently.
+
+The egress proxy renders once, in `proxyNamespace`, and `egress-proxy-ingress`
+admits `app: agent` pods from every rendered domain — a newly declared domain
+reaches the proxy without a second edit. `proxyNamespace` is required when more
+than one domain is declared, must name a declared domain, and defaults to that
+domain when exactly one is declared.
+
+Storage copies follow each agent's `jobNamespace` in domains mode only: with
+`sandbox.renderAgentStorage: true` an agent whose `jobNamespace` names a
+declared domain gets its Secret and PVC copied there; an agent with no
+`jobNamespace`, or one naming an undeclared namespace, gets no sandbox copy.
+
+`sandbox.namespace` and `sandbox.domains` are mutually exclusive. Installs that
+declare no domains keep the legacy single sandbox and its policy name
+`agent-sandbox-egress`.
 
 ### executor
 
@@ -271,9 +312,10 @@ already exist and already hold the agent's PVC and Secret — either place them 
 yourself, or point `jobNamespace` at the chart's own sandbox namespace
 (`sandbox.namespace`, default `<namespace>-agents-sandbox`) and set
 `sandbox.renderAgentStorage: true`, which renders the chart-managed copies into that
-namespace. `renderAgentStorage` never follows `jobNamespace` to a different name, so a
-`jobNamespace` that is not the chart's sandbox namespace needs the PVC and Secret placed by
-hand. The value must be a valid DNS-1123 label (lowercase alphanumerics and `-`, at most
+namespace. In domains mode (`sandbox.domains` declared) `renderAgentStorage` copies the
+Secret and PVC into the sandbox that `jobNamespace` names, and only when that name is a
+declared domain; with no domains the copy still targets the single `sandbox.namespace`.
+A `jobNamespace` naming an undeclared namespace needs the PVC and Secret placed by hand. The value must be a valid DNS-1123 label (lowercase alphanumerics and `-`, at most
 63 characters), because the executor's Config CRD schema rejects anything else at apply
 time. A value equal to the executor's own namespace is rejected by the executor and no Job
 is spawned. The field needs agent-task-executor >= v0.31.0, because an older executor

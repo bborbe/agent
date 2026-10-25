@@ -17,6 +17,29 @@ sandbox:
   # Explicit sandbox namespace name. Empty falls back to
   # "<namespace>-agents-sandbox", which is what every current install renders.
   namespace: ""
+  # A map of sandbox namespace name to its egress peer set. When non-empty the
+  # chart renders one Namespace and one `<name>-egress` default-deny policy per
+  # entry, and the egress proxy renders once in `proxyNamespace`. Empty (the
+  # default) renders today's single sandbox exactly, so no existing install
+  # changes. Mutually exclusive with `namespace` above — declaring both fails
+  # the render, because a fifth namespace or one silently ignored is ambiguous.
+  #
+  # Each entry takes an optional `peers` list naming destinations from the
+  # fixed catalog: dns, router, pushgateway, sentry-proxy, vault-personal,
+  # vault-openclaw, vault-trading, frontend-gateway, frontend-strategy,
+  # vault-api, kafka, proxy. An unknown name fails the render. `dns` and
+  # `proxy` are added to every domain unconditionally — they are how a pod
+  # resolves anything and the only route to the public internet. OMITTING
+  # `peers` renders today's full union (every catalog peer except proxy/dns
+  # duplication), deliberately: the first apply of a domains install must not
+  # narrow any agent's reach. An explicit `peers: []` renders only dns+proxy.
+  domains: {}
+  # Namespace hosting the single egress proxy (Deployment, Service, PDB,
+  # allowlist ConfigMap and its two policies). Required when more than one
+  # domain is declared, and must be one of the declared domains. With exactly
+  # one domain it defaults to that domain. Setting it with no `domains`
+  # declared fails the render — it would name a namespace nothing creates.
+  proxyNamespace: ""
   # Namespace holding the sandbox policy's NON-agent peers: sentry-proxy, the
   # three vault-obsidian-* services, the two trading frontends and the optional
   # vault-API app. Empty falls back to the control namespace, which is where
@@ -53,7 +76,10 @@ sandbox:
   # `secretName` renders no Secret, so the operator must still place that
   # Secret in the sandbox namespace by hand. A copied PVC is a NEW, EMPTY
   # volume, not a view of the control-namespace claim — data written to the
-  # original is not visible in the sandbox copy.
+  # original is not visible in the sandbox copy. In domains mode
+  # (`sandbox.domains` declared) the copy follows the agent's `jobNamespace`
+  # and renders only when that names a declared domain; with no domains it
+  # targets the single `sandbox.namespace` regardless of `jobNamespace`.
   renderAgentStorage: false
 
 # Image coordinates. Default to the public Docker Hub image; a self-sufficient
@@ -474,9 +500,13 @@ agents: []
   #                                 # sandbox namespace (`sandbox.namespace`, default
   #                                 # `<namespace>-agents-sandbox`) and set
   #                                 # `sandbox.renderAgentStorage: true`, which renders
-  #                                 # the chart-managed copies into THAT namespace.
-  #                                 # renderAgentStorage never follows jobNamespace to a
-  #                                 # different name. Must be a valid DNS-1123 label
+  #                                 # the chart-managed copies into THAT namespace. In
+  #                                 # domains mode (`sandbox.domains` declared),
+  #                                 # renderAgentStorage copies the Secret and PVC into
+  #                                 # the sandbox this jobNamespace names, and only when
+  #                                 # that name is a declared domain; with no domains the
+  #                                 # copy still targets the single sandbox.namespace.
+  #                                 # Must be a valid DNS-1123 label
   #                                 # (lowercase alphanumerics and `-`, at most 63
   #                                 # characters) — the executor's Config CRD schema
   #                                 # rejects anything else at apply time — and must
