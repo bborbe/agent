@@ -213,6 +213,19 @@ no_proxy: {{ $noProxyValue }}
 {{- join "," $all -}}
 {{- end -}}
 
+{{/* Kafka nodeports a sandboxed client may be sent to, comma-separated, with
+     the built-in nodeport as the fallback. A NetworkPolicy port matches the
+     destination pod; a Kafka client bootstraps on one nodeport and then follows
+     the broker's advertised metadata to another, so admitting only the
+     bootstrap port rejects the connection the client actually uses. Empty or
+     unset falls back to [32159] — never render an empty `ports:` list, which
+     would open every port on the peer's CIDRs. Input: the root context. */}}
+{{- define "agent.sandboxKafkaNodePorts" -}}
+{{- $sandbox := .Values.sandbox | default dict -}}
+{{- $kafka := $sandbox.kafka | default dict -}}
+{{- join "," ($kafka.nodePorts | default (list 32159)) -}}
+{{- end -}}
+
 {{/* One egress rule for a catalog peer, at zero base indentation (callers use
      `| nindent 4`). Input: dict "root" $ "name" <catalog name>. Every peer
      keeps namespaceSelector and podSelector in the SAME `to:` entry — as two
@@ -343,7 +356,9 @@ no_proxy: {{ $noProxyValue }}
     - ipBlock:
         cidr: 192.168.178.43/32
   ports:
-    - { protocol: TCP, port: 32159 }
+    {{- range $port := include "agent.sandboxKafkaNodePorts" $root | splitList "," }}
+    - { protocol: TCP, port: {{ $port }} }
+    {{- end }}
 {{- end -}}
 {{- else if eq .name "proxy" -}}
 - to:
@@ -429,6 +444,13 @@ no_proxy: {{ $noProxyValue }}
 {{- if $sandbox.kafka.namespace -}}
 {{- if not (regexMatch "^[1-9][0-9]*$" (toString $sandbox.kafka.servicePort)) -}}
 {{- fail "sandbox.kafka.servicePort is required as a positive integer when sandbox.kafka.namespace is set" -}}
+{{- end -}}
+{{- end -}}
+{{- /* Applies in both Kafka branches: a non-positive nodeport renders a policy
+       that matches nothing, the same silent no-op as `port: 0`. */ -}}
+{{- range $port := include "agent.sandboxKafkaNodePorts" . | splitList "," -}}
+{{- if not (regexMatch "^[1-9][0-9]*$" (toString $port)) -}}
+{{- fail "sandbox.kafka.nodePorts must contain only positive integers" -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

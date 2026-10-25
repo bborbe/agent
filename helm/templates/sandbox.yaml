@@ -214,7 +214,8 @@ spec:
     {{- end }}
     # Kafka — the only path a task result reaches its topic. Either the built-in
     # external nodeport listener on nuke, selected by hardcoded LAN /32s (never a
-    # /24: a /24 would allow every host on that subnet on this port), or an
+    # /24: a /24 would allow every host on that subnet on these ports) on every
+    # port in sandbox.kafka.nodePorts, or an
     # in-cluster Service selected by namespace when sandbox.kafka.namespace is
     # set. namespaceSelector and podSelector stay in the SAME peer — as separate
     # peers they OR and open every service on that port in that namespace.
@@ -239,7 +240,9 @@ spec:
         - ipBlock:
             cidr: 192.168.178.43/32
       ports:
-        - { protocol: TCP, port: 32159 }
+        {{- range $port := include "agent.sandboxKafkaNodePorts" . | splitList "," }}
+        - { protocol: TCP, port: {{ $port }} }
+        {{- end }}
     {{- end }}
     # The only path to the public internet: the domain-allowlisting egress proxy
     # (spec 048). Direct internet stays denied by omission.

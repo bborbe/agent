@@ -504,6 +504,21 @@ else
 	fail=1
 fi
 
+# A non-positive nodePorts element must fail the render: `port: 0` (or a
+# negative) matches nothing and looks healthy, the same silent no-op as a
+# missing servicePort.
+if err="$("$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
+	--set namespace=dev --set executor.existingSecret=agent-secret \
+	--set 'sandbox.kafka.nodePorts={32159,0}' 2>&1)"; then
+	echo "FAIL: kafka-nonpositive-nodeport: render succeeded with a non-positive nodePorts element"
+	fail=1
+elif grep -q 'sandbox.kafka.nodePorts must contain only positive integers' <<<"$err"; then
+	echo "OK: kafka-nonpositive-nodeport"
+else
+	echo "FAIL: kafka-nonpositive-nodeport: render failed without the expected message: $err"
+	fail=1
+fi
+
 # A non-integer servicePort must fail too. `abc` is truthy, so a falsy-only
 # guard lets it through and renders `port: abc` — a named port that matches
 # nothing, the same silent no-op as `port: 0`.
@@ -545,6 +560,25 @@ if [ "$cidr32" -ne 3 ] || ! grep -q 'port: 32159' <<<"$kafka_doc"; then
 	fail=1
 else
 	echo "OK: kafka-default"
+fi
+
+# sandbox.kafka.nodePorts: every listed nodeport gets its own ports entry in
+# the LEGACY inline peer (sandbox.yaml). A Kafka client bootstraps on one
+# nodeport and follows advertised metadata to another, so admitting only the
+# bootstrap port rejects the connection the client actually uses.
+run_policy_case kafka-nodeports-legacy "$tmpdir/unset.yaml" \
+	--set namespace=dev --set executor.existingSecret=agent-secret \
+	--set 'sandbox.kafka.nodePorts={32159,32706}'
+kafka_doc="$(policy_doc "$POLICY_OUT" agent-sandbox-egress)"
+kafka_peer="$(awk 'BEGIN{RS="    - to:"} /cidr: 192\.168\.178\.41\/32/{print; exit}' <<<"$kafka_doc")"
+if [ -z "$kafka_peer" ]; then
+	echo "FAIL: kafka-nodeports-legacy: no nodeport Kafka peer extracted — the assertion would pass vacuously"
+	fail=1
+elif ! grep -q 'port: 32159' <<<"$kafka_peer" || ! grep -q 'port: 32706' <<<"$kafka_peer"; then
+	echo "FAIL: kafka-nodeports-legacy: Kafka peer does not carry both nodeports"
+	fail=1
+else
+	echo "OK: kafka-nodeports-legacy"
 fi
 
 # Router instance override: the peer selects the literal, not the derived name.
@@ -1006,6 +1040,26 @@ if [ "$union_cidr" -ne 3 ] || ! grep -q 'port: 32159' <<<"$union_policy"; then
 	echo "FAIL: domains-peers: union-sandbox-egress lacks the three nodeport /32 cidrs on 32159"; peers_bad=1
 fi
 if [ "$peers_bad" -ne 0 ]; then fail=1; else echo "OK: domains-peers"; fi
+
+# The same nodePorts list must reach the helper-rendered peer in a domain
+# policy, not just the legacy inline one — both call sites share
+# agent.sandboxKafkaNodePorts, and this is the case that catches one of them
+# falling back to a hardcoded port. union-sandbox omits `peers`, so it renders
+# the full union including kafka on the nodeport branch.
+run_policy_case kafka-nodeports-domains "$tmpdir/domains-peers.yaml" \
+	--set namespace=dev --set executor.existingSecret=agent-secret \
+	--set 'sandbox.kafka.nodePorts={32159,32706}'
+kafka_doc="$(policy_doc "$POLICY_OUT" union-sandbox-egress)"
+kafka_peer="$(awk 'BEGIN{RS="    - to:"} /cidr: 192\.168\.178\.41\/32/{print; exit}' <<<"$kafka_doc")"
+if [ -z "$kafka_peer" ]; then
+	echo "FAIL: kafka-nodeports-domains: no nodeport Kafka peer extracted — the assertion would pass vacuously"
+	fail=1
+elif ! grep -q 'port: 32159' <<<"$kafka_peer" || ! grep -q 'port: 32706' <<<"$kafka_peer"; then
+	echo "FAIL: kafka-nodeports-domains: union-sandbox-egress Kafka peer does not carry both nodeports"
+	fail=1
+else
+	echo "OK: kafka-nodeports-domains"
+fi
 
 # A single domain defaults the proxy namespace to that domain.
 run_policy_case domains-single "$tmpdir/unset.yaml" --set 'sandbox.domains.only-sandbox.peers={router}'

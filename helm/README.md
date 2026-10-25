@@ -111,6 +111,7 @@ agents: []
 | `sandbox.kafka.namespace` | `""` | Select Kafka by namespace (in-cluster Service) instead of the built-in nodeport addresses. Takes precedence over them. |
 | `sandbox.kafka.podLabels` | `{}` | Pod selector narrowing the Kafka peer inside `sandbox.kafka.namespace`. Empty opens **every** pod in that namespace on `servicePort` — set it unless the namespace holds only brokers. |
 | `sandbox.kafka.servicePort` | `0` | The broker pods' **container** port — not the Service port, since a NetworkPolicy port matches the destination pod. Required when `sandbox.kafka.namespace` is set, and must be a positive integer — the render fails on `0` or on a non-numeric value, either of which would emit a policy that matches nothing. |
+| `sandbox.kafka.nodePorts` | `[32159]` | Nodeports the built-in nodeport branch admits, one `ports:` entry each. A NetworkPolicy port matches the destination pod, and a Kafka client bootstraps on one nodeport then follows the broker's advertised metadata to another — so admitting only the bootstrap port rejects the connection the client actually uses. Empty or unset falls back to `[32159]`; every element must be a positive integer or the render fails. Ignored when `sandbox.kafka.namespace` is set. |
 | `sandbox.routerInstance` | `""` | `app.kubernetes.io/instance` the router peer selects. Empty = `claude-code-router-<namespace>`. |
 | `sandbox.vaultApiApp` | `""` | When set, render an extra egress peer selecting this `app` label on port 9090 (e.g. `vault-api-openclaw`). |
 | `sandbox.renderAgentStorage` | `false` | Also render each chart-rendered agent Secret and PVC into the sandbox namespace (gated on `executor.enabled`). With `domains` declared the copy follows each agent's `jobNamespace` and renders only when that names a declared domain; without domains it targets the single sandbox namespace regardless of `jobNamespace`. Only chart-rendered objects are copied, and a copied PVC is a new, empty volume — not a view of the control-namespace claim. |
@@ -369,9 +370,12 @@ secrets, Strimzi mTLS. **None of that is required.** A vanilla cluster:
   two-replica tinyproxy egress proxy (`egress-proxy`, port 8888) and its allowlist
   ConfigMap — the only path from a sandbox pod to the public internet; changing the
   allowlist is a ConfigMap edit, never an image rebuild.
-  Kafka is selected either by the built-in nuke nodeport `/32`s on 32159 (the
-  default) or, when `sandbox.kafka.namespace` + `sandbox.kafka.servicePort` are
-  set, by an in-cluster namespace + optional `sandbox.kafka.podLabels` selector.
+  Kafka is selected either by the built-in nuke nodeport `/32`s on the ports in
+  `sandbox.kafka.nodePorts` (default `[32159]`) or, when `sandbox.kafka.namespace`
+  + `sandbox.kafka.servicePort` are set, by an in-cluster namespace + optional
+  `sandbox.kafka.podLabels` selector. A Kafka client bootstraps on one nodeport
+  and then follows the broker's advertised metadata to another, so list every
+  nodeport the brokers advertise — the bootstrap port alone is not enough.
   `pushgateway` remains pinned to the `monitoring` namespace.
 - **Egress proxy** — the chart renders a domain-allowlisting tinyproxy (`egress-proxy`,
   port 8888) in the sandbox namespace (`sandbox.namespace`, default
