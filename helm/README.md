@@ -115,6 +115,32 @@ agents: []
 | `sandbox.routerInstance` | `""` | `app.kubernetes.io/instance` the router peer selects. Empty = `claude-code-router-<namespace>`. |
 | `sandbox.vaultApiApp` | `""` | When set, render an extra egress peer selecting this `app` label on port 9090 (e.g. `vault-api-openclaw`). |
 | `sandbox.renderAgentStorage` | `false` | Also render each chart-rendered agent Secret and PVC into the sandbox namespace (gated on `executor.enabled`). With `domains` declared the copy follows each agent's `jobNamespace` and renders only when that names a declared domain; without domains it targets the single sandbox namespace regardless of `jobNamespace`. Only chart-rendered objects are copied, and a copied PVC is a new, empty volume — not a view of the control-namespace claim. |
+| `sandbox.renderPolicies` | `true` | Render the sandbox egress layer: every sandbox `NetworkPolicy` (`<name>-egress` or `agent-sandbox-egress`, `egress-proxy-egress`, `egress-proxy-ingress`) and the whole egress proxy (Deployment, Service, PDB, allowlist ConfigMap). `false` drops exactly that layer — the Namespaces, the executor's sandbox RBAC and the `renderAgentStorage` copies still render into the same namespaces — and also suppresses `egressProxy.injectAgentEnv`, since the env would name a proxy this render omits. Unset or `true` renders unchanged; any other value fails the render. See **Parking the egress layer** below. |
+
+### Parking the egress layer
+
+`sandbox.renderPolicies: false` keeps agents placed in their sandbox namespaces
+while the default-deny policies and the egress proxy are switched off — for
+example while the proxy itself is being diagnosed. Before this key the three
+were coupled: dropping the policies meant dropping `sandbox:`, and that also
+dropped the namespaces' chart-rendered Secrets, which carry no
+`helm.sh/resource-policy: keep` and are deleted on the next apply.
+
+```yaml
+sandbox:
+  proxyNamespace: agent-sandbox
+  renderAgentStorage: true
+  renderPolicies: false      # Namespaces + Secrets/PVCs stay; no NetworkPolicy, no proxy
+  domains:
+    agent-sandbox: {}
+    trading-sandbox:
+      peers: [router, pushgateway, frontend-gateway, frontend-strategy]
+```
+
+The flag decides whether the policies exist, never what they allow: setting it
+back to `true` (or removing it) renders the same policies as before, byte for
+byte. Without a policy, sandboxed pods have unrestricted egress — that is the
+trade this flag makes, so park the layer deliberately and for a bounded time.
 
 ### Multiple sandbox domains
 

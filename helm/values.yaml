@@ -90,6 +90,19 @@ sandbox:
   # and renders only when that names a declared domain; with no domains it
   # targets the single `sandbox.namespace` regardless of `jobNamespace`.
   renderAgentStorage: false
+  # Render the sandbox egress layer: every sandbox NetworkPolicy (the
+  # per-domain `<name>-egress` or the legacy `agent-sandbox-egress`, plus
+  # `egress-proxy-egress` and `egress-proxy-ingress`) and the whole egress
+  # proxy (Deployment, Service, PodDisruptionBudget, allowlist ConfigMap).
+  # `false` drops exactly that layer and nothing else: the sandbox Namespaces,
+  # the executor's sandbox RBAC and the `renderAgentStorage` Secret/PVC copies
+  # still render into the same namespaces, so an install can keep its agents
+  # placed while the egress layer is parked. `false` also suppresses
+  # `egressProxy.injectAgentEnv`, because the env would name the proxy Service
+  # this same render omits. Unset or `true` renders today's chart unchanged;
+  # any other value fails the render. No policy rule changes with this flag —
+  # it decides whether the policies exist, never what they allow.
+  renderPolicies: true
 
 # Image coordinates. Default to the public Docker Hub image; a self-sufficient
 # cluster overrides registry to its in-cluster mirror.
