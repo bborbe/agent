@@ -413,6 +413,11 @@ secrets, Strimzi mTLS. **None of that is required.** A vanilla cluster:
   the executor spawns Jobs into the sandbox (`ConfigSpec.JobNamespace`, spec 002) — while
   Jobs run in the control namespace, `egress-proxy-ingress` does not admit them and the
   injected proxy would deny every outbound call. `type: service` agents never receive it.
+  The injected `NO_PROXY` keeps in-cluster traffic direct: `.svc.cluster.local`, the
+  Kafka broker hosts, and the `<service>.<namespace>` short form of every Service peer in
+  the sandbox catalog (`pushgateway.monitoring`, `sentry-proxy.<peerNamespace>`, the
+  vaults, the trading frontends, the router) — derived from the catalog, never a bare
+  namespace suffix like `.prod`, which would let public hosts bypass the proxy.
 
 ---
 

@@ -111,9 +111,25 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
      executor.kafkaBrokers value (nuke's Kafka is an external nodeport, not an
      in-cluster Service, so .svc.cluster.local does not cover it). These values
      override any conflicting per-agent env so an agent cannot bypass or
-     misroute the proxy. */}}
+     misroute the proxy.
+
+     `.svc.cluster.local` covers only the FQDN form. Agents also call peers by
+     the namespace-qualified short form (`pushgateway.monitoring`,
+     `sentry-proxy.<peerNamespace>`), which that suffix does not match, so the
+     proxy receives them and refuses them with `403 Filtered`. Every Service
+     peer in the sandbox catalog therefore adds its `<service>.<namespace>`
+     host, derived from `agent.sandboxPeerHost` so a new catalog peer cannot
+     be forgotten here. Never a bare namespace suffix (`.prod`): a NO_PROXY
+     suffix matches any host ending in it and would let public hosts bypass
+     the proxy. */}}
 {{- define "agent.proxyEnv" -}}
 {{- $noProxy := list "127.0.0.1" "localhost" ".svc.cluster.local" }}
+{{- range $peer := append (include "agent.sandboxServicePeers" . | splitList ",") "vault-api" }}
+{{-   $host := include "agent.sandboxPeerHost" (dict "root" $ "name" $peer) }}
+{{-   if and $host (not (has $host $noProxy)) }}
+{{-     $noProxy = append $noProxy $host }}
+{{-   end }}
+{{- end }}
 {{- /* Both broker sources: the singular executor, plus every executors[] entry
        (list mode renders those instead of the singular Deployment, and their
        kafkaBrokers falls back to the global). Missing the list source would leave
@@ -134,7 +150,7 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{-   else }}
 {{-     $host = first (splitList ":" $b) }}
 {{-   end }}
-{{-   if $host }}
+{{-   if and $host (not (has $host $noProxy)) }}
 {{-     $noProxy = append $noProxy $host }}
 {{-   end }}
 {{- end }}
@@ -202,7 +218,7 @@ no_proxy: {{ $noProxyValue }}
 {{- if not (has $peer $peers) -}}{{- $peers = append $peers $peer -}}{{- end -}}
 {{- end -}}
 {{- else -}}
-{{- $peers = list "router" "pushgateway" "sentry-proxy" "vault-personal" "vault-openclaw" "vault-trading" "frontend-gateway" "frontend-strategy" "kafka" -}}
+{{- $peers = append (include "agent.sandboxServicePeers" $root | splitList ",") "kafka" -}}
 {{- if $sandbox.vaultApiApp -}}{{- $peers = append $peers "vault-api" -}}{{- end -}}
 {{- end -}}
 {{- $all := list "dns" -}}
@@ -224,6 +240,47 @@ no_proxy: {{ $noProxyValue }}
 {{- $sandbox := .Values.sandbox | default dict -}}
 {{- $kafka := $sandbox.kafka | default dict -}}
 {{- join "," ($kafka.nodePorts | default (list 32159)) -}}
+{{- end -}}
+
+{{/* The catalog peers that are in-cluster Services reached by host name, in
+     the order the default domain union renders them. Excluded: `dns` and
+     `proxy` (unconditional, never in NO_PROXY), `kafka` (its brokers come
+     from `executor.kafkaBrokers`, and the default peer is an ipBlock), and
+     `vault-api` (optional — callers append it; `agent.sandboxPeerHost`
+     returns "" while `sandbox.vaultApiApp` is unset). */}}
+{{- define "agent.sandboxServicePeers" -}}
+router,pushgateway,sentry-proxy,vault-personal,vault-openclaw,vault-trading,frontend-gateway,frontend-strategy
+{{- end -}}
+
+{{/* `<service>.<namespace>` for one catalog peer, or "" when the peer has no
+     Service host. Must agree with `agent.sandboxPeer` below: the namespace is
+     the one that peer's policy rule selects, and the Service name is the one
+     the agents' own URLs use (for the router, the release instance; for the
+     rest, the `app` label the rule selects). Input: dict "root" $ "name"
+     <catalog name>. */}}
+{{- define "agent.sandboxPeerHost" -}}
+{{- $root := .root -}}
+{{- $sandbox := $root.Values.sandbox | default dict -}}
+{{- $peerNS := include "agent.sandboxPeerNamespace" $root -}}
+{{- if eq .name "router" -}}
+{{- printf "%s.%s" ($sandbox.routerInstance | default (printf "claude-code-router-%s" $root.Values.namespace)) (include "agent.namespace" $root) -}}
+{{- else if eq .name "pushgateway" -}}
+pushgateway.monitoring
+{{- else if eq .name "sentry-proxy" -}}
+{{- printf "sentry-proxy.%s" $peerNS -}}
+{{- else if eq .name "vault-personal" -}}
+{{- printf "vault-obsidian-personal.%s" $peerNS -}}
+{{- else if eq .name "vault-openclaw" -}}
+{{- printf "vault-obsidian-openclaw.%s" $peerNS -}}
+{{- else if eq .name "vault-trading" -}}
+{{- printf "vault-obsidian-trading.%s" $peerNS -}}
+{{- else if eq .name "frontend-gateway" -}}
+{{- printf "frontend-gateway.%s" $peerNS -}}
+{{- else if eq .name "frontend-strategy" -}}
+{{- printf "frontend-strategy.%s" $peerNS -}}
+{{- else if and (eq .name "vault-api") $sandbox.vaultApiApp -}}
+{{- printf "%s.%s" $sandbox.vaultApiApp $peerNS -}}
+{{- end -}}
 {{- end -}}
 
 {{/* One egress rule for a catalog peer, at zero base indentation (callers use
