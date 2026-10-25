@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.130.0
 
 - feat(helm): make the sandbox Kafka peer's nodeport list configurable via `sandbox.kafka.nodePorts` (default `[32159]`, which renders byte-identically to today). The nodeport branch hardcoded a single port, but a Kafka client bootstraps on that port and then follows the broker's advertised metadata to a different nodeport, so the policy admitted the bootstrap connection and rejected the one the client actually used — observed on nuke dev as `dial tcp 192.168.178.41:32706: connect: connection refused` after a successful bootstrap on 32159. Both nodeport sites render one `ports:` entry per value and share the `agent.sandboxKafkaNodePorts` helper, so the default cannot drift between the legacy inline policy and the domains peer. An empty or unset list falls back to `[32159]` — never an empty `ports:` list, which would open every port on the peer's CIDRs — and a non-positive element fails the render. The in-cluster branch (`sandbox.kafka.namespace` + `servicePort`) is unchanged and still takes precedence. Chart 0.23.0→0.23.1.
 
