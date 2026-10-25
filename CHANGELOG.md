@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.128.0
 
 - feat(helm): add a `sandbox.domains` map that renders one Namespace and one `<domain>-egress` default-deny policy per declared sandbox namespace, built from a closed peer catalog; `dns` and `proxy` are unconditional and every domain reaches the single egress proxy across the namespace boundary (the proxy peer carries a namespace selector and a pod selector in the same `to:` entry — without it only the proxy's own domain keeps internet egress); `sandbox.proxyNamespace` names the proxy's namespace and is required when more than one domain is declared; omitting a domain's `peers` renders today's full union, so the first apply narrows nothing; `sandbox.renderAgentStorage` copies each agent's Secret/PVC into the sandbox its `jobNamespace` names when domains are declared; declaring `domains` and `sandbox.namespace` together fails the render. Chart 0.22.3→0.23.0.
 - test(helm): render cases for the domains feature — namespaces and their `resource-policy: keep`, per-domain policies and their narrowed peer sets, the proxy rendered once and admitted from every domain, per-domain executor RBAC, storage copies following `jobNamespace`, the proxy env pointing at `proxyNamespace`, a domain name the spec never hardcodes, the full-union default, the single-domain proxy default, the domains-mode `executor.enabled: false` case, and seven fail-fast cases.
