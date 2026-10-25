@@ -686,12 +686,69 @@ check_proxy_env() {
 	fi
 }
 
+# The catalog's Service peers, namespace-qualified, sit between the fixed
+# prefix and the broker hosts (namespace "test" from the fixture).
+peer_hosts='claude-code-router-test\.test,pushgateway\.monitoring,sentry-proxy\.test,vault-obsidian-personal\.test,vault-obsidian-openclaw\.test,vault-obsidian-trading\.test,frontend-gateway\.test,frontend-strategy\.test'
 check_proxy_env plain 'kafka:9092' \
-	'NO_PROXY: 127\.0\.0\.1,localhost,\.svc\.cluster\.local,kafka$'
+	"NO_PROXY: 127\.0\.0\.1,localhost,\.svc\.cluster\.local,$peer_hosts,kafka\$"
 check_proxy_env tls 'tls://kafka.example:9093' \
-	'NO_PROXY: 127\.0\.0\.1,localhost,\.svc\.cluster\.local,kafka\.example$'
+	"NO_PROXY: 127\.0\.0\.1,localhost,\.svc\.cluster\.local,$peer_hosts,kafka\.example\$"
 check_proxy_env ipv6 '[::1]:9092' \
-	'NO_PROXY: 127\.0\.0\.1,localhost,\.svc\.cluster\.local,::1$'
+	"NO_PROXY: 127\.0\.0\.1,localhost,\.svc\.cluster\.local,$peer_hosts,::1\$"
+# Repeated brokers (singular executor + executors[] falling back to it) render once.
+check_proxy_env dedup 'kafka:9092\,kafka:9093' \
+	"NO_PROXY: 127\.0\.0\.1,localhost,\.svc\.cluster\.local,$peer_hosts,kafka\$"
+
+# NO_PROXY short names: agents call peers as `<service>.<namespace>`
+# (`pushgateway.monitoring`, `sentry-proxy.<peerNamespace>`), which the
+# `.svc.cluster.local` suffix does not match — the proxy then refuses them with
+# `403 Filtered`. The peer namespace must follow sandbox.peerNamespace, and no
+# entry may be a bare suffix other than `.svc.cluster.local`: `.prod` would let
+# every public host ending in it bypass the proxy.
+short_out="$tmpdir/proxy-short-names.out"
+"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
+	--set egressProxy.injectAgentEnv=true \
+	--set sandbox.peerNamespace=prod \
+	--set sandbox.vaultApiApp=vault-api-openclaw >"$short_out"
+short_value=$(grep -m1 -E '^ +NO_PROXY: ' "$short_out" | sed -E 's/^ +NO_PROXY: //' || true)
+if [ -z "$short_value" ]; then
+	echo "FAIL: proxy-short-names: no NO_PROXY rendered with injectAgentEnv=true"
+	fail=1
+fi
+for want in pushgateway.monitoring sentry-proxy.prod vault-obsidian-personal.prod \
+	vault-obsidian-openclaw.prod vault-obsidian-trading.prod frontend-gateway.prod \
+	frontend-strategy.prod vault-api-openclaw.prod claude-code-router-test.test; do
+	if printf ',%s,' "$short_value" | grep -qF ",$want,"; then
+		echo "OK: proxy-short-names has $want"
+	else
+		echo "FAIL: proxy-short-names: NO_PROXY missing $want (got: $short_value)"
+		fail=1
+	fi
+done
+bare=$(printf '%s\n' "$short_value" | tr ',' '\n' | grep '^\.' | grep -vx '\.svc\.cluster\.local' || true)
+if [ -n "$bare" ]; then
+	echo "FAIL: proxy-short-names: bare suffix entries in NO_PROXY: $bare"
+	fail=1
+else
+	echo "OK: proxy-short-names (no bare suffix besides .svc.cluster.local)"
+fi
+
+# Drift guard: every Service peer the default egress policy admits by `app:`
+# label must also bypass the proxy, so a catalog peer added to the policy
+# without a NO_PROXY host fails here rather than as a 403 in production.
+drift_apps=$(awk '/^---/{p=0} /^  name: agent-sandbox-egress$/{p=1} p && /^          [ ]*app: /{print $2}' "$short_out" | grep -vx 'egress-proxy' | sort -u)
+if [ -z "$drift_apps" ]; then
+	echo "FAIL: proxy-drift: no app peers found in agent-sandbox-egress (selector moved?)"
+	fail=1
+fi
+for app in $drift_apps; do
+	if printf ',%s,' "$short_value" | grep -qF ",$app."; then
+		echo "OK: proxy-drift $app"
+	else
+		echo "FAIL: proxy-drift: egress peer app=$app has no NO_PROXY host"
+		fail=1
+	fi
+done
 
 # The env must point at this install's proxy.
 proxy_out="$tmpdir/proxy-env.out"
