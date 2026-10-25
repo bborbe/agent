@@ -158,8 +158,11 @@ two selectors sit in one `to:` entry so they AND rather than OR.
 > (default: the control namespace); the optional `vault-api` app on 9090; Kafka
 > in either of two branches; and the proxy. The Kafka branches: the default
 > selects the nuke **external nodeport listener** as three `/32` `ipBlock`s on
-> 32159 — never a `/24`, which would allow every host on that subnet on this
-> port — while setting `sandbox.kafka.namespace` + `sandbox.kafka.servicePort`
+> the ports in `sandbox.kafka.nodePorts` (default `[32159]`) — never a `/24`,
+> which would allow every host on that subnet on those ports; list every
+> nodeport the brokers advertise, because a client bootstraps on one and then
+> follows the advertised metadata to another — while setting
+> `sandbox.kafka.namespace` + `sandbox.kafka.servicePort`
 > selects the broker pods by namespace (optionally narrowed by
 > `sandbox.kafka.podLabels`) on that port. A NetworkPolicy port matches the
 > destination **pod's** container port, not the Service's; the two normally

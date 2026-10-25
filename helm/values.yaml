@@ -63,6 +63,15 @@ sandbox:
     # destination pod, not the Service — the two usually share a number on
     # Strimzi listeners, but where they differ this silently matches nothing.
     servicePort: 0
+    # Nodeports the built-in nuke listener advertises, used when
+    # `namespace` is empty. A NetworkPolicy port matches the destination pod,
+    # and a Kafka client bootstraps on one nodeport then follows the broker's
+    # advertised metadata to another — so the bootstrap port alone admits the
+    # first connection and rejects the one the client actually uses. List
+    # every nodeport the brokers advertise. Empty or unset falls back to
+    # [32159], today's render; an element that is not a positive integer fails
+    # the render.
+    nodePorts: [32159]
   # app.kubernetes.io/instance value the router peer selects.
   # Empty falls back to "claude-code-router-<namespace>".
   routerInstance: ""
