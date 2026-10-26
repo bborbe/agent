@@ -200,12 +200,54 @@ metadata:
     {{- include "agent.labels" $ | nindent 4 }}
 spec:
   hard:
-    pods: "{{ $agent.concurrency | default 1 }}"
+    pods: "{{ $agent.concurrency | default $agent.maxConcurrentJobs | default 1 }}"
   scopeSelector:
     matchExpressions:
       - scopeName: PriorityClass
         operator: In
         values:
           - {{ $agent.name }}
+{{- if $.Values.executor.enabled }}
+{{- range $sandboxNS := (include "agent.sandboxNamespaces" $ | splitList ",") }}
+---
+# Sandbox copy — this is the quota the executor actually reads, and without it
+# the capacity bound does not exist at all. `podQuotaFor` resolves the quota in
+# the namespace the Job will be spawned into, not in the control namespace,
+# because that is where the pods land and therefore the only quota that can
+# refuse them. Measured on nuke prod 2026-10-26: every quota sat in `agent`, Jobs
+# ran in `development-sandbox`, and the read there was forbidden
+# (`resourcequotas` is not in the sandbox-scoped Role) — and once granted would
+# still have returned nothing, so the limiter falls back to the declared cap
+# either way and the failure is silent by design.
+#
+# Rendered into every sandbox namespace rather than only the one this agent's
+# Jobs target, because the same helper feeds the sandbox-scoped RBAC loop: one
+# source of truth means the grant and the quota can never disagree about which
+# namespaces exist. An inert copy in a namespace the agent never uses costs
+# nothing; a missing copy in the one it does use silently removes the bound.
+#
+# `concurrency` falls back to `maxConcurrentJobs` and only then to 1. Now that
+# this quota is actually read, a bare default of 1 would silently cap any agent
+# that sets only `maxConcurrentJobs` — turning a throughput setting into a
+# one-pod bound with no error in any log. Both quota blocks use the same chain so
+# the control and sandbox copies can never express different bounds.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ $agent.name }}
+  namespace: {{ $sandboxNS }}
+  labels:
+    {{- include "agent.labels" $ | nindent 4 }}
+spec:
+  hard:
+    pods: "{{ $agent.concurrency | default $agent.maxConcurrentJobs | default 1 }}"
+  scopeSelector:
+    matchExpressions:
+      - scopeName: PriorityClass
+        operator: In
+        values:
+          - {{ $agent.name }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}

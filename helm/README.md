@@ -282,6 +282,33 @@ There is no per-entry `kafkaUser` — executor mTLS stays driven by the single s
 `secretEnv` is set and a PVC only when `volumeMountPath` is set (and the agent is
 not `type: service`). Nothing is hard-coded — add/remove agents purely in values.
 
+⚠️ **The ResourceQuota is rendered twice: once in the control namespace and once
+in every sandbox namespace.** The executor reads the quota for the agent's
+priority class **in the namespace it will spawn the Job into**, so the sandbox
+copy is the one that actually bounds admission; the control-namespace copy covers
+an agent whose `jobNamespace` is unset, which spawns into the control namespace.
+Requires executor ≥ v0.37.0 to be read at all, and the sandbox-scoped Role grants
+`resourcequotas` `get`/`list` for it. The cap is `concurrency`, falling back to
+`maxConcurrentJobs`, then to `1`.
+
+⚠️ **Upgrade the executor BEFORE, or together with, this chart.** Kubernetes
+enforces the quota at admission the moment it is applied, independently of the
+executor version — but an executor older than v0.37.0 never reads it and keeps
+admitting up to `maxConcurrentJobs`. If an agent sets `concurrency` lower than its
+`maxConcurrentJobs`, pods beyond the quota are then **refused** while the old
+executor keeps dispatching them: the Job never runs, its dispatch claim is held
+and renewed, and the peer cluster is refused `lease not expired` on that task for
+the whole hold. The chart does not order this for you; `check-executor-compat`
+is the gate that enforces the pairing on the nuke deploys.
+
+⚠️ **An agent whose `jobNamespace` names a namespace outside `sandbox.domains`
+gets neither copy where its pods land.** Placing the quota there by hand is not
+enough: the read is also *forbidden*, because the sandbox-scoped Role covers only
+the declared domains and the control-namespace Role only the control namespace.
+A hand-placed quota needs a matching Role and RoleBinding granting `resourcequotas`
+`get`/`list` to `agent-task-executor` in that namespace, or the executor keeps
+logging `pod_quota_read_failed` and falling back to the declared cap.
+
 ```yaml
 agents:
   - name: agent-claude

@@ -133,6 +133,18 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  # Pod quota read in the JOB namespace (executor >= v0.37.0). `podQuotaFor`
+  # resolves the ResourceQuota for the agent's priority class in the namespace
+  # the Job is spawned into, so the read happens HERE, not in the control
+  # namespace — the control-namespace grant alone is never the one consulted.
+  # Without this rule every admission attempt logs `pod_quota_read_failed` and
+  # falls back to the declared `maxConcurrentJobs`, which is the old behaviour
+  # rather than an error: measured on nuke prod 2026-10-26, 50 failures in 30
+  # minutes with `quota=0` on every `concurrency_admit` line, on a chart that had
+  # already added the same rule to the control-namespace Role.
+  - apiGroups: [""]
+    resources: [resourcequotas]
+    verbs: [get, list]
   - apiGroups: [""]
     resources: [secrets]
     verbs: [get]
