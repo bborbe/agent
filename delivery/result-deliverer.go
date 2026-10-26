@@ -233,11 +233,12 @@ func (d *kafkaResultDeliverer) DeliverResult(
 // so DeliverResult stays under the funlen limit.
 //
 // Retry-vs-escalate (spec 010/021): failed is an infra failure (transient — crash,
-// timeout, OOM), so preserve assignee and keep the task routable; retry is the
-// controller's responsibility via trigger_count / max_triggers, and it can only
-// fire while assignee is set. Only at cap exhaustion does the task escalate:
-// assignee cleared to "" (the operator-inbox signal), previous_assignee recorded
-// (spec 027), phase left as the resume cursor.
+// timeout, OOM), so preserve assignee and keep the task routable. The retry is
+// bounded by retry_count / max_retries (see retry-bound.go), with the pre-existing
+// trigger_count / max_triggers cap kept as a second stop so no behaviour regresses.
+// Only at bound exhaustion does the task escalate: assignee cleared to "" (the
+// operator-inbox signal), previous_assignee recorded (spec 027), phase left as the
+// resume cursor. Any forward-progress result clears the retry streak.
 //
 // needs_input is task-wrong, not transient — the agent already did the work, so the
 // task surfaces in the operator inbox immediately (assignee cleared, phase unchanged — see carryAdvancedPhase).
@@ -256,6 +257,7 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 			// like the InProgress branch.
 			// Terminating a task requires an explicit NextPhase: "done".
 			frontmatter["status"] = "in_progress"
+			resetRetryCount(frontmatter)
 			// phase not modified here — preserves the incoming phase, or the phase this
 			// Job already advanced to (applied afterwards by carryAdvancedPhase)
 			break
@@ -271,6 +273,7 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 		} else {
 			frontmatter["status"] = "in_progress"
 		}
+		resetRetryCount(frontmatter)
 	case agentlib.AgentStatusNeedsInput:
 		frontmatter["status"] = "in_progress"
 		// Task-wrong (permanent): the agent already did the work, so the task surfaces
@@ -289,19 +292,26 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 				d.taskID, result.NextPhase)
 		}
 		frontmatter["status"] = "in_progress"
+		resetRetryCount(frontmatter)
 		// phase not modified here — preserves the incoming phase, or the phase this
 		// Job already advanced to (applied afterwards by carryAdvancedPhase)
 	case agentlib.AgentStatusFailed:
-		// Infra failure (transient): preserve assignee so the trigger_count / max_triggers
-		// retry path stays reachable — clearing it here would make the task unroutable and
-		// the retry silently never happen. Only at cap exhaustion does the task escalate
-		// to the operator inbox.
+		// Infra failure (transient): record the incremented retry_count and preserve
+		// the assignee so the retry stays reachable — clearing it unconditionally
+		// would make the task unroutable and the retry silently never happen. Once
+		// max_retries (or the pre-existing max_triggers cap) is reached the task
+		// escalates out of the claim predicate: assignee cleared, previous_assignee
+		// recorded, status in_progress and phase unchanged — non-terminal, but no
+		// longer selected. See retry-bound.go.
 		frontmatter["status"] = "in_progress"
-		if frontmatter.TriggerCount() >= frontmatter.MaxTriggers() {
-			if prev := string(frontmatter.Assignee()); prev != "" {
-				frontmatter["previous_assignee"] = prev
-			}
-			frontmatter["assignee"] = ""
+		// Derive the streak from this Job's starting content, not from the generated
+		// frontmatter: the fallback/passthrough/section generators already run
+		// applyStatusFrontmatter, so reading the generated value would count one
+		// failed Job twice and halve the effective bound.
+		count, exhausted := nextRetryCount(frontmatterOf(d.originalContent))
+		frontmatter[retryCountKey] = count
+		if exhausted || triggerCountAtCap(frontmatter) {
+			escalateFailure(frontmatter)
 		}
 		// phase not modified here — preserves the incoming phase, or the phase this
 		// Job already advanced to (applied afterwards by carryAdvancedPhase)
