@@ -109,6 +109,26 @@ spec:
             # (executor-rbac.yaml grants `secrets: get`). Empty = auth disabled.
             - name: GITREST_GATEWAY_SECRET
               value: {{ .Values.executor.gitRestGatewaySecret | quote }}
+            # vault-api base URL for the typed claim surface. Deliberately NOT
+            # derived from vaultName, unlike GITREST_URL above: `vault-obsidian-%s`
+            # is git-rest's naming and the typed surface lives at `vault-api-%s`,
+            # so a derived default would quietly point this at the OLD backend for
+            # every vault that forgot to set it — a migration that reads as done
+            # while writing git-rest keys.
+            #
+            # Empty means unset. The executor must then REFUSE to build its typed
+            # claim client rather than fall back to GITREST_URL: a fallback would
+            # keep writing git-rest keys while the chart claims the migration, and
+            # nothing in a diff or a log would show it.
+            - name: VAULT_API_URL
+              value: {{ .Values.executor.vaultApiUrl | quote }}
+            # VAULT_API_GATEWAY_SECRET is a Secret NAME, the same contract as
+            # GITREST_GATEWAY_SECRET above: the executor reads the value itself via
+            # the K8s API (executor-rbac.yaml grants `secrets: get`), so this costs
+            # no new RBAC provided the Secret lives in this namespace. Empty = no
+            # auth header sent.
+            - name: VAULT_API_GATEWAY_SECRET
+              value: {{ .Values.executor.vaultApiGatewaySecret | quote }}
             # CLAIM_MODE selects the lease-claim rollout stage: off (default,
             # unchanged behaviour), shadow (claim and release, but proceed on a
             # conflict) or on (fail closed). Quote it in values: bare `on` is a
@@ -295,6 +315,20 @@ spec:
             # (executor-rbac.yaml grants `secrets: get`). Empty = auth disabled.
             - name: GITREST_GATEWAY_SECRET
               value: {{ $e.gitRestGatewaySecret | default $.Values.executor.gitRestGatewaySecret | quote }}
+            # vault-api base URL for the typed claim surface. ⚠️ Unlike GITREST_URL
+            # above there is NO `printf ... $e.vaultName` fallback, and that is
+            # deliberate: `vault-obsidian-%s` is git-rest's naming while the typed
+            # surface is `vault-api-%s`, so a derived default would point this at
+            # the old backend for any vault that omits it. A per-vault override
+            # wins, then the global value, then empty — and empty must make the
+            # executor refuse to construct its typed claim client rather than fall
+            # back to GITREST_URL.
+            - name: VAULT_API_URL
+              value: {{ $e.vaultApiUrl | default $.Values.executor.vaultApiUrl | quote }}
+            # VAULT_API_GATEWAY_SECRET is a Secret NAME, same contract as its
+            # GITREST sibling: read via the K8s API, no new RBAC in this namespace.
+            - name: VAULT_API_GATEWAY_SECRET
+              value: {{ $e.vaultApiGatewaySecret | default $.Values.executor.vaultApiGatewaySecret | quote }}
             # CLAIM_MODE selects the lease-claim rollout stage: off (default,
             # unchanged behaviour), shadow (claim and release, but proceed on a
             # conflict) or on (fail closed). Quote it in values: bare `on` and
