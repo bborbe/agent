@@ -124,6 +124,76 @@ var _ = Describe("FileResultDeliverer", func() {
 			Expect(fm["phase"]).To(Equal("execution"))
 		})
 	})
+
+	Context("failure bound across consecutive Jobs (fallback generator)", func() {
+		// The deliverer reads the file, so each DeliverResult call sees the previous
+		// run's published retry_count — exactly what a fresh Job would see on its own
+		// start-of-run snapshot. Both attempts below run under the new bound.
+		var fileDeliverer agentlib.ResultDeliverer
+
+		BeforeEach(func() {
+			fileDeliverer = delivery.NewFileResultDeliverer(
+				delivery.NewFallbackContentGenerator(),
+				tmpFile.Name(),
+			)
+			Expect(os.WriteFile(
+				tmpFile.Name(),
+				[]byte(
+					"---\nstatus: in_progress\nphase: planning\nassignee: github-releaser-agent\n---\n\nBody.\n",
+				),
+				0600,
+			)).To(Succeed())
+		})
+
+		It("retries once under the bound, then succeeds and clears the streak", func() {
+			Expect(fileDeliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusFailed,
+				Message: "git clone: Failed to connect to github.com:443 after 2 ms",
+			})).To(Succeed())
+
+			written, err := os.ReadFile(tmpFile.Name())
+			Expect(err).NotTo(HaveOccurred())
+			fm, _ := delivery.ParseMarkdownFrontmatter(string(written))
+			Expect(fm["retry_count"]).To(Equal(1))
+			Expect(fm["assignee"]).To(Equal("github-releaser-agent"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["phase"]).To(Equal("planning"))
+
+			Expect(fileDeliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "execution",
+			})).To(Succeed())
+
+			written, err = os.ReadFile(tmpFile.Name())
+			Expect(err).NotTo(HaveOccurred())
+			fm, _ = delivery.ParseMarkdownFrontmatter(string(written))
+			Expect(fm["retry_count"]).To(Equal(0))
+			Expect(fm["phase"]).To(Equal("execution"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+		})
+
+		It("escalates at max_retries: stops re-dispatch without going terminal", func() {
+			for i := 0; i < 3; i++ {
+				Expect(fileDeliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+					Status:  agentlib.AgentStatusFailed,
+					Message: "task runner failed: OOMKilled",
+				})).To(Succeed())
+			}
+
+			written, err := os.ReadFile(tmpFile.Name())
+			Expect(err).NotTo(HaveOccurred())
+			fm, _ := delivery.ParseMarkdownFrontmatter(string(written))
+			Expect(fm["retry_count"]).To(Equal(3))
+			// Out of the claim predicate — no further dispatch for this task id.
+			// Asserted through the accessor the predicate itself uses: an empty YAML
+			// scalar parses back as nil, which Assignee() reads as "".
+			Expect(agentlib.TaskFrontmatter(fm).Assignee()).To(BeEmpty())
+			Expect(fm["previous_assignee"]).To(Equal("github-releaser-agent"))
+			// ...while the record stays non-terminal and keeps its resume cursor.
+			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["phase"]).To(Equal("planning"))
+		})
+	})
 })
 
 var _ = Describe("KafkaResultDeliverer", func() {
@@ -226,6 +296,86 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(fm["previous_assignee"]).To(Equal("github-update-go-agent"))
 		},
 	)
+
+	It(
+		"bounds the retry: escalates at max_retries and leaves the record non-terminal",
+		func() {
+			// Third consecutive failure: retry_count 2 on the incoming content means
+			// this result is attempt 3, which reaches the default max_retries of 3.
+			// No trigger_count here — the bound must hold on its own, because the
+			// executor's trigger cap only applies to tasks that opted in with
+			// max_triggers or carry a ref.
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: planning\nassignee: github-releaser-agent\nretry_count: 2\n---\n\nBody.\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusFailed,
+				Message: "git clone: Failed to connect to github.com:443 after 2 ms",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+			Expect(ok).To(BeTrue())
+			fm, ok := frontmatter.(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			// The command payload round-trips through JSON, so numbers arrive as
+			// float64 here — the value, not the Go type, is what matters.
+			Expect(fm["retry_count"]).To(BeNumerically("==", 3))
+			// Escalated out of the claim predicate: empty assignee is the
+			// operator-inbox signal, so the controller no longer selects it.
+			Expect(fm["assignee"]).To(Equal(""))
+			Expect(fm["previous_assignee"]).To(Equal("github-releaser-agent"))
+			// ...while the record stays non-terminal and keeps its resume cursor.
+			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["phase"]).To(Equal("planning"))
+		},
+	)
+
+	It(
+		"records the retry count below the bound and keeps the record routable",
+		func() {
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: planning\nassignee: github-releaser-agent\nretry_count: 1\n---\n\nBody.\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusFailed,
+				Message: "task runner failed: timeout",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+			Expect(ok).To(BeTrue())
+			fm, ok := frontmatter.(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm["retry_count"]).To(BeNumerically("==", 2))
+			Expect(fm["assignee"]).To(Equal("github-releaser-agent"))
+			Expect(fm).NotTo(HaveKey("previous_assignee"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+			Expect(fm["phase"]).To(Equal("planning"))
+		},
+	)
+
+	It("clears the failure streak on a forward-progress result", func() {
+		generator.GenerateReturns(
+			"---\nstatus: in_progress\nphase: planning\nassignee: github-releaser-agent\nretry_count: 2\n---\n\nBody.\n",
+			nil,
+		)
+		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			Status:    agentlib.AgentStatusDone,
+			NextPhase: "execution",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+		frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+		Expect(ok).To(BeTrue())
+		fm, ok := frontmatter.(map[string]interface{})
+		Expect(ok).To(BeTrue())
+		Expect(fm["retry_count"]).To(BeNumerically("==", 0))
+		Expect(fm["phase"]).To(Equal("execution"))
+	})
 
 	It(
 		"publishes needs_input result with phase unchanged from incoming and assignee cleared",
