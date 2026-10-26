@@ -300,16 +300,29 @@ var _ = Describe("KafkaResultDeliverer", func() {
 	It(
 		"bounds the retry: escalates at max_retries and leaves the record non-terminal",
 		func() {
-			// Third consecutive failure: retry_count 2 on the incoming content means
-			// this result is attempt 3, which reaches the default max_retries of 3.
+			// Third consecutive failure: the Job started at retry_count 2, so this
+			// result is attempt 3, which reaches the default max_retries of 3.
 			// No trigger_count here — the bound must hold on its own, because the
 			// executor's trigger cap only applies to tasks that opted in with
 			// max_triggers or carry a ref.
+			//
+			// The generator's output already carries the incremented value, exactly
+			// as the real fallback/passthrough/section generators leave it after
+			// applyStatusFrontmatter. The deliverer must derive the streak from the
+			// Job's starting content, so the count lands on 3 and is not doubled
+			// into 4 by counting the same failed Job twice.
 			generator.GenerateReturns(
-				"---\nstatus: in_progress\nphase: planning\nassignee: github-releaser-agent\nretry_count: 2\n---\n\nBody.\n",
+				"---\nstatus: in_progress\nphase: planning\nassignee: github-releaser-agent\nretry_count: 3\n---\n\nBody.\n",
 				nil,
 			)
-			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			bounded := delivery.NewKafkaResultDelivererWithSender(
+				sender,
+				taskID,
+				"---\nstatus: in_progress\nphase: planning\nassignee: github-releaser-agent\nretry_count: 2\n---\n\nBody.\n",
+				generator,
+				clock,
+			)
+			err := bounded.DeliverResult(ctx, agentlib.AgentResultInfo{
 				Status:  agentlib.AgentStatusFailed,
 				Message: "git clone: Failed to connect to github.com:443 after 2 ms",
 			})
@@ -336,11 +349,21 @@ var _ = Describe("KafkaResultDeliverer", func() {
 	It(
 		"records the retry count below the bound and keeps the record routable",
 		func() {
+			// Started at 1, so this failure is attempt 2 — below the default
+			// max_retries of 3, which keeps the assignee in place and the record
+			// inside the claim predicate.
 			generator.GenerateReturns(
-				"---\nstatus: in_progress\nphase: planning\nassignee: github-releaser-agent\nretry_count: 1\n---\n\nBody.\n",
+				"---\nstatus: in_progress\nphase: planning\nassignee: github-releaser-agent\nretry_count: 2\n---\n\nBody.\n",
 				nil,
 			)
-			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			bounded := delivery.NewKafkaResultDelivererWithSender(
+				sender,
+				taskID,
+				"---\nstatus: in_progress\nphase: planning\nassignee: github-releaser-agent\nretry_count: 1\n---\n\nBody.\n",
+				generator,
+				clock,
+			)
+			err := bounded.DeliverResult(ctx, agentlib.AgentResultInfo{
 				Status:  agentlib.AgentStatusFailed,
 				Message: "task runner failed: timeout",
 			})
@@ -966,6 +989,36 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			// The real passthrough generator drops target_vault (it ignores
 			// originalContent); the deliverer's stamp must restore it.
 			Expect(fm["target_vault"]).To(Equal("personal"))
+		})
+	})
+
+	Context("failure bound with a generator that already applies it (fallback generator)", func() {
+		// The fallback, passthrough and section generators all run
+		// applyStatusFrontmatter, which already records the increment. The Kafka
+		// deliverer then applies the bound a second time on the generated
+		// frontmatter, so one failed Job must still count as ONE failure: the
+		// deliverer derives the count from the Job's own starting content, not from
+		// whatever the generator left behind.
+		It("counts one failed Job once, not twice", func() {
+			originalContent := "---\nstatus: in_progress\nphase: planning\nassignee: github-releaser-agent\nretry_count: 0\n---\n\nBody.\n"
+			fallback := delivery.NewKafkaResultDelivererWithSender(
+				sender,
+				taskID,
+				originalContent,
+				delivery.NewFallbackContentGenerator(),
+				clock,
+			)
+			err := fallback.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusFailed,
+				Message: "git clone failed",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			// Numbers round-trip through JSON as float64; the value is what matters.
+			Expect(fm["retry_count"]).To(BeNumerically("==", 1))
+			Expect(fm["assignee"]).To(Equal("github-releaser-agent"))
 		})
 	})
 

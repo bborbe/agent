@@ -304,7 +304,11 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 		// recorded, status in_progress and phase unchanged — non-terminal, but no
 		// longer selected. See retry-bound.go.
 		frontmatter["status"] = "in_progress"
-		count, exhausted := nextRetryCount(frontmatter)
+		// Derive the streak from this Job's starting content, not from the generated
+		// frontmatter: the fallback/passthrough/section generators already run
+		// applyStatusFrontmatter, so reading the generated value would count one
+		// failed Job twice and halve the effective bound.
+		count, exhausted := nextRetryCount(frontmatterOf(d.originalContent))
 		frontmatter[retryCountKey] = count
 		if exhausted || triggerCountAtCap(frontmatter) {
 			escalateFailure(frontmatter)
