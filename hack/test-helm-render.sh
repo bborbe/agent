@@ -892,6 +892,72 @@ else
 	echo "OK: domains-namespaces"
 fi
 
+# The pod quota must exist in the namespace the Job runs in, not only in the
+# control namespace. The executor resolves the quota there — `podQuotaFor` is
+# handed the job namespace — so a missing copy makes the read succeed against
+# nothing and the limiter falls back to maxConcurrentJobs, silently, with no
+# error anywhere. Assert the identity per agent per domain: the control
+# namespace renders the same kind, so a bare count would pass on the wrong
+# objects.
+domains_quotas_ok=1
+for d in agent-sandbox development-sandbox research-sandbox sentry-sandbox trading-sandbox; do
+	for a in mapped-agent unmapped-agent; do
+		doc_has "$out" ResourceQuota "$a" "$d" || {
+			echo "FAIL: domains-quotas: missing ResourceQuota $a in $d"; domains_quotas_ok=0; }
+	done
+done
+# The control-namespace copy must survive: an agent whose jobNamespace is unset
+# spawns into the control namespace and reads its quota there.
+for a in mapped-agent unmapped-agent; do
+	doc_has "$out" ResourceQuota "$a" test || {
+		echo "FAIL: domains-quotas: missing control-namespace ResourceQuota $a"; domains_quotas_ok=0; }
+done
+# Both fixture agents set neither `concurrency` nor `maxConcurrentJobs`, so every
+# quota must carry the documented fallback of 1.
+quota_hard="$(awk 'BEGIN{RS="---"} index($0,"kind: ResourceQuota\n"){n=split($0,a,"\n"); for(i=1;i<=n;i++){if(a[i] ~ /^    pods: /){sub(/^    pods: /,"",a[i]); gsub(/"/,"",a[i]); print a[i]; break}}}' "$out" | sort -u | paste -sd, -)"
+if [ "$quota_hard" != "1" ]; then
+	echo "FAIL: domains-quotas: hard pod values are '$quota_hard', want '1' for agents that set no concurrency"
+	domains_quotas_ok=0
+fi
+if [ "$domains_quotas_ok" = "1" ]; then echo "OK: domains-quotas"; else fail=1; fi
+
+# executor.enabled=false must suppress the sandbox quotas like every other
+# sandbox object: the chart creates no sandbox namespace to hold them, and a
+# quota applied to a namespace that does not exist fails the whole apply.
+run_policy_case quotas-disabled "$tmpdir/domains.yaml" --set executor.enabled=false
+disabled_out="$POLICY_OUT"
+disabled_quotas="$(awk 'BEGIN{RS="---"} index($0,"kind: ResourceQuota\n"){n=split($0,a,"\n"); for(i=1;i<=n;i++){if(a[i] ~ /^  namespace: /){sub(/^  namespace: /,"",a[i]); print a[i]; break}}}' "$disabled_out" | sort -u | paste -sd, -)"
+if [ "$disabled_quotas" != "test" ]; then
+	echo "FAIL: quotas-disabled: ResourceQuota namespaces are '$disabled_quotas', want only 'test'"
+	fail=1
+else
+	echo "OK: quotas-disabled"
+fi
+
+# A quota that is read but rendered into the wrong place is the exact failure
+# this chart change exists to fix, so pin the RBAC half too: the sandbox-scoped
+# Role must carry resourcequotas, and the control-namespace Role must keep it.
+rbac_ok=1
+for d in agent-sandbox development-sandbox research-sandbox sentry-sandbox trading-sandbox; do
+	if ! awk -v NS="$d" '
+		BEGIN{RS="---"}
+		index($0,"kind: Role") && index($0,"  name: agent-task-executor-sandbox\n") &&
+		index($0,"  namespace: " NS "\n") && index($0,"resourcequotas") {found=1}
+		END{exit(found?0:1)}' "$out"; then
+		echo "FAIL: domains-rbac: Role agent-task-executor-sandbox in $d lacks resourcequotas"
+		rbac_ok=0
+	fi
+done
+if ! awk '
+	BEGIN{RS="---"}
+	index($0,"kind: Role") && index($0,"  name: agent-task-executor\n") &&
+	index($0,"  namespace: test\n") && index($0,"resourcequotas") {found=1}
+	END{exit(found?0:1)}' "$out"; then
+	echo "FAIL: domains-rbac: control-namespace Role agent-task-executor lost resourcequotas"
+	rbac_ok=0
+fi
+if [ "$rbac_ok" = "1" ]; then echo "OK: domains-rbac"; else fail=1; fi
+
 # One `<domain>-egress` policy per domain, narrowed to its own peers.
 domains_policies_ok=1
 for d in agent-sandbox development-sandbox sentry-sandbox trading-sandbox research-sandbox; do

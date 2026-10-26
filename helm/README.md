@@ -282,6 +282,17 @@ There is no per-entry `kafkaUser` — executor mTLS stays driven by the single s
 `secretEnv` is set and a PVC only when `volumeMountPath` is set (and the agent is
 not `type: service`). Nothing is hard-coded — add/remove agents purely in values.
 
+⚠️ **The ResourceQuota is rendered twice: once in the control namespace and once
+in every sandbox namespace.** The executor reads the quota for the agent's
+priority class **in the namespace it will spawn the Job into**, so the sandbox
+copy is the one that actually bounds admission; the control-namespace copy covers
+an agent whose `jobNamespace` is unset, which spawns into the control namespace.
+Requires executor ≥ v0.37.0 to be read at all, and the sandbox-scoped Role grants
+`resourcequotas` `get`/`list` for it. The cap is `concurrency`, falling back to
+`maxConcurrentJobs`, then to `1`. An agent whose `jobNamespace` names a namespace
+**outside** `sandbox.domains` gets neither copy where its pods land — place a
+quota there by hand, under the same manual-placement contract as its Namespace.
+
 ```yaml
 agents:
   - name: agent-claude

@@ -200,7 +200,7 @@ metadata:
     {{- include "agent.labels" $ | nindent 4 }}
 spec:
   hard:
-    pods: "{{ $agent.concurrency | default 1 }}"
+    pods: "{{ $agent.concurrency | default $agent.maxConcurrentJobs | default 1 }}"
   scopeSelector:
     matchExpressions:
       - scopeName: PriorityClass
@@ -225,6 +225,12 @@ spec:
 # source of truth means the grant and the quota can never disagree about which
 # namespaces exist. An inert copy in a namespace the agent never uses costs
 # nothing; a missing copy in the one it does use silently removes the bound.
+#
+# `concurrency` falls back to `maxConcurrentJobs` and only then to 1. Now that
+# this quota is actually read, a bare default of 1 would silently cap any agent
+# that sets only `maxConcurrentJobs` — turning a throughput setting into a
+# one-pod bound with no error in any log. Both quota blocks use the same chain so
+# the control and sandbox copies can never express different bounds.
 apiVersion: v1
 kind: ResourceQuota
 metadata:
@@ -234,7 +240,7 @@ metadata:
     {{- include "agent.labels" $ | nindent 4 }}
 spec:
   hard:
-    pods: "{{ $agent.concurrency | default 1 }}"
+    pods: "{{ $agent.concurrency | default $agent.maxConcurrentJobs | default 1 }}"
   scopeSelector:
     matchExpressions:
       - scopeName: PriorityClass
