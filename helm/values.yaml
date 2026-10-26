@@ -218,6 +218,23 @@ executor:
   # the K8s API at startup (executor-rbac.yaml grants `secrets: get`). Empty =
   # gateway auth disabled.
   gitRestGatewaySecret: ""
+  # vaultApiUrl: base URL of the vault-api serving this executor's vault, for the
+  # typed claim surface. ⚠️ There is deliberately NO derived default, unlike
+  # gitRestUrl: the typed surface answers on `vault-api-<vaultName>`, not
+  # `vault-obsidian-<vaultName>`, so a derived default would silently point this
+  # at the git-rest backend. Set it explicitly, e.g.
+  # http://vault-api-personal.dev.svc.cluster.local:9090.
+  #
+  # Empty means unset, and the executor must then refuse to build its typed claim
+  # client rather than fall back to gitRestUrl — a fallback would keep writing
+  # git-rest claim keys while the chart reads as migrated, and nothing in a diff
+  # or a log would show it.
+  vaultApiUrl: ""
+  # vaultApiGatewaySecret: NAME of the K8s Secret carrying the vault-api gateway
+  # secret (data key `gateway-secret`). Same contract as gitRestGatewaySecret: the
+  # executor reads the value via the K8s API, so this adds no RBAC provided the
+  # Secret lives in this namespace. Empty = no auth header sent.
+  vaultApiGatewaySecret: ""
   # taskGlob: git-rest single-level glob selecting the vault task files the
   # reconcile loop evaluates. Consumer-supplied — the chart asserts no vault
   # folder layout. Empty = no glob configured.
