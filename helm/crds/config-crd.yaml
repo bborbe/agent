@@ -41,6 +41,11 @@ spec:
                 taskTypes:
                   type: array
                   items: {type: string, pattern: "^[a-z0-9-]+$", maxLength: 63}
+                # Explicit declaration that this Config is the default for a task type.
+                # Mirrors configSpecProperties() in agent-task-executor/pkg/k8s_connector.go.
+                defaultForTaskTypes:
+                  type: array
+                  items: {type: string, pattern: "^[a-z0-9-]+$", maxLength: 63}
                 resources:
                   type: object
                   properties:

@@ -16,6 +16,10 @@ spec:
   assignee: {{ $agent.assignee | quote }}
   taskTypes:
     {{- toYaml $agent.taskTypes | nindent 4 }}
+  {{- if $agent.defaultForTaskTypes }}
+  defaultForTaskTypes:
+    {{- toYaml $agent.defaultForTaskTypes | nindent 4 }}
+  {{- end }}
   priorityClassName: {{ $agent.name }}
   image: {{ printf "%s/%s:%s" $.Values.image.registry $agent.image ($agent.tag | default $.Chart.AppVersion) | quote }}
   heartbeat: {{ $agent.heartbeat | quote }}
