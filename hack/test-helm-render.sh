@@ -1452,6 +1452,38 @@ done
 domains_failfast render-policies-invalid 'sandbox.renderPolicies must be true or false' \
 	--set sandbox.renderPolicies=maybe
 
+# defaultForTaskTypes renders only for an agent that declares it. The control
+# matters as much as the positive: the resolver reads absence as "no default",
+# so a template that always emitted the key would change every Config's spec.
+for variant in set unset; do
+	{
+		printf 'namespace: test\nexecutor:\n  kafkaBrokers: kafka:9092\n  existingSecret: agent-secret\n  sentry:\n    dsn: dummy\n'
+		printf 'agents:\n  - name: df-%s\n    enabled: true\n    assignee: df-%s\n' "$variant" "$variant"
+		printf '    image: bborbe/agent-claude\n    heartbeat: 5m\n    taskTypes: [healthcheck]\n'
+		if [ "$variant" = set ]; then
+			printf '    defaultForTaskTypes: [healthcheck]\n'
+		fi
+	} >"$tmpdir/default-for-task-types-$variant.yaml"
+
+	"$helm_bin" template x "$CHART_DIR" -f "$tmpdir/default-for-task-types-$variant.yaml" \
+		--show-only templates/agents.yaml >"$tmpdir/df-$variant.out"
+done
+
+if grep -q '^  defaultForTaskTypes:$' "$tmpdir/df-set.out" &&
+	grep -q '^    - healthcheck$' "$tmpdir/df-set.out"; then
+	echo "OK: default-for-task-types-set renders the declared default"
+else
+	echo "FAIL: default-for-task-types-set: the declared default is not rendered"
+	fail=1
+fi
+
+if grep -q 'defaultForTaskTypes' "$tmpdir/df-unset.out"; then
+	echo "FAIL: default-for-task-types-unset: the key renders for an agent that does not declare it"
+	fail=1
+else
+	echo "OK: default-for-task-types-unset omits the key"
+fi
+
 if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
