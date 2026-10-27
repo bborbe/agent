@@ -1,4 +1,5 @@
 include tools.env
+include Makefile.docker
 
 export ROOTDIR ?= $(shell git rev-parse --show-toplevel)
 
