@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.131.0
 
 - feat(helm): **a Config can declare itself the designated default for a task type.** `spec.defaultForTaskTypes` is now rendered from the `agents` values and mirrored into the chart's own `helm/crds/config-crd.yaml`, matching `configSpecProperties()` in `agent-task-executor`. That binary rewrites the cluster's Config CRD from Go on every start with `PreserveUnknownFields: false`, so this chart copy must follow it and never lead it — a chart-only field is pruned within seconds and reads as "the operator never set it". Without this render line the resolver's new input can never reach a CR. Chart `0.23.6`.
 
