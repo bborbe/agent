@@ -1,5 +1,9 @@
 {{- range $agent := .Values.agents }}
 {{- if $agent.enabled }}
+{{- $storageNamespace := "" }}
+{{- if and ($.Values.sandbox | default dict).renderAgentStorage $.Values.executor.enabled }}
+{{- $storageNamespace = include "agent.agentStorageNamespace" (dict "root" $ "agent" $agent) }}
+{{- end }}
 ---
 apiVersion: agent.benjamin-borbe.de/v1
 kind: Config
@@ -12,6 +16,10 @@ spec:
   assignee: {{ $agent.assignee | quote }}
   taskTypes:
     {{- toYaml $agent.taskTypes | nindent 4 }}
+  {{- if $agent.defaultForTaskTypes }}
+  defaultForTaskTypes:
+    {{- toYaml $agent.defaultForTaskTypes | nindent 4 }}
+  {{- end }}
   priorityClassName: {{ $agent.name }}
   image: {{ printf "%s/%s:%s" $.Values.image.registry $agent.image ($agent.tag | default $.Chart.AppVersion) | quote }}
   heartbeat: {{ $agent.heartbeat | quote }}
@@ -27,6 +35,9 @@ spec:
   {{- end }}
   {{- if hasKey $agent "rerunOnLostClaim" }}
   rerunOnLostClaim: {{ $agent.rerunOnLostClaim }}
+  {{- end }}
+  {{- with $agent.jobNamespace }}
+  jobNamespace: {{ . | quote }}
   {{- end }}
   {{- if $agent.volumeMountPath }}
   {{- if ne ($agent.type | default "job") "service" }}
@@ -55,7 +66,9 @@ spec:
          executor spawn Jobs into <ns>-agents-sandbox, Job agents run in the
          control namespace too — so the default is OFF, or every agent would be
          pointed at a proxy that denies it. */}}
-  {{- if and (eq (toString $.Values.egressProxy.injectAgentEnv) "true") $.Values.executor.enabled (ne (toString ($agent.type | default "job")) "service") }}
+  {{- /* sandbox.renderPolicies=false omits the proxy Service, so the env would
+         name a host that does not exist; it follows the proxy. */}}
+  {{- if and (eq (toString $.Values.egressProxy.injectAgentEnv) "true") $.Values.executor.enabled (include "agent.sandboxRenderPolicies" $) (ne (toString ($agent.type | default "job")) "service") }}
   {{-   $env = mergeOverwrite $env (include "agent.proxyEnv" $ | fromYaml) }}
   {{- end }}
   {{- if and $sentryProxy (not (hasKey $env "SENTRY_PROXY")) }}
@@ -88,6 +101,28 @@ data:
   {{- range $k, $v := $agent.secretEnv }}
   {{ $k }}: {{ $v | b64enc }}
   {{- end }}
+{{- if $storageNamespace }}
+---
+# Sandbox copy (sandbox.renderAgentStorage). The control-namespace Secret above
+# stays put — the executor reads it from there. Only chart-rendered Secrets are
+# copied; an agent pointing `secretName` at an externally managed Secret renders
+# none here and the operator must place that Secret by hand.
+# With `sandbox.domains` declared this copy follows the agent's `jobNamespace`
+# and renders only when that names a declared domain; with no domains it targets
+# the single sandbox namespace regardless of `jobNamespace`.
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: {{ $agent.name }}
+  namespace: {{ $storageNamespace }}
+  labels:
+    {{- include "agent.labels" $ | nindent 4 }}
+data:
+  {{- range $k, $v := $agent.secretEnv }}
+  {{ $k }}: {{ $v | b64enc }}
+  {{- end }}
+{{- end }}
 {{- end }}
 {{- if and $agent.volumeMountPath (ne ($agent.type | default "job") "service") }}
 ---
@@ -118,6 +153,33 @@ spec:
   resources:
     requests:
       storage: {{ $agent.storageSize | default "1Gi" }}
+{{- if $storageNamespace }}
+---
+# Sandbox copy (sandbox.renderAgentStorage). This is a NEW, EMPTY volume in the
+# sandbox namespace — NOT a view of the control-namespace claim above, so data
+# written to the original is not visible here. `resource-policy: keep` matches
+# the original: a render that drops this claim must not delete it.
+# With `sandbox.domains` declared this copy follows the agent's `jobNamespace`
+# and renders only when that names a declared domain; with no domains it targets
+# the single sandbox namespace regardless of `jobNamespace`.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $agent.volumeClaim | default $agent.name }}
+  namespace: {{ $storageNamespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    {{- include "agent.labels" $ | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with $agent.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $agent.storageSize | default "1Gi" }}
+{{- end }}
 {{- end }}
 ---
 # PriorityClass is cluster-scoped (no namespace). Named per-agent so the
@@ -142,12 +204,54 @@ metadata:
     {{- include "agent.labels" $ | nindent 4 }}
 spec:
   hard:
-    pods: "{{ $agent.concurrency | default 1 }}"
+    pods: "{{ $agent.concurrency | default $agent.maxConcurrentJobs | default 1 }}"
   scopeSelector:
     matchExpressions:
       - scopeName: PriorityClass
         operator: In
         values:
           - {{ $agent.name }}
+{{- if $.Values.executor.enabled }}
+{{- range $sandboxNS := (include "agent.sandboxNamespaces" $ | splitList ",") }}
+---
+# Sandbox copy — this is the quota the executor actually reads, and without it
+# the capacity bound does not exist at all. `podQuotaFor` resolves the quota in
+# the namespace the Job will be spawned into, not in the control namespace,
+# because that is where the pods land and therefore the only quota that can
+# refuse them. Measured on nuke prod 2026-10-26: every quota sat in `agent`, Jobs
+# ran in `development-sandbox`, and the read there was forbidden
+# (`resourcequotas` is not in the sandbox-scoped Role) — and once granted would
+# still have returned nothing, so the limiter falls back to the declared cap
+# either way and the failure is silent by design.
+#
+# Rendered into every sandbox namespace rather than only the one this agent's
+# Jobs target, because the same helper feeds the sandbox-scoped RBAC loop: one
+# source of truth means the grant and the quota can never disagree about which
+# namespaces exist. An inert copy in a namespace the agent never uses costs
+# nothing; a missing copy in the one it does use silently removes the bound.
+#
+# `concurrency` falls back to `maxConcurrentJobs` and only then to 1. Now that
+# this quota is actually read, a bare default of 1 would silently cap any agent
+# that sets only `maxConcurrentJobs` — turning a throughput setting into a
+# one-pod bound with no error in any log. Both quota blocks use the same chain so
+# the control and sandbox copies can never express different bounds.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ $agent.name }}
+  namespace: {{ $sandboxNS }}
+  labels:
+    {{- include "agent.labels" $ | nindent 4 }}
+spec:
+  hard:
+    pods: "{{ $agent.concurrency | default $agent.maxConcurrentJobs | default 1 }}"
+  scopeSelector:
+    matchExpressions:
+      - scopeName: PriorityClass
+        operator: In
+        values:
+          - {{ $agent.name }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}

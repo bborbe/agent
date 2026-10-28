@@ -60,6 +60,11 @@ type JobUsage struct {
 	CacheCreationTokens int64
 	// Turns is the number of conversation turns the job took.
 	Turns int64
+	// RateLimitRetries is how many times the job re-invoked the CLI after it
+	// exhausted its own API retries on a rate limit. Zero is an observation — the
+	// job ran without hitting one — which is why it is recorded rather than
+	// skipped.
+	RateLimitRetries int64
 }
 
 // JobMetrics records per-job Prometheus metrics at the result-publish boundary.
@@ -119,7 +124,20 @@ func NewJobMetrics(
 			Help: "Total number of conversation turns taken by agent jobs.",
 		},
 	)
-	registry.MustRegister(counter, gauge, histogram, tokenCounter, turnCounter)
+	rateLimitRetryCounter := prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "agent_job_rate_limit_retries_total",
+			Help: "Total number of CLI re-invocations after a rate limit gave up on its own retries.",
+		},
+	)
+	registry.MustRegister(
+		counter,
+		gauge,
+		histogram,
+		tokenCounter,
+		turnCounter,
+		rateLimitRetryCounter,
+	)
 	// Pre-initialize counter for all terminal statuses so absent() alerts work
 	// even before any Job has run.
 	counter.WithLabelValues(string(agentlib.AgentStatusDone)).Add(0)
@@ -131,23 +149,26 @@ func NewJobMetrics(
 		tokenCounter.WithLabelValues(tokenType.String()).Add(0)
 	}
 	turnCounter.Add(0)
+	rateLimitRetryCounter.Add(0)
 	return &jobMetrics{
-		counter:         counter,
-		gauge:           gauge,
-		histogram:       histogram,
-		tokenCounter:    tokenCounter,
-		turnCounter:     turnCounter,
-		currentDateTime: currentDateTime,
+		counter:               counter,
+		gauge:                 gauge,
+		histogram:             histogram,
+		tokenCounter:          tokenCounter,
+		turnCounter:           turnCounter,
+		rateLimitRetryCounter: rateLimitRetryCounter,
+		currentDateTime:       currentDateTime,
 	}
 }
 
 type jobMetrics struct {
-	counter         *prometheus.CounterVec
-	gauge           *prometheus.GaugeVec
-	histogram       prometheus.Histogram
-	tokenCounter    *prometheus.CounterVec
-	turnCounter     prometheus.Counter
-	currentDateTime libtime.CurrentDateTime
+	counter               *prometheus.CounterVec
+	gauge                 *prometheus.GaugeVec
+	histogram             prometheus.Histogram
+	tokenCounter          *prometheus.CounterVec
+	turnCounter           prometheus.Counter
+	rateLimitRetryCounter prometheus.Counter
+	currentDateTime       libtime.CurrentDateTime
 }
 
 func (m *jobMetrics) RecordRun(status agentlib.AgentStatus) {
@@ -167,6 +188,11 @@ func (m *jobMetrics) RecordUsage(usage JobUsage) {
 	m.addTokens(TokenTypeCacheCreation, usage.CacheCreationTokens)
 	if usage.Turns >= 0 {
 		m.turnCounter.Add(float64(usage.Turns))
+	}
+	// Same negative guard as addTokens: Counter.Add panics on a negative delta, and
+	// the count originates from a subprocess's output.
+	if usage.RateLimitRetries >= 0 {
+		m.rateLimitRetryCounter.Add(float64(usage.RateLimitRetries))
 	}
 }
 

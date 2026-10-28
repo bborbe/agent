@@ -4,6 +4,13 @@ export ROOTDIR ?= $(shell git rev-parse --show-toplevel)
 
 default: precommit
 
+# Included AFTER `default:` on purpose. Make takes the first non-dot rule it
+# reads as the default goal, and Makefile.docker's first target is
+# `probe-image-build` — so including it above `default:` would make a bare `make`
+# attempt a docker build (and exit 1 when VERSION is unset) instead of running
+# precommit.
+include Makefile.docker
+
 precommit: ensure format generate test check addlicense
 	@echo "ready to commit"
 
@@ -25,12 +32,19 @@ generate:
 	go generate -mod=mod ./...
 
 .PHONY: test
-test: test-helm
+test: test-helm test-shell-probe
 	go test -mod=mod -p=$${GO_TEST_PARALLEL:-1} -cover -race $(shell go list -mod=mod ./... | grep -v /vendor/)
 
 .PHONY: test-helm
 test-helm:
 	bash hack/test-helm-render.sh
+
+# Exercises images/shell-probe/probe.sh on the host — no Docker daemon needed.
+# The failure it guards is silent: a regression in the fence regex still builds
+# green and produces a Job that runs the wrong thing, or the whole task body.
+.PHONY: test-shell-probe
+test-shell-probe:
+	bash hack/test-shell-probe.sh
 
 # errcheck removed — embedded in golangci-lint (see .golangci.yml).
 # gosec removed — embedded in golangci-lint (see .golangci.yml).

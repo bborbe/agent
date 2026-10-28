@@ -1,4 +1,5 @@
-{{- if .Values.executor.enabled }}
+{{- /* Same gate as egress-proxy.yaml: no proxy, no allowlist. */}}
+{{- if and .Values.executor.enabled (include "agent.sandboxRenderPolicies" .) }}
 # Allowlist + self-test for the egress proxy (spec 048). Kept in its own template
 # file so the Deployment can hash it into a pod annotation: tinyproxy reads the
 # filter only at startup, so without a checksum an allowlist edit would leave the
@@ -8,7 +9,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: egress-proxy-allowlist
-  namespace: {{ include "agent.sandboxNamespace" . }}
+  namespace: {{ include "agent.proxyNamespace" . }}
   labels:
     {{- include "agent.labels" . | nindent 4 }}
 data:
@@ -18,9 +19,12 @@ data:
   # Seeded from claude-yolo's curated `files/tinyproxy-allowlist` (30 entries,
   # anchored `^...$` so `api.github.com.evil.com` cannot match) plus the two
   # claude-code-router upstreams `api.gpt.seibert.ai` and `api.seibert.ai`,
-  # which the router calls and which no seed list carried — 32 entries total.
+  # which the router calls and which no seed list carried — 33 entries total.
   # `api.minimax.io` is load-bearing: prod github-dark-factory-agent runs
   # ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic.
+  # The Sentry entries are paired: `^sentry\.io$` is anchored and matches only the
+  # apex, so `bborbe.sentry.io` (the Sentry API the analyzer fetches) needs its own
+  # `^.*\.sentry\.io$` line.
   tinyproxy-allowlist: |
     ^.*\.github\.com$
     ^.*\.githubusercontent\.com$
@@ -44,6 +48,7 @@ data:
     ^proxy\.golang\.org$
     ^pypi\.org$
     ^registry\.npmjs\.org$
+    ^.*\.sentry\.io$
     ^sentry\.io$
     ^statsig\.anthropic\.com$
     ^statsig\.com$

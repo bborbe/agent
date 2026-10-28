@@ -1,4 +1,51 @@
+{{- include "agent.sandboxValidate" . -}}
 {{- if .Values.executor.enabled }}
+{{- /* sandbox.renderPolicies=false keeps every Namespace below and drops every
+       NetworkPolicy; see agent.sandboxRenderPolicies. */}}
+{{- $renderPolicies := include "agent.sandboxRenderPolicies" . }}
+{{- $domains := (.Values.sandbox | default dict).domains | default dict }}
+{{- if $domains }}
+{{- range $name, $cfg := $domains }}
+---
+# Sandbox namespace for one domain. Agent Job pods run here; the per-domain
+# policy below bounds their egress. resource-policy: keep so `helm uninstall`
+# does not delete the namespace and take operator-placed PVCs and Secrets with
+# it — removing a sandbox is a deliberate `kubectl delete ns`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "agent.labels" $ | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+{{- end }}
+{{- if $renderPolicies }}
+{{- range $name, $cfg := $domains }}
+---
+# Default-deny egress for agent pods in this domain. Permitted destinations are
+# exactly the domain's declared peers, plus kube-dns and the egress proxy, which
+# are unconditional. Keep this comment free of peer names: the render tests
+# assert on selector lines, and a catalog word in a comment would make a
+# negative assertion pass vacuously.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-egress
+  namespace: {{ $name }}
+spec:
+  podSelector:
+    matchLabels:
+      app: agent
+  policyTypes:
+    - Egress
+  egress:
+    {{- range $peer := (include "agent.sandboxDomainPeers" (dict "root" $ "name" $name) | splitList ",") }}
+    {{- include "agent.sandboxPeer" (dict "root" $ "name" $peer) | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- end }}
+{{- else }}
 # Per-environment sandbox namespace hosting agent Job pods. Hosted Jobs get a
 # default-deny egress policy (agent-sandbox-egress below); the executor, still
 # in the control namespace, reaches them via the cross-namespace RBAC in
@@ -10,27 +57,37 @@ metadata:
   labels:
     {{- include "agent.labels" . | nindent 4 }}
   annotations:
-    # The operator places the PVCs and Secrets the job Configs reference into this
-    # namespace by hand (spec 047's pre-cutover Rung-2 AC — the chart deliberately
-    # creates neither), so `helm uninstall` must not delete the namespace and take
-    # that data with it. Same convention the agent PVCs already use (v0.118.1).
+    # The operator places any PVCs and Secrets the job Configs reference into
+    # this namespace by hand, so `helm uninstall` must not delete the namespace
+    # and take that data with it. The chart only renders agent storage here when
+    # `sandbox.renderAgentStorage` is set (default false, i.e. operator-managed);
+    # a copied PVC is a new, empty volume, not a view of the control-namespace
+    # claim. Same convention the agent PVCs already use (v0.118.1).
     # Removing the sandbox is therefore a deliberate `kubectl delete ns`.
     helm.sh/resource-policy: keep
+{{- if $renderPolicies }}
 ---
 # Default-deny egress for sandbox agent pods. Permitted: kube-dns (53 UDP+TCP),
-# sentry-proxy (9090), claude-code-router (8788), pushgateway (9090),
-# vault-obsidian-{personal,openclaw,trading} (9090),
-# frontend-gateway and frontend-strategy (9090), and the three Kafka
-# nodeports (32159). Everything else — other internal services, other private
-# CIDRs, 169.254.0.0/16, direct internet — is denied by omission.
+# sentry-proxy (9090), the router (8788), pushgateway (9090), the
+# vault-obsidian-{personal,openclaw,trading} services (9090), an optional
+# vault-API app (9090), frontend-gateway and frontend-strategy (9090), Kafka,
+# and the egress proxy (8888). The router lives in the control namespace; every
+# other in-cluster peer is selected in `sandbox.peerNamespace`, which defaults to
+# the control namespace and exists so an install can move the control plane
+# without its vaults and Sentry proxy. The Kafka peer is either the built-in
+# external nodeport addresses (three /32s on the listener port) or, when
+# `sandbox.kafka.namespace` is set, an in-cluster Service selected by namespace
+# on `sandbox.kafka.servicePort`. Everything else — other internal services, other
+# private CIDRs, 169.254.0.0/16, direct internet — is denied by omission.
 # Ingress is deliberately NOT declared, which leaves it UNRESTRICTED — this policy
 # bounds egress only. No executor→Job ingress path exists today (the agent publishes
 # its result directly to Kafka), so nothing depends on ingress either way; if
 # pod-level isolation is wanted later, declare `Ingress` with an empty rules list.
 #
-# NOTE: this object intentionally carries NO metadata.labels. The approved spec
-# greps the first five lines after the name line for the podSelector label; a
-# labels block would push the selector out of that window.
+# NOTE: this object intentionally carries NO metadata.labels, so that
+# `spec.podSelector` stays within the first few lines of the document. The
+# render suite asserts the selector there; a labels block would push it past
+# that window and the assertion would match nothing.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -58,27 +115,30 @@ spec:
     # http://sentry-proxy.<env>.svc.cluster.local:9090 by the chart's
     # fleet-wide `sentry.proxy` value. namespaceSelector and podSelector sit
     # in the SAME peer: as two separate peers they OR, which opens every
-    # service on 9090 in that namespace. The namespace is templated, never a
-    # literal `dev`, so the prod render selects prod.
+    # service on 9090 in that namespace. The namespace is
+    # `sandbox.peerNamespace` (default: the control namespace), never a literal
+    # `dev` — sentry-proxy is not a control-plane component, so an install that
+    # relocates the control plane must be able to keep this peer where it is.
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
           podSelector:
             matchLabels:
               app: sentry-proxy
       ports:
         - { protocol: TCP, port: 9090 }
-    # claude-code-router-<env> — every agent's model endpoint. 13 of the 17 job
-    # Configs set it; without this rule they cannot call a model at all. The
-    # instance label is per-environment (…-dev / …-prod), hence the template.
+    # The router — every agent's model endpoint. 13 of the 17 job Configs set
+    # it; without this rule they cannot call a model at all. The instance label
+    # defaults to the per-environment name (…-dev / …-prod); set
+    # `sandbox.routerInstance` where the router release carries no suffix.
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
           podSelector:
             matchLabels:
-              app.kubernetes.io/instance: claude-code-router-{{ .Values.namespace }}
+              app.kubernetes.io/instance: {{ .Values.sandbox.routerInstance | default (printf "claude-code-router-%s" .Values.namespace) }}
       ports:
         - { protocol: TCP, port: 8788 }
     # pushgateway — job metrics. Lives in the monitoring namespace, not the
@@ -94,15 +154,16 @@ spec:
         - { protocol: TCP, port: 9090 }
     # The three vaults and the two trading frontends. One peer EACH, not one
     # peer on port 9090 — a namespace+port rule would open every service on
-    # 9090 in the release namespace, which is the trap this policy exists to
+    # 9090 in `sandbox.peerNamespace`, which is the trap this policy exists to
     # avoid. These are the destinations the egress matrix attributes to job
     # pods (sentry-collector, the github-* agents, trading-analysis,
     # trading-backtest); the union is shared because per-agent policies are a
-    # Non-goal for this spec.
+    # Non-goal for this spec. None of them is a control-plane component, so all
+    # five select `sandbox.peerNamespace` rather than the control namespace.
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
           podSelector:
             matchLabels:
               app: vault-obsidian-personal
@@ -111,7 +172,7 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
           podSelector:
             matchLabels:
               app: vault-obsidian-openclaw
@@ -120,7 +181,7 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
           podSelector:
             matchLabels:
               app: vault-obsidian-trading
@@ -129,7 +190,7 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
           podSelector:
             matchLabels:
               app: frontend-gateway
@@ -138,16 +199,45 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ include "agent.namespace" . }}
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
           podSelector:
             matchLabels:
               app: frontend-strategy
       ports:
         - { protocol: TCP, port: 9090 }
-    # Kafka — the only path a task result reaches its topic. On nuke this is
-    # the shared cluster's EXTERNAL nodeport listener, not an in-cluster
-    # service, so these are LAN IPs. Three /32s, never a /24: a /24 would
-    # allow every host on that subnet on this port.
+    {{- if .Values.sandbox.vaultApiApp }}
+    # Optional vault-API peer. Some clusters' vault Service carries a different
+    # `app` label (sun: vault-api-openclaw) rather than a vault-obsidian-* one.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
+          podSelector:
+            matchLabels:
+              app: {{ .Values.sandbox.vaultApiApp }}
+      ports:
+        - { protocol: TCP, port: 9090 }
+    {{- end }}
+    # Kafka — the only path a task result reaches its topic. Either the built-in
+    # external nodeport listener on nuke, selected by hardcoded LAN /32s (never a
+    # /24: a /24 would allow every host on that subnet on these ports) on every
+    # port in sandbox.kafka.nodePorts, or an
+    # in-cluster Service selected by namespace when sandbox.kafka.namespace is
+    # set. namespaceSelector and podSelector stay in the SAME peer — as separate
+    # peers they OR and open every service on that port in that namespace.
+    {{- if .Values.sandbox.kafka.namespace }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.sandbox.kafka.namespace }}
+          {{- with .Values.sandbox.kafka.podLabels }}
+          podSelector:
+            matchLabels:
+              {{- toYaml . | nindent 14 }}
+          {{- end }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.sandbox.kafka.servicePort }} }
+    {{- else }}
     - to:
         - ipBlock:
             cidr: 192.168.178.41/32
@@ -156,7 +246,10 @@ spec:
         - ipBlock:
             cidr: 192.168.178.43/32
       ports:
-        - { protocol: TCP, port: 32159 }
+        {{- range $port := include "agent.sandboxKafkaNodePorts" . | splitList "," }}
+        - { protocol: TCP, port: {{ $port }} }
+        {{- end }}
+    {{- end }}
     # The only path to the public internet: the domain-allowlisting egress proxy
     # (spec 048). Direct internet stays denied by omission.
     - to:
@@ -165,17 +258,24 @@ spec:
               app: egress-proxy
       ports:
         - { protocol: TCP, port: 8888 }
+{{- end }}
+{{- end }}
+{{- if $renderPolicies }}
 ---
 # Egress policy for the proxy pod itself (spec 048 DB 5): it may reach the public
 # internet (0.0.0.0/0) minus private ranges, plus kube-dns so it can resolve
 # allowlisted hostnames. The cloud metadata endpoint (169.254.0.0/16) and every
 # in-cluster service are denied by the except ranges. Intentionally carries NO
 # metadata.labels, consistent with agent-sandbox-egress.
+#
+# The proxy renders once for every sandbox domain, in `sandbox.proxyNamespace`;
+# without domains the helper resolves to the single sandbox namespace, so the
+# legacy render is unchanged.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: egress-proxy-egress
-  namespace: {{ include "agent.sandboxNamespace" . }}
+  namespace: {{ include "agent.proxyNamespace" . }}
 spec:
   podSelector:
     matchLabels:
@@ -203,4 +303,5 @@ spec:
               - 172.16.0.0/12
               - 192.168.0.0/16
               - 169.254.0.0/16
+{{- end }}
 {{- end }}

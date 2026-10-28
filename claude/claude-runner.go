@@ -51,19 +51,123 @@ type claudeRunner struct {
 	config ClaudeRunnerConfig
 }
 
+// Run spawns the CLI, and re-invokes it when it gave up on a rate limit rather
+// than on anything else.
+//
+// The retry exists because the CLI's own budget is short relative to a reviewer's
+// phase budget: it exhausts its ten API retries in roughly five minutes and exits
+// 1, which the executor can only record as a crash. Re-invoking here keeps the
+// work inside the same pod, the same checkout and the same phase, and it is
+// source-agnostic — it does not matter whether the router or the provider answered
+// the 429.
+//
+// Every other failure is returned immediately and unchanged, including the final
+// give-up after the last re-invoke: the `claude CLI failed: <reason>` text is what
+// the crash taxonomy buckets on, so it must not be rewritten here.
+//
+// A re-invoke replays the same prompt in the same working directory with the same
+// allowed tools, so any side effect the abandoned attempt already performed is
+// performed again. That is deliberate rather than overlooked. Resuming the
+// captured SessionID would avoid it, but the flag combination is unverified
+// against this CLI version, and an unverified resume that fails would replace a
+// working retry with a broken one — a worse trade than a duplicate. The exposure
+// is also bounded on both ends: 43 of the 62 measured rate-limit crashes died in
+// preflight, before any side effect, and a consumer that cannot tolerate a repeat
+// already faces one today, because the pre-retry behaviour was to fail the whole
+// run and re-drive it from scratch. Consumers that write a visible artefact (a
+// PR comment) are the ones to watch; a duplicate there is a follow-up, not a
+// reason to withhold the retry.
 func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, error) {
+	var retries int64
+	// spentUsage accumulates the token and turn counts of the attempts that ended
+	// in a give-up. Those attempts really consumed tokens, so the returned result
+	// must report them: a run that needed three re-invokes reports the whole cost,
+	// not just the last invocation's.
+	var spentUsage ClaudeResult
+	// report stamps the retry count and the accumulated usage onto the result
+	// before returning it. A result is nil when the CLI could not even be spawned,
+	// and that path must return the build error untouched rather than dereference
+	// it.
+	report := func(result *ClaudeResult, err error) (*ClaudeResult, error) {
+		if result != nil {
+			result.InputTokens += spentUsage.InputTokens
+			result.OutputTokens += spentUsage.OutputTokens
+			result.CacheReadTokens += spentUsage.CacheReadTokens
+			result.CacheCreationTokens += spentUsage.CacheCreationTokens
+			result.NumTurns += spentUsage.NumTurns
+			result.RateLimitRetries = retries
+		}
+		return result, err
+	}
+
+	for {
+		result, tail, err := r.runOnce(ctx, prompt)
+		if err == nil {
+			return report(result, nil)
+		}
+
+		status := rateLimitStatus(tail)
+		if status == 0 || retries >= maxRateLimitReinvokes {
+			return report(result, err)
+		}
+
+		wait := r.rateLimitBackoff(retries)
+		if !r.hasTimeFor(ctx, wait) {
+			// Not started rather than started and cut off: a retry that cannot
+			// finish inside the budget would trade a rate-limit crash for a
+			// deadline_exceeded one.
+			glog.V(1).Infof(
+				"claude CLI rate-limited (HTTP %d), no retry: %s plus the reserve does not fit the context deadline",
+				status,
+				wait,
+			)
+			return report(result, err)
+		}
+
+		glog.Infof(
+			"claude CLI rate-limited (HTTP %d), retry %d/%d after %s",
+			status,
+			retries+1,
+			maxRateLimitReinvokes,
+			wait,
+		)
+		if sleepErr := sleepCtx(ctx, wait); sleepErr != nil {
+			// The context died while waiting. Report the CLI's own failure, not
+			// the cancellation: the reason the run is ending is still the CLI.
+			return report(result, err)
+		}
+		// The attempt is abandoned only once the wait completed; carrying its cost
+		// forward before that would double-count it in report on the paths above.
+		if result != nil {
+			spentUsage.InputTokens += result.InputTokens
+			spentUsage.OutputTokens += result.OutputTokens
+			spentUsage.CacheReadTokens += result.CacheReadTokens
+			spentUsage.CacheCreationTokens += result.CacheCreationTokens
+			spentUsage.NumTurns += result.NumTurns
+		}
+		retries++
+	}
+}
+
+// runOnce performs exactly one CLI invocation. It returns the bounded tail
+// alongside the result so Run can decide from the CLI's own evidence whether the
+// failure was a rate limit worth re-invoking for.
+func (r *claudeRunner) runOnce(
+	ctx context.Context,
+	prompt string,
+) (*ClaudeResult, []string, error) {
 	cmd, err := r.buildCommand(ctx, prompt)
 	if err != nil {
-		return nil, errors.Wrap(ctx, err, "build command")
+		return nil, nil, errors.Wrap(ctx, err, "build command")
 	}
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, errors.Wrap(ctx, err, "create stdout pipe")
+		return nil, nil, errors.Wrap(ctx, err, "create stdout pipe")
 	}
 
 	if err := cmd.Start(); err != nil {
-		return nil, errors.Wrap(ctx, err, "start claude CLI")
+		return nil, nil, errors.Wrap(ctx, err, "start claude CLI")
 	}
 
 	resultText, usage, partial, tail, sessionID := scanOutput(ctx, stdoutPipe)
@@ -76,15 +180,23 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 		if len(tail) > 0 {
 			tailMsg = FailureReason(tail)
 		}
+		// The usage is carried on the error path too: a rate-limited attempt really
+		// consumed these tokens, and Run sums them across re-invokes so the token
+		// metrics report what the run cost rather than what its last attempt cost.
 		return &ClaudeResult{
-			Partial: partial,
-		}, errors.Wrapf(ctx, err, "claude CLI failed: %s", tailMsg)
+			Partial:             partial,
+			InputTokens:         usage.inputTokens,
+			OutputTokens:        usage.outputTokens,
+			CacheCreationTokens: usage.cacheCreationTokens,
+			CacheReadTokens:     usage.cacheReadTokens,
+			NumTurns:            usage.numTurns,
+		}, tail, errors.Wrapf(ctx, err, "claude CLI failed: %s", tailMsg)
 	}
 
 	if resultText == "" {
 		return &ClaudeResult{
 			Partial: partial,
-		}, errors.New(ctx, "no result event found in claude CLI output")
+		}, tail, errors.New(ctx, "no result event found in claude CLI output")
 	}
 
 	return &ClaudeResult{
@@ -97,7 +209,7 @@ func (r *claudeRunner) Run(ctx context.Context, prompt string) (*ClaudeResult, e
 		NumTurns:            usage.numTurns,
 		SessionID:           sessionID,
 		InteractionCount:    r.countHumanInteractions(ctx, sessionID),
-	}, nil
+	}, tail, nil
 }
 
 // resolveConfigDir returns the Claude config directory the CLI subprocess is given,

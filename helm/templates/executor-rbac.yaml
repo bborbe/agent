@@ -68,6 +68,20 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  # Pod quota read (executor >= v0.37.0). The executor bounds spawn admission by
+  # the enforced pod capacity of the agent's own priority class, not only by the
+  # Config's maxConcurrentJobs. Where the two disagree the quota is what actually
+  # limits pods, so a cluster that admitted on the declared cap alone created Jobs
+  # whose pods the quota refused: the Job never ran, its dispatch claim was held
+  # and renewed, and the peer cluster was refused `lease not expired` on that task
+  # for the whole hold (measured on nuke prod 2026-10-24: maxConcurrentJobs 5
+  # against `github-pr-review-agent pods: 3`). `list` is the verb used; `get` is
+  # granted so a future by-name read needs no chart change. Without this rule the
+  # executor's read is refused and it falls back to the declared cap, which is the
+  # old behaviour rather than an error.
+  - apiGroups: [""]
+    resources: [resourcequotas]
+    verbs: [get, list]
   - apiGroups: [agent.benjamin-borbe.de]
     resources: [configs]
     verbs: [get, list, watch]
@@ -93,18 +107,20 @@ subjects:
   - kind: ServiceAccount
     name: agent-task-executor
     namespace: {{ $ns }}
+{{- range $sandboxNS := (include "agent.sandboxNamespaces" . | splitList ",") }}
 ---
 # Sandbox-scoped grants: the executor, still in the control namespace, gets exactly
-# the cross-namespace rights it needs inside this environment's sandbox namespace
+# the cross-namespace rights it needs inside this environment's sandbox namespaces
 # and no more. No wildcard verbs, no cluster-scope — a widened grant here would
-# widen the executor's blast radius past the sandbox boundary.
+# widen the executor's blast radius past the sandbox boundary. One pair per declared
+# domain (or the single sandbox namespace when no domains are declared).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: agent-task-executor-sandbox
-  namespace: {{ include "agent.sandboxNamespace" . }}
+  namespace: {{ $sandboxNS }}
   labels:
-    {{- include "agent.labels" . | nindent 4 }}
+    {{- include "agent.labels" $ | nindent 4 }}
 rules:
   - apiGroups: [batch]
     resources: [jobs]
@@ -117,6 +133,18 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  # Pod quota read in the JOB namespace (executor >= v0.37.0). `podQuotaFor`
+  # resolves the ResourceQuota for the agent's priority class in the namespace
+  # the Job is spawned into, so the read happens HERE, not in the control
+  # namespace — the control-namespace grant alone is never the one consulted.
+  # Without this rule every admission attempt logs `pod_quota_read_failed` and
+  # falls back to the declared `maxConcurrentJobs`, which is the old behaviour
+  # rather than an error: measured on nuke prod 2026-10-26, 50 failures in 30
+  # minutes with `quota=0` on every `concurrency_admit` line, on a chart that had
+  # already added the same rule to the control-namespace Role.
+  - apiGroups: [""]
+    resources: [resourcequotas]
+    verbs: [get, list]
   - apiGroups: [""]
     resources: [secrets]
     verbs: [get]
@@ -128,9 +156,9 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: agent-task-executor-sandbox
-  namespace: {{ include "agent.sandboxNamespace" . }}
+  namespace: {{ $sandboxNS }}
   labels:
-    {{- include "agent.labels" . | nindent 4 }}
+    {{- include "agent.labels" $ | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -139,4 +167,5 @@ subjects:
   - kind: ServiceAccount
     name: agent-task-executor
     namespace: {{ $ns }}
+{{- end }}
 {{- end }}

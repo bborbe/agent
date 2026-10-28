@@ -1,8 +1,14 @@
-{{- if .Values.executor.enabled }}
+{{- /* sandbox.renderPolicies=false drops the whole proxy; see agent.sandboxRenderPolicies. */}}
+{{- if and .Values.executor.enabled (include "agent.sandboxRenderPolicies" .) }}
 # Egress proxy (spec 048): the ONLY path from a sandbox agent pod to the public
 # internet. tinyproxy filters the CONNECT host against the allowlist in
 # egress-proxy-allowlist.yaml (FilterDefaultDeny=Yes => everything not listed is
 # denied with a 403). No TLS interception, no certificate injection.
+#
+# The proxy renders ONCE for every sandbox domain, in `sandbox.proxyNamespace`;
+# agents in every declared domain reach this one Service. Its own egress policy
+# (which upstreams the proxy may reach) lives in sandbox.yaml as
+# `egress-proxy-egress`.
 #
 # NOTE: the Deployment intentionally carries NO metadata.labels — the spec's
 # acceptance criteria grep 'replicas: 2' within 5 lines of the name line (same
@@ -11,7 +17,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: egress-proxy
-  namespace: {{ include "agent.sandboxNamespace" . }}
+  namespace: {{ include "agent.proxyNamespace" . }}
 spec:
   replicas: 2
   selector:
@@ -139,7 +145,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: egress-proxy
-  namespace: {{ include "agent.sandboxNamespace" . }}
+  namespace: {{ include "agent.proxyNamespace" . }}
   labels:
     {{- include "agent.labels" . | nindent 4 }}
 spec:
@@ -157,7 +163,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: egress-proxy-ingress
-  namespace: {{ include "agent.sandboxNamespace" . }}
+  namespace: {{ include "agent.proxyNamespace" . }}
   labels:
     {{- include "agent.labels" . | nindent 4 }}
 spec:
@@ -167,16 +173,21 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    # Agent pods in the sandbox namespace — the only intended clients.
+    # Agent pods in every rendered sandbox namespace — the only intended clients.
+    # One entry per namespace so a newly declared domain is admitted without a
+    # second edit; a domain missing here reaches the Service and is refused by the
+    # proxy, which is a silent outage rather than a render failure.
+    {{- range $sandboxNS := (include "agent.sandboxNamespaces" . | splitList ",") }}
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ include "agent.sandboxNamespace" . }}
+              kubernetes.io/metadata.name: {{ $sandboxNS }}
           podSelector:
             matchLabels:
               app: agent
       ports:
         - { protocol: TCP, port: 8888 }
+    {{- end }}
     # Optional extra peer, only for httpGet/TCP probes or another in-cluster
     # client. The chart's own probes are exec probes that curl 127.0.0.1 inside
     # the pod, and pod loopback never crosses the interface NetworkPolicy filters,
@@ -195,7 +206,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: egress-proxy
-  namespace: {{ include "agent.sandboxNamespace" . }}
+  namespace: {{ include "agent.proxyNamespace" . }}
   labels:
     {{- include "agent.labels" . | nindent 4 }}
 spec:

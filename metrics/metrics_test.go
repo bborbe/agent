@@ -204,6 +204,15 @@ var _ = Describe("NewJobMetrics", func() {
 				Expect(turnMF.Metric).To(HaveLen(1))
 				Expect(turnMF.Metric[0].Counter.GetValue()).To(Equal(0.0))
 			})
+
+			It("rate-limit retry counter is pre-initialized at zero", func() {
+				retryMF := findFamily("agent_job_rate_limit_retries_total")
+				Expect(
+					retryMF,
+				).NotTo(BeNil(), "agent_job_rate_limit_retries_total metric family not found")
+				Expect(retryMF.Metric).To(HaveLen(1))
+				Expect(retryMF.Metric[0].Counter.GetValue()).To(Equal(0.0))
+			})
 		})
 
 		Context("usage recording", func() {
@@ -238,6 +247,32 @@ var _ = Describe("NewJobMetrics", func() {
 				turnMF := findFamily("agent_job_turns_total")
 				Expect(turnMF).NotTo(BeNil())
 				Expect(turnMF.Metric[0].Counter.GetValue()).To(Equal(5.0))
+			})
+
+			It("advances the rate-limit retry counter on a run that was re-invoked", func() {
+				m.RecordUsage(libmetrics.JobUsage{Turns: 2, RateLimitRetries: 3})
+
+				retryMF := findFamily("agent_job_rate_limit_retries_total")
+				Expect(retryMF).NotTo(BeNil())
+				Expect(retryMF.Metric[0].Counter.GetValue()).To(Equal(3.0))
+			})
+
+			It("leaves the rate-limit retry counter at zero on a clean run", func() {
+				m.RecordUsage(libmetrics.JobUsage{Turns: 2, RateLimitRetries: 0})
+
+				retryMF := findFamily("agent_job_rate_limit_retries_total")
+				Expect(retryMF).NotTo(BeNil())
+				Expect(retryMF.Metric[0].Counter.GetValue()).To(Equal(0.0))
+			})
+
+			It("skips a negative rate-limit retry count instead of panicking", func() {
+				Expect(func() {
+					m.RecordUsage(libmetrics.JobUsage{Turns: 1, RateLimitRetries: -1})
+				}).NotTo(Panic())
+
+				retryMF := findFamily("agent_job_rate_limit_retries_total")
+				Expect(retryMF).NotTo(BeNil())
+				Expect(retryMF.Metric[0].Counter.GetValue()).To(Equal(0.0))
 			})
 
 			It("accumulates across multiple RecordUsage calls", func() {
