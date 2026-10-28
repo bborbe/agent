@@ -87,6 +87,16 @@ spec:
             # differently, set controllers[].gitRestUrl explicitly (see values.yaml).
             - name: GIT_REST_URL
               value: {{ $c.gitRestUrl | default (printf "http://vault-obsidian-%s:9090" (required "controllers[].vaultName is required" $c.vaultName)) | quote }}
+            # Typed vault-api base URL. Controller >= v0.22.0 REQUIRES this and exits
+            # at startup with "VAULT_API_URL is required" when it is empty, because it
+            # builds a typed vaultapi.Client instead of writing git-rest keys directly.
+            # Deliberately NOT derived from gitRestUrl: the two are different services
+            # with different auth (vault-api takes a gateway secret, git-rest does not),
+            # and a silent fallback would point the controller at an endpoint that
+            # cannot answer its calls. Empty = unset, so a controller pinned below
+            # v0.22.0 keeps working without this key.
+            - name: VAULT_API_URL
+              value: {{ $c.vaultApiUrl | default "" | quote }}
             - name: VAULT_NAME
               value: {{ required "controllers[].vaultName is required" $c.vaultName | quote }}
             - name: POLL_INTERVAL
