@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(helm): **pin the egress-proxy log volume's ownership with `fsGroup`, because `0.23.9`'s emptyDir was only writable by luck.** `0.23.9` replaced `DAC_OVERRIDE` with an `emptyDir` at `/var/log/tinyproxy`, on the reasoning that kubelet creates it root:root and the entrypoint runs as root. Measured on nuke dev 2026-10-28, two replicas of the same ReplicaSet — same image digest, same node, same manifest — disagreed: `egress-proxy-74d9889cc7-2jd5w` wrote its log, and `…-4sx7p` went `CrashLoopBackOff` with `touch: /var/log/tinyproxy/tinyproxy.log: Permission denied` and `Could not tail … Exiting`, the exact failure the emptyDir was meant to remove. The emptyDir's mode comes from the kubelet's umask and the entrypoint writes as the image's uid 100, so a root:root `0755` directory is unwritable to it; whether a pod starts was decided by a mode the chart never set. `fsGroup: 100` with `fsGroupChangePolicy: OnRootMismatch` makes the volume group-writable by construction, and re-chowns only when the existing mode is actually wrong rather than on every restart. The capability list is unchanged — still `add: [SETUID, SETGID]`, no `DAC_OVERRIDE`. Chart `0.23.9` → `0.23.10`.
+
 ## v0.132.3
 
 - fix(helm): mount an `emptyDir` at `/var/log/tinyproxy` and drop `DAC_OVERRIDE`. Chart `0.21.2` added the bypass so the root entrypoint's final `touch` on `/var/log/tinyproxy/tinyproxy.log` would succeed; the image ships that directory as uid 100 / mode `0755`, so root is "other" there and gets `EACCES`. A writable volume fixes the same failure with no capability at all, which matters because this is the one container that enforces agent egress. `SETUID`/`SETGID` stay — tinyproxy needs them for its own privilege drop. Chart `0.23.8` → `0.23.9`.

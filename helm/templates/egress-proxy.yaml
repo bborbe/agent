@@ -33,6 +33,20 @@ spec:
         # readiness sidecar runs the new script.
         checksum/allowlist: {{ include (print $.Template.BasePath "/egress-proxy-allowlist.yaml") . | sha256sum }}
     spec:
+      # The `proxy-log` emptyDir below is created by the kubelet with a mode
+      # derived from its umask, and the entrypoint writes the log as the image's
+      # uid 100. A root:root 0755 directory is then unwritable to that user and
+      # the `touch` fails exactly as it did against the image's own directory —
+      # measured on nuke dev 2026-10-28, where two replicas of the same
+      # ReplicaSet with the same image and manifest disagreed: one wrote its log,
+      # the other crash-looped on `Permission denied`. Leaving a security fix
+      # correct-by-luck on an unpinned umask is not a fix, so pin it: fsGroup
+      # makes the volume group-writable for a known gid, and OnRootMismatch only
+      # re-chowns when the existing mode is actually wrong rather than on every
+      # restart.
+      securityContext:
+        fsGroup: 100
+        fsGroupChangePolicy: OnRootMismatch
       # Both replicas are the whole egress path: never let them land on one node.
       topologySpreadConstraints:
         - maxSkew: 1
