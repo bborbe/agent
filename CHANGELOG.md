@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.132.3
 
 - fix(helm): mount an `emptyDir` at `/var/log/tinyproxy` and drop `DAC_OVERRIDE`. Chart `0.21.2` added the bypass so the root entrypoint's final `touch` on `/var/log/tinyproxy/tinyproxy.log` would succeed; the image ships that directory as uid 100 / mode `0755`, so root is "other" there and gets `EACCES`. A writable volume fixes the same failure with no capability at all, which matters because this is the one container that enforces agent egress. `SETUID`/`SETGID` stay — tinyproxy needs them for its own privilege drop. Chart `0.23.8` → `0.23.9`.
 
