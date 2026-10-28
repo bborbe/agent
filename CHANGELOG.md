@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.132.2
 
 - fix(helm): **`controllers[].vaultApiUrl` now renders `VAULT_API_URL`, so a controller at `v0.22.0`+ can start at all.** Controller `v0.22.0` moved to a typed `vaultapi.Client` (`vaultapi.NewClient(a.VaultAPIURL, a.GatewaySecret, …)`) and fails closed at construction: `if a.VaultAPIURL == "" { return errors.Errorf(ctx, "VAULT_API_URL is required") }`. The chart had no key for it — `vaultApiUrl` existed only under `executors[]` (added for #805), and the `controllers[]` schema carried `gitRestUrl`, `taskDir`, `branch`, `topicPrefix`, `kafkaBrokers` and nothing for vault-api. So the env rendered empty and every controller crash-looped on startup. Measured 2026-10-28 on nuke dev: pinning the three dev controllers to `agent-task-controller:v0.22.2` put all three into `CrashLoopBackOff` with `application failed: VAULT_API_URL is required`, and dev had to be rolled back to `v0.19.0`. The key is **not** derived from `gitRestUrl`: vault-api is a different Service (`vault-api-<vaultName>`) with gateway-secret auth, so a derived default would silently address an endpoint that cannot answer. It reuses the controller's existing `gatewaySecret` — there is no separate vault-api secret key, matching the binary's `NewClient` signature. Empty renders `""`, so a controller pinned below `v0.22.0` is unaffected; verified both ways with `helm template` (exit 0, `value: ""` when unset). Chart `0.23.7` → `0.23.8`.
 
