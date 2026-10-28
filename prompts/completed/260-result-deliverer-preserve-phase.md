@@ -1,6 +1,12 @@
 ---
-status: draft
+status: completed
+summary: 'Stopped both result deliverers from republishing a non-advancing phase: Kafka now omits the phase key on done-with-empty-NextPhase/in_progress/needs_input/unknown branches, the file deliverer carries the on-disk phase forward, and the Kafka advanced-phase carry machinery was removed.'
+execution_id: agent-prompt-preserve-phase-exec-260-result-deliverer-preserve-phase
+dark-factory-version: v0.198.7
 created: "2026-10-28T23:20:00Z"
+queued: "2026-10-28T22:57:00Z"
+started: "2026-10-28T22:57:15Z"
+completed: "2026-10-28T23:05:10Z"
 ---
 
 # Do not publish a phase a result did not advance
@@ -220,5 +226,5 @@ it, stop and say so rather than shipping.
 </constraints>
 
 <verification>
-make precommit
+ROOTDIR=/workspace make precommit
 </verification>

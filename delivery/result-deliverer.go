@@ -55,7 +55,7 @@ type fileResultDeliverer struct {
 	// mu serialises DeliverResult so advancedPhase is read and written safely.
 	mu sync.Mutex
 	// advancedPhase is the last non-terminal phase this deliverer wrote on a
-	// Done + NextPhase result; see kafkaResultDeliverer.advancedPhase.
+	// Done + NextPhase result.
 	advancedPhase string
 }
 
@@ -80,15 +80,17 @@ func (d *fileResultDeliverer) DeliverResult(
 
 	generated = d.carryAdvancedPhase(generated, result)
 
+	generated = d.preserveDiskPhase(generated, string(original), result)
+
 	if err := os.WriteFile(d.filePath, []byte(generated), 0600); err != nil { // #nosec G304 G703 -- filePath validated by caller
 		return errors.Wrap(ctx, err, "write task file failed")
 	}
 	return nil
 }
 
-// carryAdvancedPhase is the file-delivery twin of
-// kafkaResultDeliverer.carryAdvancedPhase, operating on the generated markdown.
-// Caller must hold d.mu.
+// carryAdvancedPhase keeps an in-process phase advance from being clobbered by
+// a later save in the same Job, operating on the generated markdown. Caller must
+// hold d.mu.
 func (d *fileResultDeliverer) carryAdvancedPhase(
 	generated string,
 	result agentlib.AgentResultInfo,
@@ -104,6 +106,27 @@ func (d *fileResultDeliverer) carryAdvancedPhase(
 		return generated
 	}
 	return SetFrontmatterField(generated, "phase", d.advancedPhase)
+}
+
+// preserveDiskPhase keeps a result that advances no phase from overwriting the
+// phase currently on disk with the Job-start snapshot the generator rebuilds
+// from. A whole-file write cannot omit the key the way the Kafka payload can, so
+// the on-disk value is carried forward instead. Anything unreadable falls back
+// to the generated content — a delivery is never failed over this.
+func (d *fileResultDeliverer) preserveDiskPhase(
+	generated string,
+	original string,
+	result agentlib.AgentResultInfo,
+) string {
+	if result.Status == agentlib.AgentStatusDone && result.NextPhase != "" {
+		return generated
+	}
+	fm, _ := ParseMarkdownFrontmatter(original)
+	phase, _ := fm["phase"].(string)
+	if phase == "" {
+		return generated
+	}
+	return SetFrontmatterField(generated, "phase", phase)
 }
 
 // NewKafkaResultDeliverer creates a agentlib.ResultDeliverer that publishes task updates to Kafka.
@@ -152,25 +175,12 @@ type kafkaResultDeliverer struct {
 	originalContent     string
 	generator           ContentGenerator
 	currentDateTime     libtime.CurrentDateTimeGetter
-
-	// mu serialises DeliverResult so advancedPhase is read and written safely.
-	mu sync.Mutex
-	// advancedPhase is the last non-terminal phase this deliverer published on a
-	// Done + NextPhase result. A deliverer is constructed per Job (with that Job's
-	// originalContent), so this is per-Job state: Agent.Run advances phases
-	// in-process with one deliverer, and every later phase-preserving save in the
-	// same Job must publish this phase instead of the Job-start phase it was built
-	// from. Empty means "no advance yet — keep the incoming phase".
-	advancedPhase string
 }
 
 func (d *kafkaResultDeliverer) DeliverResult(
 	ctx context.Context,
 	result agentlib.AgentResultInfo,
 ) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
 	generated, err := d.generator.Generate(ctx, d.originalContent, result)
 	if err != nil {
 		return errors.Wrap(ctx, err, "content generation failed")
@@ -186,8 +196,6 @@ func (d *kafkaResultDeliverer) DeliverResult(
 	d.applyResultMetrics(frontmatter, result)
 
 	d.applyResultFrontmatter(frontmatter, result)
-
-	d.carryAdvancedPhase(frontmatter, result)
 
 	d.stampTargetVault(frontmatter)
 
@@ -241,7 +249,7 @@ func (d *kafkaResultDeliverer) DeliverResult(
 // resume cursor. Any forward-progress result clears the retry streak.
 //
 // needs_input is task-wrong, not transient — the agent already did the work, so the
-// task surfaces in the operator inbox immediately (assignee cleared, phase unchanged — see carryAdvancedPhase).
+// task surfaces in the operator inbox immediately (assignee cleared, no phase published).
 // Only the AgentStatusDone branch may write phase: human_review, and only when the
 // agent itself requested it via Result.NextPhase.
 func (d *kafkaResultDeliverer) applyResultFrontmatter(
@@ -252,14 +260,15 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 	case agentlib.AgentStatusDone:
 		if result.NextPhase == "" {
 			// Done without NextPhase is an in-place save (see agentlib.Result.NextPhase:
-			// "Empty means stay in current phase"): keep status: in_progress and preserve
-			// the incoming phase (or the phase this Job already advanced to) — exactly
-			// like the InProgress branch.
-			// Terminating a task requires an explicit NextPhase: "done".
+			// "Empty means stay in current phase"): keep status: in_progress and publish
+			// no phase at all. Terminating a task requires an explicit NextPhase: "done".
 			frontmatter["status"] = "in_progress"
 			resetRetryCount(frontmatter)
-			// phase not modified here — preserves the incoming phase, or the phase this
-			// Job already advanced to (applied afterwards by carryAdvancedPhase)
+			// A completed run does not own the phase. Omitting the key is a preserve,
+			// not a delete: the controller merges on-disk-first (MergeFrontmatter), so
+			// the task keeps whatever phase it currently holds — including one written
+			// by a park while this run was still going.
+			delete(frontmatter, "phase")
 			break
 		}
 		resolvedPhase := resolveNextPhase(d.taskID, result.NextPhase)
@@ -282,19 +291,19 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 			frontmatter["previous_assignee"] = prev
 		}
 		frontmatter["assignee"] = ""
-		// phase not modified here — preserves the incoming phase, or the phase this
-		// Job already advanced to (applied afterwards by carryAdvancedPhase)
+		// This result advances nothing: omit the phase so the controller's merge keeps
+		// the on-disk value rather than republishing the Job-start snapshot.
+		delete(frontmatter, "phase")
 	case agentlib.AgentStatusInProgress:
-		// Step-level progress save: keep status: in_progress, preserve phase from incoming
-		// task frontmatter. NextPhase ignored on this status — log a warning if set both.
+		// Step-level progress save: keep status: in_progress, publish no phase so the
+		// controller's merge keeps the on-disk one. NextPhase ignored on this status.
 		if result.NextPhase != "" {
 			glog.Warningf("task %s: ignoring NextPhase %q on Status: in_progress (in-place save)",
 				d.taskID, result.NextPhase)
 		}
 		frontmatter["status"] = "in_progress"
 		resetRetryCount(frontmatter)
-		// phase not modified here — preserves the incoming phase, or the phase this
-		// Job already advanced to (applied afterwards by carryAdvancedPhase)
+		delete(frontmatter, "phase")
 	case agentlib.AgentStatusFailed:
 		// Infra failure (transient): record the incremented retry_count and preserve
 		// the assignee so the retry stays reachable — clearing it unconditionally
@@ -303,6 +312,9 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 		// escalates out of the claim predicate: assignee cleared, previous_assignee
 		// recorded, status in_progress and phase unchanged — non-terminal, but no
 		// longer selected. See retry-bound.go.
+		//
+		// This branch deliberately keeps publishing its phase: the controller's
+		// planning-retry gate reads phase from the published payload, not from disk.
 		frontmatter["status"] = "in_progress"
 		// Derive the streak from this Job's starting content, not from the generated
 		// frontmatter: the fallback/passthrough/section generators already run
@@ -313,8 +325,9 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 		if exhausted || triggerCountAtCap(frontmatter) {
 			escalateFailure(frontmatter)
 		}
-		// phase not modified here — preserves the incoming phase, or the phase this
-		// Job already advanced to (applied afterwards by carryAdvancedPhase)
+		// phase is left as generated here — the planning-retry gate reads it from the
+		// published payload, so unlike the other non-advancing branches this one
+		// deliberately still publishes the Job-start phase.
 	default:
 		// Unknown status: defensive — surface to the operator like a cap exhaustion.
 		frontmatter["status"] = "in_progress"
@@ -322,30 +335,8 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 			frontmatter["previous_assignee"] = prev
 		}
 		frontmatter["assignee"] = ""
-		// phase not modified here — preserves the incoming phase, or the phase this
-		// Job already advanced to (applied afterwards by carryAdvancedPhase)
-	}
-}
-
-// carryAdvancedPhase keeps an in-process phase advance from being clobbered by a
-// later save in the same Job. On Done + NextPhase it records the phase
-// applyResultFrontmatter just resolved — unless that phase is the terminal
-// "done", which is never recorded. On every other (phase-preserving) result it
-// overrides the incoming phase with the recorded one, if any. Status, assignee,
-// previous_assignee and every other key are left exactly as
-// applyResultFrontmatter set them. Caller must hold d.mu.
-func (d *kafkaResultDeliverer) carryAdvancedPhase(
-	frontmatter agentlib.TaskFrontmatter,
-	result agentlib.AgentResultInfo,
-) {
-	if result.Status == agentlib.AgentStatusDone && result.NextPhase != "" {
-		if phase, _ := frontmatter["phase"].(string); phase != "" && phase != "done" {
-			d.advancedPhase = phase
-		}
-		return
-	}
-	if d.advancedPhase != "" {
-		frontmatter["phase"] = d.advancedPhase
+		// Advances nothing: omit the phase, same as the other preserving branches.
+		delete(frontmatter, "phase")
 	}
 }
 
