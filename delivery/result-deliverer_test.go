@@ -1393,9 +1393,11 @@ var _ = Describe("KafkaResultDeliverer", func() {
 
 			Expect(sender.SendCommandObjectCallCount()).To(Equal(2))
 			// The failed branch still publishes its phase (the controller's
-			// planning-retry gate reads it from the payload), so the generated
-			// Job-start phase survives rather than an in-process advance.
-			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("planning"))
+			// planning-retry gate reads it from the payload), and it must publish the
+			// phase this Job advanced to — not the Job-start phase the generator
+			// rebuilt from. Publishing "planning" here would rewind an execution-phase
+			// task and re-run a planning phase that already completed.
+			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("execution"))
 			Expect(publishedFrontmatterAt(1)["assignee"]).To(Equal("hypothesis-agent"))
 		})
 

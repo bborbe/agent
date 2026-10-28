@@ -175,12 +175,26 @@ type kafkaResultDeliverer struct {
 	originalContent     string
 	generator           ContentGenerator
 	currentDateTime     libtime.CurrentDateTimeGetter
+
+	// mu serialises DeliverResult so advancedPhase is read and written safely.
+	mu sync.Mutex
+	// advancedPhase is the last non-terminal phase this deliverer published on a
+	// Done + NextPhase result. A deliverer is constructed per Job (with that Job's
+	// originalContent), so this is per-Job state: Agent.Run advances phases
+	// in-process with one deliverer, and the failed branch — the only branch that
+	// still publishes a phase — must publish this phase rather than the Job-start
+	// phase it was built from. Empty means "no advance yet", in which case the
+	// generated (Job-start) phase is the best available answer.
+	advancedPhase string
 }
 
 func (d *kafkaResultDeliverer) DeliverResult(
 	ctx context.Context,
 	result agentlib.AgentResultInfo,
 ) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	generated, err := d.generator.Generate(ctx, d.originalContent, result)
 	if err != nil {
 		return errors.Wrap(ctx, err, "content generation failed")
@@ -273,6 +287,13 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 		}
 		resolvedPhase := resolveNextPhase(d.taskID, result.NextPhase)
 		frontmatter["phase"] = resolvedPhase
+		// Remember the advance for the rest of this Job. Every other branch now
+		// publishes no phase, so the on-disk value survives the controller's merge —
+		// but the failed branch deliberately still publishes one, and it must publish
+		// THIS phase rather than the Job-start phase the generator rebuilt from.
+		if resolvedPhase != "done" {
+			d.advancedPhase = resolvedPhase
+		}
 		// Only mark the task completed when the resolved phase is terminal (done).
 		// Requested transitions to planning/execution/ai_review/human_review keep
 		// the task at status: in_progress so the controller re-triggers on the
@@ -315,7 +336,14 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 		//
 		// This branch deliberately keeps publishing its phase: the controller's
 		// planning-retry gate reads phase from the published payload, not from disk.
+		// It must therefore publish the phase this Job advanced to, if it advanced —
+		// otherwise a run that moved planning -> execution and then failed would
+		// publish the Job-start phase and rewind the task, re-running a phase that
+		// already completed.
 		frontmatter["status"] = "in_progress"
+		if d.advancedPhase != "" {
+			frontmatter["phase"] = d.advancedPhase
+		}
 		// Derive the streak from this Job's starting content, not from the generated
 		// frontmatter: the fallback/passthrough/section generators already run
 		// applyStatusFrontmatter, so reading the generated value would count one
