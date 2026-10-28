@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.132.1
 
 - fix(helm): **admit `bborbe.sentry.io` to the egress-proxy allowlist.** The list carried `^sentry\.io$`, which is anchored and therefore matches only the apex — tinyproxy's `FilterDefaultDeny` refused every Sentry subdomain, so `sentry-analyzer-agent`'s `scripts/sentry-read.sh` got `Proxying refused on filtered domain "bborbe.sentry.io"` (an HTTP 403 the agent misreported as auth). Added `^.*\.sentry\.io$` beside the apex entry; the count is now 33. Sentry is a named permitted destination in the parent goal `Agent Egress Is Default-Deny` (SC4); this is the proxy's destination allowlist, not a NetworkPolicy widening. Chart `0.23.7`.
 
