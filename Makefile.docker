@@ -1,0 +1,38 @@
+# Docker targets for the shell-probe image (images/shell-probe).
+#
+# Separate from the root Makefile's Go/chart targets on purpose: the image is a
+# published artifact with its own tag, and `make precommit` must not build it.
+#
+# Usage:
+#   make probe-image-build  VERSION=vX.Y.Z
+#   make probe-image-upload VERSION=vX.Y.Z
+#
+# VERSION has no default. The image tag must be a released repo tag, so a probe
+# pin can be traced back to a commit — an untagged build produces an image no
+# reviewer can reconstruct.
+
+DOCKER_REGISTRY ?= docker.io
+PROBE_IMAGE     ?= bborbe/agent-shell-probe
+PROBE_DIR   ?= images/shell-probe
+
+.PHONY: probe-image-build
+probe-image-build:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "ERROR: set VERSION=vX.Y.Z (the released repo tag this image is cut from)" >&2; \
+		exit 1; \
+	fi
+	DOCKER_BUILDKIT=1 docker build \
+		--pull \
+		--rm \
+		--platform=linux/amd64 \
+		-t $(DOCKER_REGISTRY)/$(PROBE_IMAGE):$(VERSION) \
+		-f $(PROBE_DIR)/Dockerfile \
+		$(PROBE_DIR)
+
+.PHONY: probe-image-upload
+probe-image-upload:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "ERROR: set VERSION=vX.Y.Z" >&2; \
+		exit 1; \
+	fi
+	docker push $(DOCKER_REGISTRY)/$(PROBE_IMAGE):$(VERSION)
