@@ -105,9 +105,13 @@ it, stop and say so rather than shipping.
    keeps the on-disk phase, so re-adding `advancedPhase` can only restore a snapshot that has
    gone stale: a task parked at `human_review` while this Job was running would be dragged back
    to the Job's earlier advance. With the tail gone, `advancedPhase`, the code that records it
-   and the `sync.Mutex` that protects it have no remaining purpose on this type — remove them
-   too. If you find that something else genuinely needs them, keep the minimum and say why in
-   your report.
+   and the `sync.Mutex` that protects it have no remaining purpose on `kafkaResultDeliverer` —
+   remove them too, together with the now-pointless `d.mu.Lock()` / `defer d.mu.Unlock()` pair
+   and the "Caller must hold d.mu" comment in its `DeliverResult`. With the tail and the
+   recording gone, `kafkaResultDeliverer.carryAdvancedPhase` has an empty body: delete the
+   method and its call in `DeliverResult`. Leave `fileResultDeliverer` alone — it keeps its own
+   `advancedPhase`, `mu` and `carryAdvancedPhase`, which requirement 4 builds on. If you find
+   that something else genuinely needs any of this, keep the minimum and say why in your report.
 
 4. **File deliverer — preserve the phase currently on disk.** In `fileResultDeliverer`, add a
    method with the signature:
@@ -153,16 +157,24 @@ it, stop and say so rather than shipping.
 
    Existing assertions that pin the old behaviour must be **rewritten**, not preserved. These
    assert a `phase` value on branches that will no longer publish one (there is no prior
-   in-process advance in these specs, so nothing re-adds it): ~267, 292, 345, 380 (failed —
-   leave these alone, requirement 2 keeps that branch publishing), ~421, 446, 798, 819
-   (needs_input), ~474, 498 (done + empty NextPhase), ~729, 753, 777 (in_progress), ~1327
-   (5e), ~1348 (5f). Rewrite each to assert the branch's real contract — that the key is absent,
-   e.g. `Expect(fm).NotTo(HaveKey("phase"))`, alongside the status/assignee assertions they
-   already make — and keep their scenario text: the phase is still preserved, now by the
-   controller's merge rather than by the payload.
+   in-process advance in these specs, so nothing re-adds it): ~421, 446, 798, 819
+   (needs_input), ~474, 498 (done + empty NextPhase), ~729, 753 (in_progress), ~777
+   (needs_input — listed out of order here, still in this list), ~1327 (5e), ~1348 (5f), ~1389
+   (5g — its second publish is an in_progress save). Rewrite each to assert the branch's real
+   contract — that the key is absent, e.g. `Expect(fm).NotTo(HaveKey("phase"))`, alongside the
+   status/assignee assertions they already make — and keep their scenario text: the phase is
+   still preserved, now by the controller's merge rather than by the payload. In 5g, the FIRST
+   assertion (~1388, a done result with `NextPhase: execution`) still expects
+   `phase: execution` — leave it as it is.
+
+   Do NOT touch the `failed`-branch assertions — ~267, 292, 345, 380, 840, 862. Requirement 2
+   keeps that branch publishing its phase, so they stay green unchanged.
 
    The specs that pin `carryAdvancedPhase`'s re-add tail (~1257, 1274, 1293, 1314, 1348) must be
-   updated for requirement 3.
+   updated for requirement 3. In 5a/5b/5c/5e/5f (1257, 1274, 1293, 1327, 1348) the published
+   frontmatter must now have **no** `phase` key. 5d (~1314) is the exception: its second result
+   is a `failed` one, which requirement 2 keeps publishing, so it must assert
+   `phase: planning` — the generated phase — and not key absence.
 
    Add, at minimum:
 
