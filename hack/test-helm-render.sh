@@ -1118,6 +1118,32 @@ else
 	echo "OK: domains-proxy-objects"
 fi
 
+# Egress-proxy security posture. The capability list and the log volume are the two
+# halves of one change: the emptyDir is what lets the root entrypoint write its log
+# without a file-permission bypass on the container that enforces egress. Nothing
+# pinned either before, so re-adding DAC_OVERRIDE or dropping the mount would merge
+# green. Scope the capability assertion to the `add:` line — the template's own
+# comment names DAC_OVERRIDE, and a bare grep for the word matches that comment.
+proxy_dep="$(awk 'BEGIN{RS="---"} index($0,"kind: Deployment\n") && index($0,"  name: egress-proxy\n"){print; exit}' "$out")"
+proxy_posture_ok=1
+if ! grep -qE '^[[:space:]]+add: \[SETUID, SETGID\][[:space:]]*$' <<<"$proxy_dep"; then
+	echo "FAIL: egress-proxy-posture: capability list is not exactly [SETUID, SETGID]"
+	proxy_posture_ok=0
+fi
+if grep -qE '^[[:space:]]+add: \[.*DAC_OVERRIDE' <<<"$proxy_dep"; then
+	echo "FAIL: egress-proxy-posture: DAC_OVERRIDE is granted"
+	proxy_posture_ok=0
+fi
+if ! grep -q 'name: proxy-log' <<<"$proxy_dep"; then
+	echo "FAIL: egress-proxy-posture: the proxy-log volume is missing"
+	proxy_posture_ok=0
+fi
+if ! grep -q 'mountPath: /var/log/tinyproxy' <<<"$proxy_dep"; then
+	echo "FAIL: egress-proxy-posture: /var/log/tinyproxy is not mounted"
+	proxy_posture_ok=0
+fi
+if [ "$proxy_posture_ok" -ne 1 ]; then fail=1; else echo "OK: egress-proxy-posture"; fi
+
 # Executor RBAC per domain, subject in the control namespace.
 domains_rbac_ok=1
 for d in agent-sandbox development-sandbox sentry-sandbox trading-sandbox research-sandbox; do
