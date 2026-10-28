@@ -125,6 +125,51 @@ var _ = Describe("FileResultDeliverer", func() {
 		})
 	})
 
+	Context("late delivery does not rewrite the phase the run started at", func() {
+		// The generator rebuilds the document from content the run captured when
+		// it began, so without a guard a delivery that lands after an out-of-band
+		// phase change writes the start phase back over it (measured 2026-10-28:
+		// planning overwrote human_review and the task re-ran on another cluster).
+		const runStartContent = "---\nstatus: in_progress\nphase: planning\nassignee: hypothesis-agent\n---\n\nBody.\n"
+		const parkedContent = "---\nstatus: in_progress\nphase: human_review\nassignee: hypothesis-agent\n---\n\nBody.\n"
+
+		var lateDeliverer agentlib.ResultDeliverer
+
+		BeforeEach(func() {
+			Expect(os.WriteFile(tmpFile.Name(), []byte(parkedContent), 0600)).To(Succeed())
+			lateDeliverer = delivery.NewFileResultDeliverer(
+				delivery.NewPassthroughContentGenerator(),
+				tmpFile.Name(),
+			)
+		})
+
+		It("keeps the on-disk phase when the result does not advance the phase", func() {
+			Expect(lateDeliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				Output:    runStartContent,
+				NextPhase: "",
+			})).To(Succeed())
+
+			written, err := os.ReadFile(tmpFile.Name())
+			Expect(err).NotTo(HaveOccurred())
+			fm, _ := delivery.ParseMarkdownFrontmatter(string(written))
+			Expect(fm["phase"]).To(Equal("human_review"))
+		})
+
+		It("applies the result's phase advance (control: writes still land)", func() {
+			Expect(lateDeliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				Output:    runStartContent,
+				NextPhase: "execution",
+			})).To(Succeed())
+
+			written, err := os.ReadFile(tmpFile.Name())
+			Expect(err).NotTo(HaveOccurred())
+			fm, _ := delivery.ParseMarkdownFrontmatter(string(written))
+			Expect(fm["phase"]).To(Equal("execution"))
+		})
+	})
+
 	Context("failure bound across consecutive Jobs (fallback generator)", func() {
 		// The deliverer reads the file, so each DeliverResult call sees the previous
 		// run's published retry_count — exactly what a fresh Job would see on its own

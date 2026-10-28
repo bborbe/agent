@@ -80,10 +80,45 @@ func (d *fileResultDeliverer) DeliverResult(
 
 	generated = d.carryAdvancedPhase(generated, result)
 
+	generated = d.preserveDiskPhase(generated, result)
+
 	if err := os.WriteFile(d.filePath, []byte(generated), 0600); err != nil { // #nosec G304 G703 -- filePath validated by caller
 		return errors.Wrap(ctx, err, "write task file failed")
 	}
 	return nil
+}
+
+// preserveDiskPhase keeps a late delivery from rewriting the phase the run
+// started at. The generator rebuilds the whole document from content the run
+// captured when it began, so a delivery that lands after an out-of-band phase
+// change — an executor park writing phase: human_review, say — would otherwise
+// stamp the start-of-run phase back over it, and the task would become eligible
+// again on the wrong phase. Measured 2026-10-28: a job started at phase: planning
+// wrote planning back over human_review in the same commit that set
+// current_job/job_started_at, and the task re-ran on another cluster.
+//
+// Only a result that advances the phase (NextPhase set) may change it; every
+// other save keeps whatever the file on disk says now. Falls back to the
+// generated content when the file cannot be read or carries no phase, so the
+// guard never fails a delivery. Caller must hold d.mu.
+func (d *fileResultDeliverer) preserveDiskPhase(
+	generated string,
+	result agentlib.AgentResultInfo,
+) string {
+	if result.NextPhase != "" {
+		return generated
+	}
+	current, err := os.ReadFile(d.filePath) // #nosec G304 -- filePath validated by caller
+	if err != nil {
+		glog.V(2).Infof("preserve disk phase: read %s failed: %v", d.filePath, err)
+		return generated
+	}
+	fm, _ := ParseMarkdownFrontmatter(string(current))
+	phase, _ := fm["phase"].(string)
+	if phase == "" {
+		return generated
+	}
+	return SetFrontmatterField(generated, "phase", phase)
 }
 
 // carryAdvancedPhase is the file-delivery twin of
