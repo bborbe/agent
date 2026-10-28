@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(helm): **admit `bborbe.sentry.io` to the egress-proxy allowlist.** The list carried `^sentry\.io$`, which is anchored and therefore matches only the apex — tinyproxy's `FilterDefaultDeny` refused every Sentry subdomain, so `sentry-analyzer-agent`'s `scripts/sentry-read.sh` got `Proxying refused on filtered domain "bborbe.sentry.io"` (an HTTP 403 the agent misreported as auth). Added `^.*\.sentry\.io$` beside the apex entry; the count is now 33. Sentry is a named permitted destination in the parent goal `Agent Egress Is Default-Deny` (SC4); this is the proxy's destination allowlist, not a NetworkPolicy widening. Chart `0.23.7`.
+
 ## v0.131.0
 
 - feat(helm): **a Config can declare itself the designated default for a task type.** `spec.defaultForTaskTypes` is now rendered from the `agents` values and mirrored into the chart's own `helm/crds/config-crd.yaml`, matching `configSpecProperties()` in `agent-task-executor`. That binary rewrites the cluster's Config CRD from Go on every start with `PreserveUnknownFields: false`, so this chart copy must follow it and never lead it — a chart-only field is pruned within seconds and reads as "the operator never set it". Without this render line the resolver's new input can never reach a CR. Chart `0.23.6`.
