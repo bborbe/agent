@@ -1142,6 +1142,19 @@ if ! grep -q 'mountPath: /var/log/tinyproxy' <<<"$proxy_dep"; then
 	echo "FAIL: egress-proxy-posture: /var/log/tinyproxy is not mounted"
 	proxy_posture_ok=0
 fi
+# The emptyDir's mode comes from the kubelet umask and the entrypoint writes as
+# the image's uid 100, so without an explicit fsGroup a root:root 0755 directory
+# is unwritable to it — measured on nuke dev 2026-10-28, where two replicas of
+# the same ReplicaSet disagreed and one crash-looped on `Permission denied`.
+# Asserting it here keeps a future edit from silently reverting to luck.
+if ! grep -qE '^[[:space:]]+fsGroup: 100[[:space:]]*$' <<<"$proxy_dep"; then
+	echo "FAIL: egress-proxy-posture: fsGroup 100 is not set on the pod"
+	proxy_posture_ok=0
+fi
+if ! grep -qE '^[[:space:]]+fsGroupChangePolicy: OnRootMismatch[[:space:]]*$' <<<"$proxy_dep"; then
+	echo "FAIL: egress-proxy-posture: fsGroupChangePolicy is not OnRootMismatch"
+	proxy_posture_ok=0
+fi
 if [ "$proxy_posture_ok" -ne 1 ]; then fail=1; else echo "OK: egress-proxy-posture"; fi
 
 # Executor RBAC per domain, subject in the control namespace.
