@@ -7,11 +7,16 @@
 # Go binary with a fixed workload. This image is the third thing: a plain shell
 # that runs a command the task body supplies.
 #
-# Deliberately tiny. busybox supplies `sh`, `nc` and `awk`; `curl` is the only
-# package added. Every binary here is surface, and a probe needs exactly these
-# three.
-FROM alpine:3.23
+# Pinned by digest, not by tag. This image decides whether egress assertions are
+# trustworthy, so a rebuild of the same VERSION must produce the same image —
+# the repo already pins the analogous load-bearing egress self-test image
+# (helm/templates/egress-proxy.yaml, "as load-bearing as the proxy itself").
+# `alpine:3.23` index digest, read 2026-10-28.
+FROM alpine:3.23@sha256:ff7f0c727dd796aa36787bfcd9a64bf35a6ce72a73451b3359fde849b6703d63
 
+# `curl` is not in busybox, and busybox `wget` cannot express `curl -x` with
+# `%{http_code}` — the proxy probe needs both. Everything else (sh, nc, awk) is
+# busybox and is deliberately not replaced.
 RUN apk add --no-cache curl
 
 COPY probe.sh /probe.sh
