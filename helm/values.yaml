@@ -422,6 +422,15 @@ controllers: []
   #   # API Service is named differently the controller will fail to reach it with no
   #   # install-time warning — set this explicitly on any non-quant cluster.
   #   gitRestUrl: ""
+  #   # Typed vault-api base URL (VAULT_API_URL). REQUIRED for controller >= v0.22.0,
+  #   # which builds a typed vaultapi.Client and exits at startup with
+  #   # "VAULT_API_URL is required" when this is empty. Deliberately NOT derived from
+  #   # gitRestUrl: vault-api is a different Service (vault-api-<vaultName>) with
+  #   # gateway-secret auth, so a derived default would silently address an endpoint
+  #   # that cannot answer. Leave empty for a controller pinned below v0.22.0.
+  #   # The controller authenticates with its existing gatewaySecret — there is no
+  #   # separate vault-api secret key.
+  #   vaultApiUrl: ""
   #   # Sub-path inside the vault holding task files. Empty = vault root.
   #   taskDir: ""
   #   # Stage label forwarded as BRANCH env. Empty = unset.
