@@ -55,6 +55,38 @@ spec:
           labelSelector:
             matchLabels:
               app: egress-proxy
+      initContainers:
+        # The failing object is the FILE, not the directory. tinyproxy creates
+        # /var/log/tinyproxy/tinyproxy.log as uid 100 with mode 0600, and the
+        # entrypoint's `touch` (run.sh:156) runs AFTER "Tinyproxy service started
+        # successfully" — as root. With DAC_OVERRIDE dropped root is "other" on a
+        # 0600 file it does not own, so the touch gets EACCES and run.sh exits 1.
+        # That is why both earlier fixes failed: 0.23.9's emptyDir and 0.23.10's
+        # fsGroup make the DIRECTORY writable, and a 0600 file has no group or
+        # other bits for either to help with. Measured 2026-10-29 on the pinned
+        # image: the log is created `-rw-------` by uid 100.
+        #
+        # Pre-creating the file 0666 fixes the actual object: tinyproxy appends to
+        # an existing file rather than recreating it, and root's touch then
+        # succeeds because "other" has write. No capability is added back, which is
+        # what the emptyDir was trying to achieve in the first place.
+        - name: proxy-log-perms
+          image: monokal/tinyproxy@sha256:2c1b6f187fe18a993ec6e88cdb12c8f1d28d7416bd73492289aa5f74f687c672
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              touch /var/log/tinyproxy/tinyproxy.log
+              chmod 0666 /var/log/tinyproxy/tinyproxy.log
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: proxy-log
+              mountPath: /var/log/tinyproxy
       containers:
         - name: egress-proxy
           # Pinned by digest: this is the only egress path for every agent, and the
