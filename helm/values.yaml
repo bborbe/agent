@@ -474,6 +474,13 @@ controllers: []
   #   # Name of a pre-existing Secret providing keys sentry-dsn + gateway-secret.
   #   # When set, the chart does NOT create the Secret.
   #   existingSecret: ""
+  #   # Arbitrary extra env for this controller, rendered after the chart's own
+  #   # keys (so a deliberate override wins) and before NAMESPACE. Use it for
+  #   # values the chart does not model — e.g. HUMAN_ASSIGNEES, the comma-separated
+  #   # set of assignees the controller treats as humans and therefore RETAINS at
+  #   # human_review. Unset means an empty set, which clears every assignee exactly
+  #   # as before the feature existed.
+  #   env: {}
   #   # Pod-level securityContext. Empty by default — clusters opt in.
   #   podSecurityContext: {}
   #   # Container-level securityContext. Same safe hardening defaults as the executor.
