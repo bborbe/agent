@@ -117,6 +117,20 @@ spec:
             - name: PUBLISH_UNTAGGED
               value: {{ $.Values.publishUntagged | quote }}
             {{- end }}
+            # Arbitrary per-controller env, for values this chart does not model as a
+            # first-class key. Rendered last so a deliberate override of a
+            # chart-rendered key wins (later entries win in a k8s env list), but
+            # before NAMESPACE, which must stay the pod's own fieldRef.
+            #
+            # Needed first for HUMAN_ASSIGNEES: the controller retains a human_review
+            # assignee only when it is in that set, and an unset variable means an
+            # empty set — which reproduces the old clear-everything behaviour and
+            # makes a human-owner fix deploy and do nothing. There was no way to set
+            # it from values before this passthrough existed.
+            {{- range $name, $value := ($c.env | default dict) }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
