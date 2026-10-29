@@ -688,7 +688,7 @@ check_proxy_env() {
 
 # The catalog's Service peers, namespace-qualified, sit between the fixed
 # prefix and the broker hosts (namespace "test" from the fixture).
-peer_hosts='claude-code-router-test\.test,pushgateway\.monitoring,sentry-proxy\.test,vault-obsidian-personal\.test,vault-obsidian-openclaw\.test,vault-obsidian-trading\.test,frontend-gateway\.test,frontend-strategy\.test'
+peer_hosts='claude-code-router-test\.test,pushgateway\.monitoring,sentry-proxy\.test,vault-obsidian-personal\.test,vault-obsidian-openclaw\.test,vault-obsidian-trading\.test,frontend-gateway\.test,frontend-strategy\.test,frontend-report\.test,frontend-backtest\.test'
 check_proxy_env plain 'kafka:9092' \
 	"NO_PROXY: 127\.0\.0\.1,localhost,\.svc\.cluster\.local,$peer_hosts,kafka\$"
 check_proxy_env tls 'tls://kafka.example:9093' \
