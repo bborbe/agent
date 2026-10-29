@@ -688,7 +688,7 @@ check_proxy_env() {
 
 # The catalog's Service peers, namespace-qualified, sit between the fixed
 # prefix and the broker hosts (namespace "test" from the fixture).
-peer_hosts='claude-code-router-test\.test,pushgateway\.monitoring,sentry-proxy\.test,vault-obsidian-personal\.test,vault-obsidian-openclaw\.test,vault-obsidian-trading\.test,frontend-gateway\.test,frontend-strategy\.test'
+peer_hosts='claude-code-router-test\.test,pushgateway\.monitoring,sentry-proxy\.test,vault-obsidian-personal\.test,vault-obsidian-openclaw\.test,vault-obsidian-trading\.test,frontend-gateway\.test,frontend-strategy\.test,frontend-report\.test,frontend-backtest\.test'
 check_proxy_env plain 'kafka:9092' \
 	"NO_PROXY: 127\.0\.0\.1,localhost,\.svc\.cluster\.local,$peer_hosts,kafka\$"
 check_proxy_env tls 'tls://kafka.example:9093' \
@@ -1117,6 +1117,45 @@ if [ "$domains_proxy_objects_ok" -ne 1 ] || [ "$ingress_bad" -ne 0 ] || [ "$(gre
 else
 	echo "OK: domains-proxy-objects"
 fi
+
+# Egress-proxy security posture. The capability list and the log volume are the two
+# halves of one change: the emptyDir is what lets the root entrypoint write its log
+# without a file-permission bypass on the container that enforces egress. Nothing
+# pinned either before, so re-adding DAC_OVERRIDE or dropping the mount would merge
+# green. Scope the capability assertion to the `add:` line — the template's own
+# comment names DAC_OVERRIDE, and a bare grep for the word matches that comment.
+proxy_dep="$(awk 'BEGIN{RS="---"} index($0,"kind: Deployment\n") && index($0,"  name: egress-proxy\n"){print; exit}' "$out")"
+proxy_posture_ok=1
+if ! grep -qE '^[[:space:]]+add: \[SETUID, SETGID\][[:space:]]*$' <<<"$proxy_dep"; then
+	echo "FAIL: egress-proxy-posture: capability list is not exactly [SETUID, SETGID]"
+	proxy_posture_ok=0
+fi
+if grep -qE '^[[:space:]]+add: \[.*DAC_OVERRIDE' <<<"$proxy_dep"; then
+	echo "FAIL: egress-proxy-posture: DAC_OVERRIDE is granted"
+	proxy_posture_ok=0
+fi
+if ! grep -q 'name: proxy-log' <<<"$proxy_dep"; then
+	echo "FAIL: egress-proxy-posture: the proxy-log volume is missing"
+	proxy_posture_ok=0
+fi
+if ! grep -q 'mountPath: /var/log/tinyproxy' <<<"$proxy_dep"; then
+	echo "FAIL: egress-proxy-posture: /var/log/tinyproxy is not mounted"
+	proxy_posture_ok=0
+fi
+# The emptyDir's mode comes from the kubelet umask and the entrypoint writes as
+# the image's uid 100, so without an explicit fsGroup a root:root 0755 directory
+# is unwritable to it — measured on nuke dev 2026-10-28, where two replicas of
+# the same ReplicaSet disagreed and one crash-looped on `Permission denied`.
+# Asserting it here keeps a future edit from silently reverting to luck.
+if ! grep -qE '^[[:space:]]+fsGroup: 100[[:space:]]*$' <<<"$proxy_dep"; then
+	echo "FAIL: egress-proxy-posture: fsGroup 100 is not set on the pod"
+	proxy_posture_ok=0
+fi
+if ! grep -qE '^[[:space:]]+fsGroupChangePolicy: OnRootMismatch[[:space:]]*$' <<<"$proxy_dep"; then
+	echo "FAIL: egress-proxy-posture: fsGroupChangePolicy is not OnRootMismatch"
+	proxy_posture_ok=0
+fi
+if [ "$proxy_posture_ok" -ne 1 ]; then fail=1; else echo "OK: egress-proxy-posture"; fi
 
 # Executor RBAC per domain, subject in the control namespace.
 domains_rbac_ok=1

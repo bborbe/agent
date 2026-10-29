@@ -125,6 +125,64 @@ var _ = Describe("FileResultDeliverer", func() {
 		})
 	})
 
+	Context("phase preservation on a result that advances nothing", func() {
+		writeTask := func(content string) {
+			Expect(os.WriteFile(tmpFile.Name(), []byte(content), 0600)).To(Succeed())
+		}
+
+		It("keeps phase: human_review on disk when a done result has empty NextPhase", func() {
+			// The generator rebuilds from the Job-start snapshot and would write
+			// planning; the deliverer must carry the on-disk park forward instead.
+			writeTask("---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n")
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n",
+				nil,
+			)
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "",
+			})).To(Succeed())
+
+			written, err := os.ReadFile(tmpFile.Name())
+			Expect(err).NotTo(HaveOccurred())
+			fm, _ := delivery.ParseMarkdownFrontmatter(string(written))
+			Expect(fm["phase"]).To(Equal("human_review"))
+		})
+
+		It("keeps phase: done on disk on the same delivery", func() {
+			writeTask("---\nstatus: in_progress\nphase: done\n---\n\nBody.\n")
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n",
+				nil,
+			)
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "",
+			})).To(Succeed())
+
+			written, err := os.ReadFile(tmpFile.Name())
+			Expect(err).NotTo(HaveOccurred())
+			fm, _ := delivery.ParseMarkdownFrontmatter(string(written))
+			Expect(fm["phase"]).To(Equal("done"))
+		})
+
+		It("still writes the requested phase when a done result advances to execution", func() {
+			writeTask("---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n")
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: execution\n---\n\nBody.\n",
+				nil,
+			)
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "execution",
+			})).To(Succeed())
+
+			written, err := os.ReadFile(tmpFile.Name())
+			Expect(err).NotTo(HaveOccurred())
+			fm, _ := delivery.ParseMarkdownFrontmatter(string(written))
+			Expect(fm["phase"]).To(Equal("execution"))
+		})
+	})
 })
 
 var _ = Describe("KafkaResultDeliverer", func() {
@@ -220,8 +278,9 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(ok).To(BeTrue())
 			fm, ok := frontmatter.(map[string]interface{})
 			Expect(ok).To(BeTrue())
-			Expect(fm["phase"]).To(Equal("planning"))
-			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			// No phase published: the controller's merge keeps the on-disk phase,
+			// so a park written while the run was in flight survives.
+			Expect(fm).NotTo(HaveKey("phase"))
 			Expect(fm["status"]).To(Equal("in_progress"))
 			Expect(fm["assignee"]).To(Equal(""))
 		},
@@ -245,8 +304,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(ok).To(BeTrue())
 			fm, ok := frontmatter.(map[string]interface{})
 			Expect(ok).To(BeTrue())
-			Expect(fm["phase"]).To(Equal("planning"))
-			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			Expect(fm).NotTo(HaveKey("phase"))
 			Expect(fm["status"]).To(Equal("in_progress"))
 			Expect(fm["assignee"]).To(Equal(""))
 			Expect(fm["previous_assignee"]).To(Equal("github-update-go-agent"))
@@ -273,8 +331,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			// Empty NextPhase means "stay in current phase" (agentlib.Result contract) —
 			// never terminal. Regression: preflight steps publishing Done+ContinueToNext
 			// with empty NextPhase marked live tasks phase: done / status: completed.
-			Expect(fm["phase"]).To(Equal("planning"))
-			Expect(fm["phase"]).NotTo(Equal("done"))
+			// No phase is published: the controller's merge preserves the on-disk one.
+			Expect(fm).NotTo(HaveKey("phase"))
 			Expect(fm["status"]).To(Equal("in_progress"))
 		},
 	)
@@ -297,7 +355,31 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(ok).To(BeTrue())
 			fm, ok := frontmatter.(map[string]interface{})
 			Expect(ok).To(BeTrue())
-			Expect(fm["phase"]).To(Equal("execution"))
+			Expect(fm).NotTo(HaveKey("phase"))
+			Expect(fm["status"]).To(Equal("in_progress"))
+		},
+	)
+
+	It(
+		"publishes no phase for a done result with empty NextPhase when the task started at phase: planning",
+		func() {
+			// The Job-start snapshot carries planning; a park may have moved the task
+			// to human_review while the run was still going. Omitting the key lets the
+			// controller's merge keep whatever the task holds now.
+			originalContent = "---\ntitle: My Task\nstatus: in_progress\nphase: planning\n---\n\nBody.\n"
+			generator.GenerateReturns(
+				"---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(fm).NotTo(HaveKey("phase"))
 			Expect(fm["status"]).To(Equal("in_progress"))
 		},
 	)
@@ -528,7 +610,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			fm, ok := frontmatter.(map[string]interface{})
 			Expect(ok).To(BeTrue())
 			Expect(fm["status"]).To(Equal("in_progress"))
-			Expect(fm["phase"]).To(Equal("planning"))
+			// No phase published: the controller's merge preserves the on-disk value.
+			Expect(fm).NotTo(HaveKey("phase"))
 		})
 
 		It(
@@ -551,9 +634,9 @@ var _ = Describe("KafkaResultDeliverer", func() {
 				fm, ok := frontmatter.(map[string]interface{})
 				Expect(ok).To(BeTrue())
 				Expect(fm["status"]).To(Equal("in_progress"))
-				// NextPhase=ai_review must be ignored — phase stays as planning from incoming task
-				Expect(fm["phase"]).To(Equal("planning"))
-				Expect(fm["phase"]).NotTo(Equal("ai_review"))
+				// NextPhase=ai_review must be ignored — no phase is published, so the
+				// controller's merge keeps the on-disk phase.
+				Expect(fm).NotTo(HaveKey("phase"))
 			},
 		)
 	})
@@ -576,8 +659,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(ok).To(BeTrue())
 			fm, ok := frontmatter.(map[string]interface{})
 			Expect(ok).To(BeTrue())
-			Expect(fm["phase"]).To(Equal("planning"))
-			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			Expect(fm).NotTo(HaveKey("phase"))
 			Expect(fm["status"]).To(Equal("in_progress"))
 			Expect(fm["assignee"]).To(Equal(""))
 		},
@@ -597,8 +679,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
 			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
 			Expect(ok).To(BeTrue())
-			Expect(fm["phase"]).To(Equal("in_progress"))
-			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			Expect(fm).NotTo(HaveKey("phase"))
 			Expect(fm["status"]).To(Equal("in_progress"))
 			Expect(fm["assignee"]).To(Equal(""))
 		})
@@ -618,8 +699,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
 			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
 			Expect(ok).To(BeTrue())
-			Expect(fm["phase"]).To(Equal("ai_review"))
-			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			Expect(fm).NotTo(HaveKey("phase"))
 			Expect(fm["status"]).To(Equal("in_progress"))
 			Expect(fm["assignee"]).To(Equal(""))
 		})
@@ -1026,7 +1106,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 
 			Expect(sender.SendCommandObjectCallCount()).To(Equal(2))
 			Expect(publishedFrontmatterAt(0)["phase"]).To(Equal("execution"))
-			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("execution"))
+			Expect(publishedFrontmatterAt(1)).NotTo(HaveKey("phase"))
 			Expect(publishedFrontmatterAt(1)["status"]).To(Equal("in_progress"))
 		})
 
@@ -1043,7 +1123,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			})).To(Succeed())
 
 			Expect(sender.SendCommandObjectCallCount()).To(Equal(2))
-			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("execution"))
+			Expect(publishedFrontmatterAt(1)).NotTo(HaveKey("phase"))
 			Expect(publishedFrontmatterAt(1)["status"]).To(Equal("in_progress"))
 			Expect(publishedFrontmatterAt(1)["assignee"]).To(Equal("hypothesis-agent"))
 		})
@@ -1062,7 +1142,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			})).To(Succeed())
 
 			Expect(sender.SendCommandObjectCallCount()).To(Equal(2))
-			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("execution"))
+			Expect(publishedFrontmatterAt(1)).NotTo(HaveKey("phase"))
 			Expect(publishedFrontmatterAt(1)["status"]).To(Equal("in_progress"))
 			Expect(publishedFrontmatterAt(1)["assignee"]).To(Equal(""))
 			Expect(publishedFrontmatterAt(1)["previous_assignee"]).To(Equal("hypothesis-agent"))
@@ -1083,6 +1163,11 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			})).To(Succeed())
 
 			Expect(sender.SendCommandObjectCallCount()).To(Equal(2))
+			// The failed branch still publishes its phase (the controller's
+			// planning-retry gate reads it from the payload), and it must publish the
+			// phase this Job advanced to — not the Job-start phase the generator
+			// rebuilt from. Publishing "planning" here would rewind an execution-phase
+			// task and re-run a planning phase that already completed.
 			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("execution"))
 			Expect(publishedFrontmatterAt(1)["assignee"]).To(Equal("hypothesis-agent"))
 		})
@@ -1096,7 +1181,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			})).To(Succeed())
 
 			Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
-			Expect(publishedFrontmatterAt(0)["phase"]).To(Equal("planning"))
+			Expect(publishedFrontmatterAt(0)).NotTo(HaveKey("phase"))
 		})
 
 		It("5f: never remembers the terminal done phase", func() {
@@ -1117,7 +1202,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			})).To(Succeed())
 
 			Expect(sender.SendCommandObjectCallCount()).To(Equal(2))
-			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("planning"))
+			Expect(publishedFrontmatterAt(1)).NotTo(HaveKey("phase"))
 		})
 
 		It("5g: runs a real two-phase Agent through the real deliverer end-to-end", func() {
@@ -1158,7 +1243,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(execStep.RunCallCount()).To(Equal(1))
 			Expect(sender.SendCommandObjectCallCount()).To(Equal(2))
 			Expect(publishedFrontmatterAt(0)["phase"]).To(Equal("execution"))
-			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("execution"))
+			Expect(publishedFrontmatterAt(1)).NotTo(HaveKey("phase"))
 		})
 	})
 })
