@@ -249,7 +249,7 @@ no_proxy: {{ $noProxyValue }}
      `vault-api` (optional — callers append it; `agent.sandboxPeerHost`
      returns "" while `sandbox.vaultApiApp` is unset). */}}
 {{- define "agent.sandboxServicePeers" -}}
-router,pushgateway,sentry-proxy,vault-personal,vault-openclaw,vault-trading,frontend-gateway,frontend-strategy
+router,pushgateway,sentry-proxy,vault-personal,vault-openclaw,vault-trading,frontend-gateway,frontend-strategy,frontend-report,frontend-backtest
 {{- end -}}
 
 {{/* `<service>.<namespace>` for one catalog peer, or "" when the peer has no
@@ -278,6 +278,10 @@ pushgateway.monitoring
 {{- printf "frontend-gateway.%s" $peerNS -}}
 {{- else if eq .name "frontend-strategy" -}}
 {{- printf "frontend-strategy.%s" $peerNS -}}
+{{- else if eq .name "frontend-report" -}}
+{{- printf "frontend-report.%s" $peerNS -}}
+{{- else if eq .name "frontend-backtest" -}}
+{{- printf "frontend-backtest.%s" $peerNS -}}
 {{- else if and (eq .name "vault-api") $sandbox.vaultApiApp -}}
 {{- printf "%s.%s" $sandbox.vaultApiApp $peerNS -}}
 {{- end -}}
@@ -381,6 +385,26 @@ pushgateway.monitoring
           app: frontend-strategy
   ports:
     - { protocol: TCP, port: 9090 }
+{{- else if eq .name "frontend-report" -}}
+- to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" $root }}
+      podSelector:
+        matchLabels:
+          app: frontend-report
+  ports:
+    - { protocol: TCP, port: 9090 }
+{{- else if eq .name "frontend-backtest" -}}
+- to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" $root }}
+      podSelector:
+        matchLabels:
+          app: frontend-backtest
+  ports:
+    - { protocol: TCP, port: 9090 }
 {{- else if eq .name "vault-api" -}}
 - to:
     - namespaceSelector:
@@ -457,7 +481,7 @@ pushgateway.monitoring
 {{- $domains := $sandbox.domains | default dict -}}
 {{- $explicitSandboxNS := $sandbox.namespace | default "" -}}
 {{- $proxyNS := $sandbox.proxyNamespace | default "" -}}
-{{- $catalog := list "dns" "router" "pushgateway" "sentry-proxy" "vault-personal" "vault-openclaw" "vault-trading" "frontend-gateway" "frontend-strategy" "vault-api" "kafka" "proxy" -}}
+{{- $catalog := list "dns" "router" "pushgateway" "sentry-proxy" "vault-personal" "vault-openclaw" "vault-trading" "frontend-gateway" "frontend-strategy" "frontend-report" "frontend-backtest" "vault-api" "kafka" "proxy" -}}
 {{- if and $domains $explicitSandboxNS -}}
 {{- fail "sandbox.namespace and sandbox.domains are mutually exclusive: declare either a single sandbox.namespace or a sandbox.domains map, not both" -}}
 {{- end -}}
@@ -474,7 +498,7 @@ pushgateway.monitoring
 {{- if hasKey $peerCfg "peers" -}}
 {{- range $peer := ($peerCfg.peers | default list) -}}
 {{- if not (has $peer $catalog) -}}
-{{- fail (printf "sandbox.domains.%s.peers names unknown peer %q: the catalog is dns, router, pushgateway, sentry-proxy, vault-personal, vault-openclaw, vault-trading, frontend-gateway, frontend-strategy, vault-api, kafka, proxy" $name $peer) -}}
+{{- fail (printf "sandbox.domains.%s.peers names unknown peer %q: the catalog is dns, router, pushgateway, sentry-proxy, vault-personal, vault-openclaw, vault-trading, frontend-gateway, frontend-strategy, frontend-report, frontend-backtest, vault-api, kafka, proxy" $name $peer) -}}
 {{- end -}}
 {{- if and (eq $peer "vault-api") (not $sandbox.vaultApiApp) -}}
 {{- fail (printf "sandbox.domains.%s.peers lists vault-api but sandbox.vaultApiApp is empty: set the vault API app label or drop the peer" $name) -}}
