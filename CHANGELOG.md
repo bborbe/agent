@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.133.0
 
 - feat(chart): **add `frontend-report` and `frontend-backtest` to the sandbox peer catalog, so a sandboxed agent can reach the trading report and backtest frontends.** The catalog is a fixed list and an unknown name fails the render, so a domain cannot opt into a peer the chart does not know — and `trading-hypothesis-agent` runs in `trading-sandbox` with `REPORT_SERVICE_URL` and `BACKTEST_SERVICE_URL` naming exactly those two Services, which live in `dev`. A bare name resolves to `<name>.trading-sandbox.svc.cluster.local` and fails, and an FQDN without the peer would only turn that DNS failure into a policy denial. Both names also join `agent.sandboxServicePeers`, the union rendered when a domain omits `peers`, matching the existing treatment of `frontend-gateway` and `frontend-strategy`. Chart `0.23.11`; the selector is `app: frontend-report` / `app: frontend-backtest` in `sandbox.peerNamespace`, port 9090, read from the live Services rather than assumed. `hack/test-helm-render.sh`'s `NO_PROXY` expectation moves with the union.
 
