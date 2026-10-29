@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.134.1
 
 - fix(helm): **pre-create the egress-proxy log file `0666`, because the failing object was the file and never the directory.** `tinyproxy` creates `/var/log/tinyproxy/tinyproxy.log` as uid 100 with mode **0600**, and the entrypoint's `touch` (`run.sh:156`) runs *after* `Tinyproxy service started successfully` — as root. With `DAC_OVERRIDE` dropped, root is "other" on a 0600 file it does not own, gets `EACCES`, and `run.sh` exits 1. That single fact explains all three failed attempts: `0.21.2` bypassed the file permission with `DAC_OVERRIDE` and worked, while `0.23.9`'s `emptyDir` and `0.23.10`'s `fsGroup: 100` both make the **directory** writable — and a 0600 file has no group or other bits for either to help with. Verified 2026-10-29 by applying `0.23.11` to dev: pod `egress-proxy-7fc54d44d-vqjk5` went `0/2 Error` with `touch: /var/log/tinyproxy/tinyproxy.log: Permission denied`, then rolled back to `0.23.8`. An `initContainer` now creates the file and chmods it `0666` before the proxy starts, so tinyproxy appends to an existing file and root's `touch` succeeds as "other". No capability is added back — which is what the `emptyDir` was trying to achieve in the first place. Chart `0.23.11` → `0.23.12`. ⚠️ The capability list is unchanged (`SETUID`/`SETGID` only); this is a volume-and-file fix, not a privilege widening.
 
