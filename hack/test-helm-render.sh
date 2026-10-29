@@ -1523,6 +1523,58 @@ else
 	echo "OK: default-for-task-types-unset omits the key"
 fi
 
+# controllers[].env: a value the chart does not model as a first-class key lands
+# in the controller StatefulSet, NAMESPACE keeps its fieldRef, and a chart
+# invariant named through env fails the render instead of silently producing a
+# controller whose bolt DB sits outside the /data PVC.
+cat >"$tmpdir/ctrl-env.yaml" <<'EOF'
+namespace: test
+executor:
+  kafkaBrokers: kafka:9092
+  sentry:
+    dsn: dummy
+controllers:
+  - name: probe
+    enabled: true
+    image:
+      repository: bborbe/agent-task-controller
+      tag: v0.22.8
+    vaultName: probe
+    taskDir: tasks
+    branch: dev
+    topicPrefix: develop
+    kafkaBrokers: kafka:9092
+    env:
+      HUMAN_ASSIGNEES: "alice,bob"
+EOF
+
+if ! "$helm_bin" template x "$CHART_DIR" -f "$tmpdir/ctrl-env.yaml" \
+	--show-only templates/controller-statefulset.yaml >"$tmpdir/ctrl-env.out" 2>&1; then
+	echo "FAIL: ctrl-env: render failed"
+	cat "$tmpdir/ctrl-env.out"
+	fail=1
+elif ! grep -q -- '- name: "HUMAN_ASSIGNEES"' "$tmpdir/ctrl-env.out"; then
+	echo "FAIL: ctrl-env: controllers[].env key did not render"
+	fail=1
+elif ! grep -q 'value: "alice,bob"' "$tmpdir/ctrl-env.out"; then
+	echo "FAIL: ctrl-env: controllers[].env value did not render"
+	fail=1
+elif ! grep -q -- '- name: NAMESPACE' "$tmpdir/ctrl-env.out"; then
+	echo "FAIL: ctrl-env: NAMESPACE missing — the passthrough must not displace it"
+	fail=1
+else
+	echo "OK: ctrl-env renders the passthrough and leaves NAMESPACE intact"
+fi
+
+sed 's|HUMAN_ASSIGNEES: "alice,bob"|DATA_DIR: /other|' "$tmpdir/ctrl-env.yaml" >"$tmpdir/ctrl-env-invariant.yaml"
+if "$helm_bin" template x "$CHART_DIR" -f "$tmpdir/ctrl-env-invariant.yaml" \
+	--show-only templates/controller-statefulset.yaml >/dev/null 2>&1; then
+	echo "FAIL: ctrl-env-invariant: a DATA_DIR override rendered instead of failing the render"
+	fail=1
+else
+	echo "OK: ctrl-env-invariant rejects an override of a chart invariant"
+fi
+
 if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
