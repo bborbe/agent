@@ -64,7 +64,7 @@ spec:
         # That is why both earlier fixes failed: 0.23.9's emptyDir and 0.23.10's
         # fsGroup make the DIRECTORY writable, and a 0600 file has no group or
         # other bits for either to help with. Measured 2026-10-29 on the pinned
-        # image: the log is created `-rw-------` by uid 100.
+        # image: the log is created with mode 0600, owned by uid 100.
         #
         # Pre-creating the file 0666 fixes the actual object: tinyproxy appends to
         # an existing file rather than recreating it, and root's touch then
