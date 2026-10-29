@@ -58,7 +58,6 @@ func applyStatusFrontmatter(content string, result agentlib.AgentResultInfo) str
 			// phase from existing content. Terminating a task requires an explicit
 			// NextPhase: "done".
 			content = SetFrontmatterField(content, "status", "in_progress")
-			content = clearFailureBound(content)
 			// phase intentionally not modified — preserves the current phase
 			break
 		}
@@ -71,7 +70,6 @@ func applyStatusFrontmatter(content string, result agentlib.AgentResultInfo) str
 		} else {
 			content = SetFrontmatterField(content, "status", "in_progress")
 		}
-		content = clearFailureBound(content)
 	case agentlib.AgentStatusNeedsInput:
 		// task-level failure: agent ran cleanly but task is impossible/underspecified.
 		// Clear assignee so the task surfaces in the operator inbox; record the pre-clear
@@ -87,17 +85,13 @@ func applyStatusFrontmatter(content string, result agentlib.AgentResultInfo) str
 		// Multi-step phase handlers use this to commit ## Plan / ## Result / etc. mid-phase
 		// without triggering a phase transition.
 		content = SetFrontmatterField(content, "status", "in_progress")
-		content = clearFailureBound(content)
 		// phase intentionally not modified — preserves the agent's current phase for in-place save
 	case agentlib.AgentStatusFailed:
-		// Infra failure (transient — crash, timeout, OOM): record the incremented
-		// retry_count and preserve the assignee so the retry stays reachable. Once
-		// max_retries (or the pre-existing max_triggers cap) is reached the task
-		// escalates out of the claim predicate: assignee cleared, previous_assignee
-		// recorded (spec 027), status in_progress and phase as the resume cursor —
-		// non-terminal, but no longer selected. See retry-bound.go.
+		// Infra failure (transient — crash, timeout, OOM): preserve the assignee so
+		// the retry stays reachable. The cap that eventually escalates the record
+		// (assignee cleared, previous_assignee recorded, status in_progress, phase
+		// as the resume cursor) belongs to the controller's applyTriggerCap.
 		content = SetFrontmatterField(content, "status", "in_progress")
-		content = applyFailureBound(content)
 		// phase is preserved from existing content — do NOT set to human_review
 	default:
 		// Unknown status: defensive — surface to the operator like a cap exhaustion.
@@ -106,14 +100,6 @@ func applyStatusFrontmatter(content string, result agentlib.AgentResultInfo) str
 		// phase is preserved from existing content — do NOT set to human_review
 	}
 	return content
-}
-
-// triggerCountAtCap reports whether the task's trigger_count has reached its
-// max_triggers budget. Used alongside the retry bound by the failed-result path
-// to decide retry (assignee preserved) vs escalation (assignee cleared,
-// previous_assignee recorded).
-func triggerCountAtCap(frontmatter agentlib.TaskFrontmatter) bool {
-	return frontmatter.TriggerCount() >= frontmatter.MaxTriggers()
 }
 
 // getFrontmatterField reads a string field from YAML frontmatter.

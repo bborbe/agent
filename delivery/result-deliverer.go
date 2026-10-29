@@ -255,12 +255,11 @@ func (d *kafkaResultDeliverer) DeliverResult(
 // so DeliverResult stays under the funlen limit.
 //
 // Retry-vs-escalate (spec 010/021): failed is an infra failure (transient — crash,
-// timeout, OOM), so preserve assignee and keep the task routable. The retry is
-// bounded by retry_count / max_retries (see retry-bound.go), with the pre-existing
-// trigger_count / max_triggers cap kept as a second stop so no behaviour regresses.
-// Only at bound exhaustion does the task escalate: assignee cleared to "" (the
-// operator-inbox signal), previous_assignee recorded (spec 027), phase left as the
-// resume cursor. Any forward-progress result clears the retry streak.
+// timeout, OOM), so preserve assignee and keep the task routable. The cap that
+// eventually escalates the record is the controller's: it owns trigger_count /
+// max_triggers and clears the assignee (the operator-inbox signal), records
+// previous_assignee (spec 027) and leaves phase as the resume cursor. This
+// deliverer keeps no retry bound of its own — retry_count was retired.
 //
 // needs_input is task-wrong, not transient — the agent already did the work, so the
 // task surfaces in the operator inbox immediately (assignee cleared, no phase published).
@@ -277,7 +276,6 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 			// "Empty means stay in current phase"): keep status: in_progress and publish
 			// no phase at all. Terminating a task requires an explicit NextPhase: "done".
 			frontmatter["status"] = "in_progress"
-			resetRetryCount(frontmatter)
 			// A completed run does not own the phase. Omitting the key is a preserve,
 			// not a delete: the controller merges on-disk-first (MergeFrontmatter), so
 			// the task keeps whatever phase it currently holds — including one written
@@ -303,7 +301,6 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 		} else {
 			frontmatter["status"] = "in_progress"
 		}
-		resetRetryCount(frontmatter)
 	case agentlib.AgentStatusNeedsInput:
 		frontmatter["status"] = "in_progress"
 		// Task-wrong (permanent): the agent already did the work, so the task surfaces
@@ -323,16 +320,14 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 				d.taskID, result.NextPhase)
 		}
 		frontmatter["status"] = "in_progress"
-		resetRetryCount(frontmatter)
 		delete(frontmatter, "phase")
 	case agentlib.AgentStatusFailed:
-		// Infra failure (transient): record the incremented retry_count and preserve
-		// the assignee so the retry stays reachable — clearing it unconditionally
-		// would make the task unroutable and the retry silently never happen. Once
-		// max_retries (or the pre-existing max_triggers cap) is reached the task
-		// escalates out of the claim predicate: assignee cleared, previous_assignee
-		// recorded, status in_progress and phase unchanged — non-terminal, but no
-		// longer selected. See retry-bound.go.
+		// Infra failure (transient): preserve the assignee so the retry stays
+		// reachable — clearing it unconditionally would make the task unroutable
+		// and the retry silently never happen. The cap that eventually escalates
+		// the record (assignee cleared, previous_assignee recorded, status
+		// in_progress, phase as the resume cursor) belongs to the controller's
+		// applyTriggerCap, which owns trigger_count / max_triggers.
 		//
 		// This branch deliberately keeps publishing its phase: the controller's
 		// planning-retry gate reads phase from the published payload, not from disk.
@@ -344,18 +339,6 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 		if d.advancedPhase != "" {
 			frontmatter["phase"] = d.advancedPhase
 		}
-		// Derive the streak from this Job's starting content, not from the generated
-		// frontmatter: the fallback/passthrough/section generators already run
-		// applyStatusFrontmatter, so reading the generated value would count one
-		// failed Job twice and halve the effective bound.
-		count, exhausted := nextRetryCount(frontmatterOf(d.originalContent))
-		frontmatter[retryCountKey] = count
-		if exhausted || triggerCountAtCap(frontmatter) {
-			escalateFailure(frontmatter)
-		}
-		// phase is left as generated here — the planning-retry gate reads it from the
-		// published payload, so unlike the other non-advancing branches this one
-		// deliberately still publishes the Job-start phase.
 	default:
 		// Unknown status: defensive — surface to the operator like a cap exhaustion.
 		frontmatter["status"] = "in_progress"
