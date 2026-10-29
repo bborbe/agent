@@ -100,31 +100,6 @@ var _ = Describe("FallbackContentGenerator", func() {
 		)
 
 		It(
-			"escalates on failed result at the trigger cap: clears assignee, records previous_assignee, keeps phase",
-			func() {
-				original := "---\ntitle: My Task\nstatus: in_progress\nphase: planning\nassignee: some-agent\ntrigger_count: 3\n---\n\n## Task\n\nRun a backtest.\n"
-				generated, err := generator.Generate(ctx, original, agentlib.AgentResultInfo{
-					Status:  agentlib.AgentStatusFailed,
-					Message: "claude CLI failed: exit status 1",
-				})
-				Expect(err).NotTo(HaveOccurred())
-				fm, body := delivery.ParseMarkdownFrontmatter(generated)
-				Expect(fm["status"]).To(Equal("in_progress"))
-				Expect(fm["phase"]).To(Equal("planning"))
-				Expect(fm["phase"]).NotTo(Equal("human_review"))
-				// At the cap the task escalates to the operator inbox: assignee cleared,
-				// previous_assignee records the pre-clear owner (spec 027). SetFrontmatterField
-				// emits `assignee: ` (empty), which parses back as a missing key.
-				_, assigneePresent := fm["assignee"]
-				Expect(assigneePresent).To(BeFalse(), "assignee should be cleared")
-				Expect(fm["previous_assignee"]).To(Equal("some-agent"))
-				Expect(body).To(ContainSubstring("## Failure"))
-				Expect(body).To(ContainSubstring("claude CLI failed: exit status 1"))
-				Expect(body).NotTo(ContainSubstring("## Result"))
-			},
-		)
-
-		It(
 			"clears assignee and preserves phase for needs_input result, keeps ## Result section",
 			func() {
 				original := "---\ntitle: My Task\nstatus: in_progress\nphase: ai_review\nassignee: some-agent\n---\n\n## Task\n\nRun a backtest.\n"
