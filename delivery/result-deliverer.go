@@ -337,8 +337,9 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 		// stays at execution rather than rewinding to planning. When nothing
 		// advanced, publish no phase at all — like the other non-advancing branches,
 		// so the controller's on-disk-first merge keeps whatever phase the task holds
-		// (including a park written while this run was still going). The companion
-		// controller change makes its planning-retry gate read the on-disk phase.
+		// (including a park written while this run was still going). The controller's
+		// planning-retry gate reads the phase from the published payload, so that gate
+		// must be changed to read the on-disk phase before or with this one.
 		frontmatter["status"] = "in_progress"
 		if d.advancedPhase != "" {
 			frontmatter["phase"] = d.advancedPhase
