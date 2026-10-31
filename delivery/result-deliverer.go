@@ -181,10 +181,10 @@ type kafkaResultDeliverer struct {
 	// advancedPhase is the last non-terminal phase this deliverer published on a
 	// Done + NextPhase result. A deliverer is constructed per Job (with that Job's
 	// originalContent), so this is per-Job state: Agent.Run advances phases
-	// in-process with one deliverer, and the failed branch — the only branch that
-	// still publishes a phase — must publish this phase rather than the Job-start
-	// phase it was built from. Empty means "no advance yet", in which case the
-	// generated (Job-start) phase is the best available answer.
+	// in-process with one deliverer, and the failed branch must publish the phase
+	// this Job advanced to rather than the Job-start phase the generator rebuilt
+	// from. Empty means "no advance yet"; a failed result then publishes no phase
+	// at all, so the controller's on-disk-first merge keeps the phase on disk.
 	advancedPhase string
 }
 
@@ -263,8 +263,10 @@ func (d *kafkaResultDeliverer) DeliverResult(
 //
 // needs_input is task-wrong, not transient — the agent already did the work, so the
 // task surfaces in the operator inbox immediately (assignee cleared, no phase published).
-// Only the AgentStatusDone branch may write phase: human_review, and only when the
-// agent itself requested it via Result.NextPhase.
+// A phase is published only when the result owns one: the Done branch with a
+// non-empty NextPhase advances to it, and the failed branch republishes the phase
+// this Job advanced to (advancedPhase). Every other path omits the key, so the
+// controller's on-disk-first merge keeps whatever phase the task holds.
 func (d *kafkaResultDeliverer) applyResultFrontmatter(
 	frontmatter agentlib.TaskFrontmatter,
 	result agentlib.AgentResultInfo,
@@ -285,10 +287,11 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 		}
 		resolvedPhase := resolveNextPhase(d.taskID, result.NextPhase)
 		frontmatter["phase"] = resolvedPhase
-		// Remember the advance for the rest of this Job. Every other branch now
-		// publishes no phase, so the on-disk value survives the controller's merge —
-		// but the failed branch deliberately still publishes one, and it must publish
-		// THIS phase rather than the Job-start phase the generator rebuilt from.
+		// Remember the advance for the rest of this Job. The failed branch must
+		// publish THIS phase rather than the Job-start phase the generator rebuilt
+		// from — a planning -> execution run that then fails must stay at execution.
+		// Branches that advance nothing omit the phase and let the controller's merge
+		// keep the on-disk value.
 		if resolvedPhase != "done" {
 			d.advancedPhase = resolvedPhase
 		}
@@ -329,16 +332,26 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 		// in_progress, phase as the resume cursor) belongs to the controller's
 		// applyTriggerCap, which owns trigger_count / max_triggers.
 		//
-		// This branch deliberately keeps publishing its phase: the controller's
-		// planning-retry gate reads phase from the published payload, not from disk.
-		// It must therefore publish the phase this Job advanced to, if it advanced —
-		// otherwise a run that moved planning -> execution and then failed would
-		// publish the Job-start phase and rewind the task, re-running a phase that
-		// already completed.
+		// A failed result owns the phase only when this Job advanced one: publish
+		// advancedPhase so a run that moved planning -> execution and then failed
+		// stays at execution rather than rewinding to planning. When nothing
+		// advanced, publish no phase at all — like the other non-advancing branches,
+		// so the controller's on-disk-first merge keeps whatever phase the task holds
+		// (including a park written while this run was still going). The companion
+		// controller change makes its planning-retry gate read the on-disk phase.
 		frontmatter["status"] = "in_progress"
 		if d.advancedPhase != "" {
 			frontmatter["phase"] = d.advancedPhase
+			break
 		}
+		if phase, ok := frontmatter["phase"].(string); ok && phase != "" {
+			glog.V(2).Infof(
+				"task %s: dropping stale Job-start phase %q on failed result",
+				d.taskID,
+				phase,
+			)
+		}
+		delete(frontmatter, "phase")
 	default:
 		// Unknown status: defensive — surface to the operator like a cap exhaustion.
 		frontmatter["status"] = "in_progress"
