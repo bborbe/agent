@@ -253,8 +253,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 		Expect(ok).To(BeTrue())
 		fm, ok := frontmatter.(map[string]interface{})
 		Expect(ok).To(BeTrue())
-		Expect(fm["phase"]).To(Equal("planning"))
-		Expect(fm["phase"]).NotTo(Equal("human_review"))
+		Expect(fm).NotTo(HaveKey("phase"))
 		Expect(fm["status"]).To(Equal("in_progress"))
 		Expect(fm["assignee"]).To(Equal("github-update-go-agent"))
 		Expect(fm).NotTo(HaveKey("previous_assignee"))
@@ -502,7 +501,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 	})
 
 	It(
-		"sets phase=human_review when failed result requests NextPhase=in_progress (NextPhase ignored)",
+		"publishes no phase and ignores NextPhase when a failed result requests NextPhase=in_progress",
 		func() {
 			generator.GenerateReturns(
 				"---\nstatus: in_progress\nphase: human_review\n---\n\nBody.\n\n## Failure\n\n- **Reason:** infra error\n",
@@ -519,7 +518,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(ok).To(BeTrue())
 			fm, ok := frontmatter.(map[string]interface{})
 			Expect(ok).To(BeTrue())
-			Expect(fm["phase"]).To(Equal("human_review"))
+			Expect(fm).NotTo(HaveKey("phase"))
 			Expect(fm["status"]).To(Equal("in_progress"))
 		},
 	)
@@ -542,7 +541,8 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(ok).To(BeTrue())
 			fm, ok := frontmatter.(map[string]interface{})
 			Expect(ok).To(BeTrue())
-			Expect(fm["phase"]).To(Equal("human_review"))
+			Expect(fm).NotTo(HaveKey("phase"))
+			Expect(cmdObj.Command.Data["content"]).To(ContainSubstring("## Failure"))
 		},
 	)
 
@@ -706,7 +706,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 	})
 
 	Context("AgentStatusFailed with incoming phase: in_progress", func() {
-		It("preserves phase: in_progress and assignee below the trigger cap", func() {
+		It("publishes no phase and keeps the assignee below the trigger cap", func() {
 			generator.GenerateReturns(
 				"---\nstatus: in_progress\nphase: in_progress\nassignee: github-update-go-agent\ntrigger_count: 1\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
 				nil,
@@ -719,8 +719,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
 			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
 			Expect(ok).To(BeTrue())
-			Expect(fm["phase"]).To(Equal("in_progress"))
-			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			Expect(fm).NotTo(HaveKey("phase"))
 			Expect(fm["status"]).To(Equal("in_progress"))
 			Expect(fm["assignee"]).To(Equal("github-update-go-agent"))
 			Expect(fm).NotTo(HaveKey("previous_assignee"))
@@ -728,7 +727,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 	})
 
 	Context("AgentStatusFailed with incoming phase: ai_review", func() {
-		It("preserves phase: ai_review and assignee below the trigger cap", func() {
+		It("publishes no phase and keeps the assignee below the trigger cap", func() {
 			generator.GenerateReturns(
 				"---\nstatus: in_progress\nphase: ai_review\nassignee: github-update-go-agent\ntrigger_count: 1\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
 				nil,
@@ -741,8 +740,7 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
 			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
 			Expect(ok).To(BeTrue())
-			Expect(fm["phase"]).To(Equal("ai_review"))
-			Expect(fm["phase"]).NotTo(Equal("human_review"))
+			Expect(fm).NotTo(HaveKey("phase"))
 			Expect(fm["status"]).To(Equal("in_progress"))
 			Expect(fm["assignee"]).To(Equal("github-update-go-agent"))
 			Expect(fm).NotTo(HaveKey("previous_assignee"))
@@ -1163,13 +1161,27 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			})).To(Succeed())
 
 			Expect(sender.SendCommandObjectCallCount()).To(Equal(2))
-			// The failed branch still publishes its phase (the controller's
-			// planning-retry gate reads it from the payload), and it must publish the
-			// phase this Job advanced to — not the Job-start phase the generator
-			// rebuilt from. Publishing "planning" here would rewind an execution-phase
-			// task and re-run a planning phase that already completed.
+			// The failed branch still publishes the phase this Job advanced to — not
+			// the Job-start phase the generator rebuilt from. Publishing "planning"
+			// here would rewind an execution-phase task and re-run a planning phase
+			// that already completed. (When nothing advanced, the branch publishes no
+			// phase and the controller's merge keeps the on-disk one.)
 			Expect(publishedFrontmatterAt(1)["phase"]).To(Equal("execution"))
 			Expect(publishedFrontmatterAt(1)["assignee"]).To(Equal("hypothesis-agent"))
+		})
+
+		It("5d2: publishes no phase on a failed result that advanced nothing", func() {
+			generator.GenerateReturns(jobStartContent, nil)
+
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:  agentlib.AgentStatusFailed,
+				Message: "pod crash",
+			})).To(Succeed())
+
+			Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
+			Expect(publishedFrontmatterAt(0)).NotTo(HaveKey("phase"))
+			Expect(publishedFrontmatterAt(0)["status"]).To(Equal("in_progress"))
+			Expect(publishedFrontmatterAt(0)["assignee"]).To(Equal("hypothesis-agent"))
 		})
 
 		It("5e: keeps the incoming phase when nothing advanced", func() {
