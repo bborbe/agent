@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.136.0
 
 - fix(delivery): a `failed` result that advanced no phase now omits `phase` from the published payload, so a phase parked while the Job was running (e.g. `human_review`) survives the controller's on-disk-first merge and the task is not re-spawned. A `failed` result after an in-process advance still publishes that advanced phase, and a `glog.V(2)` line records the dropped Job-start phase. ⚠️ The controller's planning-retry gate must read the on-disk phase instead of the payload — that companion change (`bborbe/agent-task-controller`, separate PR) must land and deploy before or with this one.
 
