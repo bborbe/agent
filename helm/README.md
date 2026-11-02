@@ -105,7 +105,7 @@ agents: []
 |---|---|---|
 | `sandbox.namespace` | `""` | Explicit sandbox namespace. Empty falls back to `<namespace>-agents-sandbox`, which every current install renders. Must differ from `namespace` — the render fails otherwise, since equal values emit a second `Namespace` object for the control namespace. Also relocates the egress proxy, its allowlist and the sandbox RBAC. |
 | `sandbox.domains` | `{}` | Map of sandbox namespace name to its egress peer set. Non-empty renders one `Namespace` and one `<name>-egress` default-deny policy per entry, and the egress proxy once in `proxyNamespace`. Empty renders today's single sandbox unchanged. Mutually exclusive with `sandbox.namespace` — declaring both fails the render. Each entry takes an optional `peers` list; see **Multiple sandbox domains** below. |
-| `sandbox.domains.<name>.peers` | unset | Destinations this domain may reach, from the fixed catalog `dns`, `router`, `pushgateway`, `sentry-proxy`, `vault-personal`, `vault-openclaw`, `vault-trading`, `frontend-gateway`, `frontend-strategy`, `frontend-report`, `frontend-backtest`, `vault-api`, `kafka`, `proxy`. An unknown name fails the render. `dns` and `proxy` are added unconditionally. **Omitting `peers` renders the full union** — deliberately, so the first apply of a domains install narrows nothing; `peers: []` renders only DNS and the proxy. |
+| `sandbox.domains.<name>.peers` | unset | Destinations this domain may reach, from the fixed catalog `dns`, `router`, `pushgateway`, `prometheus`, `sentry-proxy`, `vault-personal`, `vault-openclaw`, `vault-trading`, `frontend-gateway`, `frontend-strategy`, `frontend-report`, `frontend-backtest`, `vault-api`, `kafka`, `proxy`. An unknown name fails the render. `dns` and `proxy` are added unconditionally. **Omitting `peers` renders the full union** — deliberately, so the first apply of a domains install narrows nothing; `peers: []` renders only DNS and the proxy. |
 | `sandbox.proxyNamespace` | `""` | Namespace hosting the single egress proxy (Deployment, Service, PDB, allowlist ConfigMap and both its policies). Must be one of the declared domains; required when more than one domain is declared, defaults to the only domain when exactly one is. Setting it with no `domains` fails the render. |
 | `sandbox.peerNamespace` | `""` | Namespace the sandbox policy's **non-agent** peers select: sentry-proxy, the three `vault-obsidian-*` services, `frontend-gateway`, `frontend-strategy` and the optional vault-API app. Empty falls back to the control namespace, so every current install renders unchanged. Set it when the control plane moves to its own namespace but those services stay behind — otherwise the peers name a namespace holding none of them and the policy silently denies every sandboxed Job its vault and its Sentry proxy. **The router is not covered**: it is a control-plane component and follows `namespace`. |
 | `sandbox.kafka.namespace` | `""` | Select Kafka by namespace (in-cluster Service) instead of the built-in nodeport addresses. Takes precedence over them. |
@@ -429,7 +429,7 @@ secrets, Strimzi mTLS. **None of that is required.** A vanilla cluster:
   `sandbox.kafka.podLabels` selector. A Kafka client bootstraps on one nodeport
   and then follows the broker's advertised metadata to another, so list every
   nodeport the brokers advertise — the bootstrap port alone is not enough.
-  `pushgateway` remains pinned to the `monitoring` namespace.
+  `pushgateway` remains pinned to the `monitoring` namespace, as does the `prometheus` catalog peer.
 - **Egress proxy** — the chart renders a domain-allowlisting tinyproxy (`egress-proxy`,
   port 8888) in the sandbox namespace (`sandbox.namespace`, default
   `<namespace>-agents-sandbox`). The allowlist lives in the
@@ -442,7 +442,7 @@ secrets, Strimzi mTLS. **None of that is required.** A vanilla cluster:
   injected proxy would deny every outbound call. `type: service` agents never receive it.
   The injected `NO_PROXY` keeps in-cluster traffic direct: `.svc.cluster.local`, the
   Kafka broker hosts, and the `<service>.<namespace>` short form of every Service peer in
-  the sandbox catalog (`pushgateway.monitoring`, `sentry-proxy.<peerNamespace>`, the
+  the sandbox catalog (`pushgateway.monitoring`, `prometheus.monitoring`, `sentry-proxy.<peerNamespace>`, the
   vaults, the trading frontends, the router) — derived from the catalog, never a bare
   namespace suffix like `.prod`, which would let public hosts bypass the proxy.
 

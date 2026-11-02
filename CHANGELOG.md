@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(chart): **add `prometheus` to the sandbox peer catalog, so a sandboxed agent can query Prometheus directly.** The catalog is a fixed list and an unknown name fails the render, so a domain cannot opt into a peer the chart does not know. A read-only service-analysis agent answers "requests vs actual usage" questions from `/api/v1/query`, and nothing in the sandbox can reach the cluster's Prometheus today: the kube-apiserver is not a peer either, so the API-server proxy is no alternative. The peer mirrors `pushgateway` — pinned to the `monitoring` namespace, selector `app: prometheus`, port 9090, read from the live Service and pod rather than assumed. It also joins `agent.sandboxServicePeers`, so `prometheus.monitoring` lands in the injected `NO_PROXY` instead of being routed through the egress proxy and refused; `hack/test-helm-render.sh`'s `NO_PROXY` expectation moves with it. Domains that declare `peers` explicitly are unchanged until they list `prometheus`. Chart `0.23.14`.
+
 ## v0.137.0
 
 - feat(claude): **add an opt-in `ClaudeRunnerConfig.RunAsUID` privilege drop, so the spawned Claude CLI can run as an unprivileged numeric user id while the parent keeps a credential in its own root environment.** Both the one-shot runner and the long-lived session apply it at their spawn sites, setting `Gid` to the same id and clearing supplementary groups; the zero value leaves `SysProcAttr` nil, so existing callers are unchanged. The caller owns the directories the CLI writes to. The `claude plugin …` setup path now runs with an allowlisted environment instead of inheriting the parent's, so a credential the parent holds is not readable from a root child's `/proc/<pid>/environ`; `CLAUDE_CONFIG_DIR` is omitted there so a session-writable config directory is never handed to a root process.
