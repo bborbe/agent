@@ -559,6 +559,23 @@ exit 0
 		Expect(err.Error()).To(ContainSubstring("start claude process"))
 	})
 
+	It("fails the turn when the parent cannot drop to the configured uid", func() {
+		if os.Geteuid() == 0 {
+			Skip("requires non-root")
+		}
+		shimDir := writeSessionShim(sessionShimBase)
+		cfg := sessionConfig(shimDir)
+		cfg.RunAsUID = 1234
+
+		session := claude.NewSession(cfg, nil)
+		DeferCleanup(func() { _ = session.Close(context.Background()) })
+
+		_, err := session.Prompt(ctx, "turn-one")
+
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("start claude process"))
+	})
+
 	It("runs the process in the configured working directory", func() {
 		workDir, err := filepath.EvalSymlinks(GinkgoT().TempDir())
 		Expect(err).NotTo(HaveOccurred())

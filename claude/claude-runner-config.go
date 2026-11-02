@@ -24,6 +24,18 @@ type ClaudeRunnerConfig struct {
 	Model ClaudeModel
 	// WorkingDirectory sets the CLI process working directory.
 	WorkingDirectory AgentDir
+	// RunAsUID, when non-zero, runs the Claude CLI subprocess as this numeric
+	// user id instead of inheriting the parent's. The parent must be root; when
+	// it is not, cmd.Start() fails with EPERM and Run returns that wrapped as
+	// "start claude CLI". Zero means inherit, leaving cmd.SysProcAttr nil.
+	//
+	// The caller must make every directory the CLI writes to — CLAUDE_CONFIG_DIR,
+	// the working directory, and any scratch dir — owned by this user id, because
+	// this package only performs the privilege drop; it does not chown anything.
+	//
+	// The child's primary group is set to the same numeric value and its
+	// supplementary groups are cleared, so it does not inherit the parent's groups.
+	RunAsUID int
 	// Env holds extra KEY=VALUE entries appended to the subprocess environment
 	// AFTER the allowlist + CLAUDE_CONFIG_DIR layers (see buildSubprocessEnv in claude-runner.go). This is
 	// the escape hatch for passing through secrets or vars the allowlist would

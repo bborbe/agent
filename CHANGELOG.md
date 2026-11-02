@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(claude): **add an opt-in `ClaudeRunnerConfig.RunAsUID` privilege drop, so the spawned Claude CLI can run as an unprivileged numeric user id while the parent keeps a credential in its own root environment.** Both the one-shot runner and the long-lived session apply it at their spawn sites, setting `Gid` to the same id and clearing supplementary groups; the zero value leaves `SysProcAttr` nil, so existing callers are unchanged. The caller owns the directories the CLI writes to.
+
 ## v0.136.0
 
 - fix(delivery): a `failed` result that advanced no phase now omits `phase` from the published payload, so a phase parked while the Job was running (e.g. `human_review`) survives the controller's on-disk-first merge and the task is not re-spawned. A `failed` result after an in-process advance still publishes that advanced phase, and a `glog.V(2)` line records the dropped Job-start phase. ⚠️ The controller's planning-retry gate must read the on-disk phase instead of the payload — that companion change (`bborbe/agent-task-controller`, separate PR) must land and deploy before or with this one.

@@ -52,6 +52,9 @@ func (e *execPluginCommander) Run(
 		ctx,
 		name,
 		args...) // #nosec G204 -- name and args are caller-controlled; PluginCommander is an internal interface not exposed to untrusted input
+	// This setup path does not set cmd.Env, so it inherits the parent's full
+	// environment — a known gap for a separate change, unlike the session and
+	// one-shot spawn sites which build an explicit allowlist.
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 	cmd.Stdout = &out

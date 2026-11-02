@@ -7,6 +7,7 @@ package claude_test
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -907,5 +908,133 @@ exit 0
 		Expect(output).To(ContainSubstring("https_proxy=http://lower-proxy.example:8443"))
 		Expect(output).To(ContainSubstring("no_proxy=localhost,.lower-internal"))
 		Expect(output).NotTo(ContainSubstring("control-value"))
+	})
+})
+
+var _ = Describe("claudeRunner privilege drop", func() {
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	// writeShim creates a temp dir, writes a "claude" shell script with the given
+	// body, prepends the dir to PATH, and returns the dir so the spec can hand it
+	// output paths through ClaudeRunnerConfig.Env.
+	writeShim := func(body string) string {
+		shimDir := GinkgoT().TempDir()
+		shimPath := filepath.Join(shimDir, "claude")
+		script := "#!/bin/sh\n" + body
+		err := os.WriteFile(shimPath, []byte(script), 0755) //nolint:gosec
+		Expect(err).NotTo(HaveOccurred())
+		originalPath := os.Getenv("PATH")
+		DeferCleanup(func() {
+			Expect(os.Setenv("PATH", originalPath)).To(Succeed())
+		})
+		Expect(os.Setenv("PATH", shimDir+":"+originalPath)).To(Succeed())
+		return shimDir
+	}
+
+	It("runs the CLI as the configured uid with only that group", func() {
+		if os.Geteuid() != 0 {
+			Skip("requires root")
+		}
+		// GinkgoT().TempDir() is 0700 and root-owned, so a child running as 1234
+		// cannot traverse it. Use a world-traversable shim dir under /tmp and a
+		// world-writable output dir for the child's reports.
+		shimDir, err := os.MkdirTemp("/tmp", "shim")
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(func() { _ = os.RemoveAll(shimDir) })
+		// Both dirs must be reachable by the dropped-privilege child.
+		shimPerm := os.FileMode(0o755)
+		Expect(os.Chmod(shimDir, shimPerm)).To(Succeed())
+
+		outDir, err := os.MkdirTemp("/tmp", "out")
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(func() { _ = os.RemoveAll(outDir) })
+		outPerm := os.FileMode(0o777)
+		Expect(os.Chmod(outDir, outPerm)).To(Succeed())
+		//nolint:gosec // world-writable for the dropped-privilege child's reports
+
+		script := "#!/bin/sh\nid -u > \"$OUT/uid\"\nid -G > \"$OUT/gid\"\n" +
+			"printf '%s\\n' '{\"type\":\"result\",\"result\":\"ok\"}'\n"
+		err = os.WriteFile(filepath.Join(shimDir, "claude"), []byte(script), 0o755) //nolint:gosec
+		Expect(err).NotTo(HaveOccurred())
+		originalPath := os.Getenv("PATH")
+		DeferCleanup(func() {
+			Expect(os.Setenv("PATH", originalPath)).To(Succeed())
+		})
+		Expect(os.Setenv("PATH", shimDir+":"+originalPath)).To(Succeed())
+
+		result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+			RunAsUID: 1234,
+			Env:      map[string]string{"OUT": outDir},
+		}).Run(ctx, "test")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Result).To(Equal("ok"))
+
+		uid, err := os.ReadFile(filepath.Join(outDir, "uid"))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(strings.TrimSpace(string(uid))).To(Equal("1234"))
+
+		gid, err := os.ReadFile(filepath.Join(outDir, "gid"))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(strings.Fields(string(gid))).To(Equal([]string{"1234"}))
+	})
+
+	It("fails to start when a non-root parent cannot drop privileges", func() {
+		if os.Geteuid() == 0 {
+			Skip("requires non-root")
+		}
+		writeShim("exit 0")
+
+		_, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{RunAsUID: 1234}).
+			Run(ctx, "test")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("start claude CLI"))
+		Expect(err.Error()).To(ContainSubstring("operation not permitted"))
+	})
+
+	It("inherits the current user id at the zero value", func() {
+		shimDir := writeShim("id -u > \"$OUT/uid\"\n" +
+			"printf '%s\\n' '{\"type\":\"result\",\"result\":\"ok\"}'\n")
+
+		result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+			RunAsUID: 0,
+			Env:      map[string]string{"OUT": shimDir},
+		}).Run(ctx, "test")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Result).To(Equal("ok"))
+
+		uid, err := os.ReadFile(filepath.Join(shimDir, "uid"))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(strings.TrimSpace(string(uid))).To(Equal(fmt.Sprintf("%d", os.Geteuid())))
+	})
+})
+
+var _ = Describe("credentialSysProcAttr", func() {
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	It("rejects out-of-range uids", func() {
+		for _, uid := range []int{0, -1, int(uint64(math.MaxUint32) + 1)} {
+			_, err := claude.CredentialSysProcAttr(ctx, uid)
+			Expect(err).To(HaveOccurred(), "uid %d", uid)
+		}
+	})
+
+	It("accepts in-range uids and clears supplementary groups", func() {
+		for _, uid := range []int{1, math.MaxUint32} {
+			attr, err := claude.CredentialSysProcAttr(ctx, uid)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(attr).NotTo(BeNil())
+			Expect(attr.Credential.Uid).To(Equal(uint32(uid)))
+			Expect(attr.Credential.Gid).To(Equal(uint32(uid)))
+			Expect(attr.Credential.Groups).To(BeEmpty())
+			Expect(attr.Credential.NoSetGroups).To(BeFalse())
+		}
 	})
 })
