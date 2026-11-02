@@ -7,6 +7,7 @@ package claude
 import (
 	"bytes"
 	"context"
+	"os"
 	"os/exec"
 	"path"
 	"strings"
@@ -15,6 +16,23 @@ import (
 	"github.com/bborbe/errors"
 	"github.com/golang/glog"
 )
+
+// pluginCommanderEnv is the environment handed to `claude plugin …`. The parent's
+// full environment is never inherited: this child runs as root, and the parent may
+// hold credentials (see ClaudeRunnerConfig.RunAsUID) that the child has no use for.
+// CLAUDE_CONFIG_DIR is deliberately omitted, so a session-writable config
+// directory is not handed to a root process.
+func pluginCommanderEnv() []string {
+	var env []string
+	for _, k := range []string{
+		"PATH", "HOME", "USER", "TZ", "ZONEINFO", "TMPDIR", "LANG", "LC_ALL",
+	} {
+		if v, ok := os.LookupEnv(k); ok {
+			env = append(env, k+"="+v)
+		}
+	}
+	return env
+}
 
 // PluginSpec identifies a Claude Code plugin to ensure is installed.
 type PluginSpec struct {
@@ -52,6 +70,15 @@ func (e *execPluginCommander) Run(
 		ctx,
 		name,
 		args...) // #nosec G204 -- name and args are caller-controlled; PluginCommander is an internal interface not exposed to untrusted input
+	// This is a root-run setup path, so it must NOT inherit the parent's
+	// environment: the parent may hold credentials (see ClaudeRunnerConfig.RunAsUID)
+	// that this child has no use for, and inheriting them would leave them
+	// readable from a root child's /proc/<pid>/environ. CLAUDE_CONFIG_DIR is
+	// deliberately omitted so a session-writable config directory is never handed
+	// to a root process. This path stays root rather than taking RunAsUID: it is
+	// setup, it runs before any session exists, and dropping privileges here would
+	// make the installed plugin state owned by the session's uid.
+	cmd.Env = pluginCommanderEnv()
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 	cmd.Stdout = &out

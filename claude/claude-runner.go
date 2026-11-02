@@ -307,6 +307,10 @@ func (r *claudeRunner) buildCommand(
 	cmd.Env = env
 	glog.V(2).Infof("cmd.Env = %+v", envparse.RedactForLog(cmd.Env))
 
+	if err := applyCredential(ctx, cmd, r.config.RunAsUID); err != nil {
+		return nil, err
+	}
+
 	return cmd, nil
 }
 

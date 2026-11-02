@@ -498,6 +498,10 @@ func startProcess(
 	}
 	cmd.Env = env
 
+	if err := applyCredential(ctx, cmd, config.RunAsUID); err != nil {
+		return nil, nil, nil, err
+	}
+
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(ctx, err, "create stdin pipe")
