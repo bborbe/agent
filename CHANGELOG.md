@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
-- feat(claude): **add an opt-in `ClaudeRunnerConfig.RunAsUID` privilege drop, so the spawned Claude CLI can run as an unprivileged numeric user id while the parent keeps a credential in its own root environment.** Both the one-shot runner and the long-lived session apply it at their spawn sites, setting `Gid` to the same id and clearing supplementary groups; the zero value leaves `SysProcAttr` nil, so existing callers are unchanged. The caller owns the directories the CLI writes to.
+- feat(claude): **add an opt-in `ClaudeRunnerConfig.RunAsUID` privilege drop, so the spawned Claude CLI can run as an unprivileged numeric user id while the parent keeps a credential in its own root environment.** Both the one-shot runner and the long-lived session apply it at their spawn sites, setting `Gid` to the same id and clearing supplementary groups; the zero value leaves `SysProcAttr` nil, so existing callers are unchanged. The caller owns the directories the CLI writes to. The `claude plugin …` setup path now runs with an allowlisted environment instead of inheriting the parent's, so a credential the parent holds is not readable from a root child's `/proc/<pid>/environ`; `CLAUDE_CONFIG_DIR` is omitted there so a session-writable config directory is never handed to a root process.
 
 ## v0.136.0
 

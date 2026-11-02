@@ -307,15 +307,8 @@ func (r *claudeRunner) buildCommand(
 	cmd.Env = env
 	glog.V(2).Infof("cmd.Env = %+v", envparse.RedactForLog(cmd.Env))
 
-	if r.config.RunAsUID > 0 {
-		attr, err := credentialSysProcAttr(ctx, r.config.RunAsUID)
-		if err != nil {
-			return nil, errors.Wrap(ctx, err, "build credential")
-		}
-		if attr != nil {
-			cmd.SysProcAttr = attr
-			glog.V(2).Infof("claude CLI will run as uid %d", r.config.RunAsUID)
-		}
+	if err := applyCredential(ctx, cmd, r.config.RunAsUID); err != nil {
+		return nil, err
 	}
 
 	return cmd, nil

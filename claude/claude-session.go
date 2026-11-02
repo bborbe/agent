@@ -498,15 +498,8 @@ func startProcess(
 	}
 	cmd.Env = env
 
-	if config.RunAsUID > 0 {
-		attr, err := credentialSysProcAttr(ctx, config.RunAsUID)
-		if err != nil {
-			return nil, nil, nil, errors.Wrap(ctx, err, "build credential")
-		}
-		if attr != nil {
-			cmd.SysProcAttr = attr
-			glog.V(2).Infof("claude CLI will run as uid %d", config.RunAsUID)
-		}
+	if err := applyCredential(ctx, cmd, config.RunAsUID); err != nil {
+		return nil, nil, nil, err
 	}
 
 	stdin, err := cmd.StdinPipe()

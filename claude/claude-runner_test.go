@@ -953,10 +953,14 @@ var _ = Describe("claudeRunner privilege drop", func() {
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() { _ = os.RemoveAll(outDir) })
 		outPerm := os.FileMode(0o777)
-		Expect(os.Chmod(outDir, outPerm)).To(Succeed())
-		//nolint:gosec // world-writable for the dropped-privilege child's reports
+		Expect(os.Chmod(outDir, outPerm)).To(Succeed()) //nolint:gosec // world-writable for the dropped-privilege child's reports
 
+		// The third assertion is the property the drop exists for: a session
+		// running as the dropped uid must not be able to read the root parent's
+		// environment. Without it, a future change that keeps uid 1234 but
+		// restores capabilities or groups would still pass this spec.
 		script := "#!/bin/sh\nid -u > \"$OUT/uid\"\nid -G > \"$OUT/gid\"\n" +
+			"cat /proc/1/environ > \"$OUT/environ\" 2>/dev/null || echo DENIED > \"$OUT/environ\"\n" +
 			"printf '%s\\n' '{\"type\":\"result\",\"result\":\"ok\"}'\n"
 		err = os.WriteFile(filepath.Join(shimDir, "claude"), []byte(script), 0o755) //nolint:gosec
 		Expect(err).NotTo(HaveOccurred())
@@ -980,6 +984,10 @@ var _ = Describe("claudeRunner privilege drop", func() {
 		gid, err := os.ReadFile(filepath.Join(outDir, "gid"))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(strings.Fields(string(gid))).To(Equal([]string{"1234"}))
+
+		environ, err := os.ReadFile(filepath.Join(outDir, "environ"))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(strings.TrimSpace(string(environ))).To(Equal("DENIED"))
 	})
 
 	It("fails to start when a non-root parent cannot drop privileges", func() {
