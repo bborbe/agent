@@ -279,6 +279,15 @@ func (r *claudeRunner) buildCommand(
 
 	if len(r.config.AllowedTools) > 0 {
 		args = append(args, "--allowedTools", r.config.AllowedTools.String())
+		// --allowedTools only pre-approves. Under --print a tool that is not listed
+		// still runs, because no permission mode refuses it; dontAsk turns
+		// "not pre-approved" into "denied".
+		args = append(args, "--permission-mode", "dontAsk")
+		// A deliberate belt-and-braces deny for the two write tools that matter
+		// most, in addition to dontAsk's blanket denial.
+		if !r.config.AllowedTools.Contains("Edit") && !r.config.AllowedTools.Contains("Write") {
+			args = append(args, "--disallowedTools", "Edit", "Write")
+		}
 	}
 
 	if r.config.Model != "" {

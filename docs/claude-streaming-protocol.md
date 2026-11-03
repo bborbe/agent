@@ -31,13 +31,22 @@ claude --print --input-format stream-json --output-format stream-json --verbose 
 - `--strict-mcp-config` — the CLI uses only the MCP servers it was configured with,
   matching the one-shot runner.
 
-Three further flags are conditional:
+Six further flags are conditional:
 
 - `--permission-prompt-tool stdio` — added only when a permission decider is
   configured. It is what makes the CLI raise a tool decision on the stdio control
   channel instead of resolving it itself.
+- `--permission-mode manual` — added only when a permission decider is configured;
+  it is the mode that asks rather than auto-approving.
+- `--permission-mode dontAsk` — added only when `ClaudeRunnerConfig.AllowedTools`
+  is non-empty and no permission decider is configured. A decider-less session has
+  no approval path, so without this flag the CLI's auto mode would run any tool
+  outside the list.
 - `--allowedTools <list>` — added only when `ClaudeRunnerConfig.AllowedTools` is
   non-empty.
+- `--disallowedTools Edit Write` — added only when `ClaudeRunnerConfig.AllowedTools`
+  is non-empty, no permission decider is configured, and the list contains neither
+  `Edit` nor `Write`.
 - `--model <name>` — added only when `ClaudeRunnerConfig.Model` is non-empty.
 
 The session id is deliberately **not** passed. Continuity comes from the held

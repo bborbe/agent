@@ -463,6 +463,16 @@ func sessionArgs(config ClaudeRunnerConfig, decider PermissionDecider) []string 
 	}
 	if len(config.AllowedTools) > 0 {
 		args = append(args, "--allowedTools", config.AllowedTools.String())
+		// Without a decider there is no approval path, so the CLI's auto mode
+		// would run any unlisted tool. dontAsk closes that hole, and the two write
+		// tools are denied explicitly on top of it. With a decider wired the
+		// branch is unchanged: manual mode already asks for every decision.
+		if decider == nil {
+			args = append(args, "--permission-mode", "dontAsk")
+			if !config.AllowedTools.Contains("Edit") && !config.AllowedTools.Contains("Write") {
+				args = append(args, "--disallowedTools", "Edit", "Write")
+			}
+		}
 	}
 	if config.Model != "" {
 		args = append(args, "--model", config.Model.String())

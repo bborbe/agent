@@ -34,6 +34,32 @@ var _ = Describe("ParseAllowedTools", func() {
 	})
 })
 
+var _ = Describe("AllowedTools.Contains", func() {
+	DescribeTable("reports membership by exact comparison",
+		func(tools claude.AllowedTools, tool string, expected bool) {
+			Expect(tools.Contains(tool)).To(Equal(expected))
+		},
+		Entry("Edit present", claude.ParseAllowedTools("Read,Edit"), "Edit", true),
+		Entry("Write present", claude.ParseAllowedTools("Read,Write"), "Write", true),
+		Entry("Read present", claude.ParseAllowedTools("Read,Grep"), "Read", true),
+		Entry("Edit absent", claude.ParseAllowedTools("Read,Grep,Glob"), "Edit", false),
+		Entry("Write absent", claude.ParseAllowedTools("Read,Grep,Glob"), "Write", false),
+		Entry(
+			"a longer name containing Edit does not match Edit",
+			claude.ParseAllowedTools("MultiEdit,mcp__server__Write"),
+			"Edit",
+			false,
+		),
+		Entry(
+			"an mcp write tool does not match Write",
+			claude.ParseAllowedTools("MultiEdit,mcp__server__Write"),
+			"Write",
+			false,
+		),
+		Entry("empty list", claude.AllowedTools{}, "Edit", false),
+	)
+})
+
 var _ = Describe("AllowedTools.String", func() {
 	Context("with empty tools", func() {
 		It("returns empty string", func() {
