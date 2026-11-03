@@ -10,6 +10,8 @@ import "strings"
 // an env key as sensitive. The list is intentionally small and conservative;
 // the cost of a false positive is "operator sees ***" and the cost of a
 // false negative is "secret in Loki", so we err on the side of redacting.
+// PEM is included because private keys are delivered as PEM text, e.g. the
+// GitHub App key injected as GITHUB_APP_PEM.
 var sensitiveKeyMarkers = []string{
 	"TOKEN",
 	"SECRET",
@@ -23,6 +25,7 @@ var sensitiveKeyMarkers = []string{
 	// proxy vars reach the Claude child process since spec 048, so they now
 	// reach this log line; redact them rather than rely on the URL being clean.
 	"PROXY",
+	"PEM",
 }
 
 // IsSensitiveKey reports whether key looks like it carries a secret value.
