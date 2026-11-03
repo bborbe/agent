@@ -168,11 +168,9 @@ Prompts should be generated in this order — each row is a single prompt with a
 
 | # | Prompt focus | Covers DBs | Covers ACs | Depends on |
 |---|---|---|---|---|
-| 1 | Union derivation in `helm/templates/executor-rbac.yaml` | 1, 2, 3, 4, 5, 6 | 1, 2, 3, 4, 5, 6 | — |
-| 2 | Values documentation in `helm/values.yaml` | 1 | 7 | — |
-| 3 | Chart test cases in `hack/test-helm-render.sh` | 1, 2, 3, 4 | 8 | prompt 1 (the assertions target its output) |
+| 1 | The whole change: the union derivation in `helm/templates/executor-rbac.yaml`, the `helm/values.yaml` comments, and the `hack/test-helm-render.sh` cases | 1–6 | 1–8 | — |
 
-Rationale: prompt 1 is the whole behaviour and the only code change; prompt 2 is a comment edit that can run in parallel; prompt 3 must follow prompt 1 because every case asserts the rendered rule. Three prompts, not one, so the test harness is not silently skipped — AC8 is the only guard against a change that renders correctly and is never asserted.
+Rationale: **one prompt**, because this is one indivisible change. The test cases cannot be written before the rule renders, and the values comment describes the same derivation — splitting them produces prompts that cannot be completed or verified independently. A three-row split was tried first and is recorded here because it failed for a reason worth keeping: the dark-factory Job has `activeDeadlineSeconds: 5400` (90 min), each row became a sequential prompt inside that one Job, and both attempts were killed at the deadline with zero commits (`DeadlineExceeded`, measured 2026-11-03). The last successful single-prompt run on this platform took 59 minutes. AC8 still guards the test harness — the prompt is one, the assertions are not optional.
 
 ## Do-Nothing Option
 
