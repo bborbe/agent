@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.139.1
 
 - fix: redact env values whose key contains `PEM`, so `GITHUB_APP_PEM` (the GitHub App private key) is no longer printed verbatim by the subprocess env debug log
 
