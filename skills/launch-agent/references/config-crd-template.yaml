@@ -28,17 +28,22 @@ spec:
   env:
     ALLOWED_TOOLS: "<TOOL_LIST>"   # e.g. "Bash,Read,Edit,Grep"
     LOGLEVEL: "2"
-    # LLM auth — FLEET DEFAULT is stateless token, NOT an OAuth PVC.
+    # LLM routing — FLEET DEFAULT is the in-cluster claude-code-router, which holds the
+    # provider tokens. The agent itself carries no provider credential for model access.
     # Per [[Agent Design Guide]] §7.2c: every running Claude-based agent authenticates
     # via ANTHROPIC_AUTH_TOKEN in its Secret + these two plain env vars. Keep this block
     # unless you deliberately chose the Max-subscription OAuth-PVC exception below.
-    ANTHROPIC_BASE_URL: https://api.minimax.io/anthropic   # MiniMax default; swap for your provider
-    ANTHROPIC_MODEL: MiniMax-M2.7-highspeed
+    ANTHROPIC_BASE_URL: http://claude-code-router-<STAGE>.agent.svc.cluster.local:8788   # <STAGE> = dev | prod
+    ANTHROPIC_MODEL: deepseek-v4-flash-max[1m]
     # Domain-specific env vars from interview Part 5 (Inputs):
     # <KEY>: "<VALUE_OR_TEAMVAULT_LOOKUP_KEY>"
 
   # k8s Secret containing teamvault-resolved creds (from interview Part 7.3).
-  # Includes ANTHROPIC_AUTH_TOKEN (the LLM token, §7.2c) + SENTRY_DSN + any domain creds.
+  # Includes ANTHROPIC_AUTH_TOKEN + SENTRY_DSN + any domain creds. ANTHROPIC_AUTH_TOKEN is
+  # present in the Secret for every tier, with a different value per tier: on the router tier
+  # it is a non-empty placeholder the in-cluster router ignores (the router gates nothing);
+  # the direct-provider tiers carry their own provider token; the Max tier ignores it in
+  # favour of the OAuth PVC.
   # See k8s/<NAME>-secret.yaml for the teamvault references.
   secretName: <NAME>
 

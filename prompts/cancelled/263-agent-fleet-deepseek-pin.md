@@ -1,6 +1,11 @@
 ---
-status: draft
+status: cancelled
+execution_id: agent-fleet-deepseek-exec-263-agent-fleet-deepseek-pin
+dark-factory-version: v0.198.7
 created: "2026-11-03T14:45:00Z"
+queued: "2026-11-03T15:20:33Z"
+started: "2026-11-03T15:20:51Z"
+cancelled: "2026-11-03T15:23:57Z"
 ---
 
 <summary>

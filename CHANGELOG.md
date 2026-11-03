@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(skills): **point the `launch-agent` Config CRD template at the in-cluster `claude-code-router` (`deepseek-v4-flash-max[1m]`) instead of the retired MiniMax default, so a newly scaffolded agent calls a live endpoint rather than one that expires on 2026-11-16.** The router is the fleet default and holds the provider tokens, so the rendered agent carries no provider credential of its own for model access; `ANTHROPIC_AUTH_TOKEN` stays in the Secret as a non-empty placeholder on the router tier (the router gates nothing) and as the provider token on the direct-provider tiers. The interview's runtime-tier question now recommends the router tier and its security-boundaries question no longer names the dead MiniMax TeamVault ID.
+
 ## v0.138.0
 
 - feat(chart): **add `prometheus` to the sandbox peer catalog, so a sandboxed agent can query Prometheus directly.** The catalog is a fixed list and an unknown name fails the render, so a domain cannot opt into a peer the chart does not know. A read-only service-analysis agent answers "requests vs actual usage" questions from `/api/v1/query`, and nothing in the sandbox can reach the cluster's Prometheus today: the kube-apiserver is not a peer either, so the API-server proxy is no alternative. The peer mirrors `pushgateway` — pinned to the `monitoring` namespace, selector `app: prometheus`, port 9090, read from the live Service and pod rather than assumed. It also joins `agent.sandboxServicePeers`, so `prometheus.monitoring` lands in the injected `NO_PROXY` instead of being routed through the egress proxy and refused; `hack/test-helm-render.sh`'s `NO_PROXY` expectation moves with it. Domains that declare `peers` explicitly are unchanged until they list `prometheus`. Chart `0.23.14`.
