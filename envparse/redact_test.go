@@ -82,6 +82,18 @@ var _ = Describe("IsSensitiveKey", func() {
 	It("does not flag ZONEINFO as sensitive", func() {
 		Expect(envparse.IsSensitiveKey("ZONEINFO")).To(BeFalse())
 	})
+
+	DescribeTable(
+		"classifies GitHub App and Anthropic identifiers",
+		func(key string, sensitive bool) {
+			Expect(envparse.IsSensitiveKey(key)).To(Equal(sensitive))
+		},
+		Entry("GitHub App private key is sensitive", "GITHUB_APP_PEM", true),
+		Entry("GitHub App id is not sensitive", "GITHUB_APP_ID", false),
+		Entry("GitHub App installation id is not sensitive", "GITHUB_APP_INSTALLATION_ID", false),
+		Entry("Anthropic base URL is not sensitive", "ANTHROPIC_BASE_URL", false),
+		Entry("Anthropic model is not sensitive", "ANTHROPIC_MODEL", false),
+	)
 })
 
 var _ = Describe("RedactForLog", func() {
@@ -131,5 +143,54 @@ var _ = Describe("RedactForLog", func() {
 		input := []string{"PATH=/usr/bin", "GH_TOKEN=ghp_secret"}
 		_ = envparse.RedactForLog(input)
 		Expect(input).To(Equal([]string{"PATH=/usr/bin", "GH_TOKEN=ghp_secret"}))
+	})
+
+	pemPlaceholder := "-----BEGIN RSA PRIVATE KEY-----sentinel-----END RSA PRIVATE KEY-----" // #nosec G101 -- synthetic placeholder, not a real key
+
+	DescribeTable(
+		"redacts every sensitive marker, keeping the key name and replacing the value",
+		func(entry, expected string) {
+			Expect(envparse.RedactForLog([]string{entry})).To(Equal([]string{expected}))
+		},
+		Entry("PEM", "GITHUB_APP_PEM="+pemPlaceholder, "GITHUB_APP_PEM=***"),
+		Entry("TOKEN", "ANTHROPIC_AUTH_TOKEN=sk-ant-xxxxxxxx", "ANTHROPIC_AUTH_TOKEN=***"),
+		Entry("SECRET", "MY_SECRET=value", "MY_SECRET=***"),
+		Entry("PASSWORD", "DB_PASSWORD=hunter2", "DB_PASSWORD=***"),
+		Entry("PASSWD", "DB_PASSWD=hunter2", "DB_PASSWD=***"),
+		Entry("CREDENTIAL", "AWS_CREDENTIAL=value", "AWS_CREDENTIAL=***"),
+		Entry("API_KEY", "ANTHROPIC_API_KEY=sk-ant-xxxxxxxx", "ANTHROPIC_API_KEY=***"),
+		Entry("PRIVATE_KEY", "SSH_PRIVATE_KEY=value", "SSH_PRIVATE_KEY=***"),
+		Entry("ACCESS_KEY", "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE", "AWS_ACCESS_KEY_ID=***"),
+		Entry("PROXY", "HTTPS_PROXY=http://user:pass@proxy:8888", "HTTPS_PROXY=***"),
+	)
+
+	DescribeTable(
+		"passes non-sensitive entries through unchanged",
+		func(entry string) {
+			Expect(envparse.RedactForLog([]string{entry})).To(Equal([]string{entry}))
+		},
+		Entry("GitHub App id", "GITHUB_APP_ID=123456"),
+		Entry("GitHub App installation id", "GITHUB_APP_INSTALLATION_ID=98765432"),
+		Entry("Anthropic base URL", "ANTHROPIC_BASE_URL=http://127.0.0.1:8788"),
+		Entry("Anthropic model", "ANTHROPIC_MODEL=claude-sonnet-4"),
+	)
+
+	It("redacts only the PEM and token in a realistic mixed environment, preserving order", func() {
+		input := []string{
+			"GITHUB_APP_ID=123456",
+			"GITHUB_APP_PEM=" + pemPlaceholder,
+			"GITHUB_APP_INSTALLATION_ID=98765432",
+			"ANTHROPIC_BASE_URL=http://127.0.0.1:8788",
+			"ANTHROPIC_AUTH_TOKEN=sk-ant-xxxxxxxx",
+		}
+		redacted := envparse.RedactForLog(input)
+		Expect(redacted).To(Equal([]string{
+			"GITHUB_APP_ID=123456",
+			"GITHUB_APP_PEM=***",
+			"GITHUB_APP_INSTALLATION_ID=98765432",
+			"ANTHROPIC_BASE_URL=http://127.0.0.1:8788",
+			"ANTHROPIC_AUTH_TOKEN=***",
+		}))
+		Expect(redacted).NotTo(ContainElement(ContainSubstring("sentinel")))
 	})
 })

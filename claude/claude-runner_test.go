@@ -953,7 +953,10 @@ var _ = Describe("claudeRunner privilege drop", func() {
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() { _ = os.RemoveAll(outDir) })
 		outPerm := os.FileMode(0o777)
-		Expect(os.Chmod(outDir, outPerm)).To(Succeed()) //nolint:gosec // world-writable for the dropped-privilege child's reports
+		Expect(
+			os.Chmod(outDir, outPerm),
+		).To(Succeed())
+		//nolint:gosec // world-writable for the dropped-privilege child's reports
 
 		// The third assertion is the property the drop exists for: a session
 		// running as the dropped uid must not be able to read the root parent's

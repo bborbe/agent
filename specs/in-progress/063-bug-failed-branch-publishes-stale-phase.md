@@ -1,8 +1,9 @@
 ---
-status: prompted
+status: verifying
 approved: "2026-10-31T13:54:06Z"
 generating: "2026-10-31T13:54:28Z"
 prompted: "2026-10-31T14:08:34Z"
+verifying: "2026-11-03T17:53:29Z"
 branch: dark-factory/bug-failed-branch-publishes-stale-phase
 ---
 
