@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.139.0
 
 - feat(skills): **point the `launch-agent` Config CRD template at the in-cluster `claude-code-router` (`deepseek-v4-flash-max[1m]`) instead of the retired MiniMax default, so a newly scaffolded agent calls a live endpoint rather than one that expires on 2026-11-16.** The router is the fleet default and holds the provider tokens, so the rendered agent carries no provider credential of its own for model access; `ANTHROPIC_AUTH_TOKEN` stays in the Secret as a non-empty placeholder on the router tier (the router gates nothing) and as the provider token on the direct-provider tiers. The interview's runtime-tier question now recommends the router tier and its security-boundaries question no longer names the dead MiniMax TeamVault ID.
 
