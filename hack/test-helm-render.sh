@@ -1039,27 +1039,35 @@ if [ "$rbac_ok" = "1" ]; then echo "OK: domains-rbac"; else fail=1; fi
 # The pod-log grant (spec 021) has the same shape of hazard: the read happens in
 # the namespace the failed Job ran in, so BOTH Roles must carry it or a
 # sandboxed Job's capture 403s and silently produces an empty tail — which reads
-# exactly like a Job that logged nothing. Pin the rule AND its verb, since a
-# `get`-less entry would render fine and still fail at the call site.
+# exactly like a Job that logged nothing. Pin the rule's VERBS exactly, not just
+# its presence: a `get`-less entry would render fine and still fail at the call
+# site, and a widened `[get, list, watch]` would be a silent privilege creep —
+# list and watch are meaningless on a subresource.
 podlog_ok=1
 for d in agent-sandbox development-sandbox research-sandbox sentry-sandbox trading-sandbox; do
 	if ! awk -v NS="$d" '
 		BEGIN{RS="---"}
 		index($0,"kind: Role") && index($0,"  name: agent-task-executor-sandbox\n") &&
-		index($0,"  namespace: " NS "\n") &&
-		index($0,"resources: [pods/log]\n    verbs: [get]") {found=1}
+		index($0,"  namespace: " NS "\n") {
+			if (match($0, /resources: \[pods\/log\][[:space:]]*verbs: \[[^]]*\]/)) {
+				if (substr($0, RSTART, RLENGTH) ~ /verbs: \[get\]$/) {found=1}
+			}
+		}
 		END{exit(found?0:1)}' "$out"; then
-		echo "FAIL: domains-rbac: Role agent-task-executor-sandbox in $d lacks pods/log with verbs: [get]"
+		echo "FAIL: domains-rbac: Role agent-task-executor-sandbox in $d lacks pods/log with exactly verbs: [get]"
 		podlog_ok=0
 	fi
 done
 if ! awk '
 	BEGIN{RS="---"}
 	index($0,"kind: Role") && index($0,"  name: agent-task-executor\n") &&
-	index($0,"  namespace: test\n") &&
-	index($0,"resources: [pods/log]\n    verbs: [get]") {found=1}
+	index($0,"  namespace: test\n") {
+		if (match($0, /resources: \[pods\/log\][[:space:]]*verbs: \[[^]]*\]/)) {
+			if (substr($0, RSTART, RLENGTH) ~ /verbs: \[get\]$/) {found=1}
+		}
+	}
 	END{exit(found?0:1)}' "$out"; then
-	echo "FAIL: domains-rbac: control-namespace Role agent-task-executor lost pods/log with verbs: [get]"
+	echo "FAIL: domains-rbac: control-namespace Role agent-task-executor lacks pods/log with exactly verbs: [get]"
 	podlog_ok=0
 fi
 if [ "$podlog_ok" = "1" ]; then echo "OK: domains-rbac-podlog"; else fail=1; fi

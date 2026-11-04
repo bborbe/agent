@@ -74,6 +74,12 @@ rules:
   # 403 and the capture silently produces an empty tail on every failure, which is
   # indistinguishable from a Job that logged nothing. `get` is the only verb the
   # read uses; `list`/`watch` are meaningless on a subresource.
+  #
+  # Accepted blast radius: this grant is namespace-scoped, so the executor can
+  # read the log of ANY pod in the namespace, not only the Jobs it spawned.
+  # Kubernetes RBAC cannot scope `pods/log` by resourceName here — pod names are
+  # Job-generated at runtime and unknown at render time — so this is the minimum
+  # grant that makes the capture work at all.
   - apiGroups: [""]
     resources: [pods/log]
     verbs: [get]
