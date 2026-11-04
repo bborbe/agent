@@ -116,6 +116,39 @@ printf '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"
 	})
 })
 
+var _ = Describe("piRunner child environment", func() {
+	var (
+		ctx          context.Context
+		originalPath string
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		shimDir := GinkgoT().TempDir()
+		shimPath := filepath.Join(shimDir, "pi")
+		// Shim echoes MY_CONSUMER_VAR from its own environment in the agent_end event.
+		script := `#!/bin/sh
+printf '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"MY_CONSUMER_VAR=%s"}]}]}\n' "$MY_CONSUMER_VAR"
+`
+		Expect(os.WriteFile(shimPath, []byte(script), 0755)).To(Succeed()) //nolint:gosec
+		originalPath = os.Getenv("PATH")
+		Expect(os.Setenv("PATH", shimDir+":"+originalPath)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(os.Setenv("PATH", originalPath)).To(Succeed())
+		})
+	})
+
+	// Only the log argument is key-only; cmd.Env itself must still carry values.
+	It("hands the full environment to the child, not just the key names", func() {
+		runner := pi.NewRunner(pi.PiRunnerConfig{
+			Env: map[string]string{"MY_CONSUMER_VAR": "consumer-value-42"},
+		})
+		result, err := runner.Run(ctx, "test")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Result).To(Equal("MY_CONSUMER_VAR=consumer-value-42"))
+	})
+})
+
 var _ = Describe("piRunner event vocabulary", func() {
 	var (
 		ctx          context.Context

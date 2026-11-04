@@ -40,11 +40,40 @@ func IsSensitiveKey(key string) bool {
 	return false
 }
 
+// KeysOnly returns a copy of env entries (each in "KEY=VALUE" form, the same
+// shape exec.Cmd.Env uses) reduced to their key names. It exists because the
+// denylist approach used to fail open: a secret whose key name matched no
+// marker reached the log, which is how the GitHub App private key arrived in
+// every agent-claude pod log before its marker was added. A key name carries
+// no secret, so logging names only cannot leak by construction. The split is
+// at the first '=' so a value containing '=' is still discarded. Entries
+// without '=' pass through unchanged. The input slice is not mutated.
+func KeysOnly(env []string) []string {
+	if env == nil {
+		return nil
+	}
+	out := make([]string, len(env))
+	for i, entry := range env {
+		idx := strings.IndexByte(entry, '=')
+		if idx < 0 {
+			out[i] = entry
+			continue
+		}
+		out[i] = entry[:idx]
+	}
+	return out
+}
+
 // RedactForLog returns a copy of env entries (each in "KEY=VALUE" form, the
-// same shape exec.Cmd.Env uses) where values for sensitive keys are replaced
-// with the literal "***". Keys remain visible so operators can confirm which
-// vars are passed without exposing the values. Entries without '=' pass
-// through unchanged. The input slice is not mutated.
+// same shape exec.Cmd.Env uses) where every value is replaced with the literal
+// "***". Keys remain visible so operators can confirm which vars are passed
+// without exposing the values. Entries without '=' pass through unchanged. The
+// input slice is not mutated.
+//
+// Unlike KeysOnly, which drops values entirely, this keeps the KEY=*** shape
+// for callers that want to see that a value exists. It stars every value
+// rather than consulting IsSensitiveKey, so it is fail-safe: no key name is
+// trusted, and a secret under an unlisted key cannot reach the log.
 func RedactForLog(env []string) []string {
 	if env == nil {
 		return nil
@@ -56,12 +85,7 @@ func RedactForLog(env []string) []string {
 			out[i] = entry
 			continue
 		}
-		key := entry[:idx]
-		if IsSensitiveKey(key) {
-			out[i] = key + "=***"
-			continue
-		}
-		out[i] = entry
+		out[i] = entry[:idx] + "=***"
 	}
 	return out
 }
