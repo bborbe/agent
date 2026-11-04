@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
-- helm: grant the executor Role `get` on the `pods/log` subresource. `pods/log` is a separate RBAC resource — the existing `pods` rule does not cover it, so without this the executor's log read is a 403 and the spec-021 failure-log capture would silently produce an empty tail on every failed Job.
+- fix(helm): grant the executor Roles `get` on the `pods/log` subresource. `pods/log` is a separate RBAC resource — the existing `pods` rule does not cover it, so without this the executor's log read is a 403 and the spec-021 failure-log capture would silently produce an empty tail on every failed Job. Both Roles carry it: the control-namespace Role `agent-task-executor` and the sandbox-scoped Role `agent-task-executor-sandbox`, because a Config that sets `jobNamespace` runs its Jobs in the sandbox namespace and never consults the control-namespace grant.
 
 ## v0.139.2
 

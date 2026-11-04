@@ -142,6 +142,16 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  # Pod log read in the JOB namespace (spec 021: the executor captures a failed
+  # Job's log tail into the task's `## Failure` section). Same reasoning as the
+  # `pods` rule directly above, and the same omission commit 3915f18 fixed: when
+  # a Config sets `jobNamespace` the failed Job's pod lives HERE, so the read
+  # happens here and the control-namespace grant is never consulted. Without
+  # this rule every capture 403s and silently produces an empty tail — which
+  # reads exactly like a Job that logged nothing.
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
   # Pod quota read in the JOB namespace (executor >= v0.37.0). `podQuotaFor`
   # resolves the ResourceQuota for the agent's priority class in the namespace
   # the Job is spawned into, so the read happens HERE, not in the control
