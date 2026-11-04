@@ -5,6 +5,8 @@
 package envparse_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -110,33 +112,30 @@ var _ = Describe("RedactForLog", func() {
 		Expect(envparse.RedactForLog(input)).To(Equal([]string{"HTTPS_PROXY=***"}))
 	})
 
-	It(
-		"keeps non-sensitive entries verbatim and redacts sensitive values, preserving order",
-		func() {
-			input := []string{
-				"PATH=/usr/bin",
-				"ANTHROPIC_AUTH_TOKEN=sk-ant-xxxxxxxx",
-				"HOME=/home/agent",
-				"GH_TOKEN=ghp_yyyyyyyy",
-			}
-			expected := []string{
-				"PATH=/usr/bin",
-				"ANTHROPIC_AUTH_TOKEN=***",
-				"HOME=/home/agent",
-				"GH_TOKEN=***",
-			}
-			Expect(envparse.RedactForLog(input)).To(Equal(expected))
-		},
-	)
+	It("stars every value regardless of key name, preserving order", func() {
+		input := []string{
+			"PATH=/usr/bin",
+			"ANTHROPIC_AUTH_TOKEN=sk-ant-xxxxxxxx",
+			"HOME=/home/agent",
+			"GH_TOKEN=ghp_yyyyyyyy",
+		}
+		expected := []string{
+			"PATH=***",
+			"ANTHROPIC_AUTH_TOKEN=***",
+			"HOME=***",
+			"GH_TOKEN=***",
+		}
+		Expect(envparse.RedactForLog(input)).To(Equal(expected))
+	})
 
 	It("replaces an empty sensitive value with ***", func() {
 		Expect(envparse.RedactForLog([]string{"GH_TOKEN="})).To(Equal([]string{"GH_TOKEN=***"}))
 	})
 
-	It("passes entries without '=' through unchanged", func() {
+	It("passes entries without '=' through unchanged and stars the rest", func() {
 		Expect(
 			envparse.RedactForLog([]string{"NOEQ", "FOO=bar"}),
-		).To(Equal([]string{"NOEQ", "FOO=bar"}))
+		).To(Equal([]string{"NOEQ", "FOO=***"}))
 	})
 
 	It("does not mutate the input slice", func() {
@@ -148,7 +147,7 @@ var _ = Describe("RedactForLog", func() {
 	pemPlaceholder := "-----BEGIN RSA PRIVATE KEY-----sentinel-----END RSA PRIVATE KEY-----" // #nosec G101 -- synthetic placeholder, not a real key
 
 	DescribeTable(
-		"redacts every sensitive marker, keeping the key name and replacing the value",
+		"stars every entry, including every former marker",
 		func(entry, expected string) {
 			Expect(envparse.RedactForLog([]string{entry})).To(Equal([]string{expected}))
 		},
@@ -165,17 +164,25 @@ var _ = Describe("RedactForLog", func() {
 	)
 
 	DescribeTable(
-		"passes non-sensitive entries through unchanged",
-		func(entry string) {
-			Expect(envparse.RedactForLog([]string{entry})).To(Equal([]string{entry}))
+		"stars marker-free entries too, since no key name is trusted",
+		func(entry, expected string) {
+			Expect(envparse.RedactForLog([]string{entry})).To(Equal([]string{expected}))
 		},
-		Entry("GitHub App id", "GITHUB_APP_ID=123456"),
-		Entry("GitHub App installation id", "GITHUB_APP_INSTALLATION_ID=98765432"),
-		Entry("Anthropic base URL", "ANTHROPIC_BASE_URL=http://127.0.0.1:8788"),
-		Entry("Anthropic model", "ANTHROPIC_MODEL=claude-sonnet-4"),
+		Entry("GitHub App id", "GITHUB_APP_ID=123456", "GITHUB_APP_ID=***"),
+		Entry(
+			"GitHub App installation id",
+			"GITHUB_APP_INSTALLATION_ID=98765432",
+			"GITHUB_APP_INSTALLATION_ID=***",
+		),
+		Entry(
+			"Anthropic base URL",
+			"ANTHROPIC_BASE_URL=http://127.0.0.1:8788",
+			"ANTHROPIC_BASE_URL=***",
+		),
+		Entry("Anthropic model", "ANTHROPIC_MODEL=claude-sonnet-4", "ANTHROPIC_MODEL=***"),
 	)
 
-	It("redacts only the PEM and token in a realistic mixed environment, preserving order", func() {
+	It("stars every value in a realistic mixed environment, preserving order", func() {
 		input := []string{
 			"GITHUB_APP_ID=123456",
 			"GITHUB_APP_PEM=" + pemPlaceholder,
@@ -185,12 +192,65 @@ var _ = Describe("RedactForLog", func() {
 		}
 		redacted := envparse.RedactForLog(input)
 		Expect(redacted).To(Equal([]string{
-			"GITHUB_APP_ID=123456",
+			"GITHUB_APP_ID=***",
 			"GITHUB_APP_PEM=***",
-			"GITHUB_APP_INSTALLATION_ID=98765432",
-			"ANTHROPIC_BASE_URL=http://127.0.0.1:8788",
+			"GITHUB_APP_INSTALLATION_ID=***",
+			"ANTHROPIC_BASE_URL=***",
 			"ANTHROPIC_AUTH_TOKEN=***",
 		}))
 		Expect(redacted).NotTo(ContainElement(ContainSubstring("sentinel")))
+	})
+})
+
+var _ = Describe("KeysOnly", func() {
+	harmlessLooking := "HARMLESS_LOOKING=-----BEGIN RSA PRIVATE KEY-----sentinel-----END RSA PRIVATE KEY-----" // #nosec G101 -- synthetic placeholder, not a real key
+
+	DescribeTable(
+		"returns the key name only, regardless of what the value looks like",
+		func(entry, expected string) {
+			Expect(envparse.KeysOnly([]string{entry})).To(Equal([]string{expected}))
+		},
+		Entry("a secret-shaped value under a marker-free key", harmlessLooking, "HARMLESS_LOOKING"),
+		Entry("a plain PATH", "PATH=/usr/local/bin:/usr/bin", "PATH"),
+		Entry("a marker-free identifier", "GITHUB_APP_ID=123456", "GITHUB_APP_ID"),
+		Entry("a value containing '='", "DB_URL=postgres://u:p@h/db?x=1", "DB_URL"),
+	)
+
+	It("passes entries without '=' through unchanged", func() {
+		Expect(envparse.KeysOnly([]string{"NOEQ"})).To(Equal([]string{"NOEQ"}))
+	})
+
+	It("returns nil for nil input", func() {
+		Expect(envparse.KeysOnly(nil)).To(BeNil())
+	})
+
+	It("returns an empty slice for empty input", func() {
+		Expect(envparse.KeysOnly([]string{})).To(Equal([]string{}))
+	})
+
+	It("does not mutate the input slice", func() {
+		input := []string{"PATH=/usr/bin", "GH_TOKEN=ghp_secret"}
+		_ = envparse.KeysOnly(input)
+		Expect(input).To(Equal([]string{"PATH=/usr/bin", "GH_TOKEN=ghp_secret"}))
+	})
+
+	It("drops every value from a realistic mixed environment, preserving order", func() {
+		input := []string{
+			"GITHUB_APP_ID=123456",
+			"GITHUB_APP_PEM=" + harmlessLooking,
+			"GITHUB_APP_INSTALLATION_ID=98765432",
+			"ANTHROPIC_BASE_URL=http://127.0.0.1:8788",
+			"ANTHROPIC_AUTH_TOKEN=sk-ant-xxxxxxxx",
+		}
+		out := envparse.KeysOnly(input)
+		Expect(out).To(Equal([]string{
+			"GITHUB_APP_ID",
+			"GITHUB_APP_PEM",
+			"GITHUB_APP_INSTALLATION_ID",
+			"ANTHROPIC_BASE_URL",
+			"ANTHROPIC_AUTH_TOKEN",
+		}))
+		Expect(out).NotTo(ContainElement(ContainSubstring("sentinel")))
+		Expect(strings.Join(out, " ")).NotTo(ContainSubstring("98765432"))
 	})
 })

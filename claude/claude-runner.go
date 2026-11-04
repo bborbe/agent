@@ -314,7 +314,7 @@ func (r *claudeRunner) buildCommand(
 		return nil, errors.Wrap(ctx, err, "build subprocess env")
 	}
 	cmd.Env = env
-	glog.V(2).Infof("cmd.Env = %+v", envparse.RedactForLog(cmd.Env))
+	glog.V(2).Infof("cmd.Env = %+v", envparse.KeysOnly(cmd.Env))
 
 	if err := applyCredential(ctx, cmd, r.config.RunAsUID); err != nil {
 		return nil, err

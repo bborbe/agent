@@ -282,6 +282,42 @@ exit 0
 	})
 })
 
+var _ = Describe("claudeRunner child environment", func() {
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	// writeEnvEchoShim writes a fake "claude" binary that echoes MY_CONSUMER_VAR
+	// from its own environment as the `result` field of a result event.
+	writeEnvEchoShim := func() {
+		shimDir := GinkgoT().TempDir()
+		shimPath := filepath.Join(shimDir, "claude")
+		script := `#!/bin/sh
+printf '{"type":"result","result":"MY_CONSUMER_VAR=%s"}\n' "$MY_CONSUMER_VAR"
+exit 0
+`
+		Expect(os.WriteFile(shimPath, []byte(script), 0755)).To(Succeed()) //nolint:gosec
+		originalPath := os.Getenv("PATH")
+		DeferCleanup(func() {
+			Expect(os.Setenv("PATH", originalPath)).To(Succeed())
+		})
+		Expect(os.Setenv("PATH", shimDir+":"+originalPath)).To(Succeed())
+	}
+
+	// Only the log argument is key-only; cmd.Env itself must still carry values.
+	// If the two are confused, every value-less child env still greps clean.
+	It("hands the full environment to the child, not just the key names", func() {
+		writeEnvEchoShim()
+		result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+			Env: map[string]string{"MY_CONSUMER_VAR": "consumer-value-42"},
+		}).Run(ctx, "test")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Result).To(Equal("MY_CONSUMER_VAR=consumer-value-42"))
+	})
+})
+
 var _ = Describe("claudeRunner usage capture", func() {
 	var ctx context.Context
 

@@ -131,7 +131,7 @@ func (r *piRunner) buildCommand(ctx context.Context, prompt string) *exec.Cmd {
 	cmd.Env = env
 
 	glog.V(4).
-		Infof("spawning pi: pi %v\n  cwd: %s\n  env: %v", args, cmd.Dir, envparse.RedactForLog(env))
+		Infof("spawning pi: pi %v\n  cwd: %s\n  env: %v", args, cmd.Dir, envparse.KeysOnly(env))
 
 	return cmd
 }
