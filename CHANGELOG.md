@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.139.4
 
 - fix: log subprocess environment key names only, so a secret under an unmapped key name can no longer reach the pod log; `RedactForLog` now stars every value
 
