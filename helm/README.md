@@ -309,6 +309,13 @@ A hand-placed quota needs a matching Role and RoleBinding granting `resourcequot
 `get`/`list` to `agent-task-executor` in that namespace, or the executor keeps
 logging `pod_quota_read_failed` and falling back to the declared cap.
 
+That hand-written Role needs **two** grants, not one. The same namespace holds the
+failed Jobs' pods, so the executor's failure-log capture reads `pods/log` there
+too (spec 021). Grant `pods/log` `get` alongside `resourcequotas`: without it the
+capture 403s and the task's `## Failure` section silently carries no log tail,
+which is indistinguishable from a Job that logged nothing — and that empty tail is
+the very failure the capture exists to prevent.
+
 ```yaml
 agents:
   - name: agent-claude
