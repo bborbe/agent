@@ -278,17 +278,20 @@ var _ = Describe("claudeSession held process", func() {
 		Expect(args).To(ContainElement("--permission-prompt-tool"))
 	})
 
-	It("leaves the permission flags off when no decider is wired", func() {
-		shimDir := writeSessionShim(sessionShimBase)
-		session := openSession(shimDir, nil)
+	It(
+		"leaves the permission flags off when neither a decider nor AllowedTools is configured",
+		func() {
+			shimDir := writeSessionShim(sessionShimBase)
+			session := openSession(shimDir, nil)
 
-		_, err := session.Prompt(ctx, "turn-one")
-		Expect(err).NotTo(HaveOccurred())
+			_, err := session.Prompt(ctx, "turn-one")
+			Expect(err).NotTo(HaveOccurred())
 
-		args := readLines(filepath.Join(shimDir, "args.log"))
-		Expect(args).NotTo(ContainElement("--permission-mode"))
-		Expect(args).NotTo(ContainElement("--permission-prompt-tool"))
-	})
+			args := readLines(filepath.Join(shimDir, "args.log"))
+			Expect(args).NotTo(ContainElement("--permission-mode"))
+			Expect(args).NotTo(ContainElement("--permission-prompt-tool"))
+		},
+	)
 })
 
 var _ = Describe("claudeSession failure and permission", func() {
@@ -613,6 +616,45 @@ printf '{"type":"result","result":"PWD=%s"}\n' "$PWD"
 		Expect(modelIdx).To(BeNumerically(">=", 0))
 		Expect(args[toolsIdx+1]).To(Equal("Read,Write"))
 		Expect(args[modelIdx+1]).To(Equal("sonnet"))
+	})
+
+	It("restricts a decider-less session to its allowed tools", func() {
+		shimDir := writeSessionShim(sessionShimBase)
+		session := claude.NewSession(claude.ClaudeRunnerConfig{
+			AllowedTools: claude.ParseAllowedTools("Read,Grep,Glob"),
+			Env:          map[string]string{"SHIM_DIR": shimDir},
+		}, nil)
+		DeferCleanup(func() { _ = session.Close(context.Background()) })
+
+		_, err := session.Prompt(ctx, "turn-one")
+		Expect(err).NotTo(HaveOccurred())
+
+		args := readLines(filepath.Join(shimDir, "args.log"))
+		modeIdx := indexOf(args, "--permission-mode")
+		Expect(modeIdx).To(BeNumerically(">=", 0))
+		Expect(args[modeIdx+1]).To(Equal("dontAsk"))
+		disallowedIdx := indexOf(args, "--disallowedTools")
+		Expect(disallowedIdx).To(BeNumerically(">=", 0))
+		Expect(args[disallowedIdx+1]).To(Equal("Edit"))
+		Expect(args[disallowedIdx+2]).To(Equal("Write"))
+	})
+
+	It("keeps the write tools allowed when the list contains one", func() {
+		shimDir := writeSessionShim(sessionShimBase)
+		session := claude.NewSession(claude.ClaudeRunnerConfig{
+			AllowedTools: claude.ParseAllowedTools("Read,Edit"),
+			Env:          map[string]string{"SHIM_DIR": shimDir},
+		}, nil)
+		DeferCleanup(func() { _ = session.Close(context.Background()) })
+
+		_, err := session.Prompt(ctx, "turn-one")
+		Expect(err).NotTo(HaveOccurred())
+
+		args := readLines(filepath.Join(shimDir, "args.log"))
+		modeIdx := indexOf(args, "--permission-mode")
+		Expect(modeIdx).To(BeNumerically(">=", 0))
+		Expect(args[modeIdx+1]).To(Equal("dontAsk"))
+		Expect(args).NotTo(ContainElement("--disallowedTools"))
 	})
 
 	It("writes a denial back when the decider denies", func() {

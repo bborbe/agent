@@ -21,3 +21,17 @@ func ParseAllowedTools(s string) AllowedTools {
 func (a AllowedTools) String() string {
 	return strings.Join(a, ",")
 }
+
+// Contains reports whether tool is in the list, by exact comparison.
+//
+// It is deliberately not a substring test: a longer name that merely contains
+// tool (MultiEdit, or an mcp__<server>__Write entry) is a different tool and must
+// not be mistaken for the one being checked.
+func (a AllowedTools) Contains(tool string) bool {
+	for _, candidate := range a {
+		if candidate == tool {
+			return true
+		}
+	}
+	return false
+}

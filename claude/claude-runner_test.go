@@ -499,6 +499,94 @@ exit 0`,
 		})
 	})
 
+	Context("with AllowedTools configured and no write tools", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo "{\"type\":\"result\",\"result\":\"Args: $@\"}"
+exit 0`,
+			)
+		})
+
+		It("emits the adjacent --permission-mode dontAsk pair", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+				AllowedTools: claude.ParseAllowedTools("Read,Grep,Glob"),
+			}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+
+			fields := strings.Fields(result.Result)
+			modeIdx := indexOf(fields, "--permission-mode")
+			Expect(modeIdx).To(BeNumerically(">=", 0))
+			Expect(fields[modeIdx+1]).To(Equal("dontAsk"))
+		})
+
+		It("emits the adjacent --disallowedTools Edit Write pair", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+				AllowedTools: claude.ParseAllowedTools("Read,Grep,Glob"),
+			}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+
+			fields := strings.Fields(result.Result)
+			disallowedIdx := indexOf(fields, "--disallowedTools")
+			Expect(disallowedIdx).To(BeNumerically(">=", 0))
+			Expect(fields[disallowedIdx+1]).To(Equal("Edit"))
+			Expect(fields[disallowedIdx+2]).To(Equal("Write"))
+		})
+	})
+
+	Context("with AllowedTools configured including a write tool", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo "{\"type\":\"result\",\"result\":\"Args: $@\"}"
+exit 0`,
+			)
+		})
+
+		It("still emits --permission-mode dontAsk but not --disallowedTools for Edit", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+				AllowedTools: claude.ParseAllowedTools("Read,Edit"),
+			}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+
+			fields := strings.Fields(result.Result)
+			modeIdx := indexOf(fields, "--permission-mode")
+			Expect(modeIdx).To(BeNumerically(">=", 0))
+			Expect(fields[modeIdx+1]).To(Equal("dontAsk"))
+			Expect(fields).NotTo(ContainElement("--disallowedTools"))
+		})
+
+		It("still emits --permission-mode dontAsk but not --disallowedTools for Write", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+				AllowedTools: claude.ParseAllowedTools("Read,Write"),
+			}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+
+			fields := strings.Fields(result.Result)
+			modeIdx := indexOf(fields, "--permission-mode")
+			Expect(modeIdx).To(BeNumerically(">=", 0))
+			Expect(fields[modeIdx+1]).To(Equal("dontAsk"))
+			Expect(fields).NotTo(ContainElement("--disallowedTools"))
+		})
+	})
+
+	Context("with no AllowedTools configured", func() {
+		BeforeEach(func() {
+			writeShim(
+				`echo "{\"type\":\"result\",\"result\":\"Args: $@\"}"
+exit 0`,
+			)
+		})
+
+		It("emits no permission flags at all", func() {
+			result, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{}).Run(ctx, "test")
+			Expect(err).NotTo(HaveOccurred())
+
+			fields := strings.Fields(result.Result)
+			Expect(fields).NotTo(ContainElement("--allowedTools"))
+			Expect(fields).NotTo(ContainElement("--permission-mode"))
+			Expect(fields).NotTo(ContainElement("--disallowedTools"))
+		})
+	})
+
 	Context("with Model configured (buildCommand --model branch)", func() {
 		BeforeEach(func() {
 			writeShim(
