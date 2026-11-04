@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(helm): grant the executor Roles `get` on the `pods/log` subresource. `pods/log` is a separate RBAC resource — the existing `pods` rule does not cover it, so without this the executor's log read is a 403 and the spec-021 failure-log capture would silently produce an empty tail on every failed Job. Both Roles carry it: the control-namespace Role `agent-task-executor` and the sandbox-scoped Role `agent-task-executor-sandbox`, because a Config that sets `jobNamespace` runs its Jobs in the sandbox namespace and never consults the control-namespace grant; the out-of-domain hand-written Role recipe in the README now names the grant too. Pinned by matching render assertions in `hack/test-helm-render.sh`. Chart 0.23.14→0.23.15.
+
 ## v0.139.2
 
 - fix(claude): **make `ALLOWED_TOOLS` restrict headless sessions instead of only pre-approving.** The one-shot runner and a decider-less streaming session now spawn the CLI with `--permission-mode dontAsk` whenever an allowed-tools list is configured, so a tool outside the list is refused rather than silently executed — including every `mcp__*` tool and every `Bash` command not matched by a `Bash(...)` entry. When the list contains neither `Edit` nor `Write`, the two write tools are also passed to `--disallowedTools` as an explicit belt-and-braces deny. An empty list is unchanged (no permission flags, unrestricted as before), and a streaming session with a permission decider keeps its `manual` mode. Membership is an exact comparison via the new `AllowedTools.Contains`, so a longer name such as `MultiEdit` or `mcp__server__Write` cannot be mistaken for the write tool.

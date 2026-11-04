@@ -68,6 +68,21 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  # Pod log read (spec 021: the executor captures a failed Job's log tail into the
+  # task's `## Failure` section). `pods/log` is a SEPARATE RBAC subresource — the
+  # `pods` rule above does not cover it, so without this rule every log read is a
+  # 403 and the capture silently produces an empty tail on every failure, which is
+  # indistinguishable from a Job that logged nothing. `get` is the only verb the
+  # read uses; `list`/`watch` are meaningless on a subresource.
+  #
+  # Accepted blast radius: this grant is namespace-scoped, so the executor can
+  # read the log of ANY pod in the namespace, not only the Jobs it spawned.
+  # Kubernetes RBAC cannot scope `pods/log` by resourceName here — pod names are
+  # Job-generated at runtime and unknown at render time — so this is the minimum
+  # grant that makes the capture work at all.
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
   # Pod quota read (executor >= v0.37.0). The executor bounds spawn admission by
   # the enforced pod capacity of the agent's own priority class, not only by the
   # Config's maxConcurrentJobs. Where the two disagree the quota is what actually
@@ -133,6 +148,16 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  # Pod log read in the JOB namespace (spec 021: the executor captures a failed
+  # Job's log tail into the task's `## Failure` section). Same reasoning as the
+  # `pods` rule directly above, and the same omission commit 3915f18 fixed: when
+  # a Config sets `jobNamespace` the failed Job's pod lives HERE, so the read
+  # happens here and the control-namespace grant is never consulted. Without
+  # this rule every capture 403s and silently produces an empty tail — which
+  # reads exactly like a Job that logged nothing.
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
   # Pod quota read in the JOB namespace (executor >= v0.37.0). `podQuotaFor`
   # resolves the ResourceQuota for the agent's priority class in the namespace
   # the Job is spawned into, so the read happens HERE, not in the control
