@@ -1,7 +1,8 @@
 ---
-status: approved
-kind: bug
+status: prompted
 approved: "2026-11-05T17:29:13Z"
+generating: "2026-11-05T17:38:54Z"
+prompted: "2026-11-05T17:53:00Z"
 branch: dark-factory/bug-empty-output-section-is-not-complete
 ---
 

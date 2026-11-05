@@ -115,6 +115,50 @@ var _ = Describe("AgentStep", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(shouldRun).To(BeFalse())
 			})
+
+			It("empty body → returns true", func() {
+				md := &lib.Markdown{
+					Sections: []lib.Section{
+						{Heading: "## Analysis", Body: ""},
+					},
+				}
+				shouldRun, err := agentStep.ShouldRun(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(shouldRun).To(BeTrue())
+			})
+
+			It("whitespace-only body → returns true", func() {
+				md := &lib.Markdown{
+					Sections: []lib.Section{
+						{Heading: "## Analysis", Body: "  \n\t\n"},
+					},
+				}
+				shouldRun, err := agentStep.ShouldRun(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(shouldRun).To(BeTrue())
+			})
+
+			It("non-empty prose body → returns false", func() {
+				md := &lib.Markdown{
+					Sections: []lib.Section{
+						{Heading: "## Analysis", Body: "already done"},
+					},
+				}
+				shouldRun, err := agentStep.ShouldRun(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(shouldRun).To(BeFalse())
+			})
+
+			It("parsed bare heading with no body → returns true", func() {
+				// The reported shape: a task body that ends with a bare heading.
+				// Go through ParseMarkdown so the assertion covers the parser
+				// boundary the bug actually crossed, not just a hand-built struct.
+				md, err := lib.ParseMarkdown(ctx, "Question: why?\n\n## Analysis\n")
+				Expect(err).NotTo(HaveOccurred())
+				shouldRun, err := agentStep.ShouldRun(ctx, md)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(shouldRun).To(BeTrue())
+			})
 		})
 
 		Context("when a ## Failure section is present", func() {

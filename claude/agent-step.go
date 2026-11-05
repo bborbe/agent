@@ -73,8 +73,8 @@ const failureSectionHeading = "## Failure"
 func (s *agentStep) Name() string { return s.cfg.Name }
 
 // ShouldRun returns false only when the output section exists and represents a
-// genuine success: a body that is not a needs_input/failed AgentResult, with no
-// ## Failure section present.
+// genuine success: a non-empty body that is not a needs_input/failed
+// AgentResult, with no ## Failure section present.
 //
 // Single-step idempotency check: if the LLM already wrote its section in a
 // prior Job that crashed before phase advance, skip the re-invocation.
@@ -84,12 +84,20 @@ func (s *agentStep) Name() string { return s.cfg.Name }
 // A failure marker — a ## Failure section, or an output-section body that
 // parses to a needs_input/failed AgentResult — forces a re-run: a failed run
 // is not completed work, and re-dispatch must re-invoke claude (spec 051).
+//
+// An empty or whitespace-only body is likewise not completed work: the
+// heading may be a pre-seeded template or the residue of a partial edit, so
+// skipping it would leave the task permanently undispatchable — the dispatch
+// returns no result and the Job fails without ever invoking claude (spec 064).
 func (s *agentStep) ShouldRun(_ context.Context, md *agentlib.Markdown) (bool, error) {
-	_, exists := md.FindSection(s.cfg.OutputSection)
+	section, exists := md.FindSection(s.cfg.OutputSection)
 	if !exists {
 		return true, nil
 	}
 	if s.failureMarked(md) {
+		return true, nil
+	}
+	if strings.TrimSpace(section.Body) == "" {
 		return true, nil
 	}
 	return false, nil
@@ -99,7 +107,8 @@ func (s *agentStep) ShouldRun(_ context.Context, md *agentlib.Markdown) (bool, e
 // force a re-run despite an existing output section: a ## Failure section, or
 // an output-section body that parses to a needs_input/failed AgentResult.
 // Bodies that are not a failure marker (done JSON, unparseable prose, unknown
-// status) are treated as a genuine success section (spec 051).
+// status) are not failures (spec 051). An empty body is not a failure marker
+// either; ShouldRun treats it as "not completed" separately (spec 064).
 func (s *agentStep) failureMarked(md *agentlib.Markdown) bool {
 	if _, exists := md.FindSection(failureSectionHeading); exists {
 		return true
