@@ -1,7 +1,7 @@
 ---
-status: draft
-kind: bug
-created: "2026-11-05"
+status: approved
+approved: "2026-11-05T17:29:13Z"
+branch: dark-factory/bug-empty-output-section-is-not-complete
 ---
 
 # Summary
