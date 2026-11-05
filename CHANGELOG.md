@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.139.5
 
 - fix(claude): an empty or whitespace-only output section is no longer treated as completed work, so a task whose body carries a bare `## Result` heading is re-dispatched and claude runs instead of the Job failing with `agent run returned no result`; a section with content still skips, preserving spec 051's single-step idempotency
 
