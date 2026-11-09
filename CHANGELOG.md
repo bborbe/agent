@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.139.7
 
 - fix(chart): allow `^.*\.docker\.io$` through the egress proxy (chart 0.23.16). `github-releaser-agent`'s post-release image check HEADs `registry-1.docker.io/v2/<repo>/manifests/<tag>` and the Bearer-token flow hits `auth.docker.io`; neither was on the tinyproxy allowlist, so the probe died as `Head "…": Filtered` and the check recorded `image_exists: false` — indistinguishable from a genuinely imageless release. Measured on `bborbe/agent-task-executor` v0.57.5. `docker.com` stays closed: the manifest HEAD never touches the website or the Cloudflare blob CDN
 
