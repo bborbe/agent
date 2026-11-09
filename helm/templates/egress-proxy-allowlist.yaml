@@ -19,12 +19,19 @@ data:
   # Seeded from claude-yolo's curated `files/tinyproxy-allowlist` (30 entries,
   # anchored `^...$` so `api.github.com.evil.com` cannot match) plus the two
   # claude-code-router upstreams `api.gpt.seibert.ai` and `api.seibert.ai`,
-  # which the router calls and which no seed list carried — 33 entries total.
+  # which the router calls and which no seed list carried — 34 entries total.
   # `api.minimax.io` is load-bearing: prod github-dark-factory-agent runs
   # ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic.
   # The Sentry entries are paired: `^sentry\.io$` is anchored and matches only the
   # apex, so `bborbe.sentry.io` (the Sentry API the analyzer fetches) needs its own
   # `^.*\.sentry\.io$` line.
+  # `^.*\.docker\.io$` is Docker Hub's registry API, needed by `github-releaser-agent`'s
+  # post-release image check: it HEADs `registry-1.docker.io/v2/<repo>/manifests/<tag>`
+  # and the Bearer-token flow hits `auth.docker.io`. Without it the probe dies as
+  # `Head "…": Filtered` and the check records `image_exists: false` — indistinguishable
+  # from a genuinely imageless release. The wildcard covers both hosts; `docker.com`
+  # (the website and the Cloudflare blob CDN) is deliberately NOT opened, because the
+  # manifest HEAD never touches it.
   tinyproxy-allowlist: |
     ^.*\.github\.com$
     ^.*\.githubusercontent\.com$
@@ -40,6 +47,7 @@ data:
     ^files\.pythonhosted\.org$
     ^ghcr\.io$
     ^github\.com$
+    ^.*\.docker\.io$
     ^host\.docker\.internal$
     ^go\.dev$
     ^marketplace\.visualstudio\.com$
