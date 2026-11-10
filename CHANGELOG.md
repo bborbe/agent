@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.140.0
 
 - feat(claude): add `ClaudeRunnerConfig.SessionID` so a caller can pin the CLI session id of the spawned process; a non-empty value is validated against `isValidSessionID` before it reaches the argv and is passed as `--session-id` in both the streaming session and the one-shot runner, while an empty value leaves the argv unchanged
 
