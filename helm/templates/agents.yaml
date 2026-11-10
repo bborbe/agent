@@ -39,6 +39,12 @@ spec:
   {{- with $agent.jobNamespace }}
   jobNamespace: {{ . | quote }}
   {{- end }}
+  {{- with $agent.targetVault }}
+  # Pins this lane's healthcheck probe record to one vault. Every executor's
+  # /healthcheck-trigger probes every Config, so without this each executor writes
+  # its own copy of the same logical probe — one per vault, each in its own state.
+  targetVault: {{ . | quote }}
+  {{- end }}
   {{- if $agent.volumeMountPath }}
   {{- if ne ($agent.type | default "job") "service" }}
   volumeClaim: {{ $agent.volumeClaim | default $agent.name }}
