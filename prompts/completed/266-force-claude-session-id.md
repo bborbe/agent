@@ -1,6 +1,12 @@
 ---
-status: draft
+status: completed
+summary: Added ClaudeRunnerConfig.SessionID, validated it against isValidSessionID, passed it as --session-id in both the streaming session and one-shot runner, and covered the behavior with exact-argv and rejection specs
+execution_id: agent-anchor-session-id-exec-266-force-claude-session-id
+dark-factory-version: v0.198.17
 created: "2026-11-10T18:10:00Z"
+queued: "2026-11-10T17:11:10Z"
+started: "2026-11-10T17:40:44Z"
+completed: "2026-11-10T17:50:11Z"
 ---
 
 # Force the Claude CLI to run under a caller-supplied session id
