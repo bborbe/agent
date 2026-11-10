@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(chart): render `spec.targetVault` on a Config (chart 0.23.17). `templates/agents.yaml` enumerates every Config spec field by hand — each of `maxConcurrentJobs`, `rerunOnLostClaim` and `jobNamespace` has its own `{{- if }}` block — so a `targetVault:` key in a values file rendered nothing and the field never reached the Config CR. The healthcheck probe in `agent-task-executor` v0.59.0 reads this field to pin a lane's probe record to one vault; without the render the probe keeps writing one copy per executor. `helm/crds/config-crd.yaml` declares the property too, because that CRD sets `preserveUnknownFields: false` and an undeclared field is pruned. **These two lists must move together**: the Go `ConfigSpec` in `agent-task-executor` and this template are hand-maintained copies of one schema, and this bug exists because they drifted.
+
 ## v0.140.0
 
 - feat(claude): add `ClaudeRunnerConfig.SessionID` so a caller can pin the CLI session id of the spawned process; a non-empty value is validated against `isValidSessionID` before it reaches the argv and is passed as `--session-id` in both the streaming session and the one-shot runner, while an empty value leaves the argv unchanged

@@ -88,6 +88,14 @@ spec:
                 # it the API server prunes spec.jobNamespace from a freshly installed
                 # Config, and the value silently does nothing until a later helm upgrade.
                 jobNamespace: {type: string, pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", maxLength: 63}
+                # Optional; empty means the probing executor's own TASK_VAULT.
+                # Declared here for the same reason as jobNamespace above: this CRD sets
+                # preserveUnknownFields: false, so an undeclared spec.targetVault is pruned
+                # from every Config and the healthcheck probe silently keeps writing its
+                # record into whichever vault the executor that fired the tick belongs to.
+                # The pattern is the vault slug, not the DNS-1123 label — it must admit a
+                # leading letter and `-`, and must not admit a leading digit.
+                targetVault: {type: string, pattern: "^[a-z][a-z0-9-]*$"}
                 trigger:
                   type: object
                   properties:
