@@ -1173,3 +1173,100 @@ var _ = Describe("credentialSysProcAttr", func() {
 		}
 	})
 })
+
+var _ = Describe("claudeRunner SessionID", func() {
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	// writeShim creates a temp dir, writes a "claude" shell script with the given
+	// body, prepends the dir to PATH, and returns the dir so the spec can hand it
+	// output paths through ClaudeRunnerConfig.Env.
+	writeShim := func(body string) string {
+		shimDir := GinkgoT().TempDir()
+		shimPath := filepath.Join(shimDir, "claude")
+		script := "#!/bin/sh\n" + body
+		Expect(os.WriteFile(shimPath, []byte(script), 0755)).To(Succeed()) //nolint:gosec
+		originalPath := os.Getenv("PATH")
+		DeferCleanup(func() {
+			Expect(os.Setenv("PATH", originalPath)).To(Succeed())
+		})
+		Expect(os.Setenv("PATH", shimDir+":"+originalPath)).To(Succeed())
+		return shimDir
+	}
+
+	readLines := func(path string) []string {
+		raw, err := os.ReadFile(path)
+		Expect(err).NotTo(HaveOccurred())
+		trimmed := strings.TrimSpace(string(raw))
+		if trimmed == "" {
+			return nil
+		}
+		return strings.Split(trimmed, "\n")
+	}
+
+	It("spawns with the exact argv when SessionID is empty", func() {
+		shimDir := writeShim(`printf '%s\n' "$@" > "$SHIM_DIR/args.log"
+echo '{"type":"result","result":"ok"}'
+exit 0`)
+
+		_, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+			Env: map[string]string{"SHIM_DIR": shimDir},
+		}).Run(ctx, "test")
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(readLines(filepath.Join(shimDir, "args.log"))).To(Equal([]string{
+			"--print",
+			"--output-format", "stream-json",
+			"--verbose",
+			"--strict-mcp-config",
+		}))
+	})
+
+	It("passes a valid SessionID as --session-id exactly once", func() {
+		shimDir := writeShim(`printf '%s\n' "$@" > "$SHIM_DIR/args.log"
+echo '{"type":"result","result":"ok"}'
+exit 0`)
+
+		_, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+			SessionID: claude.SessionID("sess-fixed"),
+			Env:       map[string]string{"SHIM_DIR": shimDir},
+		}).Run(ctx, "test")
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(readLines(filepath.Join(shimDir, "args.log"))).To(Equal([]string{
+			"--print",
+			"--output-format", "stream-json",
+			"--verbose",
+			"--strict-mcp-config",
+			"--session-id", "sess-fixed",
+		}))
+	})
+
+	It("rejects an invalid SessionID before starting the process", func() {
+		invalidIDs := []string{
+			"abc def",
+			"abc/def",
+			"abc_def",
+			strings.Repeat("a", 129),
+		}
+		for _, invalid := range invalidIDs {
+			shimDir := writeShim(`echo "$$" >> "$SHIM_DIR/starts.log"
+echo '{"type":"result","result":"ok"}'
+exit 0`)
+
+			_, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+				SessionID: claude.SessionID(invalid),
+				Env:       map[string]string{"SHIM_DIR": shimDir},
+			}).Run(ctx, "test")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(
+				"invalid SessionID (length %d)", len(invalid),
+			))
+			Expect(err.Error()).NotTo(ContainSubstring(invalid))
+			Expect(filepath.Join(shimDir, "starts.log")).NotTo(BeAnExistingFile())
+		}
+	})
+})

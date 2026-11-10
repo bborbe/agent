@@ -90,9 +90,12 @@ func NewSession(config ClaudeRunnerConfig, decider PermissionDecider) agentlib.S
 // NewSessionFactory returns a SessionFactory that builds one claude-backed session
 // per session id.
 //
-// Every id gets its own session and therefore its own process. The id is not part
-// of the spawn: continuity comes from the held process, not from a CLI flag, so
-// the argv is identical for every id and no id can reach the argument vector.
+// Every id gets its own session and therefore its own process. The id passed to
+// Create names the session record only; the CLI session id comes from
+// ClaudeRunnerConfig.SessionID. SessionID is a per-process value, so a factory
+// whose base config sets it must serve exactly one id: Create discards its
+// argument, so two factory sessions under one base config would run as the same
+// CLI session and share one transcript.
 func NewSessionFactory(base ClaudeRunnerConfig, decider PermissionDecider) agentlib.SessionFactory {
 	return &sessionFactory{base: base, decider: decider}
 }
@@ -437,12 +440,12 @@ func previewOf(input json.RawMessage) string {
 	return string(input)
 }
 
-// sessionArgs builds the argv for the long-lived process. It is the single place
-// the stream-json flag set lives, so a protocol correction is a one-line change.
+// sessionArgs builds the argv for the long-lived process.
 //
-// The argv does not depend on the session id: continuity comes from the held
-// process, so the id is never interpolated into a command line and cannot inject a
-// flag or shell syntax.
+// The argv depends on the session id when ClaudeRunnerConfig.SessionID is set:
+// the id is appended as --session-id. It is validated by the caller before it
+// arrives, so it cannot inject a flag or shell syntax. Continuity still comes
+// from the held process, not from --resume.
 func sessionArgs(config ClaudeRunnerConfig, decider PermissionDecider) []string {
 	args := []string{
 		"--print",
@@ -474,6 +477,9 @@ func sessionArgs(config ClaudeRunnerConfig, decider PermissionDecider) []string 
 			}
 		}
 	}
+	if config.SessionID != "" {
+		args = append(args, "--session-id", string(config.SessionID))
+	}
 	if config.Model != "" {
 		args = append(args, "--model", config.Model.String())
 	}
@@ -491,6 +497,9 @@ func startProcess(
 	config ClaudeRunnerConfig,
 	decider PermissionDecider,
 ) (*exec.Cmd, io.WriteCloser, *bufio.Scanner, error) {
+	if err := validateSessionID(ctx, config.SessionID); err != nil {
+		return nil, nil, nil, err
+	}
 	args := sessionArgs(config, decider)
 	cmd := exec.Command("claude", args...)
 

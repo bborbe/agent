@@ -31,7 +31,7 @@ claude --print --input-format stream-json --output-format stream-json --verbose 
 - `--strict-mcp-config` — the CLI uses only the MCP servers it was configured with,
   matching the one-shot runner.
 
-Six further flags are conditional:
+Seven further flags are conditional:
 
 - `--permission-prompt-tool stdio` — added only when a permission decider is
   configured. It is what makes the CLI raise a tool decision on the stdio control
@@ -48,15 +48,20 @@ Six further flags are conditional:
   is non-empty, no permission decider is configured, and the list contains neither
   `Edit` nor `Write`.
 - `--model <name>` — added only when `ClaudeRunnerConfig.Model` is non-empty.
+- `--session-id <id>` — added only when `ClaudeRunnerConfig.SessionID` is
+  non-empty.
 
-The session id is deliberately **not** passed. Continuity comes from the held
-process, not from `--session-id` or `--resume`, so the argv is identical for every
-session id and no id can inject a flag or shell syntax into the command line.
+The session id is passed as `--session-id <id>` when the caller supplies one via
+`ClaudeRunnerConfig.SessionID`. Continuity still comes from the held process rather
+than from `--resume`. The id is validated against the transcript-file-name rule
+(`isValidSessionID`) before it reaches the argv, so it cannot inject a flag or
+shell syntax into the command line.
 
-The flag set lives in exactly one function (`sessionArgs`), so a correction against a
-pinned CLI version is a one-line change plus an edit to this section. Spec 055's
-Assumptions require the exact flag set to be confirmed against the pinned
-`@anthropic-ai/claude-code` version and recorded with AC2's result.
+The flag set no longer lives in exactly one function: `--session-id` is added in
+both `sessionArgs` and `buildCommand`, so a correction against a pinned CLI version
+touches both builders plus this section. Spec 055's Assumptions require the exact
+flag set to be confirmed against the pinned `@anthropic-ai/claude-code` version and
+recorded with AC2's result.
 
 ## Input turn shape
 

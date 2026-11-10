@@ -22,6 +22,12 @@ type ClaudeRunnerConfig struct {
 	AllowedTools AllowedTools
 	// Model selects the Claude model (e.g. "sonnet", "opus").
 	Model ClaudeModel
+	// SessionID, when non-empty, forces the spawned CLI process to adopt this
+	// session id via --session-id. Empty means the CLI picks its own id, which is
+	// today's behaviour and leaves the argv unchanged. A non-empty value that is
+	// not a valid session-id shape is rejected before the process starts. See
+	// SessionID for the transcript-collision behaviour.
+	SessionID SessionID
 	// WorkingDirectory sets the CLI process working directory.
 	WorkingDirectory AgentDir
 	// RunAsUID, when non-zero, runs the Claude CLI subprocess as this numeric

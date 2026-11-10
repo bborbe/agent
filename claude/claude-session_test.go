@@ -292,6 +292,67 @@ var _ = Describe("claudeSession held process", func() {
 			Expect(args).NotTo(ContainElement("--permission-prompt-tool"))
 		},
 	)
+
+	It("spawns with the exact argv when SessionID is empty", func() {
+		shimDir := writeSessionShim(sessionShimBase)
+		session := openSession(shimDir, nil)
+
+		_, err := session.Prompt(ctx, "turn-one")
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(readLines(filepath.Join(shimDir, "args.log"))).To(Equal([]string{
+			"--print",
+			"--input-format", "stream-json",
+			"--output-format", "stream-json",
+			"--verbose",
+			"--strict-mcp-config",
+		}))
+	})
+
+	It("passes a valid SessionID as --session-id exactly once", func() {
+		shimDir := writeSessionShim(sessionShimBase)
+		cfg := sessionConfig(shimDir)
+		cfg.SessionID = claude.SessionID("sess-fixed")
+		session := claude.NewSession(cfg, nil)
+		DeferCleanup(func() { _ = session.Close(context.Background()) })
+
+		_, err := session.Prompt(ctx, "turn-one")
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(readLines(filepath.Join(shimDir, "args.log"))).To(Equal([]string{
+			"--print",
+			"--input-format", "stream-json",
+			"--output-format", "stream-json",
+			"--verbose",
+			"--strict-mcp-config",
+			"--session-id", "sess-fixed",
+		}))
+	})
+
+	It("rejects an invalid SessionID before starting the process", func() {
+		invalidIDs := []string{
+			"abc def",
+			"abc/def",
+			"abc_def",
+			strings.Repeat("a", 129),
+		}
+		for _, invalid := range invalidIDs {
+			shimDir := writeSessionShim(sessionShimBase)
+			cfg := sessionConfig(shimDir)
+			cfg.SessionID = claude.SessionID(invalid)
+			session := claude.NewSession(cfg, nil)
+
+			_, err := session.Prompt(ctx, "turn-one")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(
+				"invalid SessionID (length %d)", len(invalid),
+			))
+			Expect(err.Error()).NotTo(ContainSubstring(invalid))
+			Expect(filepath.Join(shimDir, "starts.log")).NotTo(BeAnExistingFile())
+
+			_ = session.Close(context.Background())
+		}
+	})
 })
 
 var _ = Describe("claudeSession failure and permission", func() {

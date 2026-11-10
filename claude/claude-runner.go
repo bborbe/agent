@@ -270,6 +270,9 @@ func (r *claudeRunner) buildCommand(
 	ctx context.Context,
 	prompt string,
 ) (*exec.Cmd, error) {
+	if err := validateSessionID(ctx, r.config.SessionID); err != nil {
+		return nil, err
+	}
 	args := []string{
 		"--print",
 		"--output-format", "stream-json",
@@ -288,6 +291,10 @@ func (r *claudeRunner) buildCommand(
 		if !r.config.AllowedTools.Contains("Edit") && !r.config.AllowedTools.Contains("Write") {
 			args = append(args, "--disallowedTools", "Edit", "Write")
 		}
+	}
+
+	if r.config.SessionID != "" {
+		args = append(args, "--session-id", string(r.config.SessionID))
 	}
 
 	if r.config.Model != "" {
