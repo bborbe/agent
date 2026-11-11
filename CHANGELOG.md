@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat: render `spec.targetVault` on a Config from the agent's `targetVault` values key, and declare it in the CRD. The executor's `/healthcheck-trigger` publishes a `create-task` carrying `TargetVault: r.targetVault`, and `agent-task-controller` v0.26.12 refuses a create whose `target_vault` is empty — so a lane with no pin makes its probe fail on every tick. The key was accepted in values and silently dropped by the chart: `grep targetVault helm/templates/` returned nothing, so a values-only pin rendered no field and could not take effect. Declaring it in the CRD matters because that schema sets `preserveUnknownFields: false`, so an undeclared field would be pruned from a freshly installed Config even once the template renders it.
+
 ## v0.141.0
 
 - feat(chart): render `spec.targetVault` on a Config (chart 0.23.17). `templates/agents.yaml` enumerates every Config spec field by hand — each of `maxConcurrentJobs`, `rerunOnLostClaim` and `jobNamespace` has its own `{{- if }}` block — so a `targetVault:` key in a values file rendered nothing and the field never reached the Config CR. The healthcheck probe in `agent-task-executor` v0.59.0 reads this field to pin a lane's probe record to one vault; without the render the probe keeps writing one copy per executor. `helm/crds/config-crd.yaml` declares the property too, because that CRD sets `preserveUnknownFields: false` and an undeclared field is pruned. **These two lists must move together**: the Go `ConfigSpec` in `agent-task-executor` and this template are hand-maintained copies of one schema, and this bug exists because they drifted.

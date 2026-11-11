@@ -30,6 +30,9 @@ spec:
   {{- if $agent.maxConcurrentJobs }}
   maxConcurrentJobs: {{ $agent.maxConcurrentJobs }}
   {{- end }}
+  {{- with $agent.targetVault }}
+  targetVault: {{ . | quote }}
+  {{- end }}
   {{- if $agent.zombieJobTimeoutSeconds }}
   zombieJobTimeoutSeconds: {{ $agent.zombieJobTimeoutSeconds }}
   {{- end }}

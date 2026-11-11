@@ -81,6 +81,12 @@ spec:
                 zombieSweeperIntervalSeconds: {type: integer, minimum: 10}
                 zombieJobTimeoutSeconds: {type: integer, minimum: 30}
                 maxConcurrentJobs: {type: integer, minimum: 0}
+                # Optional; the vault slug stamped on the healthcheck probe's
+                # create-task. Unset means the probe publishes no target_vault, which
+                # agent-task-controller >= v0.26.12 refuses outright. Declared here
+                # because this CRD sets preserveUnknownFields: false — without it the
+                # API server prunes spec.targetVault and the value silently does nothing.
+                targetVault: {type: string}
                 # Optional; unset means true. false parks a taken-over task at human_review.
                 rerunOnLostClaim: {type: boolean}
                 # Optional; empty means the Job runs in the executor's own namespace.
