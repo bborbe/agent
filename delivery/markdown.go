@@ -10,6 +10,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// frontmatterHasKey reports whether the frontmatter block carries key as its own
+// line. It matches the whole key, not a substring: a bare strings.Contains check
+// on key+":" also matches any longer key that ENDS in this one, so asking for
+// "status" while "last_result_status:" is present sent the caller down the
+// replace branch, where no line matched and the write silently did nothing.
+func frontmatterHasKey(frontmatter, key string) bool {
+	for _, line := range strings.Split(frontmatter, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), key+":") {
+			return true
+		}
+	}
+	return false
+}
+
 // SetFrontmatterField updates or adds a field in YAML frontmatter.
 // Returns content unchanged if no frontmatter delimiters are found.
 func SetFrontmatterField(content, key, value string) string {
@@ -26,7 +40,7 @@ func SetFrontmatterField(content, key, value string) string {
 	frontmatter := content[3:end]
 	rest := content[end+3:]
 
-	if strings.Contains(frontmatter, key+":") {
+	if frontmatterHasKey(frontmatter, key) {
 		lines := strings.Split(frontmatter, "\n")
 		for i, line := range lines {
 			trimmed := strings.TrimSpace(line)

@@ -49,7 +49,18 @@ func (g *fallbackContentGenerator) Generate(
 
 // applyStatusFrontmatter updates status+phase frontmatter fields based on agent result
 // status and requested NextPhase.
+//
+// It also stamps last_result_status with the result's own status. Every branch
+// below flattens that status into the task's lifecycle value — in_progress for
+// done-without-next-phase, needs_input, failed and the unknown case, completed
+// only for a done result whose next phase is terminal — so the raw status is
+// otherwise unrecoverable downstream. The executor's park decision needs it: a
+// Job that exits 0 while reporting failure is not a deliberate human park, and
+// without this field the executor can only see the Job's exit code and infers
+// the wrong one. The key is written on every result, including a re-delivered
+// one, so it always describes the latest run rather than the first.
 func applyStatusFrontmatter(content string, result agentlib.AgentResultInfo) string {
+	content = SetFrontmatterField(content, "last_result_status", string(result.Status))
 	switch result.Status {
 	case agentlib.AgentStatusDone:
 		if result.NextPhase == "" {

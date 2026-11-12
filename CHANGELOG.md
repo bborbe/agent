@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(delivery): stamp `last_result_status` on every delivered result, and match frontmatter keys whole in `SetFrontmatterField`. Every branch of `applyStatusFrontmatter` flattens the agent's own status into the task's lifecycle value — `in_progress` for done-without-next-phase, `needs_input`, `failed` and the unknown case, `completed` only for a done result whose next phase is terminal — so the raw status was unrecoverable downstream. `agent-task-executor`'s succeeded-Job park needs it: a Job that exits 0 while reporting failure is not a deliberate human park, and without the field the executor can see only the exit code and infers the wrong one. The second half is the reason the first half works: `SetFrontmatterField` tested `strings.Contains(frontmatter, key+":")`, which matches any longer key ENDING in this one, so writing `status` while `last_result_status:` was present took the replace branch, found no line starting with `status:`, and silently wrote nothing. It now matches the key as a whole line.
+
 ## v0.141.0
 
 - feat(chart): render `spec.targetVault` on a Config (chart 0.23.17). `templates/agents.yaml` enumerates every Config spec field by hand — each of `maxConcurrentJobs`, `rerunOnLostClaim` and `jobNamespace` has its own `{{- if }}` block — so a `targetVault:` key in a values file rendered nothing and the field never reached the Config CR. The healthcheck probe in `agent-task-executor` v0.59.0 reads this field to pin a lane's probe record to one vault; without the render the probe keeps writing one copy per executor. `helm/crds/config-crd.yaml` declares the property too, because that CRD sets `preserveUnknownFields: false` and an undeclared field is pruned. **These two lists must move together**: the Go `ConfigSpec` in `agent-task-executor` and this template are hand-maintained copies of one schema, and this bug exists because they drifted.
