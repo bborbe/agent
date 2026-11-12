@@ -388,6 +388,35 @@ var _ = Describe("PassthroughContentGenerator", func() {
 		},
 	)
 
+	// The stamp the executor's park gate reads. It must survive alongside a
+	// task status that is a PREFIX of the new key — that collision is what made
+	// SetFrontmatterField silently write nothing.
+	It("stamps last_result_status from the result status", func() {
+		result := agentlib.AgentResultInfo{
+			Status: agentlib.AgentStatusFailed,
+			Output: "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Review\n",
+		}
+		generated, err := generator.Generate(ctx, "", result)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(generated).To(ContainSubstring("last_result_status: failed"))
+		Expect(generated).To(ContainSubstring("status: in_progress"))
+	})
+
+	// The status reaches frontmatter unquoted, and AgentStatus is a plain string
+	// type, so a crafted value could terminate the block or inject keys. Anything
+	// outside the four constants is narrowed to "unknown", which every consumer
+	// already reads as not-done.
+	It("narrows an unrecognised status instead of interpolating it", func() {
+		result := agentlib.AgentResultInfo{
+			Status: agentlib.AgentStatus("done\ninjected: yes"),
+			Output: "---\ntitle: My Task\nstatus: in_progress\n---\n\n## Review\n",
+		}
+		generated, err := generator.Generate(ctx, "", result)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(generated).To(ContainSubstring("last_result_status: unknown"))
+		Expect(generated).NotTo(ContainSubstring("injected"))
+	})
+
 	It(
 		"treats AgentStatusDone with empty NextPhase as in-place save (status in_progress, phase preserved)",
 		func() {
