@@ -47,6 +47,26 @@ func (g *fallbackContentGenerator) Generate(
 	return ReplaceOrAppendSection(updated, "## Result", section), nil
 }
 
+// lastResultStatusValue narrows an agent-supplied status to the values that may
+// reach frontmatter.
+//
+// The value is interpolated unquoted by SetFrontmatterField, so a status carrying
+// a newline or a colon could terminate the frontmatter or inject keys into the
+// delivered task. AgentStatus is a plain string type and results are synthesized
+// on more than one path, so the compiler does not bound it. An unrecognised value
+// becomes "unknown", which every consumer already treats as not-done.
+func lastResultStatusValue(status agentlib.AgentStatus) string {
+	switch status {
+	case agentlib.AgentStatusDone,
+		agentlib.AgentStatusFailed,
+		agentlib.AgentStatusNeedsInput,
+		agentlib.AgentStatusInProgress:
+		return string(status)
+	default:
+		return "unknown"
+	}
+}
+
 // applyStatusFrontmatter updates status+phase frontmatter fields based on agent result
 // status and requested NextPhase.
 //
@@ -60,7 +80,7 @@ func (g *fallbackContentGenerator) Generate(
 // the wrong one. The key is written on every result, including a re-delivered
 // one, so it always describes the latest run rather than the first.
 func applyStatusFrontmatter(content string, result agentlib.AgentResultInfo) string {
-	content = SetFrontmatterField(content, "last_result_status", string(result.Status))
+	content = SetFrontmatterField(content, "last_result_status", lastResultStatusValue(result.Status))
 	switch result.Status {
 	case agentlib.AgentStatusDone:
 		if result.NextPhase == "" {
