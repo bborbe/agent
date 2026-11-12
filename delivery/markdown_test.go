@@ -40,6 +40,36 @@ var _ = Describe("SetFrontmatterField", func() {
 		Expect(result).To(ContainSubstring("status: running"))
 		Expect(result).To(ContainSubstring("backtest_state: DONE"))
 	})
+
+	// The regression this pins: the old matcher asked whether the frontmatter
+	// CONTAINED "status:", which a longer key ending in it also satisfies. With
+	// last_result_status present and no status key, it took the replace branch,
+	// found no line starting with "status:", and wrote nothing at all — silently,
+	// because the function has no error return. A key that is a SUFFIX of
+	// another is the shape to keep testing.
+	It("appends a key that is a suffix of an existing key", func() {
+		content := "---\nlast_result_status: failed\ntitle: T\n---\n\nBody.\n"
+		result := delivery.SetFrontmatterField(content, "status", "in_progress")
+		Expect(result).To(ContainSubstring("status: in_progress"))
+		Expect(result).To(ContainSubstring("last_result_status: failed"))
+	})
+
+	It("replaces the whole key and leaves a suffix key untouched", func() {
+		content := "---\nstatus: running\nlast_result_status: done\ntitle: T\n---\n\nBody.\n"
+		result := delivery.SetFrontmatterField(content, "status", "completed")
+		Expect(result).To(ContainSubstring("status: completed"))
+		Expect(result).To(ContainSubstring("last_result_status: done"))
+		Expect(result).NotTo(ContainSubstring("status: running"))
+	})
+
+	// A nested key must not be hoisted: rewriting the indented line at column
+	// zero would leave the parent null and invent a top-level field.
+	It("does not treat an indented nested key as the top-level key", func() {
+		content := "---\nmetrics:\n  status: open\ntitle: T\n---\n\nBody.\n"
+		result := delivery.SetFrontmatterField(content, "status", "completed")
+		Expect(result).To(ContainSubstring("  status: open"))
+		Expect(result).To(ContainSubstring("status: completed"))
+	})
 })
 
 var _ = Describe("ReplaceOrAppendSection", func() {

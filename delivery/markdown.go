@@ -10,14 +10,21 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// frontmatterHasKey reports whether the frontmatter block carries key as its own
-// line. It matches the whole key, not a substring: a bare strings.Contains check
-// on key+":" also matches any longer key that ENDS in this one, so asking for
-// "status" while "last_result_status:" is present sent the caller down the
+// frontmatterHasKey reports whether the frontmatter block carries key as a
+// top-level line.
+//
+// It matches the whole key, not a substring: a bare strings.Contains check on
+// key+":" also matches any longer key that ENDS in this one, so asking for
+// "status" while "last_result_status:" was present sent the caller down the
 // replace branch, where no line matched and the write silently did nothing.
+//
+// It also anchors at column zero. TrimSpace would accept an indented nested key
+// or a line inside a block scalar, and rewriting one of those at column zero
+// hoists it: `metrics:\n  status: open` would become `metrics:\nstatus: done`,
+// leaving metrics null and inventing a top-level status.
 func frontmatterHasKey(frontmatter, key string) bool {
 	for _, line := range strings.Split(frontmatter, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), key+":") {
+		if strings.HasPrefix(line, key+":") {
 			return true
 		}
 	}
@@ -43,9 +50,14 @@ func SetFrontmatterField(content, key, value string) string {
 	if frontmatterHasKey(frontmatter, key) {
 		lines := strings.Split(frontmatter, "\n")
 		for i, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, key+":") {
+			// Column zero only, and the first match wins. Rewriting every match
+			// would turn a top-level key plus an indented nested one into two
+			// top-level duplicates, and a duplicate YAML key makes the parse
+			// fail — ParseMarkdownFrontmatter swallows that error and returns an
+			// empty map, so the delivered task loses its whole frontmatter.
+			if strings.HasPrefix(line, key+":") {
 				lines[i] = key + ": " + value
+				break
 			}
 		}
 		frontmatter = strings.Join(lines, "\n")
