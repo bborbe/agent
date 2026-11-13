@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.143.0
 
 - feat(chart): render `runWindow` and `runBudgetSeconds` from the agent values into the Config spec (chart 0.23.19). Both are optional, and unset renders byte-identically to 0.23.18. The chart templates every spec field explicitly — there is no passthrough — so a new field needs a line here or the value is silently ignored; `helm/crds/config-crd.yaml` gains the matching schema because the CRD sets `preserveUnknownFields: false` and would otherwise prune the new keys from every Config.
 
