@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(chart): render `runWindow` and `runBudgetSeconds` from the agent values into the Config spec. Both are optional, and unset renders byte-identically to 0.23.18. The chart templates every spec field explicitly — there is no passthrough — so a new field needs a line here or the value is silently ignored; `helm/crds/config-crd.yaml` gains the matching schema because the CRD sets `preserveUnknownFields: false` and would otherwise prune the new keys from every Config.
+
 ## v0.142.0
 
 - feat(chart): add `sandbox.gitRestApp`, rendering a `git-rest` egress peer for the sandbox (chart 0.23.18). The sandbox catalog had no peer for the vault's git-rest, so a sandboxed agent could not reach the `/api/v1/files/{path}` API its `scripts/vault-*.sh` helpers speak: on sun, `git-rest-openclaw` was admitted by no policy rule, and `sandbox.vaultApiApp` cannot carry it because that value selects the vault-api pod label for a different API (the typed task/claim surface). The new value mirrors `vaultApiApp` end to end — the peer is appended only when the value is set, `agent.sandboxPeerHost` returns `<app>.<peerNamespace>`, `agent.sandboxPeer` renders a namespace+pod rule on 9090, and `agent.proxyEnv` adds that host to `NO_PROXY`. That last part is load-bearing rather than cosmetic: without it the call is routed to the egress proxy and comes back `403 Filtered`, which reads as a vault outage. The domain validation now also rejects a `git-rest` peer with no `gitRestApp`, exactly as it already does for `vault-api`. Unset renders byte-identically to 0.23.17.
