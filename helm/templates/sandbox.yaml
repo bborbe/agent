@@ -218,6 +218,21 @@ spec:
       ports:
         - { protocol: TCP, port: 9090 }
     {{- end }}
+    {{- if .Values.sandbox.gitRestApp }}
+    # Optional git-rest peer — the vault's raw file API, which an agent's
+    # `scripts/vault-*.sh` helpers speak. Separate from the vault-API peer
+    # above: that one answers the typed task/claim surface, this one answers
+    # `/api/v1/files/{path}`.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" . }}
+          podSelector:
+            matchLabels:
+              app: {{ .Values.sandbox.gitRestApp }}
+      ports:
+        - { protocol: TCP, port: 9090 }
+    {{- end }}
     # Kafka — the only path a task result reaches its topic. Either the built-in
     # external nodeport listener on nuke, selected by hardcoded LAN /32s (never a
     # /24: a /24 would allow every host on that subnet on these ports) on every

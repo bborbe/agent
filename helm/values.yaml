@@ -79,6 +79,15 @@ sandbox:
   # port 9090. Set on sun to "vault-api-openclaw", whose vault service
   # carries that label rather than a vault-obsidian-* one.
   vaultApiApp: ""
+  # When set, render an extra `git-rest` egress peer selecting this `app`
+  # label on port 9090 — the vault's git-rest, which serves the
+  # `/api/v1/files/{path}` API an agent's vault helpers speak. Separate from
+  # `vaultApiApp` because they are different services with different APIs:
+  # vault-api answers the typed task/claim surface, git-rest answers raw file
+  # reads and writes. Set on sun to "git-rest-openclaw". The peer also adds
+  # `<app>.<peerNamespace>` to every agent's NO_PROXY, which is load-bearing —
+  # without it the call goes to the egress proxy and comes back `403 Filtered`.
+  gitRestApp: ""
   # When true, also render each agent's Secret and PVC into the sandbox
   # namespace, gated on executor.enabled. Only chart-rendered objects are
   # copied: an agent referencing an externally managed Secret via
