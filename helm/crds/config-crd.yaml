@@ -81,6 +81,22 @@ spec:
                 zombieSweeperIntervalSeconds: {type: integer, minimum: 10}
                 zombieJobTimeoutSeconds: {type: integer, minimum: 30}
                 maxConcurrentJobs: {type: integer, minimum: 0}
+                # Optional; caps a single run's wall-clock time, measured from the
+                # spawned Job's start. 0 means no separate budget. When both this and
+                # zombieJobTimeoutSeconds are set, the smaller deadline wins.
+                runBudgetSeconds: {type: integer, minimum: 0}
+                # Optional; restricts the hours in which this agent's Jobs may be
+                # spawned. Unset means no window. A spawn outside the window is
+                # deferred and re-driven when it opens, never dropped. Declared here
+                # because this CRD sets preserveUnknownFields: false — an undeclared
+                # spec.runWindow would be pruned and the constraint silently vanish.
+                runWindow:
+                  type: object
+                  properties:
+                    timezone: {type: string}
+                    weekdayStart: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+                    weekdayEnd: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+                    weekendAllDay: {type: boolean}
                 # Optional; unset means true. false parks a taken-over task at human_review.
                 rerunOnLostClaim: {type: boolean}
                 # Optional; empty means the Job runs in the executor's own namespace.
