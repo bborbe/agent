@@ -124,7 +124,7 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
      the proxy. */}}
 {{- define "agent.proxyEnv" -}}
 {{- $noProxy := list "127.0.0.1" "localhost" ".svc.cluster.local" }}
-{{- range $peer := append (include "agent.sandboxServicePeers" . | splitList ",") "vault-api" }}
+{{- range $peer := append (append (include "agent.sandboxServicePeers" . | splitList ",") "vault-api") "git-rest" }}
 {{-   $host := include "agent.sandboxPeerHost" (dict "root" $ "name" $peer) }}
 {{-   if and $host (not (has $host $noProxy)) }}
 {{-     $noProxy = append $noProxy $host }}
@@ -220,6 +220,7 @@ no_proxy: {{ $noProxyValue }}
 {{- else -}}
 {{- $peers = append (include "agent.sandboxServicePeers" $root | splitList ",") "kafka" -}}
 {{- if $sandbox.vaultApiApp -}}{{- $peers = append $peers "vault-api" -}}{{- end -}}
+{{- if $sandbox.gitRestApp -}}{{- $peers = append $peers "git-rest" -}}{{- end -}}
 {{- end -}}
 {{- $all := list "dns" -}}
 {{- range $peer := $peers -}}
@@ -286,6 +287,8 @@ prometheus.monitoring
 {{- printf "frontend-backtest.%s" $peerNS -}}
 {{- else if and (eq .name "vault-api") $sandbox.vaultApiApp -}}
 {{- printf "%s.%s" $sandbox.vaultApiApp $peerNS -}}
+{{- else if and (eq .name "git-rest") $sandbox.gitRestApp -}}
+{{- printf "%s.%s" $sandbox.gitRestApp $peerNS -}}
 {{- end -}}
 {{- end -}}
 
@@ -427,6 +430,16 @@ prometheus.monitoring
           app: {{ $sandbox.vaultApiApp }}
   ports:
     - { protocol: TCP, port: 9090 }
+{{- else if eq .name "git-rest" -}}
+- to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ include "agent.sandboxPeerNamespace" $root }}
+      podSelector:
+        matchLabels:
+          app: {{ $sandbox.gitRestApp }}
+  ports:
+    - { protocol: TCP, port: 9090 }
 {{- else if eq .name "kafka" -}}
 {{- if $sandbox.kafka.namespace -}}
 - to:
@@ -493,7 +506,7 @@ prometheus.monitoring
 {{- $domains := $sandbox.domains | default dict -}}
 {{- $explicitSandboxNS := $sandbox.namespace | default "" -}}
 {{- $proxyNS := $sandbox.proxyNamespace | default "" -}}
-{{- $catalog := list "dns" "router" "pushgateway" "prometheus" "sentry-proxy" "vault-personal" "vault-openclaw" "vault-trading" "frontend-gateway" "frontend-strategy" "frontend-report" "frontend-backtest" "vault-api" "kafka" "proxy" -}}
+{{- $catalog := list "dns" "router" "pushgateway" "prometheus" "sentry-proxy" "vault-personal" "vault-openclaw" "vault-trading" "frontend-gateway" "frontend-strategy" "frontend-report" "frontend-backtest" "vault-api" "git-rest" "kafka" "proxy" -}}
 {{- if and $domains $explicitSandboxNS -}}
 {{- fail "sandbox.namespace and sandbox.domains are mutually exclusive: declare either a single sandbox.namespace or a sandbox.domains map, not both" -}}
 {{- end -}}
@@ -514,6 +527,9 @@ prometheus.monitoring
 {{- end -}}
 {{- if and (eq $peer "vault-api") (not $sandbox.vaultApiApp) -}}
 {{- fail (printf "sandbox.domains.%s.peers lists vault-api but sandbox.vaultApiApp is empty: set the vault API app label or drop the peer" $name) -}}
+{{- end -}}
+{{- if and (eq $peer "git-rest") (not $sandbox.gitRestApp) -}}
+{{- fail (printf "sandbox.domains.%s.peers lists git-rest but sandbox.gitRestApp is empty: set the git-rest app label or drop the peer" $name) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

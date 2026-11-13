@@ -613,6 +613,27 @@ else
 	echo "OK: vault-api"
 fi
 
+# sandbox.gitRestApp: the vault's raw file API. Same shape as vault-api, and
+# asserted separately because the two are different Services with different
+# APIs — a template that wired only one of them would leave an agent able to
+# claim a task but not read the file it is about. The NO_PROXY half is checked
+# here too: the peer is useless if the host still routes through the proxy.
+run_policy_case git-rest "$tmpdir/unset.yaml" \
+	--set namespace=dev --set sandbox.gitRestApp=git-rest-openclaw \
+	--set executor.existingSecret=agent-secret
+gitrest_doc="$(policy_doc "$POLICY_OUT" agent-sandbox-egress)"
+gitrest_peer="$(awk 'BEGIN{RS="    - to:"} /app: git-rest-openclaw/{print; exit}' <<<"$gitrest_doc")"
+if ! grep -q 'app: git-rest-openclaw' <<<"$gitrest_peer" ||
+	! grep -q 'port: 9090' <<<"$gitrest_peer"; then
+	echo "FAIL: git-rest: missing git-rest-openclaw peer on 9090"
+	fail=1
+elif grep -q 'app: git-rest-openclaw' <<<"$(policy_doc "$tmpdir/policy-kafka-default.out" agent-sandbox-egress)"; then
+	echo "FAIL: git-rest: peer rendered without sandbox.gitRestApp"
+	fail=1
+else
+	echo "OK: git-rest"
+fi
+
 # sandbox.peerNamespace: the non-agent peers follow it, the router does NOT.
 # This is the case that catches a template which moved every peer — the router
 # is a control-plane component, so a peer set that follows peerNamespace for the
@@ -709,7 +730,8 @@ short_out="$tmpdir/proxy-short-names.out"
 "$helm_bin" template x "$CHART_DIR" -f "$tmpdir/unset.yaml" \
 	--set egressProxy.injectAgentEnv=true \
 	--set sandbox.peerNamespace=prod \
-	--set sandbox.vaultApiApp=vault-api-openclaw >"$short_out"
+	--set sandbox.vaultApiApp=vault-api-openclaw \
+	--set sandbox.gitRestApp=git-rest-openclaw >"$short_out"
 short_value=$(grep -m1 -E '^ +NO_PROXY: ' "$short_out" | sed -E 's/^ +NO_PROXY: //' || true)
 if [ -z "$short_value" ]; then
 	echo "FAIL: proxy-short-names: no NO_PROXY rendered with injectAgentEnv=true"
@@ -717,7 +739,8 @@ if [ -z "$short_value" ]; then
 fi
 for want in pushgateway.monitoring sentry-proxy.prod vault-obsidian-personal.prod \
 	vault-obsidian-openclaw.prod vault-obsidian-trading.prod frontend-gateway.prod \
-	frontend-strategy.prod vault-api-openclaw.prod claude-code-router-test.test; do
+	frontend-strategy.prod vault-api-openclaw.prod git-rest-openclaw.prod \
+	claude-code-router-test.test; do
 	if printf ',%s,' "$short_value" | grep -qF ",$want,"; then
 		echo "OK: proxy-short-names has $want"
 	else
