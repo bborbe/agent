@@ -168,6 +168,17 @@ spec:
             - name: RECONCILE_INTERVAL
               value: {{ . | quote }}
             {{- end }}
+            # Escape hatch for executor settings the chart does not model, the
+            # same contract `agents[].env` already offers: the values dict is
+            # merged verbatim into the container env. It exists because a
+            # setting the binary reads but the chart cannot render is otherwise
+            # unreachable — an operator edit to a live Deployment is dropped by
+            # the next apply, and a values key the template ignores is a silent
+            # no-op. Last in the list, so a colliding key overrides a rendered one.
+            {{- range $k, $v := .Values.executor.env }}
+            - name: {{ $k }}
+              value: {{ $v | toString | quote }}
+            {{- end }}
           ports:
             - containerPort: 9090
               name: http
@@ -382,6 +393,13 @@ spec:
             {{- with ($e.reconcileInterval | default $.Values.executor.reconcileInterval) }}
             - name: RECONCILE_INTERVAL
               value: {{ . | quote }}
+            {{- end }}
+            # Per-executor escape hatch, same contract as the singular block
+            # above and as `agents[].env`: the values dict is merged verbatim
+            # into the container env, last so it can override a rendered name.
+            {{- range $k, $v := ($e.env | default $.Values.executor.env) }}
+            - name: {{ $k }}
+              value: {{ $v | toString | quote }}
             {{- end }}
           ports:
             - containerPort: 9090

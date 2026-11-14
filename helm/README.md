@@ -194,6 +194,7 @@ declare no domains keep the legacy single sandbox and its policy name
 | `executor.consumerGroup` | `""` | Rendered as `CONSUMER_GROUP` on the executor. Gives each Kafka consumer its own consumer group (e.g. `agent-task-executor-sun`) so executors on different clusters do not share offsets. Empty = nothing rendered. |
 | `executor.stageFilter` | unset | Rendered as `STAGE_FILTER` (quoted `"true"`/`"false"`) on the executor **only when the key is set** — `false` is honoured, absent renders nothing (the executor's own default `true` applies). `false` makes the executor ignore the task `stage:` field; set it only on a cluster whose controller already scopes tasks by cluster (e.g. sun); nuke dev/prod leave it unset. Requires agent-task-executor ≥ v0.21.0. |
 | `executor.runUntagged` | unset | Rendered as `RUN_UNTAGGED` (quoted `"true"`/`"false"`) on the executor **only when the key is set** — `false` is honoured, absent renders nothing (the executor's own default `true` applies). `false` makes the executor skip every task without a `cluster:` field; set it only on a cluster whose controller publishes no untagged tasks (e.g. sun); nuke dev/prod leave it unset. Requires agent-task-executor ≥ v0.22.0. |
+| `executor.env` | `{}` | Extra env vars merged verbatim into the executor container env, **last** so a key may override a rendered one. Escape hatch for a setting the binary reads but the chart does not model; values render as strings. Per-executor entries default to this map. |
 | `executor.sentry.proxy` | `""` | Sentry proxy URL (optional). |
 | `executor.sentry.dsn` | `""` | Sentry DSN; when set the chart creates the Secret. |
 | `executor.existingSecret` | `""` | Name of a pre-existing Secret with key `sentry-dsn`; when set the chart creates no Secret. |
@@ -230,6 +231,7 @@ default) the single legacy `agent-task-executor` Deployment renders unchanged.
 | `executors[].sentry.proxy` | `executor.sentry.proxy` | Sentry proxy URL. |
 | `executors[].existingSecret` | `executor.existingSecret`, then shared `agent-task-executor` | Pre-existing Secret with key `sentry-dsn`. |
 | `executors[].podSecurityContext` / `securityContext` / `resources` | `executor.*` | Pod/container security contexts + resources. |
+| `executors[].env` | `executor.env` | Extra env vars merged verbatim into that executor's container env, **last** so a key may override a rendered one. Escape hatch for a setting the binary reads but the chart does not model (e.g. `SKIP_CRC_CORRUPTION`); values render as strings. |
 
 **Per-vault topics.** With a per-entry `topicPrefix` of `{stage}-{vault}`, the executor
 consumes `{prefix}-agent-task-v1-event` and publishes `{prefix}-agent-task-v1-request`

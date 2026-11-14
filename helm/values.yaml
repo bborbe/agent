@@ -275,6 +275,14 @@ executor:
   # >= the release carrying bborbe/agent-task-executor#90.
   # reconcilePassTimeout: "150s"
   # reconcileInterval: "180s"
+  # Extra environment variables, merged verbatim into the container env after
+  # every rendered name, so a key here may override one the chart sets. This is
+  # the escape hatch for a setting the executor binary reads but the chart does
+  # not model — without it the only route is an operator edit to the live
+  # Deployment, which the next apply silently drops. Values are rendered as
+  # strings; quote anything YAML would otherwise read as a boolean or number.
+  # Example: env: {SKIP_CRC_CORRUPTION: "true"}
+  env: {}
   # Pod-level securityContext. Empty by default — runAsNonRoot/runAsUser/fsGroup
   # depend on what the image supports, so clusters opt in (e.g. runAsNonRoot: true,
   # runAsUser: 65534, fsGroup: 65534).
@@ -389,6 +397,11 @@ executors: []
   #   runUntagged: false            # default executor.runUntagged; renders only when set
   #   reconcilePassTimeout: ""      # default executor.reconcilePassTimeout; renders only when set
   #   reconcileInterval: ""         # default executor.reconcileInterval; renders only when set
+  #   # Extra env vars for THIS executor, merged last into its container env so a
+  #   # key may override a rendered one. Defaults to executor.env. The escape
+  #   # hatch for settings the chart does not model, e.g.
+  #   #   env: {SKIP_CRC_CORRUPTION: "true"}
+  #   env: {}
   #   sentry:
   #     proxy: ""
   #   existingSecret: ""
