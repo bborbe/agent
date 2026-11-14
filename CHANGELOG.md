@@ -8,6 +8,12 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(helm): **`executor.env` and `executors[].env` — a values passthrough into the executor container env (chart 0.23.20).** A setting the executor binary reads but the chart does not model had no supported route into the pod: the template rendered a fixed `env:` list, so the only option was `kubectl set env` against the live Deployment, which the next `helm upgrade` silently drops because the whole block is re-rendered from values. The dict is merged last, so a deliberate override of a chart-rendered key wins; per-executor entries default to `executor.env`. Two invariants are guarded with the same failure the sibling `controllers[].env` already raises — `LISTEN` (must keep matching the containerPort and both probes) and `NAMESPACE` (must stay the pod's own fieldRef) — because a second, differently-worded guard would leave the next reader unable to tell which is authoritative. Default `{}`: every existing install renders byte-identically. Covered by three new cases in `hack/test-helm-render.sh` (per-executor + inherited rendering on all three executors, no key by default, and the invariant rejection). First user: `SKIP_CRC_CORRUPTION` on `agent-task-executor`, set through `bborbe/nuke`'s `values-dev.yaml`. Change set: `helm/Chart.yaml`, `helm/templates/executor-deployment.yaml`, `helm/values.yaml`, `helm/README.md`, `hack/test-helm-render.sh`, `.github/workflows/ci.yml`, `CHANGELOG.md`.
+
+- ci: **the Trivy install no longer uses `apt-key`.** Ubuntu 26.04, the current `ubuntu-latest` image, removed `apt-key`, so the step died with `sudo: 'apt-key': command not found` on every run from 2026-11-14 on — including runs whose diff touched no workflow. Replaced with a pinned `0.76.2` release tarball whose SHA-256 is verified before unpacking; the tarball is downloaded under the asset's own name because `sha256sum -c` resolves each checksum line against a file of that name.
+
 ## v0.144.0
 
 - feat(ci): add a `check-task-link` gate that fails a PR whose body carries no `Task: <task_identifier>` line

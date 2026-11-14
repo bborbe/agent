@@ -3,7 +3,12 @@ name: agent
 description: bborbe agent framework — event-driven, Kafka-based, K8s-native task platform (controller, executor, and example agents)
 type: application
 # Chart version — bumped on chart changes, independent of appVersion.
-version: 0.23.19
+# 0.23.20 adds `executor.env` / `executors[].env`: the values dict is merged
+# verbatim into the executor container env, last so it can override a rendered
+# name. Without it a setting the executor binary reads but the chart does not
+# model is unreachable — a values key the template ignores is a silent no-op,
+# and an operator edit to the live Deployment is dropped by the next apply.
+version: 0.23.20
 # Default image tag for the framework components when values don't override.
 appVersion: "0.3.1"
 home: https://github.com/bborbe/agent

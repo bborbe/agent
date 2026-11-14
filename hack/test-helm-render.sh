@@ -1634,6 +1634,73 @@ else
 	echo "OK: ctrl-env-invariant rejects an override of a chart invariant"
 fi
 
+# --- executor env passthrough ---------------------------------------------
+# The passthrough exists so a setting the executor binary reads but the chart
+# does not model can reach the container through values. Its failure mode is
+# silent: a key the template ignores renders nothing, the values diff looks
+# merged, and the pod simply never sees the setting. These cases pin the three
+# shapes that matter — per-executor, inherited, and the invariant guard.
+cat >"$tmpdir/exec-env.yaml" <<'EOF'
+namespace: test
+executor:
+  existingSecret: agent-task-executor
+  env:
+    SKIP_CRC_CORRUPTION: "true"
+executors:
+  - name: personal
+    enabled: true
+    vaultName: shared
+    kafkaBrokers: kafka:9092
+    env:
+      SKIP_CRC_CORRUPTION: "true"
+  - name: openclaw
+    enabled: true
+    vaultName: openclaw
+    kafkaBrokers: kafka:9092
+  - name: trading
+    enabled: true
+    vaultName: trading
+    kafkaBrokers: kafka:9092
+EOF
+
+if ! "$helm_bin" template x "$CHART_DIR" -f "$tmpdir/exec-env.yaml" \
+	--show-only templates/executor-deployment.yaml >"$tmpdir/exec-env.out" 2>&1; then
+	echo "FAIL: exec-env: render failed"
+	cat "$tmpdir/exec-env.out"
+	fail=1
+else
+	got=$(grep -c -- '- name: "SKIP_CRC_CORRUPTION"' "$tmpdir/exec-env.out" || true)
+	if [ "$got" != "3" ]; then
+		echo "FAIL: exec-env: SKIP_CRC_CORRUPTION rendered $got times, want 3 (personal own + openclaw/trading inherited)"
+		fail=1
+	elif [ "$(grep -c -- '- name: NAMESPACE' "$tmpdir/exec-env.out" || true)" != "3" ]; then
+		echo "FAIL: exec-env: NAMESPACE missing on an executor — the passthrough must not displace it"
+		fail=1
+	else
+		echo "OK: exec-env renders per-executor and inherited keys on all three executors"
+	fi
+fi
+
+# Default is empty: no passthrough key may appear when nothing opts in.
+sed '/^  env:/,/^    SKIP_CRC_CORRUPTION/d; /^    env:/,/^      SKIP_CRC_CORRUPTION/d' \
+	"$tmpdir/exec-env.yaml" >"$tmpdir/exec-env-empty.yaml"
+if "$helm_bin" template x "$CHART_DIR" -f "$tmpdir/exec-env-empty.yaml" \
+	--show-only templates/executor-deployment.yaml 2>/dev/null | grep -q 'SKIP_CRC_CORRUPTION'; then
+	echo "FAIL: exec-env-empty: a passthrough key rendered with no env configured"
+	fail=1
+else
+	echo "OK: exec-env-empty renders no passthrough key by default"
+fi
+
+sed 's|      SKIP_CRC_CORRUPTION: "true"|      LISTEN: ":1234"|' "$tmpdir/exec-env.yaml" >"$tmpdir/exec-env-invariant.yaml"
+if "$helm_bin" template x "$CHART_DIR" -f "$tmpdir/exec-env-invariant.yaml" \
+	--show-only templates/executor-deployment.yaml >/dev/null 2>&1; then
+	echo "FAIL: exec-env-invariant: a LISTEN override rendered instead of failing the render"
+	fail=1
+else
+	echo "OK: exec-env-invariant rejects an override of a chart invariant"
+fi
+
 if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
