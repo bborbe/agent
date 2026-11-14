@@ -169,15 +169,25 @@ spec:
               value: {{ . | quote }}
             {{- end }}
             # Escape hatch for executor settings the chart does not model, the
-            # same contract `agents[].env` already offers: the values dict is
-            # merged verbatim into the container env. It exists because a
-            # setting the binary reads but the chart cannot render is otherwise
-            # unreachable — an operator edit to a live Deployment is dropped by
-            # the next apply, and a values key the template ignores is a silent
-            # no-op. Last in the list, so a colliding key overrides a rendered one.
-            {{- range $k, $v := .Values.executor.env }}
-            - name: {{ $k }}
-              value: {{ $v | toString | quote }}
+            # same contract `controllers[].env` already offers: the values dict is
+            # merged into the container env, rendered last so a deliberate
+            # override of a chart-rendered key wins (later entries win in a k8s
+            # env list). It exists because a setting the binary reads but the
+            # chart cannot render is otherwise unreachable — an operator edit to
+            # a live Deployment is dropped by the next apply, and a values key the
+            # template ignores is a silent no-op.
+            #
+            # The guard is the sibling's, deliberately verbatim in shape: a second
+            # differently-worded guard is worse than none, because the next reader
+            # cannot tell which one is authoritative. LISTEN must keep matching the
+            # containerPort and both probes; NAMESPACE must stay the pod's own
+            # fieldRef, which is what resolves the executor's own Secrets.
+            {{- range $name, $value := (.Values.executor.env | default dict) }}
+            {{- if has $name (list "LISTEN" "NAMESPACE") }}
+            {{- fail (printf "executor.env may not override the chart invariant %s: LISTEN must match the containerPort and both probes, and NAMESPACE must stay the pod's own fieldRef" $name) }}
+            {{- end }}
+            - name: {{ $name | quote }}
+              value: {{ $value | toString | quote }}
             {{- end }}
           ports:
             - containerPort: 9090
@@ -394,12 +404,14 @@ spec:
             - name: RECONCILE_INTERVAL
               value: {{ . | quote }}
             {{- end }}
-            # Per-executor escape hatch, same contract as the singular block
-            # above and as `agents[].env`: the values dict is merged verbatim
-            # into the container env, last so it can override a rendered name.
-            {{- range $k, $v := ($e.env | default $.Values.executor.env) }}
-            - name: {{ $k }}
-              value: {{ $v | toString | quote }}
+            # Per-executor escape hatch, same contract and same invariant guard as
+            # the singular block above and as `controllers[].env`.
+            {{- range $name, $value := ($e.env | default $.Values.executor.env) }}
+            {{- if has $name (list "LISTEN" "NAMESPACE") }}
+            {{- fail (printf "executors[].env may not override the chart invariant %s: LISTEN must match the containerPort and both probes, and NAMESPACE must stay the pod's own fieldRef" $name) }}
+            {{- end }}
+            - name: {{ $name | quote }}
+              value: {{ $value | toString | quote }}
             {{- end }}
           ports:
             - containerPort: 9090
