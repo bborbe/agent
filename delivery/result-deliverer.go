@@ -251,8 +251,8 @@ func (d *kafkaResultDeliverer) DeliverResult(
 }
 
 // applyResultFrontmatter merges result.Status into the task frontmatter — status,
-// assignee, and phase — per the retry-vs-escalate contract. Extracted into a helper
-// so DeliverResult stays under the funlen limit.
+// assignee, phase, and last_result_status — per the retry-vs-escalate contract.
+// Extracted into a helper so DeliverResult stays under the funlen limit.
 //
 // Retry-vs-escalate (spec 010/021): failed is an infra failure (transient — crash,
 // timeout, OOM), so preserve assignee and keep the task routable. The cap that
@@ -271,6 +271,15 @@ func (d *kafkaResultDeliverer) applyResultFrontmatter(
 	frontmatter agentlib.TaskFrontmatter,
 	result agentlib.AgentResultInfo,
 ) {
+	// Stamp the agent's own verdict, exactly as applyStatusFrontmatter does for the
+	// content-generator path. Kafka delivery is the path most Go agents take, and
+	// without this the key keeps whatever the spawn notification wrote (empty), so
+	// agent-task-executor's succeeded-Job park cannot tell a deliberate park from a
+	// run that reported failure and exited 0 — and its suppression bypass, which
+	// keys on this field, never fires. The value mapping is the shared helper, not a
+	// second implementation, so the two delivery paths cannot drift into different
+	// notions of the same field.
+	frontmatter["last_result_status"] = lastResultStatusValue(result.Status)
 	switch result.Status {
 	case agentlib.AgentStatusDone:
 		if result.NextPhase == "" {

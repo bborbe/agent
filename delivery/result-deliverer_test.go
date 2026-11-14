@@ -237,6 +237,30 @@ var _ = Describe("KafkaResultDeliverer", func() {
 		Expect(fm["status"]).To(Equal("completed"))
 	})
 
+	It("stamps last_result_status from the result status", func() {
+		// Kafka delivery is the path most Go agents take, and it used to merge only
+		// status/assignee/phase. The field agent-task-executor's succeeded-Job park
+		// keys on was therefore never written on this path, so a run that reported
+		// failure and exited 0 could not be told apart from a deliberate park — and
+		// the executor's suppression bypass, which reads this field, never fired.
+		generator.GenerateReturns(
+			"---\nstatus: in_progress\nphase: planning\n---\n\nBody.\n",
+			nil,
+		)
+		err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+			Status:  agentlib.AgentStatusFailed,
+			Message: "fetch failed for 1 symbol(s)",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(sender.SendCommandObjectCallCount()).To(Equal(1))
+		_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+		frontmatter, ok := cmdObj.Command.Data["frontmatter"]
+		Expect(ok).To(BeTrue())
+		fm, ok := frontmatter.(map[string]interface{})
+		Expect(ok).To(BeTrue())
+		Expect(fm["last_result_status"]).To(Equal("failed"))
+	})
+
 	It("preserves assignee on failed result below the trigger cap (retry stays routable)", func() {
 		generator.GenerateReturns(
 			"---\nstatus: in_progress\nphase: planning\nassignee: github-update-go-agent\ntrigger_count: 2\n---\n\nBody.\n\n## Failure\n\n- **Reason:** task runner failed: timeout\n",
