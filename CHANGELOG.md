@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.145.1
 
 - fix(delivery): **stamp `last_result_status` on the Kafka delivery path too.** `applyStatusFrontmatter` (the content-generator path) has stamped it since v0.141.1, and that release's entry claimed "every delivered result" — but `applyResultFrontmatter` (`result-deliverer.go`), which is the path a Go agent publishing over Kafka actually takes, merged only status, assignee and phase. So the key kept whatever the spawn notification wrote (empty) on the majority path, and `agent-task-executor`'s succeeded-Job park could not tell a deliberate park from a run that reported `failed` and exited 0; its `recentlySucceeded` bypass, which keys on this field, never fired. Measured 2026-11-14 on `bborbe/trading`'s strategy-prototype agent after it was bumped to `bborbe/agent v0.141.1`: the run carried `build commit=a49ee51` and still left `last_result_status: ""` while publishing `{"Status":"failed"}`. The value mapping is the shared `lastResultStatusValue` helper, not a second implementation, so the two paths cannot drift into different notions of the same field. Covered by `stamps last_result_status from the result status` in `delivery/result-deliverer_test.go` — the test the missing stamp would have failed, and the assertion whose absence let the claim and the code disagree for a release. Change set: `delivery/result-deliverer.go`, `delivery/result-deliverer_test.go`, `CHANGELOG.md`.
 
