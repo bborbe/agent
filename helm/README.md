@@ -93,7 +93,7 @@ agents: []
 | `image.pullPolicy` | `IfNotPresent` | Container image pull policy. |
 | `image.pullSecrets` | `[]` | Pull secret(s), e.g. `[{name: docker}]`. Empty for public `docker.io`. |
 | `keel.enabled` | `false` | Emit keel auto-redeploy annotations (registry poll). Off = versioned deploys. |
-| `keel.policy` | `all` | Value of the `keel.sh/policy` annotation: `all`, `force`, `poll`, `glob`. Was a hardcoded `force` literal, so it could not be set here. |
+| `keel.policy` | `all` | Value of the `keel.sh/policy` annotation: `all`, `major`, `minor`, `patch`, `force`, `glob`. (`poll` is a `keel.sh/trigger` value, not a policy.) Was a hardcoded `force` literal, so it could not be set here. |
 | `keel.pollSchedule` | `@every 1m` | keel poll interval when enabled. |
 | `affinity` | `{}` | Node affinity object applied to controller/executor/recurring pods. Empty = none. |
 | `rolloutNonce` | `""` | Value of a `random` pod annotation to force a rollout. Empty = omit. |
