@@ -59,4 +59,19 @@ type AgentResultInfo struct {
 	// transcript was read and contained no human-authored entry. Absence is never
 	// substituted with a zero.
 	InteractionCount *int64
+	// InputTokens is the count of fresh (non-cached) input tokens the run consumed,
+	// from the CLI's own end-of-run usage summary. Nil means no usage summary was
+	// reported and the entry is omitted; a non-nil value (including a zero on a run
+	// that reported a positive turn count) is an observation.
+	InputTokens *int64
+	// OutputTokens is the count of output tokens the run produced. Nil means no usage
+	// summary was reported.
+	OutputTokens *int64
+	// CacheReadTokens is the count of input tokens served from the prompt cache. Nil
+	// means no usage summary was reported; a non-nil zero is a real observation (the
+	// run had no cache hits).
+	CacheReadTokens *int64
+	// CacheCreationTokens is the count of input tokens written into the prompt cache.
+	// Nil means no usage summary was reported.
+	CacheCreationTokens *int64
 }

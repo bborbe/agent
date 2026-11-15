@@ -1098,6 +1098,73 @@ var _ = Describe("KafkaResultDeliverer", func() {
 		})
 	})
 
+	Context("token counts (SC1/SC2)", func() {
+		publishedFrontmatter := func() map[string]interface{} {
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			return fm
+		}
+
+		fullResultContent := "---\nstatus: completed\nphase: done\n---\n\nBody.\n\n## Result\n\nok\n"
+
+		It("publishes the four token keys beside the turns key", func() {
+			generator.GenerateReturns(fullResultContent, nil)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:              agentlib.AgentStatusDone,
+				NextPhase:           "done",
+				AgentTurns:          collection.Ptr(int64(3)),
+				InputTokens:         collection.Ptr(int64(1200)),
+				OutputTokens:        collection.Ptr(int64(340)),
+				CacheReadTokens:     collection.Ptr(int64(9000)),
+				CacheCreationTokens: collection.Ptr(int64(410)),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			fm := publishedFrontmatter()
+			Expect(fm["metrics_input_tokens"]).To(BeNumerically("==", 1200))
+			Expect(fm["metrics_output_tokens"]).To(BeNumerically("==", 340))
+			Expect(fm["metrics_cache_read_tokens"]).To(BeNumerically("==", 9000))
+			Expect(fm["metrics_cache_creation_tokens"]).To(BeNumerically("==", 410))
+		})
+
+		It("omits every token key and the run history when no usage summary was reported", func() {
+			generator.GenerateReturns(fullResultContent, nil)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:    agentlib.AgentStatusDone,
+				NextPhase: "done",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			fm := publishedFrontmatter()
+			for _, k := range []string{
+				"metrics_input_tokens",
+				"metrics_output_tokens",
+				"metrics_cache_read_tokens",
+				"metrics_cache_creation_tokens",
+				"metrics_runs",
+			} {
+				_, ok := fm[k]
+				Expect(ok).To(BeFalse(), k)
+			}
+		})
+
+		It("appends one metrics_runs entry per run carrying the counts and completed_at", func() {
+			generator.GenerateReturns(fullResultContent, nil)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:      agentlib.AgentStatusDone,
+				NextPhase:   "done",
+				InputTokens: collection.Ptr(int64(1200)),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			runs, ok := publishedFrontmatter()["metrics_runs"].([]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(runs).To(HaveLen(1))
+			entry, ok := runs[0].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(entry["input_tokens"]).To(BeNumerically("==", 1200))
+			Expect(entry).To(HaveKey("completed_at"))
+		})
+	})
+
 	Context("phase advanced in-process within one Job", func() {
 		// A multi-phase Agent walks planning -> execution inside one Job with a
 		// single deliverer. Every save after the first is generated from the

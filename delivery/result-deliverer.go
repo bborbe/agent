@@ -8,6 +8,7 @@ import (
 	"context"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/bborbe/cqrs/base"
 	cdb "github.com/bborbe/cqrs/cdb"
@@ -29,6 +30,18 @@ import (
 const (
 	metricsAgentTurnsKey       = "metrics_agent_turns"
 	metricsInteractionCountKey = "metrics_interaction_count"
+	// The four token counts the CLI's end-of-run usage summary reports. Same frozen
+	// rules as the two keys above: lowercase, snake_case, no nesting, no version
+	// suffix, no alias.
+	metricsInputTokensKey         = "metrics_input_tokens"          // #nosec G101 -- a frontmatter key name, not a credential
+	metricsOutputTokensKey        = "metrics_output_tokens"         // #nosec G101 -- a frontmatter key name, not a credential
+	metricsCacheReadTokensKey     = "metrics_cache_read_tokens"     // #nosec G101 -- a frontmatter key name, not a credential
+	metricsCacheCreationTokensKey = "metrics_cache_creation_tokens" // #nosec G101 -- a frontmatter key name, not a credential
+	// metricsRunsKey is the per-run history list. The four flat keys above are
+	// last-write-wins — a redriven task keeps only its latest run's counts — so a
+	// window budget needs every run recorded. Each entry carries completed_at plus the
+	// four counts, and vault-cli does not know this key, so it preserves it verbatim.
+	metricsRunsKey = "metrics_runs"
 )
 
 // NewNoopResultDeliverer creates a agentlib.ResultDeliverer that does nothing.
@@ -394,6 +407,7 @@ func (d *kafkaResultDeliverer) applyResultMetrics(
 	if result.AgentTurns != nil {
 		frontmatter[metricsAgentTurnsKey] = *result.AgentTurns
 	}
+	d.applyTokenMetrics(frontmatter, result)
 	if result.InteractionCount == nil {
 		return
 	}
@@ -409,6 +423,61 @@ func (d *kafkaResultDeliverer) applyResultMetrics(
 		return
 	}
 	frontmatter[metricsInteractionCountKey] = *result.InteractionCount
+}
+
+// applyTokenMetrics writes the run's four token counts, each only when the run
+// observed it: a nil field means the CLI reported no usage summary, and its key is
+// omitted rather than written as a zero. Values are plain integers. Unlike the
+// interaction count, a token count is not guarded against lowering — it describes
+// this run's spend, not a high-water mark.
+func (d *kafkaResultDeliverer) applyTokenMetrics(
+	frontmatter agentlib.TaskFrontmatter,
+	result agentlib.AgentResultInfo,
+) {
+	if result.InputTokens != nil {
+		frontmatter[metricsInputTokensKey] = *result.InputTokens
+	}
+	if result.OutputTokens != nil {
+		frontmatter[metricsOutputTokensKey] = *result.OutputTokens
+	}
+	if result.CacheReadTokens != nil {
+		frontmatter[metricsCacheReadTokensKey] = *result.CacheReadTokens
+	}
+	if result.CacheCreationTokens != nil {
+		frontmatter[metricsCacheCreationTokensKey] = *result.CacheCreationTokens
+	}
+	d.appendRunHistory(frontmatter, result)
+}
+
+// appendRunHistory records this run as one entry in metrics_runs, so the flat keys'
+// last-write-wins limitation does not erase earlier runs from a window sum. The entry
+// is written only when the run observed at least one token count; completed_at is the
+// deliver time, which is when the spend landed.
+func (d *kafkaResultDeliverer) appendRunHistory(
+	frontmatter agentlib.TaskFrontmatter,
+	result agentlib.AgentResultInfo,
+) {
+	if result.InputTokens == nil && result.OutputTokens == nil &&
+		result.CacheReadTokens == nil && result.CacheCreationTokens == nil {
+		return
+	}
+	entry := map[string]any{
+		"completed_at": d.currentDateTime.Now().Time().Format(time.RFC3339),
+	}
+	if result.InputTokens != nil {
+		entry["input_tokens"] = *result.InputTokens
+	}
+	if result.OutputTokens != nil {
+		entry["output_tokens"] = *result.OutputTokens
+	}
+	if result.CacheReadTokens != nil {
+		entry["cache_read_tokens"] = *result.CacheReadTokens
+	}
+	if result.CacheCreationTokens != nil {
+		entry["cache_creation_tokens"] = *result.CacheCreationTokens
+	}
+	history, _ := frontmatter[metricsRunsKey].([]any)
+	frontmatter[metricsRunsKey] = append(history, entry)
 }
 
 // recordedInteractionCount reads the interaction count already recorded on the task

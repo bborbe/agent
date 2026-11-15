@@ -174,18 +174,39 @@ func stripLeadingSectionHeading(payload string) string {
 	return strings.TrimPrefix(rest, "\n")
 }
 
+// runMetrics is the set of per-run observations carried from the CLI result onto a
+// Result, with the absence rules applied: a value the CLI did not report stays nil
+// rather than being turned into a zero (spec 053).
+type runMetrics struct {
+	agentTurns          *int64
+	interactionCount    *int64
+	inputTokens         *int64
+	outputTokens        *int64
+	cacheReadTokens     *int64
+	cacheCreationTokens *int64
+}
+
 // runCounts extracts the run's observed counts from the CLI result with the absence
-// rules: a turn total that is not positive is no measurement (nil), and a nil
-// InteractionCount (evidence unavailable) stays nil — absence is never turned into a
-// zero (spec 053).
-func runCounts(result *ClaudeResult) (agentTurns *int64, interactionCount *int64) {
+// rules: a turn total that is not positive is no measurement (nil), a nil
+// InteractionCount (evidence unavailable) stays nil, and the four token counts are
+// populated only when the CLI reported a usage summary (a positive turn total) — so a
+// run with no summary publishes no token entry rather than a false zero. Absence is
+// never turned into a zero (spec 053).
+func runCounts(result *ClaudeResult) runMetrics {
 	if result == nil {
-		return nil, nil
+		return runMetrics{}
 	}
+	m := runMetrics{interactionCount: result.InteractionCount}
 	if result.NumTurns > 0 {
-		agentTurns = collection.Ptr(result.NumTurns)
+		m.agentTurns = collection.Ptr(result.NumTurns)
+		// A usage summary was reported, so the four token counts are observations —
+		// including a zero (e.g. a run with no cache hits).
+		m.inputTokens = collection.Ptr(result.InputTokens)
+		m.outputTokens = collection.Ptr(result.OutputTokens)
+		m.cacheReadTokens = collection.Ptr(result.CacheReadTokens)
+		m.cacheCreationTokens = collection.Ptr(result.CacheCreationTokens)
 	}
-	return agentTurns, result.InteractionCount
+	return m
 }
 
 // Run marshals the task, calls Claude with the step's prompt + tools, and
@@ -225,7 +246,7 @@ func (s *agentStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.R
 		time.Since(runStart),
 	)
 
-	agentTurns, interactionCount := runCounts(result)
+	m := runCounts(result)
 
 	// Parse the runner's result once: the same envelope decides the
 	// needs_input/failed path below and carries the payload written on the
@@ -244,10 +265,14 @@ func (s *agentStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.R
 			msg = fmt.Sprintf("%s claude run returned status %s", s.cfg.Name, parsed.Status)
 		}
 		return &agentlib.Result{
-			Status:           parsed.Status,
-			Message:          msg,
-			AgentTurns:       agentTurns,
-			InteractionCount: interactionCount,
+			Status:              parsed.Status,
+			Message:             msg,
+			AgentTurns:          m.agentTurns,
+			InteractionCount:    m.interactionCount,
+			InputTokens:         m.inputTokens,
+			OutputTokens:        m.outputTokens,
+			CacheReadTokens:     m.cacheReadTokens,
+			CacheCreationTokens: m.cacheCreationTokens,
 		}, nil
 	}
 
@@ -284,9 +309,13 @@ func (s *agentStep) Run(ctx context.Context, md *agentlib.Markdown) (*agentlib.R
 	})
 
 	return &agentlib.Result{
-		Status:           agentlib.AgentStatusDone,
-		NextPhase:        s.cfg.NextPhase,
-		AgentTurns:       agentTurns,
-		InteractionCount: interactionCount,
+		Status:              agentlib.AgentStatusDone,
+		NextPhase:           s.cfg.NextPhase,
+		AgentTurns:          m.agentTurns,
+		InteractionCount:    m.interactionCount,
+		InputTokens:         m.inputTokens,
+		OutputTokens:        m.outputTokens,
+		CacheReadTokens:     m.cacheReadTokens,
+		CacheCreationTokens: m.cacheCreationTokens,
 	}, nil
 }
