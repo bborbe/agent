@@ -8,6 +8,7 @@ import (
 	"context"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/bborbe/cqrs/base"
 	cdb "github.com/bborbe/cqrs/cdb"
@@ -29,6 +30,18 @@ import (
 const (
 	metricsAgentTurnsKey       = "metrics_agent_turns"
 	metricsInteractionCountKey = "metrics_interaction_count"
+	// The four token counts the CLI's end-of-run usage summary reports. Same frozen
+	// rules as the two keys above: lowercase, snake_case, no nesting, no version
+	// suffix, no alias.
+	metricsInputTokensKey         = "metrics_input_tokens"          // #nosec G101 -- a frontmatter key name, not a credential
+	metricsOutputTokensKey        = "metrics_output_tokens"         // #nosec G101 -- a frontmatter key name, not a credential
+	metricsCacheReadTokensKey     = "metrics_cache_read_tokens"     // #nosec G101 -- a frontmatter key name, not a credential
+	metricsCacheCreationTokensKey = "metrics_cache_creation_tokens" // #nosec G101 -- a frontmatter key name, not a credential
+	// metricsRunsKey is the per-run history list. The four flat keys above are
+	// last-write-wins — a redriven task keeps only its latest run's counts — so a
+	// window budget needs every run recorded. Each entry carries completed_at plus the
+	// four counts, and vault-cli does not know this key, so it preserves it verbatim.
+	metricsRunsKey = "metrics_runs"
 )
 
 // NewNoopResultDeliverer creates a agentlib.ResultDeliverer that does nothing.
@@ -186,6 +199,14 @@ type kafkaResultDeliverer struct {
 	// from. Empty means "no advance yet"; a failed result then publishes no phase
 	// at all, so the controller's on-disk-first merge keeps the phase on disk.
 	advancedPhase string
+
+	// runHistory accumulates metrics_runs entries across the deliveries of one Job.
+	// Each DeliverResult rebuilds the frontmatter from the Job-start content, so
+	// reading the run list back from that frontmatter per delivery would drop every
+	// earlier delivery's entry from a multi-phase Job. Seeded once from the
+	// Job-start content so cross-Job history survives, then appended per delivery.
+	runHistory       []any
+	runHistorySeeded bool
 }
 
 func (d *kafkaResultDeliverer) DeliverResult(
@@ -394,6 +415,7 @@ func (d *kafkaResultDeliverer) applyResultMetrics(
 	if result.AgentTurns != nil {
 		frontmatter[metricsAgentTurnsKey] = *result.AgentTurns
 	}
+	d.applyTokenMetrics(frontmatter, result)
 	if result.InteractionCount == nil {
 		return
 	}
@@ -409,6 +431,91 @@ func (d *kafkaResultDeliverer) applyResultMetrics(
 		return
 	}
 	frontmatter[metricsInteractionCountKey] = *result.InteractionCount
+}
+
+// applyTokenMetrics writes the run's four token counts, each only when the run
+// observed it: a nil field means the CLI reported no usage summary, and its key is
+// omitted rather than written as a zero. Values are plain integers. Unlike the
+// interaction count, a token count is not guarded against lowering — it describes
+// this run's spend, not a high-water mark.
+func (d *kafkaResultDeliverer) applyTokenMetrics(
+	frontmatter agentlib.TaskFrontmatter,
+	result agentlib.AgentResultInfo,
+) {
+	if result.InputTokens != nil {
+		frontmatter[metricsInputTokensKey] = *result.InputTokens
+	}
+	if result.OutputTokens != nil {
+		frontmatter[metricsOutputTokensKey] = *result.OutputTokens
+	}
+	if result.CacheReadTokens != nil {
+		frontmatter[metricsCacheReadTokensKey] = *result.CacheReadTokens
+	}
+	if result.CacheCreationTokens != nil {
+		frontmatter[metricsCacheCreationTokensKey] = *result.CacheCreationTokens
+	}
+	d.appendRunHistory(frontmatter, result)
+}
+
+// appendRunHistory records this run as one entry in metrics_runs, so the flat keys'
+// last-write-wins limitation does not erase earlier runs from a window sum. The
+// entry is written only when the run observed at least one token count; completed_at
+// is the deliver time, which is when the spend landed.
+//
+// The list is accumulated on the deliverer, not re-read from the generated
+// frontmatter: a multi-phase Job rebuilds that frontmatter from the Job-start
+// content on every delivery, so a per-delivery read would drop the earlier
+// deliveries' entries. It is seeded once from the Job-start content so history from
+// prior Jobs survives.
+func (d *kafkaResultDeliverer) appendRunHistory(
+	frontmatter agentlib.TaskFrontmatter,
+	result agentlib.AgentResultInfo,
+) {
+	if !d.runHistorySeeded {
+		d.runHistory = runHistoryFromContent(d.originalContent)
+		d.runHistorySeeded = true
+	}
+	if entry, ok := tokenRunEntry(d.currentDateTime.Now().Time(), result); ok {
+		d.runHistory = append(d.runHistory, entry)
+	}
+	if len(d.runHistory) > 0 {
+		frontmatter[metricsRunsKey] = d.runHistory
+	}
+}
+
+// tokenRunEntry builds one metrics_runs entry from the run's observed token counts.
+// ok is false when the run observed no token count — an entry carrying only
+// completed_at would record a run with no spend and mislead the window sum.
+func tokenRunEntry(at time.Time, result agentlib.AgentResultInfo) (map[string]any, bool) {
+	entry := map[string]any{"completed_at": at.Format(time.RFC3339)}
+	if result.InputTokens != nil {
+		entry["input_tokens"] = *result.InputTokens
+	}
+	if result.OutputTokens != nil {
+		entry["output_tokens"] = *result.OutputTokens
+	}
+	if result.CacheReadTokens != nil {
+		entry["cache_read_tokens"] = *result.CacheReadTokens
+	}
+	if result.CacheCreationTokens != nil {
+		entry["cache_creation_tokens"] = *result.CacheCreationTokens
+	}
+	if len(entry) == 1 {
+		return nil, false
+	}
+	return entry, true
+}
+
+// runHistoryFromContent reads the metrics_runs list already on the Job-start task
+// content. A missing or malformed list is empty, not an error — history is
+// best-effort and a parse failure must not fail the delivery.
+func runHistoryFromContent(content string) []any {
+	fm, _ := ParseMarkdownFrontmatter(content)
+	if fm == nil {
+		return nil
+	}
+	list, _ := fm[metricsRunsKey].([]any)
+	return list
 }
 
 // recordedInteractionCount reads the interaction count already recorded on the task
