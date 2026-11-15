@@ -33,6 +33,9 @@ spec:
   {{- if $agent.runBudgetSeconds }}
   runBudgetSeconds: {{ $agent.runBudgetSeconds }}
   {{- end }}
+  {{- if $agent.tokenCeiling }}
+  tokenCeiling: {{ $agent.tokenCeiling }}
+  {{- end }}
   {{- with $agent.runWindow }}
   runWindow:
     {{- with .timezone }}
