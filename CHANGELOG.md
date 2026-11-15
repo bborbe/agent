@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.146.0
 
 - feat(delivery): **carry the run's four token counts onto the task file.** `ClaudeResult` already parses `input_tokens`, `output_tokens`, `cache_read_input_tokens` and `cache_creation_tokens` and meters them to Prometheus, but `AgentResultInfo` and the deliverer carried only turns and interaction count, so the counts never reached the vault. They now flow `ClaudeResult` → `Result` → `AgentResultInfo` → the published frontmatter as `metrics_input_tokens`, `metrics_output_tokens`, `metrics_cache_read_tokens` and `metrics_cache_creation_tokens`, and each run is also appended to a `metrics_runs` history list — the flat keys are last-write-wins, so a redriven task would otherwise lose earlier runs and a per-window budget would undercount. A run with no usage summary publishes no token key rather than a false zero, matching the existing turn-count absence rule. Change set: `agent_status.go`, `agent_step.go`, `agent_runner.go`, `claude/agent-step.go`, `delivery/result-deliverer.go`, `delivery/result-deliverer_test.go`, `CHANGELOG.md`.
 
