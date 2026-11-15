@@ -126,6 +126,11 @@ image:
 # versioned deploys don't need it; bump image.tag + re-apply instead.
 keel:
   enabled: false
+  # keel.sh/policy — `all` takes any newer tag keel sees, `force` deploys
+  # regardless of tag, `poll`/`glob` are the narrower modes. Previously a
+  # hardcoded `force` literal in every template, so the policy could not be
+  # set from values and a live edit was reverted by the next apply.
+  policy: all
   pollSchedule: "@every 1m"
 
 # Node affinity passthrough (quant pins pods to a node_type=<namespace> node).

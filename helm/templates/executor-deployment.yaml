@@ -9,7 +9,7 @@ metadata:
     {{- include "agent.labels" . | nindent 4 }}
   annotations:
     {{- if .Values.keel.enabled }}
-    keel.sh/policy: force
+    keel.sh/policy: {{ .Values.keel.policy }}
     keel.sh/trigger: poll
     keel.sh/match-tag: "true"
     keel.sh/pollSchedule: {{ .Values.keel.pollSchedule | quote }}
@@ -238,7 +238,7 @@ metadata:
     {{- include "agent.labels" $ | nindent 4 }}
   annotations:
     {{- if $.Values.keel.enabled }}
-    keel.sh/policy: force
+    keel.sh/policy: {{ $.Values.keel.policy }}
     keel.sh/trigger: poll
     keel.sh/match-tag: "true"
     keel.sh/pollSchedule: {{ $.Values.keel.pollSchedule | quote }}
