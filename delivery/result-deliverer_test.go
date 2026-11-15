@@ -1163,6 +1163,35 @@ var _ = Describe("KafkaResultDeliverer", func() {
 			Expect(entry["input_tokens"]).To(BeNumerically("==", 1200))
 			Expect(entry).To(HaveKey("completed_at"))
 		})
+
+		It("accumulates metrics_runs across deliveries in one Job (multi-phase)", func() {
+			generator.GenerateReturns(fullResultContent, nil)
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:      agentlib.AgentStatusInProgress,
+				InputTokens: collection.Ptr(int64(100)),
+			})).To(Succeed())
+			Expect(deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:      agentlib.AgentStatusDone,
+				NextPhase:   "done",
+				InputTokens: collection.Ptr(int64(200)),
+			})).To(Succeed())
+			_, cmdObj := sender.SendCommandObjectArgsForCall(1)
+			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			runs, ok := fm["metrics_runs"].([]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(runs).To(HaveLen(2))
+		})
+
+		It("publishes token counts on a failed result", func() {
+			generator.GenerateReturns(fullResultContent, nil)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:      agentlib.AgentStatusFailed,
+				InputTokens: collection.Ptr(int64(500)),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(publishedFrontmatter()["metrics_input_tokens"]).To(BeNumerically("==", 500))
+		})
 	})
 
 	Context("phase advanced in-process within one Job", func() {
