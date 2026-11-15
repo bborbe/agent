@@ -85,6 +85,11 @@ spec:
                 # spawned Job's start. 0 means no separate budget. When both this and
                 # zombieJobTimeoutSeconds are set, the smaller deadline wins.
                 runBudgetSeconds: {type: integer, minimum: 0}
+                # Optional; caps the tokens the agent may spend across its runs in one
+                # run window. Unset or 0 means no ceiling. Declared here because this
+                # CRD sets preserveUnknownFields: false — an undeclared spec.tokenCeiling
+                # would be pruned and the ceiling silently never fire.
+                tokenCeiling: {type: integer, minimum: 0}
                 # Optional; restricts the hours in which this agent's Jobs may be
                 # spawned. Unset means no window. A spawn outside the window is
                 # deferred and re-driven when it opens, never dropped. Declared here
