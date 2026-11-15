@@ -80,7 +80,11 @@ func lastResultStatusValue(status agentlib.AgentStatus) string {
 // the wrong one. The key is written on every result, including a re-delivered
 // one, so it always describes the latest run rather than the first.
 func applyStatusFrontmatter(content string, result agentlib.AgentResultInfo) string {
-	content = SetFrontmatterField(content, "last_result_status", lastResultStatusValue(result.Status))
+	content = SetFrontmatterField(
+		content,
+		"last_result_status",
+		lastResultStatusValue(result.Status),
+	)
 	switch result.Status {
 	case agentlib.AgentStatusDone:
 		if result.NextPhase == "" {
