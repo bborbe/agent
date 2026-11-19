@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(helm): grant the executor cluster-scoped `list` on `apps/statefulsets`, which its cross-namespace service sweep and orphan reaper have always needed and never had. `ServiceReconciler.removePreviousNamespaceCopies` and `ReapOrphanedCopies` list StatefulSets cluster-wide by design — a copy can live in any namespace the executor ever deployed to, so a per-namespace Role cannot answer them — but the ClusterRole granted only `customresourcedefinitions`, so both paths were refused on every tick for every Config. Observed on nuke dev 2026-11-19: `event=service_namespace_sweep_failed config=trading-strategy-prototype-agent error=statefulsets.apps "trading-strategy-prototype-agent" is forbidden: User "system:serviceaccount:agent:agent-task-executor" cannot list resource "statefulsets" in API group "apps" at the cluster scope`, ~23×/min per executor. The grant is read-only and single-resource: `list` and nothing else. Chart 0.23.22→0.23.23.
+
 ## v0.147.2
 
 - fix(pi): read the answer from a reasoning-only assistant message. `lastTextContent` accepted only `type == "text"` blocks, so a message whose sole content was a `thinking` block returned `""` and the run reported `no result found in pi CLI output` on a prompt the model had answered. `piContent` now carries `thinking`, and `lastTextContent` falls back to it — a text block still wins when both are present, so nothing changes for a normal response. Measured 2026-11-19 on dev `pi-headless` with one pinned pi CLI and one pinned catalogue: the same `2 + 2` prompt returned `out=98` (parsed) and `out=191` (empty), so the failure tracked the response shape rather than the code — which is why it read as intermittent. Covered by two specs: a reasoning-only `message_end` yields its thinking text, and a message carrying both blocks still returns the text.
