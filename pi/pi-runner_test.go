@@ -217,4 +217,24 @@ printf '{"type":"message_end","message":{"role":"system","content":[{"type":"tex
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("no result found"))
 	})
+
+	It("carries the stdout tail and stderr when no result is found", func() {
+		// The empty-result path used to be silent: pi exits 0, the model answered,
+		// and the caller saw only "no result found" — indistinguishable from a
+		// vocabulary mismatch, which needs the opposite fix. Observed live
+		// 2026-11-19: a dev pi-headless run got status=200 from the router and
+		// produced that error with no evidence at all, so neither the tail nor the
+		// stderr could be read from the Job log.
+		setShim(`#!/bin/sh
+printf '{"type":"some_unknown_event","payload":"x"}\n'
+printf 'a diagnostic line on stderr\n' >&2
+`)
+
+		_, err := pi.NewRunner(pi.PiRunnerConfig{}).Run(ctx, "test")
+
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("no result found"))
+		Expect(err.Error()).To(ContainSubstring("some_unknown_event"))
+		Expect(err.Error()).To(ContainSubstring("a diagnostic line on stderr"))
+	})
 })
