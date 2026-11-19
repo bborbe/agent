@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(pi): carry the captured stdout tail and stderr in the `no result found in pi CLI output` error. The empty-result path returned a bare message, so a run where pi exited 0 with nothing the parser recognised was indistinguishable from a vocabulary mismatch — the two need opposite fixes, and the evidence was already in hand (the tail ring buffer and the stderr buffer) but discarded. Measured 2026-11-19 on a dev `pi-headless` run: the router answered `status=200 in=7 out=191` and the runner failed in 4.2 s reporting only `no result found in pi CLI output`, with neither pi stream reaching the Job log because the runner redirects both. The non-zero-exit path already carried both; the empty-result path now does too.
+
 ## v0.147.0
 
 - feat(chart): **expose the keel policy as `keel.policy` instead of a hardcoded `force` literal (chart 0.23.22).** `keel.sh/policy: force` was written into all four annotation blocks across three templates, and only `keel.enabled` / `keel.pollSchedule` were values, so the policy could not be set from a values file and an edit made on the live object was rewritten by the next apply. The templates now render `{{ .Values.keel.policy }}`, defaulting to `all` — the policy chosen on 2026-11-09, when `all` was preferred over removing the annotation because removal also stops image updates. Behaviour change for anyone relying on the old default: a `keel.enabled: true` render now emits `policy: all` rather than `force`. `keel.sh/match-tag` stays a literal and is not converted here. Change set: `helm/values.yaml`, `helm/templates/executor-deployment.yaml`, `helm/templates/controller-statefulset.yaml`, `helm/templates/recurring-task-creator-statefulset.yaml`, `helm/README.md`, `CHANGELOG.md`.

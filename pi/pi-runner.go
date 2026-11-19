@@ -58,11 +58,9 @@ func (r *piRunner) Run(ctx context.Context, prompt string) (*Result, error) {
 	resultText, tail := scanOutput(ctx, stdoutPipe)
 
 	if err := cmd.Wait(); err != nil {
-		var tailMsg string
+		tailMsg := "no stdout captured"
 		if len(tail) > 0 {
 			tailMsg = strings.Join(tail, tailJoiner)
-		} else {
-			tailMsg = "no stdout captured"
 		}
 		return nil, &RunError{
 			Msg: "pi CLI failed: " + tailMsg + " | stderr: " + stderrBuf.String(),
@@ -71,7 +69,19 @@ func (r *piRunner) Run(ctx context.Context, prompt string) (*Result, error) {
 	}
 
 	if resultText == "" {
-		return nil, &RunError{Msg: "no result found in pi CLI output", Err: nil}
+		// This is the silent path: pi exits 0, the model answered, and the caller
+		// sees only "no result found". Without the tail and stderr an operator
+		// cannot tell a vocabulary mismatch from a CLI that emitted nothing at
+		// all — the two need opposite fixes. Carry both here exactly as the
+		// non-zero-exit path above does.
+		tailMsg := "no stdout captured"
+		if len(tail) > 0 {
+			tailMsg = strings.Join(tail, tailJoiner)
+		}
+		return nil, &RunError{
+			Msg: "no result found in pi CLI output: " + tailMsg + " | stderr: " + stderrBuf.String(),
+			Err: nil,
+		}
 	}
 
 	return &Result{Result: resultText}, nil
