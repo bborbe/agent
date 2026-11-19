@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.147.2
 
 - fix(pi): read the answer from a reasoning-only assistant message. `lastTextContent` accepted only `type == "text"` blocks, so a message whose sole content was a `thinking` block returned `""` and the run reported `no result found in pi CLI output` on a prompt the model had answered. `piContent` now carries `thinking`, and `lastTextContent` falls back to it — a text block still wins when both are present, so nothing changes for a normal response. Measured 2026-11-19 on dev `pi-headless` with one pinned pi CLI and one pinned catalogue: the same `2 + 2` prompt returned `out=98` (parsed) and `out=191` (empty), so the failure tracked the response shape rather than the code — which is why it read as intermittent. Covered by two specs: a reasoning-only `message_end` yields its thinking text, and a message carrying both blocks still returns the text.
 
