@@ -58,8 +58,12 @@ func (r *piRunner) Run(ctx context.Context, prompt string) (*Result, error) {
 	resultText, tail := scanOutput(ctx, stdoutPipe)
 
 	if err := cmd.Wait(); err != nil {
+		tailMsg := "no stdout captured"
+		if len(tail) > 0 {
+			tailMsg = strings.Join(tail, tailJoiner)
+		}
 		return nil, &RunError{
-			Msg: "pi CLI failed: " + tailOrPlaceholder(tail) + " | stderr: " + stderrBuf.String(),
+			Msg: "pi CLI failed: " + tailMsg + " | stderr: " + stderrBuf.String(),
 			Err: err,
 		}
 	}
@@ -70,8 +74,12 @@ func (r *piRunner) Run(ctx context.Context, prompt string) (*Result, error) {
 		// cannot tell a vocabulary mismatch from a CLI that emitted nothing at
 		// all — the two need opposite fixes. Carry both here exactly as the
 		// non-zero-exit path above does.
+		tailMsg := "no stdout captured"
+		if len(tail) > 0 {
+			tailMsg = strings.Join(tail, tailJoiner)
+		}
 		return nil, &RunError{
-			Msg: "no result found in pi CLI output: " + tailOrPlaceholder(tail) + " | stderr: " + stderrBuf.String(),
+			Msg: "no result found in pi CLI output: " + tailMsg + " | stderr: " + stderrBuf.String(),
 			Err: nil,
 		}
 	}
@@ -180,15 +188,6 @@ type piMessage struct {
 type piContent struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
-}
-
-// tailOrPlaceholder renders the captured stdout tail, or a marker when the
-// subprocess wrote nothing to stdout at all.
-func tailOrPlaceholder(tail []string) string {
-	if len(tail) == 0 {
-		return "no stdout captured"
-	}
-	return strings.Join(tail, tailJoiner)
 }
 
 // appendTail appends a non-empty line to the ring buffer.
