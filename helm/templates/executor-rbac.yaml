@@ -20,6 +20,16 @@ rules:
   - apiGroups: [apiextensions.k8s.io]
     resources: [customresourcedefinitions]
     verbs: [get, create, update, patch]
+  # The service reconciler sweeps every namespace for a StatefulSet copy a Config
+  # left behind when its serviceNamespace changed, and reaps copies whose Config
+  # was deleted. Both lists are cluster-scoped by design: a copy can live in any
+  # namespace this executor ever deployed to, so a per-namespace Role cannot
+  # answer them. Read-only and single-resource on purpose — `list` and nothing
+  # else; without it both paths log `service_namespace_sweep_failed` every tick
+  # for every Config and never clean up.
+  - apiGroups: [apps]
+    resources: [statefulsets]
+    verbs: [list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
