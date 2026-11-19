@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.147.1
 
 - fix(pi): carry the captured stdout tail and stderr in the `no result found in pi CLI output` error. The empty-result path returned a bare message, so a run where pi exited 0 with nothing the parser recognised was indistinguishable from a vocabulary mismatch — the two need opposite fixes, and the evidence was already in hand (the tail ring buffer and the stderr buffer) but discarded. Measured 2026-11-19 on a dev `pi-headless` run: the router answered `status=200 in=7 out=191` and the runner failed in 4.2 s reporting only `no result found in pi CLI output`, with neither pi stream reaching the Job log because the runner redirects both. The non-zero-exit path already carried both; the empty-result path now does too.
 
