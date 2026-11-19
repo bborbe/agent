@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.147.3
 
 - fix(helm): grant the executor cluster-scoped `list` on `apps/statefulsets`, which its cross-namespace service sweep and orphan reaper have always needed and never had. `ServiceReconciler.removePreviousNamespaceCopies` and `ReapOrphanedCopies` list StatefulSets cluster-wide by design — a copy can live in any namespace the executor ever deployed to, so a per-namespace Role cannot answer them — but the ClusterRole granted only `customresourcedefinitions`, so both paths were refused on every tick for every Config. Observed on nuke dev 2026-11-19: `event=service_namespace_sweep_failed config=trading-strategy-prototype-agent error=statefulsets.apps "trading-strategy-prototype-agent" is forbidden: User "system:serviceaccount:agent:agent-task-executor" cannot list resource "statefulsets" in API group "apps" at the cluster scope`, ~23×/min per executor. The grant is read-only and single-resource: `list` and nothing else. Chart 0.23.22→0.23.23.
 
