@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(pi): read the answer from a reasoning-only assistant message. `lastTextContent` accepted only `type == "text"` blocks, so a message whose sole content was a `thinking` block returned `""` and the run reported `no result found in pi CLI output` on a prompt the model had answered. `piContent` now carries `thinking`, and `lastTextContent` falls back to it — a text block still wins when both are present, so nothing changes for a normal response. Measured 2026-11-19 on dev `pi-headless` with one pinned pi CLI and one pinned catalogue: the same `2 + 2` prompt returned `out=98` (parsed) and `out=191` (empty), so the failure tracked the response shape rather than the code — which is why it read as intermittent. Covered by two specs: a reasoning-only `message_end` yields its thinking text, and a message carrying both blocks still returns the text.
+
 ## v0.147.1
 
 - fix(pi): carry the captured stdout tail and stderr in the `no result found in pi CLI output` error. The empty-result path returned a bare message, so a run where pi exited 0 with nothing the parser recognised was indistinguishable from a vocabulary mismatch — the two need opposite fixes, and the evidence was already in hand (the tail ring buffer and the stderr buffer) but discarded. Measured 2026-11-19 on a dev `pi-headless` run: the router answered `status=200 in=7 out=191` and the runner failed in 4.2 s reporting only `no result found in pi CLI output`, with neither pi stream reaching the Job log because the runner redirects both. The non-zero-exit path already carried both; the empty-result path now does too.

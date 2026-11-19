@@ -186,8 +186,9 @@ type piMessage struct {
 }
 
 type piContent struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type     string `json:"type"`
+	Text     string `json:"text"`
+	Thinking string `json:"thinking"`
 }
 
 // appendTail appends a non-empty line to the ring buffer.
@@ -281,13 +282,32 @@ func lastAssistantText(messages []piMessage) string {
 	return ""
 }
 
-// lastTextContent returns the last non-empty text from content blocks.
+// lastTextContent returns the last non-empty text from content blocks, falling
+// back to the last thinking block when the message carries no text block at all.
+//
+// The fallback is load-bearing. With reasoning enabled the provider can return an
+// assistant message whose only content is a `thinking` block, and a text-only
+// reader then returns "" — which surfaces as "no result found in pi CLI output"
+// on a run the model in fact answered. Measured 2026-11-19 against one pinned pi
+// CLI and one pinned catalogue: identical prompts returned `out=98` (parsed) and
+// `out=191` (empty), so the failure tracked the response shape, not the code.
 func lastTextContent(content []piContent) string {
 	var result string
+	var thinking string
 	for _, c := range content {
-		if c.Type == "text" && c.Text != "" {
-			result = c.Text
+		switch c.Type {
+		case "text":
+			if c.Text != "" {
+				result = c.Text
+			}
+		case "thinking":
+			if c.Thinking != "" {
+				thinking = c.Thinking
+			}
 		}
 	}
-	return result
+	if result != "" {
+		return result
+	}
+	return thinking
 }
