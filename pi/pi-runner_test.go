@@ -203,6 +203,33 @@ printf '{"type":"agent_settled"}\n'
 		Expect(result.Result).To(Equal("NEW"))
 	})
 
+	It("reads the answer from a reasoning-only message_end", func() {
+		// With reasoning enabled the provider can return an assistant message whose
+		// only content is a thinking block. A text-only reader returns "" and the
+		// run reports "no result found" on a prompt the model answered — measured
+		// 2026-11-19 as out=191 (empty) against out=98 (parsed) for the same prompt.
+		setShim(`#!/bin/sh
+printf '{"type":"message_end","message":{"role":"assistant","content":[{"type":"thinking","thinking":"2 + 2 = 4"}]}}\n'
+printf '{"type":"agent_settled"}\n'
+`)
+
+		result, err := pi.NewRunner(pi.PiRunnerConfig{}).Run(ctx, "test")
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Result).To(Equal("2 + 2 = 4"))
+	})
+
+	It("prefers a text block over a thinking block when both are present", func() {
+		setShim(`#!/bin/sh
+printf '{"type":"message_end","message":{"role":"assistant","content":[{"type":"thinking","thinking":"REASONING"},{"type":"text","text":"ANSWER"}]}}\n'
+`)
+
+		result, err := pi.NewRunner(pi.PiRunnerConfig{}).Run(ctx, "test")
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Result).To(Equal("ANSWER"))
+	})
+
 	It("does not return a non-assistant message as the answer", func() {
 		// The role guard is the whole point: message_end fires for every role, so
 		// without it a run producing no assistant text would echo the system prompt
