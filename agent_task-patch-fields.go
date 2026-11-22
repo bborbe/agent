@@ -88,7 +88,9 @@ func TaskPatchFieldAdmitted(key string) bool {
 }
 
 // TaskTypedFields returns a fresh copy of the task-frontmatter keys the vault
-// API validates and reasons about. This package is their single definition.
+// API validates and reasons about. This package is their single definition,
+// though neither consumer calls it yet — until they adopt this package the two
+// repositories still keep their own copies.
 // A key absent from this set is not necessarily refused — the pipeline's keys
 // are admitted through TaskPipelineFields, and metrics_* through its prefix.
 //
@@ -100,7 +102,9 @@ func TaskTypedFields() map[string]bool {
 }
 
 // TaskPipelineFields returns a fresh copy of the task-frontmatter keys the agent
-// pipeline writes through the vault API. This package is their single definition.
+// pipeline writes through the vault API. This package is their single definition,
+// though neither consumer calls it yet — until they adopt this package the two
+// repositories still keep their own copies.
 // A key absent from this set is not necessarily refused — the API's own typed
 // keys are admitted through TaskTypedFields, and metrics_* through its prefix.
 //
