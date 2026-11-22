@@ -19,7 +19,7 @@ data:
   # Seeded from claude-yolo's curated `files/tinyproxy-allowlist` (30 entries,
   # anchored `^...$` so `api.github.com.evil.com` cannot match) plus the two
   # claude-code-router upstreams `api.gpt.seibert.ai` and `api.seibert.ai`,
-  # which the router calls and which no seed list carried — 34 entries total.
+  # which the router calls and which no seed list carried.
   # `api.minimax.io` is load-bearing: prod github-dark-factory-agent runs
   # ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic.
   # The Sentry entries are paired: `^sentry\.io$` is anchored and matches only the
