@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.148.1
 
 - fix(helm): **allow `generativelanguage.googleapis.com` in the sandbox egress proxy so `trading-backtest-agent` can reach Gemini.** The agent calls Gemini in-process through `google.golang.org/genai` — `pkg/factory` builds the planning-phase content parser and the liveness `healthcheck-gemini` step on it, and the image is `FROM scratch` by design so there is no CLI fallback — but the proxy's tinyproxy filter is `FilterDefaultDeny=Yes` and carried no entry for that host, so every Job died `Post "https://generativelanguage.googleapis.com/v1beta/models/<model>:generateContent": Filtered` before a task could be parsed. Observed on `agent-backtest:v0.1.0` on nuke dev and prod. One anchored regex, single host: `^storage\.googleapis\.com$` stays bare because it is the Go module proxy's exact redirect target, and the rest of the googleapis estate stays closed. Chart 0.23.23→0.23.24.
 
