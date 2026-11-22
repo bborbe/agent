@@ -1,6 +1,12 @@
 ---
-status: draft
+status: completed
+summary: Added the canonical task PATCH field rule (TaskPatchFieldAdmitted plus typed/pipeline/patch set accessors) in the root lib package, with Ginkgo coverage, a result-writer contract spec, and README/CHANGELOG updates.
+execution_id: agent-task-patch-fields-exec-267-add-task-patch-fields-allowlist
+dark-factory-version: v0.198.17
 created: "2026-11-22T18:10:00Z"
+queued: "2026-11-22T17:25:17Z"
+started: "2026-11-22T17:25:45Z"
+completed: "2026-11-22T17:35:24Z"
 ---
 
 # Add the task PATCH field rule to the shared task schema

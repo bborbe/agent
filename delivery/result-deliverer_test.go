@@ -1194,6 +1194,53 @@ var _ = Describe("KafkaResultDeliverer", func() {
 		})
 	})
 
+	Context("the result writer publishes only keys the task PATCH field rule admits", func() {
+		publishedFrontmatter := func() map[string]interface{} {
+			_, cmdObj := sender.SendCommandObjectArgsForCall(0)
+			fm, ok := cmdObj.Command.Data["frontmatter"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			return fm
+		}
+
+		BeforeEach(func() {
+			originalContent = "---\ntitle: My Task\nstatus: in_progress\nmax_retries: 5\n---\n\nBody.\n"
+		})
+
+		It("publishes max_retries and no key the rule does not admit", func() {
+			// The fake generator echoes the original frontmatter, so max_retries —
+			// carried on the task rather than written by this repo — reaches the
+			// published map the same way it would through a real read-modify-write.
+			generator.GenerateReturns(
+				"---\ntitle: My Task\nstatus: completed\nphase: done\nmax_retries: 5\n---\n\nBody.\n\n## Result\n\nok\n",
+				nil,
+			)
+			err := deliverer.DeliverResult(ctx, agentlib.AgentResultInfo{
+				Status:              agentlib.AgentStatusDone,
+				NextPhase:           "done",
+				AgentTurns:          collection.Ptr(int64(3)),
+				InteractionCount:    collection.Ptr(int64(2)),
+				InputTokens:         collection.Ptr(int64(1200)),
+				OutputTokens:        collection.Ptr(int64(340)),
+				CacheReadTokens:     collection.Ptr(int64(9000)),
+				CacheCreationTokens: collection.Ptr(int64(410)),
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			fm := publishedFrontmatter()
+			Expect(fm).To(HaveKey("max_retries"))
+			Expect(fm["max_retries"]).To(BeNumerically("==", 5))
+			Expect(fm).To(HaveKey("metrics_runs"))
+
+			for key := range fm {
+				Expect(agentlib.TaskPatchFieldAdmitted(key)).To(
+					BeTrue(),
+					"the result writer published a key the PATCH field rule does not admit: %q",
+					key,
+				)
+			}
+		})
+	})
+
 	Context("phase advanced in-process within one Job", func() {
 		// A multi-phase Agent walks planning -> execution inside one Job with a
 		// single deliverer. Every save after the first is generated from the
