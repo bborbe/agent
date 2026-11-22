@@ -3,6 +3,12 @@ name: agent
 description: bborbe agent framework — event-driven, Kafka-based, K8s-native task platform (controller, executor, and example agents)
 type: application
 # Chart version — bumped on chart changes, independent of appVersion.
+# 0.23.24 adds `^generativelanguage\.googleapis\.com$` to the egress proxy's
+# tinyproxy allowlist, so `trading-backtest-agent` can reach Gemini from its
+# `trading-sandbox` Job. The agent calls Gemini in-process through
+# `google.golang.org/genai` (its image is `FROM scratch` by design), so with the
+# host denied by the default-deny filter every backtest task died
+# `Post "https://generativelanguage.googleapis.com/…": Filtered` before parsing.
 # 0.23.23 grants the executor cluster-scoped `list` on `apps/statefulsets`, which
 # its cross-namespace service sweep and orphan reaper have always needed and never
 # had. 0.23.22 exposes `keel.policy` (default `all`): the keel.sh/policy annotation
@@ -10,7 +16,7 @@ type: application
 # set from values and an operator edit to the live Deployment was dropped by
 # the next apply. 0.23.21 rendered `spec.tokenCeiling`; 0.23.20 added
 # `executor.env` / `executors[].env`.
-version: 0.23.23
+version: 0.23.24
 # Default image tag for the framework components when values don't override.
 appVersion: "0.3.1"
 home: https://github.com/bborbe/agent

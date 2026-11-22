@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix(helm): **allow `generativelanguage.googleapis.com` in the sandbox egress proxy so `trading-backtest-agent` can reach Gemini.** The agent calls Gemini in-process through `google.golang.org/genai` — `pkg/factory` builds the planning-phase content parser and the liveness `healthcheck-gemini` step on it, and the image is `FROM scratch` by design so there is no CLI fallback — but the proxy's tinyproxy filter is `FilterDefaultDeny=Yes` and carried no entry for that host, so every Job died `Post "https://generativelanguage.googleapis.com/v1beta/models/<model>:generateContent": Filtered` before a task could be parsed. Observed on `agent-backtest:v0.1.0` on nuke dev and prod. One anchored regex, single host: `^storage\.googleapis\.com$` stays bare because it is the Go module proxy's exact redirect target, and the rest of the googleapis estate stays closed. Chart 0.23.23→0.23.24.
+
 ## v0.148.0
 
 - feat: add `TaskPatchFieldAdmitted` plus `TaskTypedFields` / `TaskPipelineFields` / `TaskPatchFields` as the one rule for which task-frontmatter keys a task PATCH may name. The rule lives in this SDK beside the `Task` payload both consumers already import, so the vault API's request validation and the task controller's result writer can call it instead of each keeping a list that drifts; the enumerated sets stay closed while `metrics_*` is admitted by prefix, and `max_retries` is enumerated because a result PATCH carries an operator-set value the API would otherwise refuse.
