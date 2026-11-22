@@ -19,7 +19,7 @@ data:
   # Seeded from claude-yolo's curated `files/tinyproxy-allowlist` (30 entries,
   # anchored `^...$` so `api.github.com.evil.com` cannot match) plus the two
   # claude-code-router upstreams `api.gpt.seibert.ai` and `api.seibert.ai`,
-  # which the router calls and which no seed list carried — 34 entries total.
+  # which the router calls and which no seed list carried.
   # `api.minimax.io` is load-bearing: prod github-dark-factory-agent runs
   # ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic.
   # The Sentry entries are paired: `^sentry\.io$` is anchored and matches only the
@@ -32,6 +32,16 @@ data:
   # from a genuinely imageless release. The wildcard covers both hosts; `docker.com`
   # (the website and the Cloudflare blob CDN) is deliberately NOT opened, because the
   # manifest HEAD never touches it.
+  # `^generativelanguage\.googleapis\.com$` is Gemini's API, needed by
+  # `trading-backtest-agent`: its `main.go` declares `GeminiAPIKey` `required:"true"`
+  # and `pkg/factory` builds both the planning-phase content parser and the liveness
+  # `healthcheck-gemini` step on `google.golang.org/genai`, which POSTs to
+  # `https://generativelanguage.googleapis.com/v1beta/models/<model>:generateContent`
+  # in-process — the image is `FROM scratch` by design, so no CLI fallback exists.
+  # Without the entry every backtest task dies `Post "…": Filtered` before parsing.
+  # One host only, anchored: `^storage\.googleapis\.com$` above stays bare because it
+  # is the module proxy's exact redirect target, and the rest of the googleapis estate
+  # stays closed.
   tinyproxy-allowlist: |
     ^.*\.github\.com$
     ^.*\.githubusercontent\.com$
@@ -45,6 +55,7 @@ data:
     ^console\.anthropic\.com$
     ^dl-cdn\.alpinelinux\.org$
     ^files\.pythonhosted\.org$
+    ^generativelanguage\.googleapis\.com$
     ^ghcr\.io$
     ^github\.com$
     ^.*\.docker\.io$
