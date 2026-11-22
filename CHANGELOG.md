@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.148.0
 
 - feat: add `TaskPatchFieldAdmitted` plus `TaskTypedFields` / `TaskPipelineFields` / `TaskPatchFields` as the one rule for which task-frontmatter keys a task PATCH may name. The rule lives in this SDK beside the `Task` payload both consumers already import, so the vault API's request validation and the task controller's result writer can call it instead of each keeping a list that drifts; the enumerated sets stay closed while `metrics_*` is admitted by prefix, and `max_retries` is enumerated because a result PATCH carries an operator-set value the API would otherwise refuse.
 
