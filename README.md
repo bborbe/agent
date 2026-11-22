@@ -44,6 +44,8 @@ Single Go module at `github.com/bborbe/agent` with these subpackages:
 | `metrics/` | Prometheus metrics for agent + executor runtime |
 | `mocks/` | counterfeiter-generated test doubles |
 
+The root package also exports `TaskPatchFieldAdmitted` (with `TaskTypedFields`, `TaskPipelineFields` and `TaskPatchFields`) — the single rule for which task-frontmatter keys a task PATCH may name: the enumerated typed and pipeline keys plus the open `metrics_*` namespace.
+
 ## Consumers
 
 Each agent + task service lives in its own repo and imports this SDK:
