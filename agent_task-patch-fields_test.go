@@ -51,8 +51,8 @@ var _ = Describe("TaskPatchFields", func() {
 
 	It("has the expected size for each set", func() {
 		Expect(lib.TaskTypedFields()).To(HaveLen(20))
-		Expect(lib.TaskPipelineFields()).To(HaveLen(47))
-		Expect(lib.TaskPatchFields()).To(HaveLen(67))
+		Expect(lib.TaskPipelineFields()).To(HaveLen(48))
+		Expect(lib.TaskPatchFields()).To(HaveLen(68))
 	})
 
 	It("returns an independent copy from TaskTypedFields", func() {
@@ -94,6 +94,14 @@ var _ = Describe("TaskPatchFields", func() {
 				Expect(lib.TaskPatchFieldAdmitted(key)).To(BeTrue(), "key %q", key)
 			}
 		})
+
+		It(
+			"created is a template-stamped creation date, admitted so a recurring create is not dropped whole",
+			func() {
+				Expect(lib.TaskPatchFieldAdmitted("created")).To(BeTrue())
+				Expect(lib.TaskPatchFields()).To(HaveKey("created"))
+			},
+		)
 
 		It("admits a synthetic future metrics key", func() {
 			Expect(lib.TaskPatchFieldAdmitted("metrics_not_yet_invented")).To(BeTrue())

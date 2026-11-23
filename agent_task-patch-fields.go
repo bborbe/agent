@@ -39,6 +39,14 @@ var taskPipelineFields = map[string]bool{
 	"processed_at": true, "superseded_by": true, "base_ref": true,
 	"clone_url": true, "ref": true, "repo": true, "current_version": true,
 	"override_reason": true, "title": true, "created_by": true,
+	// created is stamped by recurring-task-creator's templates — the AI
+	// Knowledge Sharing one sets it so vault-cli's closure gate does not
+	// grandfather every instance. The API stores it without interpreting it;
+	// no typed creation date exists. Measured 2026-11-22 on
+	// agent-task-controller-seibert-personal-0: the create answered
+	// 400 unknown_field field=created and was dropped whole, so the weekly
+	// instance never materialized.
+	"created":          true,
 	"auto_abort_prior": true, "date": true, "launcher": true,
 	"branch": true, "pr_number": true, "current_go": true, "latest_go": true,
 	"episode_sha": true, "vuln_count": true, "vulns": true,
