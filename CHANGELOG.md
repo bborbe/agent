@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.148.2
 
 - fix: admit the `created` task-frontmatter key in `TaskPipelineFields`, so a recurring create that carries it is not refused whole. `recurring-task-creator`'s AI Knowledge Sharing template stamps `created: "{{current_date}}"` because vault-cli's closure gate reads exactly that key to decide whether a task is grandfathered out of the DoD staleness check — so the key is load-bearing on the write, not metadata. Measured 2026-11-22 on `agent-task-controller-seibert-personal-0`: every hourly create answered `400 unknown_field field=created`, the command was dropped with it, and the weekly instance never materialized. Stored without interpretation, beside `created_by` and `date`.
 
