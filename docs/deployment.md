@@ -17,15 +17,19 @@ gap surfaced only when the operator asked why the laptop was involved. Design ru
 full contrast table: `private-personal` vault, `[[Agent Design Guide]]` § *Norm: production
 runs in the cluster*.
 
-## What this repo deploys: nothing
+## What this repo deploys: no component image
 
-`bborbe/agent` is the **library plus the Helm chart**. It has no Dockerfile, no image and no
-`.goreleaser` — there is no deployable component here. The components publish their own
-images from their own repos:
+`bborbe/agent` is the **library plus the Helm chart**. It has no `.goreleaser` and publishes
+no deployable component — the components publish their own images from their own repos. Its
+only image is the diagnostic **shell-probe**: `images/shell-probe/Dockerfile` plus
+`Makefile.docker`'s `probe-image-build` / `probe-image-upload` targets publish
+`bborbe/agent-shell-probe`, whose `MIRROR_IMAGES` pin lives in `bborbe/nuke`. That is a probe,
+not a component, so it is not part of the component deploy flow below — but a pin bump that
+omits it still hard-fails the apply, exactly as step 2 warns.
 
 | Repo | Role |
 |---|---|
-| `bborbe/agent` | Go library + Helm chart. No image. |
+| `bborbe/agent` | Go library + Helm chart. One image only: `agent-shell-probe`, a probe rather than a deployable component. |
 | `bborbe/agent-task-controller` | The controller. Own repo, own image. |
 | `bborbe/agent-task-executor` | The executor. Own repo, own image. |
 | `bborbe/agent-claude` / `agent-pi` | Agent images. Each pins `bborbe/agent` independently. |
@@ -69,7 +73,11 @@ kubectlnukeprod -n prod logs <pod> --tail=50
 ## What this page replaced
 
 The previous version deployed `task/controller` from this worktree with `make buca` against
-`kubectlquant`, and proposed `agent-dev`/`agent-prod` worktrees. All three are gone: the
-controller and executor are standalone repos, agent workloads moved off quant, and
-`agent-dev` holds the flattened library with no deployable component while `agent-prod` was
-never created.
+`kubectlquant`, and proposed `agent-dev`/`agent-prod` worktrees. All three are gone from the
+deploy path: the controller and executor are standalone repos, agent workloads moved off
+quant, and `agent-dev` holds the flattened library with no deployable component while
+`agent-prod` was never created.
+
+⚠️ `CLAUDE.md` and `skills/launch-agent/` still instruct `make buca` / `/make-buca` and
+`kubectlquant` against those worktrees. Those are pre-existing references outside this
+change, and they now contradict this page — tracked separately rather than rewritten here.
