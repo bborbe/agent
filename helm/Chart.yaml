@@ -3,6 +3,11 @@ name: agent
 description: bborbe agent framework — event-driven, Kafka-based, K8s-native task platform (controller, executor, and example agents)
 type: application
 # Chart version — bumped on chart changes, independent of appVersion.
+# 0.23.25 rejects an `agents[].zombieJobTimeoutSeconds` below the Config CRD
+# minimum (30) at `helm template` time, naming the agent and value, instead of
+# letting it reach the cluster and fail later as a CRD admission error. The
+# minimum is read from `crds/config-crd.yaml` at render time, so it cannot drift;
+# `0` is now rejected rather than silently dropped as unset.
 # 0.23.24 adds `^generativelanguage\.googleapis\.com$` to the egress proxy's
 # tinyproxy allowlist, so `trading-backtest-agent` can reach Gemini from its
 # `trading-sandbox` Job. The agent calls Gemini in-process through
@@ -16,7 +21,7 @@ type: application
 # set from values and an operator edit to the live Deployment was dropped by
 # the next apply. 0.23.21 rendered `spec.tokenCeiling`; 0.23.20 added
 # `executor.env` / `executors[].env`.
-version: 0.23.24
+version: 0.23.25
 # Default image tag for the framework components when values don't override.
 appVersion: "0.3.1"
 home: https://github.com/bborbe/agent

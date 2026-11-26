@@ -121,6 +121,93 @@ run_case false "$tmpdir/false.yaml" false
 run_case true "$tmpdir/true.yaml" true
 run_case unset "$tmpdir/unset.yaml" unset
 
+# --- agents[].zombieJobTimeoutSeconds render-time guard --------------------
+# The Config CRD declares minimum: 30 for this field. A value below it must
+# fail the render, naming the agent and value, instead of reaching the cluster
+# and failing later as an admission error far from the values file. `0` is the
+# regression lock for the old truthiness test, which dropped the key entirely
+# before any guard could see it.
+
+# run_render_ok <case> <values file> <expected-line>
+run_render_ok() {
+	local name="$1"
+	local values="$2"
+	local expected="$3"
+	local out="$tmpdir/$name.out"
+
+	if ! "$helm_bin" template x "$CHART_DIR" -f "$values" --show-only templates/agents.yaml >"$out" 2>"$tmpdir/$name.err"; then
+		echo "FAIL: $name: render failed, want success"
+		cat "$tmpdir/$name.err"
+		fail=1
+		return
+	fi
+
+	local count
+	count="$(grep -c '^kind: Config$' "$out" || true)"
+	if [ "$count" -ne 1 ]; then
+		echo "FAIL: $name: expected exactly 1 Config document, got $count"
+		fail=1
+		return
+	fi
+	if ! grep -qx -- "$expected" "$out"; then
+		echo "FAIL: $name: missing '$expected'"
+		fail=1
+		return
+	fi
+
+	echo "OK: $name"
+}
+
+# run_render_fails <case> <values file> <message-fragment>
+run_render_fails() {
+	local name="$1"
+	local values="$2"
+	local fragment="$3"
+	local err
+
+	if err="$("$helm_bin" template x "$CHART_DIR" -f "$values" --show-only templates/agents.yaml 2>&1)"; then
+		echo "FAIL: $name: render succeeded, want a failure naming $fragment"
+		fail=1
+	elif grep -qF -- "$fragment" <<<"$err"; then
+		echo "OK: $name"
+	else
+		echo "FAIL: $name: render failed without the expected message: $err"
+		fail=1
+	fi
+}
+
+write_values "$tmpdir/zombie-below.yaml" "" "zombieJobTimeoutSeconds: 10"
+write_values "$tmpdir/zombie-valid.yaml" "" "zombieJobTimeoutSeconds: 60"
+write_values "$tmpdir/zombie-zero.yaml" "" "zombieJobTimeoutSeconds: 0"
+
+run_render_fails zombie-below-min "$tmpdir/zombie-below.yaml" \
+	'agents[rr-agent].zombieJobTimeoutSeconds=10 is below the CRD minimum 30'
+run_render_ok zombie-valid "$tmpdir/zombie-valid.yaml" '  zombieJobTimeoutSeconds: 60'
+run_render_fails zombie-zero "$tmpdir/zombie-zero.yaml" \
+	'agents[rr-agent].zombieJobTimeoutSeconds=0 is below the CRD minimum 30'
+
+# CRD-tracking probe: the guard must read the CRD's minimum, not a copied
+# constant. Rewrite the copy's minimum to 45 and render 40 against it — must
+# fail at 45 — while 35 against the unmodified chart must still succeed.
+cp -R "$CHART_DIR" "$tmpdir/chart-crd"
+sed 's/minimum: 30/minimum: 45/' "$tmpdir/chart-crd/crds/config-crd.yaml" >"$tmpdir/config-crd-45.yaml"
+mv "$tmpdir/config-crd-45.yaml" "$tmpdir/chart-crd/crds/config-crd.yaml"
+write_values "$tmpdir/zombie-40.yaml" "" "zombieJobTimeoutSeconds: 40"
+write_values "$tmpdir/zombie-35.yaml" "" "zombieJobTimeoutSeconds: 35"
+
+if err="$("$helm_bin" template x "$tmpdir/chart-crd" -f "$tmpdir/zombie-40.yaml" \
+	--show-only templates/agents.yaml 2>&1)"; then
+	echo "FAIL: zombie-crd-tracking: render succeeded with 40 against a CRD minimum of 45"
+	fail=1
+elif grep -qF -- 'agents[rr-agent].zombieJobTimeoutSeconds=40 is below the CRD minimum 45' <<<"$err"; then
+	echo "OK: zombie-crd-tracking-fails"
+else
+	echo "FAIL: zombie-crd-tracking: render failed without the expected message: $err"
+	fail=1
+fi
+
+run_render_ok zombie-crd-tracking-ok "$tmpdir/zombie-35.yaml" '  zombieJobTimeoutSeconds: 35'
+
 # agents[].jobNamespace: rendered (quoted) when set, absent when the key is empty
 # or unset — an install that sets nothing must render exactly as before.
 write_values "$tmpdir/jobns.yaml" "" "jobNamespace: dev-agents-sandbox"
