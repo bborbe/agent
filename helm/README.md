@@ -330,7 +330,9 @@ agents:
     heartbeat: 5m
     zombieJobTimeoutSeconds: 5400     # OPTIONAL: Job deadline (seconds) — must exceed the
                                       # agent's own internal wait, or its Job dies first.
-                                      # Omit for the executor default (1800s).
+                                      # Omit for the executor default (1800s). A value
+                                      # below 30 (the Config CRD minimum) fails at
+                                      # `helm template` time; `0` is rejected.
     rerunOnLostClaim: false           # OPTIONAL: `false` = never re-run a task after this
                                       # agent's claim is lost. Rendered whenever set
                                       # (including false); omit for the executor default.
@@ -366,7 +368,10 @@ follow this exact shape; `agent-pi` uses `PROVIDER_API_KEY` instead of
 
 An agent that waits on sibling tasks must set this deadline above its own wait timeout,
 because the executor stamps it onto the Job's `activeDeadlineSeconds` and the Job is
-killed when it elapses.
+killed when it elapses. A value below `30` — the Config CRD's declared minimum — now
+fails at `helm template` time with a message naming the agent and the offending value,
+rather than reaching the cluster and failing later at admission; `0` is rejected rather
+than silently treated as unset.
 
 Interactive or session-holding runners (claude, pi, goreleaser) should set
 `rerunOnLostClaim: false`, so that a lost claim cannot start a second session; the field
