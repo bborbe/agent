@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- feat(claude): add opt-in `ClaudeRunnerConfig.StreamLogPath`, which appends the CLI's raw stdout stream-json to a file as the runner reads it. The runner consumes that stream through a pipe and otherwise keeps it in memory only (`glog.V(4)`), so no durable copy of a run's invocation and tool events exists today; a consumer that sets the path gets one, and unset means unchanged behaviour.
+
 ## v0.149.0
 
 - feat(helm): reject a `zombieJobTimeoutSeconds` below the Config CRD minimum (30) at render time, naming the agent and value, instead of failing later at admission; the minimum is read from `helm/crds/config-crd.yaml` so it cannot drift; render cases in `hack/test-helm-render.sh` cover below-min, valid, `0`, and CRD-tracking; chart 0.23.24→0.23.25.

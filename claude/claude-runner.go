@@ -9,8 +9,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/bborbe/collection"
 	"github.com/bborbe/errors"
@@ -166,11 +169,23 @@ func (r *claudeRunner) runOnce(
 		return nil, nil, errors.Wrap(ctx, err, "create stdout pipe")
 	}
 
+	streamLog, err := r.openStreamLog(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if streamLog != nil {
+		defer func() { _ = streamLog.Close() }()
+	}
+
 	if err := cmd.Start(); err != nil {
 		return nil, nil, errors.Wrap(ctx, err, "start claude CLI")
 	}
 
-	resultText, usage, partial, tail, sessionID := scanOutput(ctx, stdoutPipe)
+	var stdout io.Reader = stdoutPipe
+	if streamLog != nil {
+		stdout = io.TeeReader(stdoutPipe, streamLog)
+	}
+	resultText, usage, partial, tail, sessionID := scanOutput(ctx, stdout)
 
 	if err := cmd.Wait(); err != nil {
 		// The tail is raw stream-json; parse it down to the one line that
@@ -210,6 +225,29 @@ func (r *claudeRunner) runOnce(
 		SessionID:           sessionID,
 		InteractionCount:    r.countHumanInteractions(ctx, sessionID),
 	}, tail, nil
+}
+
+// openStreamLog opens the configured stream log for appending, or returns nil
+// when no path is configured. The CLI's raw stdout is teed into it as the runner
+// reads, so the invocation and tool events survive the pod that produced them.
+// A broken path is returned as an error rather than ignored: the caller opted
+// in because it needs the evidence, and a silent miss would reproduce exactly
+// the failure this option exists to prevent.
+func (r *claudeRunner) openStreamLog(ctx context.Context) (*os.File, error) {
+	path := strings.TrimSpace(r.config.StreamLogPath)
+	if path == "" {
+		return nil, nil
+	}
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			return nil, errors.Wrapf(ctx, err, "create stream log dir %q", dir)
+		}
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return nil, errors.Wrapf(ctx, err, "open stream log %q", path)
+	}
+	return file, nil
 }
 
 // resolveConfigDir returns the Claude config directory the CLI subprocess is given,
