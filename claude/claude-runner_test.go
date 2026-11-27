@@ -1270,3 +1270,71 @@ exit 0`)
 		}
 	})
 })
+
+var _ = Describe("claudeRunner stream log", func() {
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	writeShim := func(body string) {
+		shimDir := GinkgoT().TempDir()
+		shimPath := filepath.Join(shimDir, "claude")
+		script := "#!/bin/sh\n" + body
+		Expect(os.WriteFile(shimPath, []byte(script), 0755)).To(Succeed()) //nolint:gosec
+		originalPath := os.Getenv("PATH")
+		DeferCleanup(func() {
+			Expect(os.Setenv("PATH", originalPath)).To(Succeed())
+		})
+		Expect(os.Setenv("PATH", shimDir+":"+originalPath)).To(Succeed())
+	}
+
+	It("appends the CLI's raw stdout to the configured file", func() {
+		writeShim(`echo '{"type":"assistant","message":"hello"}'
+echo '{"type":"result","result":"ok"}'
+exit 0`)
+		path := filepath.Join(GinkgoT().TempDir(), "nested", "claude-stream.jsonl")
+
+		_, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+			StreamLogPath: path,
+		}).Run(ctx, "test")
+
+		Expect(err).NotTo(HaveOccurred())
+		data, err := os.ReadFile(path)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(data)).To(ContainSubstring(`"type":"assistant"`))
+		Expect(string(data)).To(ContainSubstring(`"type":"result"`))
+	})
+
+	It("appends across invocations rather than truncating", func() {
+		writeShim(`echo '{"type":"result","result":"ok"}'
+exit 0`)
+		path := filepath.Join(GinkgoT().TempDir(), "claude-stream.jsonl")
+		runner := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{StreamLogPath: path})
+
+		_, err := runner.Run(ctx, "first")
+		Expect(err).NotTo(HaveOccurred())
+		_, err = runner.Run(ctx, "second")
+		Expect(err).NotTo(HaveOccurred())
+
+		data, err := os.ReadFile(path)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(strings.Count(string(data), `"type":"result"`)).To(Equal(2))
+	})
+
+	It("fails loudly when the stream log path cannot be created", func() {
+		writeShim(`echo '{"type":"result","result":"ok"}'
+exit 0`)
+		blocker := filepath.Join(GinkgoT().TempDir(), "blocker")
+		Expect(os.WriteFile(blocker, []byte("x"), 0600)).To(Succeed())
+		path := filepath.Join(blocker, "claude-stream.jsonl")
+
+		_, err := claude.NewClaudeRunner(claude.ClaudeRunnerConfig{
+			StreamLogPath: path,
+		}).Run(ctx, "test")
+
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("stream log"))
+	})
+})

@@ -54,6 +54,13 @@ type ClaudeRunnerConfig struct {
 	// supplementary groups are cleared, so it does not inherit the parent's groups.
 	// Capabilities are dropped by the setuid transition itself.
 	RunAsUID int
+	// StreamLogPath, when non-empty, appends the CLI's raw stdout stream-json to
+	// this file as it is read. The runner consumes that stream through a pipe and
+	// otherwise keeps it in memory only (logging it at V(4)), so the file is the
+	// only durable copy of the invocation and tool events. Empty means no file is
+	// written and behaviour is unchanged. The parent directory is created if
+	// missing, and each CLI invocation (including a rate-limit re-invoke) appends.
+	StreamLogPath string
 	// Env holds extra KEY=VALUE entries appended to the subprocess environment
 	// AFTER the allowlist + CLAUDE_CONFIG_DIR layers (see buildSubprocessEnv in claude-runner.go). This is
 	// the escape hatch for passing through secrets or vars the allowlist would
